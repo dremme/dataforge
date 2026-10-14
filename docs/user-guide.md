@@ -6,7 +6,7 @@ A dataset is a folder: `scene.jpg` uses `scene.txt` beside it. DataForge reads a
 
 ## Browse and organize
 
-Open a folder with the folder picker (`Ctrl+O`). Breadcrumbs, recent folders, and favorites help you navigate. You can copy the current path and, on Windows, open it in File Explorer.
+Breadcrumbs, subfolder cards, recent folders, and favorites help you navigate. You can copy the current path and, on Windows, open it in File Explorer.
 
 - **Search** (`Ctrl+F` or `/`) matches file names, folder names, and captions. Enable regex to use regular expressions.
 - **Filters** narrow by media type, caption state, issues, edits, duplicates, or ComfyUI results. **Reset all filters** keeps your search text.
@@ -15,7 +15,7 @@ Open a folder with the folder picker (`Ctrl+O`). Breadcrumbs, recent folders, an
 
 Cards and the detail view distinguish missing, empty, and populated captions, and show badges for findings, candidates, and edits. The **statistics** drawer describes the whole folder, regardless of filters: caption coverage and lengths, frequent words, issues, duplicate groups, formats, durations, megapixels, aspect ratios, and unreadable dimensions/durations.
 
-The folder sidebar provides Open folder, Settings, favorites, and recent folders. Subfolder cards above Media show caption coverage and review counts on hover. Collapse the sidebar for more gallery space. Windows narrower than 1600px start with it collapsed and remember your choice separately; below 1200px it opens over the gallery and closes with `Escape` or a click outside. Click the toolbar's captioned or issue count to filter those files; click again to clear that filter. **Review** appears when there are findings and opens a dropdown for caption issues, duplicate groups, and ComfyUI candidates. The **Tools** dropdown lists bulk tools in grouped columns. The Media count shows how many files match the search and filters, and each filter gets a removable chip in the Media header. The CPU button expands CPU, RAM, and GPU details beneath the toolbar.
+The folder sidebar provides Open video editor, Settings, favorites, and recent folders. Hover a sidebar folder to see its full path and to favorite, unfavorite, or remove it from recent folders. Subfolder cards above Media show caption coverage and review counts on hover. Collapse the sidebar for more gallery space. Windows narrower than 1600px start with it collapsed and remember your choice separately; below 1200px it opens over the gallery and closes with `Escape` or a click outside. Click the toolbar's captioned or issue count to filter those files; click again to clear that filter. **Review** appears when there are findings and opens a dropdown for caption issues, duplicate groups, and ComfyUI candidates. The **Tools** dropdown lists bulk tools in grouped columns. The Media count shows how many files match the search and filters, and each filter gets a removable chip in the Media header. The CPU button expands CPU, RAM, and GPU details beneath the toolbar.
 
 Videos start muted and loop in the viewer and review queues. In the video editor, playback loops within the selected trim range.
 
@@ -237,7 +237,6 @@ Press `?` outside a text field to see the shortcut list in the app. On macOS, us
 | `Ctrl+F` or `/` | Focus gallery search                                  |
 | `Ctrl+,`        | Open Settings                                         |
 | `?`             | Show keyboard shortcuts                               |
-| `Ctrl+O`        | Open the folder picker                                |
 | `Alt+↑`         | Go to the parent folder                               |
 | `Alt+Home`      | Go to the home folder                                 |
 | `Alt+N`         | Create a folder                                       |

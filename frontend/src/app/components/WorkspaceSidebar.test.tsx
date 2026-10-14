@@ -27,7 +27,6 @@ function renderSidebar(options: Parameters<typeof installMockBackend>[0] = {}) {
       <WorkspaceSidebar
         currentFolder={HOME_PATH}
         onNavigate={onNavigate}
-        onOpenFolder={vi.fn()}
         onCreateFolder={vi.fn()}
         onOpenSettings={vi.fn()}
         onOpenVideoEditor={vi.fn()}
@@ -54,15 +53,6 @@ describe("WorkspaceSidebar", () => {
     expect(screen.getByRole("button", { name: "Collapse folder sidebar" })).toBeInTheDocument();
   });
 
-  it("announces the open-folder shortcut", () => {
-    stubViewportWidth(1920);
-    renderSidebar();
-    expect(screen.getByRole("button", { name: "Open folder" })).toHaveAttribute(
-      "aria-keyshortcuts",
-      "Control+O Meta+O",
-    );
-  });
-
   it("starts as a rail below 1600px and remembers expanding it there", async () => {
     const user = userEvent.setup();
     stubViewportWidth(1440);
@@ -84,6 +74,17 @@ describe("WorkspaceSidebar", () => {
       expect(await screen.findByRole("tooltip")).toHaveTextContent(name);
     },
   );
+
+  it("shows a folder entry's full path on hover", async () => {
+    const user = userEvent.setup();
+    stubViewportWidth(1920);
+    localStorage.setItem("gallery-recent-folders", JSON.stringify([VACATION_PATH]));
+    renderSidebar();
+
+    await user.hover(screen.getByRole("button", { name: "Vacation" }));
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(VACATION_PATH);
+  });
 
   it("opens narrow windows as an overlay that keeps the rail's track and closes on Escape", async () => {
     const user = userEvent.setup();
@@ -111,7 +112,8 @@ describe("WorkspaceSidebar", () => {
     const favoriteNames = () =>
       within(screen.getByRole("region", { name: "Favorite folders" }))
         .getAllByRole("button")
-        .map((button) => button.getAttribute("aria-label"));
+        .map((button) => button.getAttribute("aria-label"))
+        .filter((name) => !name?.startsWith("Unfavorite"));
 
     async function dragFavorite(from: string, to: string) {
       const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
@@ -163,5 +165,50 @@ describe("WorkspaceSidebar", () => {
         expect.objectContaining({ method: "PUT" }),
       );
     });
+  });
+
+  it("removes a recent folder from the list and from storage", async () => {
+    const user = userEvent.setup();
+    stubViewportWidth(1920);
+    localStorage.setItem("gallery-recent-folders", JSON.stringify([VACATION_PATH, EMPTY_PATH]));
+    renderSidebar();
+    const recent = screen.getByRole("region", { name: "Recent folders" });
+
+    await user.click(
+      within(recent).getByRole("button", { name: "Remove Vacation from recent folders" }),
+    );
+
+    expect(within(recent).queryByRole("button", { name: "Vacation" })).not.toBeInTheDocument();
+    expect(within(recent).getByRole("button", { name: "Empty" })).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("gallery-recent-folders") ?? "[]")).toEqual([
+      EMPTY_PATH,
+    ]);
+  });
+
+  it("favorites a recent folder from its row", async () => {
+    const user = userEvent.setup();
+    stubViewportWidth(1920);
+    localStorage.setItem("gallery-recent-folders", JSON.stringify([VACATION_PATH]));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "Favorite Vacation" }));
+
+    const favorites = screen.getByRole("region", { name: "Favorite folders" });
+    expect(within(favorites).getByRole("button", { name: "Vacation" })).toBeInTheDocument();
+    const recent = screen.getByRole("region", { name: "Recent folders" });
+    expect(within(recent).queryByRole("button", { name: "Vacation" })).not.toBeInTheDocument();
+  });
+
+  it("moves an unfavorited folder to the recent list", async () => {
+    const user = userEvent.setup();
+    stubViewportWidth(1920);
+    renderSidebar({ folderFavorites: [HOME_PATH, VACATION_PATH] });
+
+    await user.click(await screen.findByRole("button", { name: "Unfavorite Vacation" }));
+
+    const favorites = screen.getByRole("region", { name: "Favorite folders" });
+    expect(within(favorites).queryByRole("button", { name: "Vacation" })).not.toBeInTheDocument();
+    const recent = screen.getByRole("region", { name: "Recent folders" });
+    expect(within(recent).getByRole("button", { name: "Vacation" })).toBeInTheDocument();
   });
 });

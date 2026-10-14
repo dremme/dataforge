@@ -6,7 +6,6 @@ import type { QuickActionItem } from "../types";
 
 /** Keys that run their palette row directly; the rest are bound where their feature lives. */
 export const PALETTE_BOUND_SHORTCUTS: readonly ShortcutId[] = [
-  "openFolder",
   "parentFolder",
   "homeFolder",
   "newFolder",

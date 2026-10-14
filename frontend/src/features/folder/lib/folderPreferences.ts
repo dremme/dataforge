@@ -6,7 +6,7 @@ import { readStored, readStoredJson, writeStored, writeStoredJson } from "@/shar
 
 const FOLDER_CACHE_KEY = "gallery-last-folder";
 const RECENT_FOLDERS_KEY = "gallery-recent-folders";
-const MAX_RECENT_FOLDERS = 8;
+const MAX_RECENT_FOLDERS = 20;
 
 export function getCachedLastFolder(): string | null {
   const stored = readStored(FOLDER_CACHE_KEY);

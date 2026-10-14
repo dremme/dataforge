@@ -1,7 +1,6 @@
 import { AutomationDialogOverlays } from "@/features/automation/components/AutomationDialogOverlays";
 import { CreateFolderDialog } from "@/features/folder/components/CreateFolderDialog";
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
-import { OpenFolderModal } from "@/features/folder/components/OpenFolderModal";
 import { QuickActionBar } from "@/features/quickAction/components/QuickActionBar";
 import { GalleryItemModal } from "@/features/gallery/components/GalleryItemModal";
 import { IssueResolverModal } from "@/features/gallery/components/IssueResolverModal";
@@ -23,7 +22,6 @@ export function AppOverlays({
   currentJobActions,
   currentFolder,
   onOpenFolder,
-  folderPicker,
   quickAction,
   selectionActions,
   sidecarSweep,
@@ -69,14 +67,6 @@ export function AppOverlays({
           items={quickAction.items}
           recentItems={quickAction.recentItems}
           onClose={quickAction.close}
-        />
-      )}
-
-      {folderPicker.open && currentFolder && (
-        <OpenFolderModal
-          currentFolder={currentFolder}
-          onClose={folderPicker.closePicker}
-          onOpenFolder={onOpenFolder}
         />
       )}
 

@@ -41,7 +41,6 @@ export const SHORTCUTS = {
   confirm: { group: "global", label: "Confirm a dialog", chords: [{ key: "Enter" }] },
   close: { group: "global", label: "Close a dialog or viewer", chords: [{ key: "Escape" }] },
 
-  openFolder: { group: "folders", label: "Open a folder", chords: [{ key: "o", mod: true }] },
   parentFolder: {
     group: "folders",
     label: "Go to the parent folder",

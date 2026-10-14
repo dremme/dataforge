@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { EMPTY_PATH, HOME_PATH, VACATION_PATH, homeFolder } from "@/test/fixtures";
+import { touchRecentFolder } from "@/features/folder/lib/folderPreferences";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
@@ -240,19 +241,15 @@ describe("App: folder navigation", () => {
     const user = userEvent.setup();
     const missingPath = `${HOME_PATH}\\Missing`;
     installMockBackend();
+    touchRecentFolder(missingPath);
     await renderApp();
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: "Open folder" }));
-
-    const dialog = await screen.findByRole("dialog", { name: "Open folder" });
-    const pathInput = within(dialog).getByRole("textbox", { name: "Folder path" });
-    await user.clear(pathInput);
-    await user.type(pathInput, missingPath);
-    await user.click(within(dialog).getByRole("button", { name: "Open" }));
+    const recent = screen.getByRole("region", { name: "Recent folders" });
+    await user.click(within(recent).getByRole("button", { name: "Missing" }));
 
     await waitFor(() => {
       expect(screen.getAllByRole("alert")).toHaveLength(1);
@@ -349,23 +346,17 @@ describe("App: folder navigation", () => {
     expect(main.scrollTop).toBe(640);
   });
 
-  it("opens a folder from the open-folder dialog at the top", async () => {
+  it("opens a recent folder from the sidebar at the top", async () => {
     const user = userEvent.setup();
     installMockBackend();
+    touchRecentFolder(VACATION_PATH);
     await renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
-    });
+    await screen.findByRole("button", { name: "View sunset.png" });
 
     const main = stubMainScroll(900);
-    await user.click(screen.getByRole("button", { name: "Open folder" }));
-
-    const dialog = await screen.findByRole("dialog", { name: "Open folder" });
-    const pathInput = within(dialog).getByRole("textbox", { name: "Folder path" });
-    await user.clear(pathInput);
-    await user.type(pathInput, VACATION_PATH);
-    await user.click(within(dialog).getByRole("button", { name: "Open" }));
+    const recent = screen.getByRole("region", { name: "Recent folders" });
+    await user.click(within(recent).getByRole("button", { name: "Vacation" }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();

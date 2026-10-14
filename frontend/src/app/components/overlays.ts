@@ -118,17 +118,10 @@ type ShortcutsOverlayState = {
   onClose: () => void;
 };
 
-type FolderPickerOverlayState = {
-  open: boolean;
-  openPicker: () => void;
-  closePicker: () => void;
-};
-
 export type AppOverlaysProps = {
   currentJobActions?: Partial<CurrentJobActions>;
   currentFolder: string | undefined;
   onOpenFolder: (path?: string) => void;
-  folderPicker: FolderPickerOverlayState;
   quickAction: QuickActionOverlayState;
   selectionActions: SelectionActionOverlaysProps;
   sidecarSweep: SidecarSweepOverlayProps;

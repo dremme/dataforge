@@ -268,15 +268,15 @@ describe("App: quick action bar", () => {
     await renderApp();
     await waitForHomeFolder();
 
-    await user.click(screen.getByRole("button", { name: "Open folder" }));
-    await screen.findByRole("dialog", { name: "Open folder" });
+    await user.click(screen.getByRole("button", { name: "New folder" }));
+    await screen.findByRole("alertdialog", { name: "New folder" });
 
     await openQuickAction(user);
     expect(screen.queryByRole("dialog", { name: "Quick actions" })).not.toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     await waitFor(() => {
-      expect(screen.queryByRole("dialog", { name: "Open folder" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("alertdialog", { name: "New folder" })).not.toBeInTheDocument();
     });
 
     await openQuickAction(user);
@@ -479,20 +479,6 @@ describe("App: quick action bar", () => {
     await user.keyboard("{Enter}");
 
     expect(await screen.findByRole("dialog", { name: "Move to folder" })).toBeInTheDocument();
-  });
-
-  it("opens the folder picker from the palette", async () => {
-    const user = userEvent.setup();
-    installMockBackend();
-    await renderApp();
-    await waitForHomeFolder();
-
-    await openQuickAction(user);
-    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
-    await user.type(within(palette).getByRole("combobox"), "open folder");
-    await user.keyboard("{Enter}");
-
-    expect(await screen.findByRole("dialog", { name: "Open folder" })).toBeInTheDocument();
   });
 
   it("narrows the gallery to one media type from the palette", async () => {

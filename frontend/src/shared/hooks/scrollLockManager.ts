@@ -10,7 +10,6 @@ const SCROLL_LOCK_CLASSES = [
   "candidate-review-modal-open",
   "folder-instructions-modal-open",
   "confirm-dialog-open",
-  "open-folder-modal-open",
   "jobs-drawer-open",
   "stats-drawer-open",
   "training-sample-modal-open",

@@ -97,7 +97,9 @@ describe("App video projects", () => {
     const buttons = within(sidebar)
       .getAllByRole("button")
       .map((button) => button.getAttribute("aria-label"));
-    expect(buttons.indexOf("Open video editor")).toBe(buttons.indexOf("Open folder") + 1);
+    expect(buttons.indexOf("Open video editor")).toBe(
+      buttons.indexOf("Collapse folder sidebar") + 1,
+    );
     await user.click(within(sidebar).getByRole("button", { name: "Open video editor" }));
 
     expect(await screen.findByRole("textbox", { name: "Project name" })).toHaveValue(

@@ -43,15 +43,6 @@ describe("App: keyboard shortcuts", () => {
     expect(currentPath()).toBe(HOME_PATH);
   });
 
-  it("opens the folder picker with Ctrl+O, even from the search field", async () => {
-    const user = await renderAt();
-
-    await user.keyboard("{Control>}f{/Control}");
-    await user.keyboard("{Control>}o{/Control}");
-
-    expect(await screen.findByRole("dialog", { name: "Open folder" })).toBeInTheDocument();
-  });
-
   it("starts a new folder with Alt+N", async () => {
     const user = await renderAt();
 
@@ -73,8 +64,8 @@ describe("App: keyboard shortcuts", () => {
   it("does not navigate from behind an open dialog", async () => {
     const user = await renderAt(VACATION_PATH);
 
-    await user.keyboard("{Control>}o{/Control}");
-    await screen.findByRole("dialog", { name: "Open folder" });
+    await user.keyboard("?");
+    await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
     await user.keyboard("{Alt>}{ArrowUp}{/Alt}");
 
     expect(currentPath()).toBe(VACATION_PATH);

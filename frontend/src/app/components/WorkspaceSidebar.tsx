@@ -1,10 +1,14 @@
-import { useState, type ButtonHTMLAttributes } from "react";
+import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { useFavoriteDragOrder } from "@/features/folder/hooks/useFavoriteDragOrder";
 import {
   useFolderFavorites,
   useToggleFolderFavorite,
 } from "@/features/folder/hooks/useFolderFavorites";
-import { getRecentFoldersForPicker } from "@/features/folder/lib/folderPreferences";
+import {
+  forgetRecentFolder,
+  getRecentFoldersForPicker,
+  touchRecentFolder,
+} from "@/features/folder/lib/folderPreferences";
 import { folderLeafName, folderPathsEqual } from "@/features/folder/lib/folderPath";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
@@ -16,13 +20,13 @@ import {
   iconFolder,
   iconFolderClock,
   iconFolderHeart,
-  iconFolderOpen,
   iconHeart,
   iconFolderPlus,
   iconChevronLeft,
   iconChevronRight,
   iconClapperboard,
   iconHammer,
+  iconX,
 } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { ShortcutHint } from "@/shared/ui/ShortcutKeys";
@@ -33,7 +37,6 @@ import { SettingsButton } from "@/features/settings/components/SettingsButton";
 interface WorkspaceSidebarProps {
   currentFolder?: string;
   onNavigate: (path?: string) => void;
-  onOpenFolder: () => void;
   onCreateFolder: () => void;
   onOpenSettings: () => void;
   /** Starts an empty project in the open folder; off while no folder is open. */
@@ -54,7 +57,6 @@ function readCollapsed(key: string, fallback: boolean): boolean {
 export function WorkspaceSidebar({
   currentFolder,
   onNavigate,
-  onOpenFolder,
   onCreateFolder,
   onOpenSettings,
   onOpenVideoEditor,
@@ -76,6 +78,8 @@ export function WorkspaceSidebar({
   const toggleFavorite = useToggleFolderFavorite();
   const { dragProps, dragMark } = useFavoriteDragOrder(favorites);
   const notify = useNotify();
+  // The recent list lives in storage, outside React state; bumping this re-reads it.
+  const [, setRecentRevision] = useState(0);
   const recent = getRecentFoldersForPicker(
     currentFolder ?? "",
     favorites.map((entry) => entry.path),
@@ -102,30 +106,73 @@ export function WorkspaceSidebar({
       className: classNames(mark && `workspace-sidebar__folder--${mark}`),
     };
   };
+  const setFavorite = (path: string, isFavorite: boolean) => {
+    // An unfavorited folder drops to the recent list rather than vanishing from the sidebar.
+    if (isFavorite) {
+      touchRecentFolder(path);
+      setRecentRevision((revision) => revision + 1);
+    }
+    toggleFavorite.mutate(
+      { path, isFavorite },
+      { onError: (error) => notify({ variant: "danger", message: formatApiError(error) }) },
+    );
+  };
+  const rowAction = (label: string, icon: ReactNode, onClick: () => void, active = false) => (
+    <button
+      key={label}
+      type="button"
+      className={classNames(
+        "workspace-sidebar__row-action",
+        active && "workspace-sidebar__row-action--active",
+      )}
+      tabIndex={-1}
+      aria-label={label}
+      onClick={onClick}
+    >
+      {icon}
+    </button>
+  );
+  const folderRow = (key: string, button: ReactNode, actions: ReactNode[]) => (
+    <div
+      key={key}
+      className={classNames(
+        "workspace-sidebar__row",
+        actions.length > 1 && "workspace-sidebar__row--two-actions",
+      )}
+    >
+      {button}
+      <div className="workspace-sidebar__row-actions">{actions}</div>
+    </div>
+  );
   const folderButton = (
     path: string,
     name: string,
     { className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> = {},
   ) => (
-    <button
-      {...props}
-      key={path}
-      type="button"
-      title={path}
-      aria-label={name}
-      className={classNames(
-        "workspace-sidebar__folder",
-        folderPathsEqual(path, currentFolder ?? "") && "workspace-sidebar__folder--active",
-        className,
-      )}
-      onClick={() => {
-        onNavigate(path);
-        setShowNarrow(false);
-      }}
+    <Tooltip
+      content={path}
+      placement="right"
+      className="workspace-sidebar__folder-tip"
+      bubbleClassName="workspace-sidebar-path-tip"
     >
-      <Icon icon={iconFolder} />
-      <span>{name}</span>
-    </button>
+      <button
+        {...props}
+        type="button"
+        aria-label={name}
+        className={classNames(
+          "workspace-sidebar__folder",
+          folderPathsEqual(path, currentFolder ?? "") && "workspace-sidebar__folder--active",
+          className,
+        )}
+        onClick={() => {
+          onNavigate(path);
+          setShowNarrow(false);
+        }}
+      >
+        <Icon icon={iconFolder} />
+        <span>{name}</span>
+      </button>
+    </Tooltip>
   );
   return (
     <aside
@@ -165,21 +212,6 @@ export function WorkspaceSidebar({
             </button>
           </Tooltip>
         </div>
-        <Tooltip
-          content={<ShortcutHint shortcut={SHORTCUTS.openFolder}>Open another folder</ShortcutHint>}
-          placement="right"
-        >
-          <button
-            type="button"
-            className="workspace-button"
-            onClick={onOpenFolder}
-            aria-label="Open folder"
-            aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.openFolder)}
-          >
-            <Icon icon={iconFolderOpen} />
-            {!hidden && "Open folder"}
-          </button>
-        </Tooltip>
         <Tooltip content="Open the video editor on a new project in this folder" placement="right">
           <button
             type="button"
@@ -206,7 +238,18 @@ export function WorkspaceSidebar({
                 <span>Favorites</span>
               </h2>
               {favorites.map((entry, index) =>
-                folderButton(entry.path, entry.name, favoriteDragProps(index)),
+                folderRow(
+                  entry.path,
+                  folderButton(entry.path, entry.name, favoriteDragProps(index)),
+                  [
+                    rowAction(
+                      `Unfavorite ${entry.name}`,
+                      <Icon icon={iconHeart} />,
+                      () => setFavorite(entry.path, true),
+                      true,
+                    ),
+                  ],
+                ),
               )}
               {favorites.length === 0 && <p>No favorite folders yet.</p>}
             </section>
@@ -215,7 +258,23 @@ export function WorkspaceSidebar({
                 <Icon icon={iconFolderClock} />
                 <span>Recent</span>
               </h2>
-              {recent.map((path) => folderButton(path, folderLeafName(path)))}
+              {recent.map((path) => {
+                const name = folderLeafName(path);
+                const actions = [
+                  rowAction(`Favorite ${name}`, <Icon icon={iconHeart} />, () =>
+                    setFavorite(path, false),
+                  ),
+                ];
+                // The open folder heads the list whether stored or not, so it cannot be removed.
+                if (!folderPathsEqual(path, currentFolder ?? ""))
+                  actions.push(
+                    rowAction(`Remove ${name} from recent folders`, <Icon icon={iconX} />, () => {
+                      forgetRecentFolder(path);
+                      setRecentRevision((revision) => revision + 1);
+                    }),
+                  );
+                return folderRow(path, folderButton(path, name), actions);
+              })}
             </section>
           </div>
         )}
@@ -248,14 +307,7 @@ export function WorkspaceSidebar({
               disabled={!currentFolder || toggleFavorite.isPending}
               aria-label={favoriteLabel}
               onClick={() => {
-                if (currentFolder)
-                  toggleFavorite.mutate(
-                    { path: currentFolder, isFavorite: currentFavorite },
-                    {
-                      onError: (error) =>
-                        notify({ variant: "danger", message: formatApiError(error) }),
-                    },
-                  );
+                if (currentFolder) setFavorite(currentFolder, currentFavorite);
               }}
             >
               <Icon icon={iconHeart} />

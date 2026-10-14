@@ -40,7 +40,6 @@ import {
   iconFilter,
   iconFilterX,
   iconFolderInput,
-  iconFolderOpen,
   iconFolderPlus,
   iconHome,
   iconKeyboard,
@@ -204,7 +203,6 @@ export function buildRunJobItems({
 export interface NavigationCommandOptions {
   parentPath: string | null;
   atHome: boolean;
-  onOpenFolderPicker: () => void;
   onGoHome: () => void;
   onNavigate: (path: string) => void;
 }
@@ -212,21 +210,10 @@ export interface NavigationCommandOptions {
 export function buildNavigationCommandItems({
   parentPath,
   atHome,
-  onOpenFolderPicker,
   onGoHome,
   onNavigate,
 }: NavigationCommandOptions): QuickActionItem[] {
   return [
-    {
-      id: "cmd:open-folder",
-      section: "commands",
-      label: "Open folder...",
-      detail: "Pick a folder by path, favorite or recent",
-      icon: iconFolderOpen,
-      keywords: "browse path picker navigate jump switch go to directory",
-      shortcut: "openFolder",
-      run: onOpenFolderPicker,
-    },
     {
       id: "cmd:home-folder",
       section: "commands",
@@ -691,7 +678,6 @@ export interface CommandOptions {
   folder: Pick<FolderResponse, "path" | "home" | "parent"> | null;
   /** False once the open folder has gone missing on disk. */
   folderFound: boolean;
-  onOpenFolderPicker: () => void;
   onGoHome: () => void;
   onNavigate: (path: string) => void;
   /** Whether the open folder is a favorite now. */
@@ -714,7 +700,6 @@ export interface CommandOptions {
 export function buildCommandItems({
   folder,
   folderFound,
-  onOpenFolderPicker,
   onGoHome,
   onNavigate,
   isFavorite,
@@ -734,7 +719,6 @@ export function buildCommandItems({
   const navigation = buildNavigationCommandItems({
     parentPath: folder?.parent ?? null,
     atHome: Boolean(folder && folderFound && folderPathsEqual(folder.path, folder.home)),
-    onOpenFolderPicker,
     onGoHome,
     onNavigate,
   });

@@ -40,7 +40,6 @@ interface UseQuickActionHostOptions {
   folderNotFound: boolean;
   navigateTo: (path?: string) => void | Promise<void>;
   refreshFolder: () => void | Promise<void>;
-  onOpenFolderPicker: () => void;
   onCreateFolder: () => void;
   /** Set only while the open folder is empty. */
   onDeleteFolder?: () => void;
@@ -63,7 +62,6 @@ export function useQuickActionHost({
   folderNotFound,
   navigateTo,
   refreshFolder,
-  onOpenFolderPicker,
   onCreateFolder,
   onDeleteFolder,
   panel,
@@ -165,7 +163,6 @@ export function useQuickActionHost({
       buildCommandItems({
         folder,
         folderFound: !folderNotFound,
-        onOpenFolderPicker,
         onGoHome: goHome,
         onNavigate: goTo,
         isFavorite,
@@ -224,7 +221,6 @@ export function useQuickActionHost({
       onCreateFolder,
       onDeleteFolder,
       onInvertSelection,
-      onOpenFolderPicker,
       onOpenSettings,
       onOpenShortcuts,
       onSelectAll,

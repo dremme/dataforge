@@ -49,7 +49,6 @@ function navigationItems(
   return buildNavigationCommandItems({
     parentPath: "C:\\Photos",
     atHome: false,
-    onOpenFolderPicker: vi.fn(),
     onGoHome: vi.fn(),
     onNavigate: vi.fn(),
     ...overrides,
@@ -57,16 +56,15 @@ function navigationItems(
 }
 
 describe("buildNavigationCommandItems", () => {
-  it("lists open, home and parent under stable ids", () => {
+  it("lists home and parent under stable ids", () => {
     expect(navigationItems().map((item) => item.id)).toEqual([
-      "cmd:open-folder",
       "cmd:home-folder",
       "cmd:parent-folder",
     ]);
   });
 
   it("disables home at home and parent at a root", () => {
-    const [, home, parent] = navigationItems({ atHome: true, parentPath: null });
+    const [home, parent] = navigationItems({ atHome: true, parentPath: null });
 
     expect(home.disabled).toBe(true);
     expect(parent.disabled).toBe(true);
@@ -75,7 +73,7 @@ describe("buildNavigationCommandItems", () => {
 
   it("navigates to the parent it names", () => {
     const onNavigate = vi.fn();
-    const [, , parent] = navigationItems({ onNavigate });
+    const [, parent] = navigationItems({ onNavigate });
 
     parent.run();
 
@@ -84,7 +82,6 @@ describe("buildNavigationCommandItems", () => {
   });
 
   it.each([
-    ["jump", "cmd:open-folder"],
     ["go home", "cmd:home-folder"],
     ["up", "cmd:parent-folder"],
   ])("finds %s as %s", (query, id) => {
@@ -260,7 +257,6 @@ function commandItems(overrides: Partial<CommandOptions> = {}) {
   return buildCommandItems({
     folder: { path: "C:\\Photos\\Lakes", home: "C:\\Photos", parent: "C:\\Photos" },
     folderFound: true,
-    onOpenFolderPicker: vi.fn(),
     onGoHome: vi.fn(),
     onNavigate: vi.fn(),
     isFavorite: false,
@@ -312,7 +308,6 @@ function commandItems(overrides: Partial<CommandOptions> = {}) {
 describe("buildCommandItems", () => {
   it("lists every command in palette order", () => {
     expect(commandItems().map((item) => item.id)).toEqual([
-      "cmd:open-folder",
       "cmd:home-folder",
       "cmd:parent-folder",
       "cmd:new-folder",
@@ -340,7 +335,6 @@ describe("buildCommandItems", () => {
 
   it("offers navigation and app commands before a folder is open", () => {
     expect(commandItems({ folder: null }).map((item) => item.id)).toEqual([
-      "cmd:open-folder",
       "cmd:home-folder",
       "cmd:parent-folder",
       "cmd:settings",
@@ -351,7 +345,6 @@ describe("buildCommandItems", () => {
 
   it("keeps only what still works for a folder that has gone missing", () => {
     expect(commandItems({ folderFound: false }).map((item) => item.id)).toEqual([
-      "cmd:open-folder",
       "cmd:home-folder",
       "cmd:parent-folder",
       "cmd:refresh-folder",

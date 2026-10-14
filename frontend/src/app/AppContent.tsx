@@ -40,7 +40,6 @@ export function AppContent() {
     navigateTo,
     createFolder,
     deleteFolder,
-    folderPicker,
     fileDrop,
     gallery,
     selectionActions,
@@ -141,7 +140,6 @@ export function AppContent() {
           <WorkspaceSidebar
             currentFolder={folder?.path}
             onNavigate={navigateTo}
-            onOpenFolder={folderPicker.openPicker}
             onCreateFolder={createFolder.openDialog}
             onOpenSettings={settings.openSettings}
             onOpenVideoEditor={() => folder && setEditorRequest({ kind: "new", path: folder.path })}
@@ -237,7 +235,6 @@ export function AppContent() {
               currentJobActions={automation.actions}
               currentFolder={folder?.path}
               onOpenFolder={navigateTo}
-              folderPicker={folderPicker}
               quickAction={quickAction}
               selectionActions={selectionActions.overlay}
               sidecarSweep={sidecarSweep.overlay}

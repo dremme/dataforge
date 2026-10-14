@@ -22,10 +22,16 @@ test("remembers expanded media view after closing, folder navigation, and reload
   mkdirSync(nestedPath, { recursive: true });
   copyFileSync(path.join(WORKSPACE, "photo.png"), path.join(nestedPath, "photo.png"));
   copyFileSync(path.join(WORKSPACE, "photo.txt"), path.join(nestedPath, "photo.txt"));
-  await page.getByRole("button", { name: "Open folder", exact: true }).click();
-  const picker = page.getByRole("dialog", { name: "Open folder" });
-  await picker.getByRole("textbox", { name: "Folder path" }).fill(nestedPath);
-  await picker.getByRole("button", { name: "Open", exact: true }).click();
+  // The folder lies outside the workspace, so it is reached as a recent folder in the sidebar.
+  await page.evaluate(
+    (paths) => localStorage.setItem("gallery-recent-folders", JSON.stringify(paths)),
+    [nestedPath],
+  );
+  await page.getByRole("button", { name: "Expand folder sidebar" }).click();
+  await page
+    .getByRole("region", { name: "Recent folders" })
+    .getByRole("button", { name: "navigation", exact: true })
+    .click();
   await expect(page.getByRole("navigation", { name: "Folder path" })).toContainText("navigation");
   await expect(page.getByRole("button", { name: "New folder", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "View photo.png", exact: true }).click();

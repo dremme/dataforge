@@ -25,14 +25,12 @@
 
   // The fade and the drop line still show; they just appear at once.
   .workspace-sidebar__folder,
-  .open-folder-modal__row {
+  .workspace-sidebar__row-actions {
     transition: none;
   }
 
   .workspace-sidebar__folder--drop-before::after,
-  .workspace-sidebar__folder--drop-after::after,
-  .open-folder-modal__row--drop-before::after,
-  .open-folder-modal__row--drop-after::after {
+  .workspace-sidebar__folder--drop-after::after {
     animation: none;
   }
 

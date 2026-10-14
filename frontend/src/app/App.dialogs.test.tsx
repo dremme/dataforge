@@ -1,8 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { HOME_PATH, VACATION_PATH, homeFolder } from "@/test/fixtures";
-import { touchRecentFolder } from "@/features/folder/lib/folderPreferences";
+import { HOME_PATH, homeFolder } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
@@ -13,49 +12,7 @@ async function openLintDialog(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("App: dialogs", () => {
-  it("shows favorites and lets a recent folder be favorited in the folder picker", async () => {
-    const user = userEvent.setup();
-    installMockBackend();
-    touchRecentFolder(VACATION_PATH);
-    await renderApp();
-
-    await user.click(await screen.findByRole("button", { name: "Open folder" }));
-
-    const dialog = await screen.findByRole("dialog", { name: "Open folder" });
-    const favoritesSection = await within(dialog).findByRole("region", { name: "Favorites" });
-    expect(
-      within(favoritesSection).getByRole("button", { name: "Remove Home from favorites" }),
-    ).toBeInTheDocument();
-
-    const recentSection = within(dialog).getByRole("region", { name: "Recent folders" });
-    await user.click(
-      within(recentSection).getByRole("button", { name: "Add Vacation to favorites" }),
-    );
-
-    await waitFor(() => {
-      expect(
-        within(dialog).getByRole("button", { name: "Remove Vacation from favorites" }),
-      ).toBeInTheDocument();
-      expect(
-        within(dialog).queryByRole("button", { name: "Add Vacation to favorites" }),
-      ).not.toBeInTheDocument();
-    });
-
-    await user.click(
-      within(dialog).getByRole("button", { name: "Remove Vacation from favorites" }),
-    );
-
-    await waitFor(() => {
-      expect(
-        within(dialog).queryByRole("button", { name: "Remove Vacation from favorites" }),
-      ).not.toBeInTheDocument();
-    });
-    expect(within(dialog).getByRole("region", { name: "Recent folders" })).toContainElement(
-      within(dialog).getByRole("button", { name: "Add Vacation to favorites" }),
-    );
-  });
-
-  it("lists a folder opened from the gallery under recent folders in the picker", async () => {
+  it("lists a folder opened from the gallery under recent folders in the sidebar", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();
@@ -67,46 +24,11 @@ describe("App: dialogs", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Photos" }));
-    await user.click(await screen.findByRole("button", { name: "Open folder" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Open folder" });
-    const recentSection = await within(dialog).findByRole("region", { name: "Recent folders" });
+    const recentSection = await screen.findByRole("region", { name: "Recent folders" });
     expect(
-      within(recentSection).getByRole("button", { name: "Add Vacation to favorites" }),
+      await within(recentSection).findByRole("button", { name: "Vacation" }),
     ).toBeInTheDocument();
-  });
-
-  it("opens a folder from the folder picker", async () => {
-    const user = userEvent.setup();
-    const { fetchMock } = installMockBackend();
-    await renderApp();
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Open folder" })).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole("button", { name: "Open folder" }));
-
-    const dialog = await screen.findByRole("dialog", { name: "Open folder" });
-    const pathInput = within(dialog).getByRole("textbox", { name: "Folder path" });
-    await user.clear(pathInput);
-    await user.type(pathInput, VACATION_PATH);
-    await user.click(within(dialog).getByRole("button", { name: "Open" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();
-    });
-
-    expect(
-      fetchMock.mock.calls.some(([input]) => {
-        const requestUrl =
-          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-        return (
-          new URL(requestUrl, "http://localhost").pathname === "/api/folders/contents" &&
-          new URL(requestUrl, "http://localhost").searchParams.get("path") === VACATION_PATH
-        );
-      }),
-    ).toBe(true);
   });
 
   it("scopes a job dialog to the selection when one is active", async () => {

@@ -988,14 +988,14 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
           onClose={() => setLeaveOpen(false)}
           footer={
             <>
-              <DialogButton label="Leave without saving" variant="danger" onClick={onExit} />
+              <DialogButton label="Exit" variant="danger" onClick={onExit} />
               <DialogButton
-                label="Stay in editor"
+                label="Cancel"
                 variant="secondary"
                 onClick={() => setLeaveOpen(false)}
               />
               <DialogButton
-                label={state.saveState === "conflict" ? "Save as a new draft" : "Retry save"}
+                label={state.saveState === "conflict" ? "Save as new" : "Retry save"}
                 variant="primary"
                 onClick={() => {
                   const save = state.saveState === "conflict" ? state.saveAsCopy() : state.flush();

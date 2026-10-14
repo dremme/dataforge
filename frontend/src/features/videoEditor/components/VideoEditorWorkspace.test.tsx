@@ -216,7 +216,7 @@ describe("VideoEditorWorkspace", () => {
       name: "Your latest changes are not saved",
     });
     expect(dialog).toHaveTextContent("Disk full");
-    await user.click(screen.getByRole("button", { name: "Stay in editor" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(onExit).not.toHaveBeenCalled();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -745,7 +745,7 @@ describe("VideoEditorWorkspace", () => {
     await user.click(await screen.findByRole("button", { name: "Retry save" }));
     expect(onExit).not.toHaveBeenCalled();
 
-    await user.click(await screen.findByRole("button", { name: "Leave without saving" }));
+    await user.click(await screen.findByRole("button", { name: "Exit" }));
     expect(onExit).toHaveBeenCalled();
   });
 });

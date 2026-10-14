@@ -21,6 +21,18 @@
       "height": 478,
       "frame_rate": 24.0,
       "has_audio": false
+    },
+    {
+      "id": "694875603eb7",
+      "name": "test.wav",
+      "kind": "audio",
+      "size": 71084,
+      "modified_us": 1791802063047373,
+      "duration": 1.48,
+      "width": null,
+      "height": null,
+      "frame_rate": null,
+      "has_audio": true
     }
   ],
   "tracks": [
@@ -121,6 +133,48 @@
       "source_id": "ec2fddfb3d86",
       "start": 0.0,
       "duration": 1.5,
+      "source_in": 0.0,
+      "speed": 1.0,
+      "link_id": null,
+      "transform": {
+        "x": 0.0,
+        "y": 0.0,
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "crop": null,
+      "fit": "fit",
+      "adjust": {
+        "exposure": 0.0,
+        "brilliance": 0.0,
+        "highlights": 0.0,
+        "shadows": 0.0,
+        "contrast": 0.0,
+        "brightness": 0.0,
+        "black_point": 0.0,
+        "white_point": 0.0,
+        "saturation": 0.0,
+        "vibrance": 0.0,
+        "warmth": 0.0,
+        "tint": 0.0,
+        "hue": 0.0,
+        "definition": 0.0,
+        "noise_reduction": 0.0
+      },
+      "auto_adjust": null,
+      "gain": 1.0,
+      "fade_in": 0.0,
+      "fade_out": 0.0,
+      "title": null
+    },
+    {
+      "id": "52de8a5a85b3",
+      "track_id": "064038d9e44c",
+      "kind": "audio",
+      "source_id": "694875603eb7",
+      "start": 0.020000000000000018,
+      "duration": 1.48,
       "source_in": 0.0,
       "speed": 1.0,
       "link_id": null,

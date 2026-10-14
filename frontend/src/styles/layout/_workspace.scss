@@ -190,6 +190,72 @@
       color: var(--accent);
     }
   }
+  &__folder-tip {
+    display: flex;
+  }
+  // Row actions sit over the row's right edge and appear only on hover or focus.
+  &__row {
+    position: relative;
+    .workspace-sidebar__folder {
+      padding-right: 2rem;
+    }
+    &--two-actions .workspace-sidebar__folder {
+      padding-right: 3.5rem;
+    }
+  }
+  &__row-actions {
+    position: absolute;
+    top: 50%;
+    right: 0.25rem;
+    display: flex;
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: opacity var(--transition);
+  }
+  &__row:hover &__row-actions,
+  &__row:focus-within &__row-actions {
+    opacity: 1;
+  }
+  &__row-action {
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-subtle);
+    cursor: pointer;
+    svg {
+      width: 0.875rem;
+      height: 0.875rem;
+    }
+    &:hover {
+      color: var(--text);
+    }
+    &--active {
+      svg {
+        color: var(--accent);
+        fill: currentColor;
+        opacity: 0.6;
+      }
+      &:hover svg {
+        opacity: 1;
+      }
+    }
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+  }
+}
+
+// Full folder paths rarely break at spaces, so they wrap anywhere and read left to right.
+.tooltip__bubble.workspace-sidebar-path-tip {
+  max-width: 24rem;
+  text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .workspace-actions {

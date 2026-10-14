@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useAutomationHost } from "@/features/automation/hooks/useAutomationHost";
 import { useComfyPresetsAvailable } from "@/features/automation/hooks/useComfyPresets";
 import { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
@@ -201,10 +201,6 @@ export function useAppWorkspace() {
     [gallery],
   );
 
-  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
-  const openFolderPicker = useCallback(() => setFolderPickerOpen(true), []);
-  const closeFolderPicker = useCallback(() => setFolderPickerOpen(false), []);
-
   const jobItems = useMemo(() => jobEligibleItems(items), [items]);
   const automation = useAutomationHost({
     folder: folder?.path,
@@ -291,7 +287,6 @@ export function useAppWorkspace() {
     folderNotFound,
     navigateTo,
     refreshFolder: refreshFolderAndCounts,
-    onOpenFolderPicker: openFolderPicker,
     onCreateFolder: createFolder.openDialog,
     onDeleteFolder: deleteFolder.openDialog,
     panel: automation.actions,
@@ -322,11 +317,6 @@ export function useAppWorkspace() {
     navigateTo,
     createFolder,
     deleteFolder,
-    folderPicker: {
-      open: folderPickerOpen,
-      openPicker: openFolderPicker,
-      closePicker: closeFolderPicker,
-    },
     fileDrop,
     gallery,
     selectionActions,
