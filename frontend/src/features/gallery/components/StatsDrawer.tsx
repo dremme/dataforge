@@ -17,6 +17,7 @@ import {
   iconMessageWarning,
   iconProportions,
   iconRulerDimensionLine,
+  iconTag,
   iconX,
   type AppIcon,
 } from "@/shared/icons";
@@ -30,7 +31,7 @@ interface StatsDrawerProps {
   open: boolean;
   items: GalleryItem[];
   onClose: () => void;
-  /** Sends a frequent word to the gallery search. Omitted, the word list stays read-only. */
+  /** Sends a frequent word or tag to the gallery search. Omitted, both lists stay read-only. */
   onSearchWord?: (word: string) => void;
 }
 
@@ -166,6 +167,17 @@ function StatsContent({
           <BarChart
             buckets={stats.topWords.map((entry) => ({ label: entry.word, count: entry.count }))}
             unit="how often each word appears"
+            labelWidth="wide"
+            onSelectLabel={onSearchWord}
+          />
+        </Section>
+      )}
+
+      {stats.topTags.length > 0 && (
+        <Section title="Most frequent tags" icon={iconTag}>
+          <BarChart
+            buckets={stats.topTags}
+            unit="how many files have each tag"
             labelWidth="wide"
             onSelectLabel={onSearchWord}
           />
@@ -330,7 +342,7 @@ function BarChart({
                   type="button"
                   className="stats-drawer__bar-button"
                   onClick={() => onSelectLabel(bucket.label)}
-                  title={`Search captions for "${bucket.label}"`}
+                  title={`Search for "${bucket.label}"`}
                 >
                   {bucket.label}
                 </button>

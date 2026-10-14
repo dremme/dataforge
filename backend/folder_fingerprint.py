@@ -6,6 +6,7 @@ import hashlib
 import json
 import threading
 from collections import OrderedDict
+from collections.abc import Mapping
 from dataclasses import astuple, dataclass
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from constants import (
 )
 from folder_instructions import find_instruction_file
 from folder_scan import FolderScan, folder_entries_in_order, scan_folder
+from media_tags import folder_tag_revisions, get_tag_min_confidence
 from sysprompt import load_sysprompt
 from video_project import is_draft_file
 
@@ -41,7 +43,10 @@ _FINDING_SIDECAR_SUFFIXES = (
 MAX_REMEMBERED_SIGNATURES = 16
 
 
-def entry_signatures_from_scan(scan: FolderScan) -> tuple[EntrySignature, ...]:
+def entry_signatures_from_scan(
+    scan: FolderScan, tag_revisions: Mapping[str, int]
+) -> tuple[EntrySignature, ...]:
+    """``tag_revisions`` come from the database: the tagger writes no file the scan could see."""
     signatures: list[EntrySignature] = []
 
     for kind, entry in folder_entries_in_order(scan):
@@ -66,6 +71,10 @@ def entry_signatures_from_scan(scan: FolderScan) -> tuple[EntrySignature, ...]:
         if candidate is not None:
             signatures.append(("candidate", candidate.name, candidate.mtime_ns, candidate.size))
 
+        tag_revision = tag_revisions.get(entry.name)
+        if tag_revision is not None:
+            signatures.append(("tags", entry.name, tag_revision, 0))
+
     # Drafts are listed beside the media, so a draft added or deleted outside the app is news too.
     for name in sorted(scan.files):
         entry = scan.files[name]
@@ -87,6 +96,8 @@ class FolderFlags:
     has_caption_backup: bool
     sysprompt_file: FileIdentity | None
     caption_rules_file: FileIdentity | None
+    #: Filters every item's tags, so a new value re-reads the whole listing.
+    tag_min_confidence: float
 
 
 def _nearest_file_identity(folder: Path, filename: str) -> FileIdentity | None:
@@ -106,12 +117,15 @@ def read_folder_flags(folder: Path) -> FolderFlags:
         has_caption_backup=has_caption_backup(folder),
         sysprompt_file=_nearest_file_identity(folder, SYSPROMPT_FILENAME),
         caption_rules_file=_nearest_file_identity(folder, CAPTION_RULES_FILENAME),
+        tag_min_confidence=get_tag_min_confidence(),
     )
 
 
-def fingerprint_from_scan(scan: FolderScan, flags: FolderFlags) -> str:
+def fingerprint_from_scan(
+    scan: FolderScan, flags: FolderFlags, tag_revisions: Mapping[str, int]
+) -> str:
     payload = json.dumps(
-        [entry_signatures_from_scan(scan), astuple(flags)],
+        [entry_signatures_from_scan(scan, tag_revisions), astuple(flags)],
         separators=(",", ":"),
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -122,7 +136,7 @@ def compute_folder_fingerprint(folder: Path) -> str | None:
     if scan is None:
         return None
 
-    return fingerprint_from_scan(scan, read_folder_flags(folder))
+    return fingerprint_from_scan(scan, read_folder_flags(folder), folder_tag_revisions(folder))
 
 
 @dataclass(frozen=True)
@@ -149,6 +163,7 @@ def _item_signature(
     name: str,
     stem: str,
     media_stat: tuple[int, int],
+    tag_revision: int | None,
 ) -> ItemSignature:
     parts: list[tuple[int, int]] = [media_stat]
 
@@ -164,6 +179,7 @@ def _item_signature(
     candidate_name = candidate_name_for(name, scan.candidates, scan.files)
     candidate = scan.candidates.get(candidate_name) if candidate_name else None
     parts.append(_ABSENT_SIDECAR if candidate is None else (candidate.mtime_ns, candidate.size))
+    parts.append(_ABSENT_SIDECAR if tag_revision is None else (tag_revision, 0))
 
     return tuple(parts)
 
@@ -171,8 +187,15 @@ def _item_signature(
 def folder_signature_from_scan(scan: FolderScan) -> FolderSignature:
     """Reads the flags once, so a listing reports exactly the flags its fingerprint covers."""
     flags = read_folder_flags(scan.folder)
+    tag_revisions = folder_tag_revisions(scan.folder)
     items = {
-        entry.name: _item_signature(scan, entry.name, entry.path.stem, (entry.mtime_ns, entry.size))
+        entry.name: _item_signature(
+            scan,
+            entry.name,
+            entry.path.stem,
+            (entry.mtime_ns, entry.size),
+            tag_revisions.get(entry.name),
+        )
         for entry in scan.media
     }
 
@@ -191,7 +214,7 @@ def folder_signature_from_scan(scan: FolderScan) -> FolderSignature:
         shell.append(("caption_rules", rules.name, rules.mtime_ns, rules.size))
 
     return FolderSignature(
-        fingerprint=fingerprint_from_scan(scan, flags),
+        fingerprint=fingerprint_from_scan(scan, flags, tag_revisions),
         items=items,
         shell=tuple(shell),
         flags=flags,

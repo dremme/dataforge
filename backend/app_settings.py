@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, TypeAdapter
 
+from constants import TAG_SCORE_FLOOR
 from env_file import env_str
 from preferences import JsonPreference
 from schemas import (
@@ -66,6 +67,8 @@ class EffectiveSettings(BaseModel):
     thumbnail_cache_max_mb: int = 2048
     job_history_days: int = 30
     notification_history_days: int = 3
+    # Measured on the sample media: wrong guesses mostly score under 0.25.
+    tag_min_confidence: float = 0.25
 
 
 SETTING_DEFAULTS = EffectiveSettings()
@@ -168,6 +171,10 @@ _RULES: dict[str, _Rule] = {
     "job_history_days": _Rule("Job history", "DATAFORGE_JOB_HISTORY_DAYS", _Range(0)),
     "notification_history_days": _Rule(
         "Notification history", "DATAFORGE_NOTIFICATION_HISTORY_DAYS", _Range(0)
+    ),
+    # The floor is the score the tagger stores down to; below it there is nothing left to show.
+    "tag_min_confidence": _Rule(
+        "Tag confidence", "DATAFORGE_TAG_MIN_CONFIDENCE", _Range(TAG_SCORE_FLOOR, 1)
     ),
 }
 

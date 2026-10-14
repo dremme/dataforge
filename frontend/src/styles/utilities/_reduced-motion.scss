@@ -46,6 +46,7 @@
   }
 
   // Color and shape still mark these states; only the motion goes.
+  .workspace-sidebar__folder--tagging svg,
   .jobs-button--running .jobs-button__icon,
   .notifications-button--unread .notifications-button__icon {
     animation: none;

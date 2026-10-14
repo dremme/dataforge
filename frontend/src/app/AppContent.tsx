@@ -8,6 +8,8 @@ import { useAppWorkspace } from "@/app/hooks/useAppWorkspace";
 import { GallerySelectionProvider } from "@/features/gallery/context/GallerySelectionContext";
 import { WorkspaceSidebar } from "@/app/components/WorkspaceSidebar";
 import { ActiveFilters } from "@/features/gallery/components/ActiveFilters";
+import { folderPathsEqual } from "@/features/folder/lib/folderPath";
+import { useTaggingFolder } from "@/features/tagging/hooks/useTaggingFolder";
 import { WorkspaceActions, WorkspaceActivity } from "@/app/components/WorkspaceActions";
 import { VideoEditorWorkspace } from "@/features/videoEditor/components/VideoEditorWorkspace";
 import { VideoExportTracker } from "@/features/videoEditor/components/VideoExportTracker";
@@ -53,6 +55,7 @@ export function AppContent() {
     sidecarSweep,
     settleAllCandidates,
   } = useAppWorkspace();
+  const taggingFolder = useTaggingFolder();
 
   const {
     query,
@@ -151,6 +154,7 @@ export function AppContent() {
               folder={folder}
               folderNotFound={folderNotFound}
               refreshing={refreshing}
+              tagging={taggingFolder !== null && folderPathsEqual(folder.path, taggingFolder)}
               onNavigate={navigateTo}
               activity={<WorkspaceActivity panel={automation.actions} />}
               toolbarProps={{

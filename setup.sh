@@ -12,6 +12,17 @@ PYTHON_SERIES="${PYTHON_VERSION%.*}"
 # the lockfile actually resolves: eslint 10 and sass 1.103.
 NODE_RANGE="^20.19.0 || ^22.13.0 || >=24"
 
+SKIP_TAGGING=0
+for arg in "$@"; do
+    case "$arg" in
+        --skip-tagging) SKIP_TAGGING=1 ;;
+        *)
+            printf '[ERROR] Unknown option: %s (supported: --skip-tagging)\n' "$arg" >&2
+            exit 1
+            ;;
+    esac
+done
+
 fail() {
     say ""
     err "$*"
@@ -139,6 +150,15 @@ say "Upgrading pip and installing backend dependencies..."
 
 say "Verifying FFmpeg 7.1.x..."
 "$DEV_VENV_PY" "$DEV_SCRIPTS/check_ffmpeg.py" || fail "FFmpeg 7.1.x is required. Install a matching binary on PATH and run setup again."
+
+# Optional: a failure only warns, since everything else works without the tagger.
+if [ "$SKIP_TAGGING" = "1" ]; then
+    say "Skipping the optional tagging packages (--skip-tagging)."
+else
+    say "Installing the optional tagging packages and model (a few GB the first time)..."
+    "$DEV_VENV_PY" "$DEV_SCRIPTS/setup_tagging.py" \
+        || warn "Tagging could not be set up; everything else works. Run ./setup.sh again to retry."
+fi
 
 # Dates the install, so check_backend_dependency_drift can warn when a later git pull brings
 # in requirements the venv never saw. Same filename the PowerShell side reads.

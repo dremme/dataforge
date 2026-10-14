@@ -124,6 +124,12 @@ class SubfolderStatsResponse(BaseModel):
     subfolders: list[SubfolderStats]
 
 
+class MediaTag(BaseModel):
+    label: str
+    #: The best detection score across the file's frames, from 0 to 1.
+    confidence: float
+
+
 class GalleryItem(BaseModel):
     name: str
     path: str
@@ -149,6 +155,8 @@ class GalleryItem(BaseModel):
     size: int | None = None
     modified_at: str | None = None
     has_backup: bool = False
+    #: Strongest first, above the confidence setting. Only favorite folders are tagged.
+    tags: list[MediaTag] = Field(default_factory=list)
 
 
 class DuplicateGroup(BaseModel):
@@ -308,6 +316,8 @@ class GalleryCardSettings(BaseModel):
     megapixels: bool = True
     #: Large cards only; shown beside the megapixels.
     large_aspect_ratio: bool = True
+    #: Large cards only; the strongest tags in one row under the caption.
+    large_tags: bool = True
     list_caption_preview: bool = False
 
 
@@ -392,6 +402,7 @@ type AppSettingKey = Literal[
     "thumbnail_cache_max_mb",
     "job_history_days",
     "notification_history_days",
+    "tag_min_confidence",
 ]
 
 type SettingSource = Literal["saved", "env", "default"]
@@ -452,6 +463,7 @@ class AppSettingsResponse(BaseModel):
     thumbnail_cache_max_mb: NumberSettingState
     job_history_days: NumberSettingState
     notification_history_days: NumberSettingState
+    tag_min_confidence: NumberSettingState
 
 
 class AppSettingsOverrides(BaseModel):
@@ -483,6 +495,7 @@ class AppSettingsOverrides(BaseModel):
     thumbnail_cache_max_mb: int | None = None
     job_history_days: int | None = None
     notification_history_days: int | None = None
+    tag_min_confidence: float | None = None
 
 
 class AppSettingsUpdate(AppSettingsOverrides):
@@ -527,6 +540,21 @@ class AboutResponse(BaseModel):
     database_path: str
     thumbnail_cache_dir: str
     workflows_dir: str
+
+
+type TaggingState = Literal["unavailable", "idle", "loading", "tagging", "failed"]
+
+
+class TaggingStatusResponse(BaseModel):
+    state: TaggingState
+    #: Why tagging is unavailable or failed; empty otherwise.
+    detail: str = ""
+    model: str
+    vocabulary_size: int
+    #: Files in favorite folders still waiting for tags, as of the last pass.
+    pending: int = 0
+    #: The favorite being worked on; set only while loading or tagging.
+    folder: str | None = None
 
 
 class ThumbnailCacheStats(BaseModel):
@@ -1971,6 +1999,13 @@ class NotificationCreateRequest(BaseModel):
     variant: NotificationVariant
 
 
+class TaggingEvent(BaseModel):
+    """Broadcast when the tagger starts, stops or moves to another folder; not per file."""
+
+    type: Literal["tagging"] = "tagging"
+    status: TaggingStatusResponse
+
+
 class NotificationEvent(BaseModel):
     """Job outcomes and client toasts alike; ``source`` decides which tabs raise a toast."""
 
@@ -1996,6 +2031,7 @@ type ServerEvent = Annotated[
     | VideoEditEvent
     | VideoProjectExportEvent
     | NotificationEvent
+    | TaggingEvent
     | ResyncEvent,
     Field(discriminator="type"),
 ]

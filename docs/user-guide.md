@@ -13,7 +13,7 @@ Breadcrumbs, subfolder cards, recent folders, and favorites help you navigate. Y
 - **Sort** by name, modification date, caption length, megapixels, or duration, in either direction. The sort is remembered across sessions.
 - **View** as large cards, small cards, or a list. Each folder remembers its view.
 
-Cards and the detail view distinguish missing, empty, and populated captions, and show badges for findings, candidates, and edits. The **statistics** drawer describes the whole folder, regardless of filters: caption coverage and lengths, frequent words, issues, duplicate groups, formats, durations, megapixels, aspect ratios, and unreadable dimensions/durations.
+Cards and the detail view distinguish missing, empty, and populated captions, and show badges for findings, candidates, and edits. The **statistics** drawer describes the whole folder, regardless of filters: caption coverage and lengths, frequent words and tags, issues, duplicate groups, formats, durations, megapixels, aspect ratios, and unreadable dimensions/durations.
 
 The folder sidebar provides Open video editor, Settings, favorites, and recent folders. Hover a sidebar folder to see its full path and to favorite, unfavorite, or remove it from recent folders. Subfolder cards above Media show caption coverage and review counts on hover. Collapse the sidebar for more gallery space. Windows narrower than 1600px start with it collapsed and remember your choice separately; below 1200px it opens over the gallery and closes with `Escape` or a click outside. Click the toolbar's captioned or issue count to filter those files; click again to clear that filter. **Review** appears when there are findings and opens a dropdown for caption issues, duplicate groups, and ComfyUI candidates. The **Tools** dropdown lists bulk tools in grouped columns. The Media count shows how many files match the search and filters, and each filter gets a removable chip in the Media header. The CPU button expands CPU, RAM, and GPU details beneath the toolbar.
 
@@ -109,6 +109,18 @@ dialog's frozen matching results or selection, with the same model settings as t
 added text, marks unchanged captions, and reports model failures without changing files or
 backups. Changing the instruction or model controls clears the preview. The full job generates
 fresh results, so its wording may differ from the samples.
+
+## Tags
+
+DataForge tags the images, GIFs, and videos in your **favorite folders** in the background, so you can search by what files show. Subfolders are tagged only if they are favorites too; audio is skipped. A file is tagged again when it changes.
+
+- **Search** matches tags like caption text. **Large cards** show the strongest tags; turn them off in **Settings > Appearance > Gallery**.
+- **While tagging**, the folder's sidebar favorite pulses green and its header shows a slow green sweep.
+- **Settings > Tagging** shows the status and the waiting files. **Minimum confidence** hides weaker tags at once, without re-tagging.
+
+**Your own terms.** Tags come from [YOLO-World](https://docs.ultralytics.com/models/yolo-world/), which looks for a built-in list of about 300 everyday objects, people, and scenery. To add terms, create `backend/data/tag_vocabulary.txt` with one term per line (`#` starts a comment). It extends the built-in list, is not checked into Git, and is picked up without a restart; every favorite is then re-tagged. Short, visible things such as `red dress` work best: the detector finds objects, not moods or styles, and similar terms like `woman` and `female` split one object's score.
+
+**Install.** Setup installs tagging, a few GB the first time; skip it with `setup.bat -SkipTagging` or `./setup.sh --skip-tagging`. It picks the PyTorch build for your GPU (CUDA, ROCm on Linux, or CPU) and downloads the model into `backend/data/models/`: `yolov8x-worldv2` on NVIDIA GPUs, the faster but less precise `yolov8s-worldv2` otherwise. If it fails, setup still finishes, everything else works, and **Settings > Tagging** says what is missing. Run setup again to retry. To install by hand, follow the header of `backend/requirements-tagging.txt`.
 
 ## Edit media
 
@@ -219,7 +231,9 @@ Media with the same stem, such as `scene.jpg` and `scene.png`, share a caption a
 | `<stem>.txt`                          | `.backup/`                 | Caption backup; remains after restoration until deleted or overwritten                                                                          |
 | Watermarked media                     | `watermarked/`             | Watermark copies; captions are not copied                                                                                                       |
 | Result and `<result-name>.comfy.json` | `staging/`                 | ComfyUI processing; removed when accepted, rejected, or deleted                                                                                 |
-| SQLite database and thumbnail cache   | `backend/data/` by default | Settings, preferences, jobs, notifications, and thumbnails; paths and retention are [configurable](configuration.md#server-storage-and-logging) |
+| SQLite database and thumbnail cache   | `backend/data/` by default | Settings, preferences, jobs, notifications, tags, and thumbnails; paths and retention are [configurable](configuration.md#server-storage-and-logging) |
+| `tag_vocabulary.txt`                  | `backend/data/`            | Your own tag terms, created by you; added to the built-in list                                                                                  |
+| Tagging model weights                 | `backend/data/models/`     | Downloaded on the first tagging run; `DATAFORGE_MODELS_DIR` moves them                                                                          |
 
 For example, `scene.jpg` can have `scene.txt`, `scene.jpg.issue.json`, `scene.jpg.duplicate.json`, `scene.jpg.bak`, and `scene.edit.json`.
 

@@ -116,6 +116,7 @@ class UiPreferencesEndpointTests(unittest.TestCase):
                 "large_caption_lines": 4,
                 "megapixels": True,
                 "large_aspect_ratio": True,
+                "large_tags": True,
                 "list_caption_preview": False,
             },
         )
@@ -126,6 +127,7 @@ class UiPreferencesEndpointTests(unittest.TestCase):
             "large_caption_lines": 6,
             "megapixels": False,
             "large_aspect_ratio": False,
+            "large_tags": False,
             "list_caption_preview": True,
         }
 

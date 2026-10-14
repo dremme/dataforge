@@ -43,6 +43,7 @@ function item(
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
+    tags: [],
     has_candidate: false,
     caption_status: "none",
     media_type: mediaType,
@@ -325,6 +326,22 @@ describe("filterBySearch", () => {
     expect(filterBySearch(bracketed, "[", false, true).map((entry) => entry.name)).toEqual([
       "[draft].png",
     ]);
+  });
+
+  it("matches tags like caption text, with or without name matching", () => {
+    const tagged = [
+      ...items,
+      item("street.jpg", "image", { tags: [{ label: "sports car", confidence: 0.8 }] }),
+    ];
+
+    for (const names of [true, false]) {
+      expect(filterBySearch(tagged, "Car", false, names).map((entry) => entry.name)).toEqual([
+        "street.jpg",
+      ]);
+      expect(filterBySearch(tagged, "^sports", true, names).map((entry) => entry.name)).toEqual([
+        "street.jpg",
+      ]);
+    }
   });
 
   it("ignores file names when name matching is off", () => {

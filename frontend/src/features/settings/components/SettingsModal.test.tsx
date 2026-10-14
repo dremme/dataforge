@@ -164,10 +164,39 @@ describe("SettingsModal", () => {
     expect(getThumbnailEpoch()).toBe(epoch + 1);
   });
 
+  it("shows why tagging is not running and saves its confidence", async () => {
+    backend = installMockBackend({
+      taggingStatus: {
+        state: "unavailable",
+        detail: "Install the optional tagging requirements.",
+        model: "yolov8x-worldv2.pt",
+        vocabulary_size: 280,
+        pending: 0,
+        folder: null,
+      },
+    });
+    const { user } = await openDialog("Tagging");
+
+    const stats = await screen.findByRole("status");
+    expect(await within(stats).findByText("Not installed")).toBeInTheDocument();
+    expect(within(stats).getByText("280 terms")).toBeInTheDocument();
+    expect(screen.getByText("Install the optional tagging requirements.")).toBeInTheDocument();
+
+    const confidence = screen.getByRole("spinbutton", { name: "Minimum confidence" });
+    await user.clear(confidence);
+    await user.type(confidence, "0.4");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(settingsRequests("PUT")).toHaveLength(1));
+    const [[, init]] = settingsRequests("PUT");
+    expect(JSON.parse(init?.body as string)).toEqual({ tag_min_confidence: 0.4 });
+  });
+
   it("moves between sections with the arrow keys", async () => {
     const { user } = await openDialog();
 
     screen.getByRole("tab", { name: /^Vision model/ }).focus();
+    await user.keyboard("{ArrowDown}");
     await user.keyboard("{ArrowDown}");
 
     expect(screen.getByRole("tab", { name: /^Integrations/ })).toHaveFocus();

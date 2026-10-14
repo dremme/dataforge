@@ -146,6 +146,18 @@
   }
 }
 
+// The sidebar's folder being tagged: gentle enough to sit in the corner of the eye.
+@keyframes folder-tagging-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
 // The reduced-motion stand-in for nav-refresh-sweep: still says "busy", without travel.
 @keyframes nav-refresh-pulse {
   0%,

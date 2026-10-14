@@ -28,6 +28,7 @@ interface GalleryMasonryProps {
   captionLines: number;
   showMegapixels: boolean;
   showAspectRatio: boolean;
+  showTags: boolean;
 }
 
 const UNMEASURED: PackedMasonryLayout<GalleryItem> = { cards: [], columnCount: 1, totalHeight: 0 };
@@ -38,6 +39,7 @@ export function GalleryMasonry({
   captionLines,
   showMegapixels,
   showAspectRatio,
+  showTags,
 }: GalleryMasonryProps) {
   const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo, inspectedPath } =
     useGallerySelectionContext();
@@ -61,10 +63,10 @@ export function GalleryMasonry({
         ? packColumnMasonry(items, {
             columnCount,
             gap: layout.gap,
-            heightOf: (item) => largeCardHeight(item, columnWidth, captionLines),
+            heightOf: (item) => largeCardHeight(item, columnWidth, captionLines, showTags),
           })
         : UNMEASURED,
-    [captionLines, columnCount, columnWidth, items, layout.gap],
+    [captionLines, columnCount, columnWidth, items, layout.gap, showTags],
   );
 
   const overscanPx = layout.overscan * layout.rowEstimate;
@@ -98,6 +100,7 @@ export function GalleryMasonry({
               captionLines={captionLines}
               showMegapixels={showMegapixels}
               showAspectRatio={showAspectRatio}
+              showTags={showTags}
               gap={layout.gap}
               onSelect={onSelect}
               selectionMode={selectionMode}
@@ -120,6 +123,7 @@ interface MasonryCardProps {
   captionLines: number;
   showMegapixels: boolean;
   showAspectRatio: boolean;
+  showTags: boolean;
   gap: number;
   onSelect: (path: string) => void;
   selectionMode: boolean;
@@ -135,6 +139,7 @@ function MasonryCard({
   captionLines,
   showMegapixels,
   showAspectRatio,
+  showTags,
   gap,
   onSelect,
   selectionMode,
@@ -143,7 +148,7 @@ function MasonryCard({
   onToggleSelect,
   onExtendSelect,
 }: MasonryCardProps) {
-  const box = largeCardBox(card.item, columnWidth, captionLines);
+  const box = largeCardBox(card.item, columnWidth, captionLines, showTags);
 
   return (
     <div
@@ -167,6 +172,7 @@ function MasonryCard({
         captionLines={captionLines}
         showMegapixels={showMegapixels}
         showAspectRatio={showAspectRatio}
+        showTags={showTags}
         selectionMode={selectionMode}
         selected={selected}
         inspected={inspected}

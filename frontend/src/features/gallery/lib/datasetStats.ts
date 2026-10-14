@@ -9,6 +9,7 @@ import { durationSeconds } from "@/shared/lib/format";
 import type { GalleryItem } from "@/shared/types";
 
 const TOP_WORD_LIMIT = 15;
+const TOP_TAG_LIMIT = 15;
 
 const MEGAPIXEL_BUCKETS = [
   { label: "< 0.3 MP", max: 0.3 },
@@ -86,6 +87,8 @@ export interface DatasetStats {
   findings: DatasetFindings;
   captionLength: CaptionLengthStats | null;
   topWords: WordCount[];
+  /** How many files carry each tag, most common first. */
+  topTags: StatBucket[];
   mediaTypes: MediaTypeStats;
   megapixels: StatBucket[];
   aspectRatios: StatBucket[];
@@ -166,6 +169,21 @@ function countWords(captions: string[]): WordCount[] {
     .map(([word, count]) => ({ word, count }))
     .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word, "en"))
     .slice(0, TOP_WORD_LIMIT);
+}
+
+function countTags(media: GalleryItem[]): StatBucket[] {
+  const counts = new Map<string, number>();
+
+  for (const item of media) {
+    for (const tag of item.tags) {
+      counts.set(tag.label, (counts.get(tag.label) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "en"))
+    .slice(0, TOP_TAG_LIMIT);
 }
 
 export function computeDatasetStats(media: GalleryItem[]): DatasetStats {
@@ -258,6 +276,7 @@ export function computeDatasetStats(media: GalleryItem[]): DatasetStats {
             buckets: bucketize(sortedLengths, LENGTH_BUCKETS),
           },
     topWords: countWords(captions),
+    topTags: countTags(media),
     mediaTypes: {
       images,
       videos,

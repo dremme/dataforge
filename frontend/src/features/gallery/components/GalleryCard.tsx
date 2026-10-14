@@ -1,5 +1,6 @@
 import { memo, useState, type CSSProperties, type MouseEvent } from "react";
 import { formatAspectRatio } from "@/features/gallery/lib/aspectRatio";
+import { LARGE_CARD_TAG_COUNT, largeCardShowsTags } from "@/features/gallery/lib/cardGeometry";
 import { DEFAULT_CARD_OPTIONS } from "@/features/gallery/lib/cardOptions";
 import { getCardCaptionDisplay, getCardModifierClass } from "@/features/gallery/lib/captionStatus";
 import {
@@ -43,6 +44,8 @@ interface GalleryCardProps {
   showMegapixels?: boolean;
   /** Adds the aspect ratio beside the megapixels. */
   showAspectRatio?: boolean;
+  /** Large cards only: the strongest tags in one row at the bottom. */
+  showTags?: boolean;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (path: string) => void;
@@ -59,6 +62,7 @@ export const GalleryCard = memo(function GalleryCard({
     : DEFAULT_CARD_OPTIONS.largeCaptionLines,
   showMegapixels = true,
   showAspectRatio = false,
+  showTags = false,
   selectionMode = false,
   selected = false,
   onToggleSelect,
@@ -195,6 +199,15 @@ export const GalleryCard = memo(function GalleryCard({
             <span className="card__title">{item.name}</span>
             {meta && <span className="card__meta">{meta}</span>}
           </span>
+          {displayMode === "large" && largeCardShowsTags(item, showTags) && (
+            <span className="card__tags">
+              {item.tags.slice(0, LARGE_CARD_TAG_COUNT).map((tag) => (
+                <span key={tag.label} className="card__tag">
+                  {tag.label}
+                </span>
+              ))}
+            </span>
+          )}
           {captionLines === 0 ? null : item.description ? (
             <p
               className="card__description"

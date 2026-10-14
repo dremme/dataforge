@@ -67,6 +67,13 @@ export function GalleryCardSettings({ value, disabled, onChange }: GalleryCardSe
             disabled={disabled}
             onChange={(largeAspectRatio) => change({ largeAspectRatio })}
           />
+          <SettingsCheckbox
+            label="Show tags on large cards"
+            hint="The strongest tags from background tagging. Only favorite folders are tagged."
+            checked={value.largeTags}
+            disabled={disabled}
+            onChange={(largeTags) => change({ largeTags })}
+          />
         </div>
       </SettingsGroup>
       <SettingsGroup title="List" icon={iconRows3}>

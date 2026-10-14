@@ -18,6 +18,7 @@ import {
   iconPalette,
   iconPlug,
   iconSettings,
+  iconTag,
   iconVideo,
   iconX,
   iconZap,
@@ -56,9 +57,11 @@ import { SettingsActionButton } from "./SettingsActionButton";
 import { SettingsGroup } from "./SettingsGroup";
 import { SettingsPageTabs } from "./SettingsPageTabs";
 import { StorageSection } from "./StorageSection";
+import { TaggingSection } from "./TaggingSection";
 import { ThemePicker } from "./ThemePicker";
 
-type SectionId = "appearance" | "vision" | "integrations" | "storage" | "data" | "about";
+type SectionId =
+  "appearance" | "vision" | "tagging" | "integrations" | "storage" | "data" | "about";
 
 type PageId =
   | "appearance"
@@ -67,6 +70,7 @@ type PageId =
   | "server"
   | "sampling"
   | "media"
+  | "tagging"
   | "integrations"
   | "storage"
   | "data"
@@ -193,6 +197,21 @@ const SECTIONS: Section[] = [
             ],
           },
         ],
+      },
+    ],
+  },
+  {
+    id: "tagging",
+    label: "Tagging",
+    caption: "Tags for search",
+    icon: iconTag,
+    pages: [
+      {
+        id: "tagging",
+        label: "Tagging",
+        description:
+          "Files in favorite folders, not their subfolders, are tagged in the background so search finds them by what they show.",
+        groups: [{ title: "Background tagging", icon: iconTag, rows: [["tag_min_confidence"]] }],
       },
     ],
   },
@@ -554,6 +573,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         <StorageSection visible={section === "storage"} disabled={saving}>
           {renderRows(page.groups[0].rows)}
         </StorageSection>
+      );
+    }
+    if (page.id === "tagging") {
+      return (
+        <TaggingSection visible={section === "tagging"}>
+          {renderRows(page.groups[0].rows)}
+        </TaggingSection>
       );
     }
     const groups = page.groups.map(renderGroup);

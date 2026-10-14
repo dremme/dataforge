@@ -30,6 +30,7 @@ const serverCopy = {
     large_caption_lines: 6,
     megapixels: false,
     large_aspect_ratio: false,
+    large_tags: false,
     list_caption_preview: false,
   },
   editor: {
@@ -74,6 +75,7 @@ describe("useUiSettings", () => {
           largeCaptionLines: 6,
           megapixels: false,
           largeAspectRatio: false,
+          largeTags: false,
           listCaptionPreview: false,
         },
         editor: {
@@ -111,6 +113,7 @@ describe("useUiSettings", () => {
       largeCaptionLines: 2,
       megapixels: false,
       largeAspectRatio: false,
+      largeTags: false,
       listCaptionPreview: true,
     };
     localStorage.setItem("gallery-card-options", JSON.stringify(cards));

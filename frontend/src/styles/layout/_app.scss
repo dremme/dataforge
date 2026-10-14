@@ -46,6 +46,12 @@
       background: linear-gradient(90deg, transparent, var(--accent), transparent);
       animation: nav-refresh-sweep 1.1s ease-in-out infinite;
     }
+
+    // Slower and green: background tagging is not the folder itself changing.
+    &--tagging::after {
+      background: linear-gradient(90deg, transparent, var(--success), transparent);
+      animation-duration: 2.4s;
+    }
   }
 }
 

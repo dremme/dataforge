@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CARD_BORDER_PX,
   LARGE_CARD_BODY_PX,
+  LARGE_CARD_TAG_ROW_PX,
   galleryColumnWidth,
   largeCardBodyHeight,
   largeCardBox,
@@ -29,6 +30,7 @@ function makeItem(overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
+    tags: [],
     has_candidate: false,
     caption_status: "none",
     media_type: "image",
@@ -70,6 +72,18 @@ describe("largeCardBodyHeight", () => {
 
     expect(step).toBeGreaterThan(0);
     expect(largeCardCaptionBodyHeight(6) - largeCardCaptionBodyHeight(4)).toBeCloseTo(step);
+  });
+
+  it("reserves the tag row only when tags are shown and the item has some", () => {
+    const tagged = captioned({ tags: [{ label: "dog", confidence: 0.9 }] });
+    const text = largeCardCaptionBodyHeight(CAPTION_LINES);
+
+    expect(largeCardBodyHeight(tagged, CAPTION_LINES, true)).toBe(text + LARGE_CARD_TAG_ROW_PX);
+    expect(largeCardBodyHeight(tagged, CAPTION_LINES, false)).toBe(text);
+    expect(largeCardBodyHeight(captioned(), CAPTION_LINES, true)).toBe(text);
+    expect(largeCardBodyHeight(tagged, 0, true)).toBe(
+      LARGE_CARD_BODY_PX.title + LARGE_CARD_TAG_ROW_PX,
+    );
   });
 
   it("reserves the title alone when the caption is hidden", () => {

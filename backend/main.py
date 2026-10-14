@@ -24,6 +24,7 @@ from request_guard import LocalRequestGuard, allowed_host_names
 from routes import router
 from server_settings import get_cors_origins
 from static_site import mount_ui
+from tagging_worker import start_tagging_worker
 from thumbnails import prune_thumbnail_cache
 
 CORS_ORIGINS = get_cors_origins()
@@ -39,10 +40,12 @@ async def lifespan(_app: FastAPI):
     external_jobs = asyncio.create_task(run_external_jobs_feed())
     folder_watch = asyncio.create_task(run_folder_watch_feed())
     retention = asyncio.create_task(run_history_retention())
+    stop_tagging = start_tagging_worker()
 
     try:
         yield
     finally:
+        stop_tagging()
         # Bound wait: prune walks the cache in a thread and cancel does not interrupt it.
         for task in (external_jobs, folder_watch, retention, prune):
             task.cancel()

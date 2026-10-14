@@ -202,5 +202,32 @@ class FrontendLockfileTests(unittest.TestCase):
             )
 
 
+class SetupTaggingTests(unittest.TestCase):
+    def test_both_setups_prepare_tagging_after_the_core_dependencies(self) -> None:
+        for path in (SETUP_PS1, SETUP_SH):
+            with self.subTest(path=path.name):
+                text = _read(path)
+                self.assertLess(text.index("check_ffmpeg.py"), text.index("setup_tagging.py"))
+                self.assertLess(text.index("setup_tagging.py"), text.index("generate_types.py"))
+
+    def test_tagging_can_be_skipped(self) -> None:
+        self.assertIn("[switch]$SkipTagging", _read(SETUP_PS1))
+        self.assertIn("--skip-tagging) SKIP_TAGGING=1", _read(SETUP_SH))
+
+    def test_a_tagging_failure_warns_instead_of_failing_setup(self) -> None:
+        ps1 = _read(SETUP_PS1)
+        block = ps1[
+            ps1.index("setup_tagging.py") : ps1.index("Set-Content", ps1.index("setup_tagging.py"))
+        ]
+        self.assertNotIn("throw", block)
+        self.assertIn("[WARN]", block)
+        sh = _read(SETUP_SH)
+        self.assertRegex(sh, r'setup_tagging\.py" \\\n\s+\|\| warn ')
+
+    def test_dependency_drift_watches_the_tagging_requirements(self) -> None:
+        for path in (DEV_COMMON, DEV_COMMON_SH):
+            self.assertIn("requirements-tagging.txt", _read(path))
+
+
 if __name__ == "__main__":
     unittest.main()

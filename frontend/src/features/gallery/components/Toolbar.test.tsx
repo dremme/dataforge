@@ -81,7 +81,7 @@ describe("Toolbar", () => {
     renderToolbar();
 
     const search = screen.getByRole("searchbox", {
-      name: "Search files and folders by name or caption",
+      name: "Search files and folders by name, caption or tag",
     });
     expect(search).not.toHaveFocus();
 
@@ -97,7 +97,7 @@ describe("Toolbar", () => {
     await user.keyboard("/");
 
     const search = screen.getByRole("searchbox", {
-      name: "Search files and folders by name or caption",
+      name: "Search files and folders by name, caption or tag",
     });
     expect(search).toHaveFocus();
     expect(defaultProps.onSearchQueryChange).not.toHaveBeenCalled();
@@ -124,7 +124,7 @@ describe("Toolbar", () => {
     renderToolbar({ searchQuery: "sunset" });
 
     const search = screen.getByRole("searchbox", {
-      name: "Search files and folders by name or caption",
+      name: "Search files and folders by name, caption or tag",
     }) as HTMLInputElement;
 
     await user.keyboard("{Control>}f{/Control}");
@@ -175,7 +175,7 @@ describe("Toolbar", () => {
   it("flags an invalid regular expression on the field and says what is wrong", async () => {
     const { rerender } = renderToolbar({ searchQuery: "[", searchRegex: true });
     const search = screen.getByRole("searchbox", {
-      name: "Search files and folders by name or caption",
+      name: "Search files and folders by name, caption or tag",
     });
 
     expect(search).toHaveAttribute("aria-invalid", "true");
@@ -200,7 +200,7 @@ describe("Toolbar", () => {
   it("labels the search box for captions only when names are excluded", () => {
     renderToolbar({ searchNames: false });
 
-    expect(screen.getByRole("searchbox", { name: "Search captions" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Search captions and tags" })).toBeInTheDocument();
   });
 
   it("opens every filter group from the filter menu", async () => {
@@ -480,7 +480,7 @@ describe("Toolbar", () => {
       renderToolbar();
 
       const search = screen.getByRole("searchbox", {
-        name: "Search files and folders by name or caption",
+        name: "Search files and folders by name, caption or tag",
       });
 
       await user.keyboard("{Control>}f{/Control}");

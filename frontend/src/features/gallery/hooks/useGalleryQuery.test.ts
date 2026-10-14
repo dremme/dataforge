@@ -25,6 +25,7 @@ function item(
     has_issue_file: hasIssue,
     has_duplicate_file: hasDuplicate,
     has_backup: false,
+    tags: [],
     has_candidate: hasCandidate,
     caption_status: hasDescription ? "text" : "none",
     media_type: mediaType,

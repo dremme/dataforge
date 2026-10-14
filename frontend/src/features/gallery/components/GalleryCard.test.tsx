@@ -18,6 +18,7 @@ const captionedItem: GalleryItem = {
   has_issue_file: false,
   has_duplicate_file: false,
   has_backup: false,
+  tags: [],
   has_candidate: false,
   caption_status: "text",
   media_type: "image",
@@ -91,6 +92,26 @@ describe("GalleryCard", () => {
     expect(media?.querySelector(".card__badge--issue")).toBeInTheDocument();
     expect(media?.querySelector(".card__badge--candidate")).toBeInTheDocument();
     expect(media?.querySelector(".card__badge--duplicate")).toBeInTheDocument();
+  });
+
+  it("shows the five strongest tags on large cards when asked", () => {
+    const labels = ["dog", "beach", "sea", "sky", "sand", "person"];
+    const tagged = {
+      ...captionedItem,
+      tags: labels.map((label, index) => ({ label, confidence: 0.9 - index * 0.1 })),
+    };
+    const { container, rerender } = render(
+      <GalleryCard item={tagged} onSelect={vi.fn()} showTags />,
+    );
+
+    const shown = [...container.querySelectorAll(".card__tag")].map((tag) => tag.textContent);
+    expect(shown).toEqual(labels.slice(0, 5));
+
+    rerender(<GalleryCard item={tagged} onSelect={vi.fn()} />);
+    expect(container.querySelector(".card__tags")).toBeNull();
+
+    rerender(<GalleryCard item={tagged} onSelect={vi.fn()} displayMode="small" showTags />);
+    expect(container.querySelector(".card__tags")).toBeNull();
   });
 
   it("adds the aspect ratio beside the megapixels when asked", () => {

@@ -177,6 +177,8 @@ Default paths are relative to the project location. Explicit relative path overr
 | `DATAFORGE_THUMBNAIL_CACHE_MAX_MB`    | `2048`                     | Settings > Storage; integer ≥ 0, in units of 1024² bytes; removes least recently used thumbnails above the limit. 0 disables the size limit   |
 | `DATAFORGE_JOB_HISTORY_DAYS`          | `30`                       | Settings > Data & history; integer ≥ 0 days; removes old finished jobs, never running jobs. 0 disables age-based pruning                      |
 | `DATAFORGE_NOTIFICATION_HISTORY_DAYS` | `3`                        | Settings > Data & history; integer ≥ 0 days; removes old notifications. 0 disables age-based pruning; the feed still keeps at most 50 entries |
+| `DATAFORGE_MODELS_DIR`                | `backend/data/models/`     | Environment-only directory for the [tagging](user-guide.md#tags) model weights                                                                |
+| `DATAFORGE_TAG_MIN_CONFIDENCE`        | `0.25`                     | Settings > Tagging; 0.1 to 1; tags scoring below it are hidden from cards and search                                                          |
 | `DATAFORGE_LOG_LEVEL`                 | `INFO`                     | Environment-only standard log level, such as `DEBUG` or `WARNING`; unknown names use `INFO`                                                   |
 
 Database and cache directories are created as needed. History pruning runs at startup, hourly, and after saving a retention change. Clearing thumbnails or remembered data in Settings applies immediately; Cancel does not undo it.

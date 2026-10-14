@@ -27,6 +27,7 @@ function item(name: string, mediaType: GalleryItem["media_type"] | undefined): G
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
+    tags: [],
     has_candidate: false,
     caption_status: "none",
     media_type: mediaType,

@@ -10,6 +10,7 @@ import {
   touchRecentFolder,
 } from "@/features/folder/lib/folderPreferences";
 import { folderLeafName, folderPathsEqual } from "@/features/folder/lib/folderPath";
+import { useTaggingFolder } from "@/features/tagging/hooks/useTaggingFolder";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { readStored, writeStored } from "@/shared/lib/storage";
@@ -22,6 +23,7 @@ import {
   iconFolderHeart,
   iconHeart,
   iconFolderPlus,
+  iconFolderSearch,
   iconChevronLeft,
   iconChevronRight,
   iconClapperboard,
@@ -75,6 +77,7 @@ export function WorkspaceSidebar({
   const overlay = narrow && !hidden;
   useEscapeKey(() => setShowNarrow(false), overlay);
   const favorites = useFolderFavorites().data ?? [];
+  const taggingFolder = useTaggingFolder();
   const toggleFavorite = useToggleFolderFavorite();
   const { dragProps, dragMark } = useFavoriteDragOrder(favorites);
   const notify = useNotify();
@@ -148,32 +151,36 @@ export function WorkspaceSidebar({
     path: string,
     name: string,
     { className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> = {},
-  ) => (
-    <Tooltip
-      content={path}
-      placement="right"
-      className="workspace-sidebar__folder-tip"
-      bubbleClassName="workspace-sidebar-path-tip"
-    >
-      <button
-        {...props}
-        type="button"
-        aria-label={name}
-        className={classNames(
-          "workspace-sidebar__folder",
-          folderPathsEqual(path, currentFolder ?? "") && "workspace-sidebar__folder--active",
-          className,
-        )}
-        onClick={() => {
-          onNavigate(path);
-          setShowNarrow(false);
-        }}
+  ) => {
+    const tagging = taggingFolder !== null && folderPathsEqual(path, taggingFolder);
+    return (
+      <Tooltip
+        content={path}
+        placement="right"
+        className="workspace-sidebar__folder-tip"
+        bubbleClassName="workspace-sidebar-path-tip"
       >
-        <Icon icon={iconFolder} />
-        <span>{name}</span>
-      </button>
-    </Tooltip>
-  );
+        <button
+          {...props}
+          type="button"
+          aria-label={name}
+          className={classNames(
+            "workspace-sidebar__folder",
+            folderPathsEqual(path, currentFolder ?? "") && "workspace-sidebar__folder--active",
+            tagging && "workspace-sidebar__folder--tagging",
+            className,
+          )}
+          onClick={() => {
+            onNavigate(path);
+            setShowNarrow(false);
+          }}
+        >
+          <Icon icon={tagging ? iconFolderSearch : iconFolder} />
+          <span>{name}</span>
+        </button>
+      </Tooltip>
+    );
+  };
   return (
     <aside
       className={classNames(

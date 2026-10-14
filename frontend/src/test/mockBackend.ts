@@ -9,6 +9,7 @@ import type {
   JobFileResult,
   FolderResponse,
   InstructionFileResponse,
+  TaggingStatusResponse,
   VideoProjectSummary,
 } from "@/shared/types";
 import type { InstructionKind } from "@/shared/api/folderInstructions";
@@ -37,6 +38,8 @@ export interface MockBackendOptions {
   jobResults?: Record<string, JobFileResult[]>;
   /** Favorite folder paths; the home folder alone when absent. */
   folderFavorites?: string[];
+  /** The background tagger's status; idle when absent. */
+  taggingStatus?: TaggingStatusResponse;
   /** Video editor drafts keyed by folder path; none unless a test needs them. */
   videoProjects?: Record<string, VideoProjectSummary[]>;
 }
@@ -517,6 +520,19 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         return jsonResponse(cleared);
       }
       return jsonResponse(thumbnailCache);
+    }
+
+    if (url.pathname === "/api/system/tagging") {
+      return jsonResponse(
+        options.taggingStatus ?? {
+          state: "idle",
+          detail: "",
+          model: "yolov8x-worldv2.pt",
+          vocabulary_size: 280,
+          pending: 0,
+          folder: null,
+        },
+      );
     }
 
     if (url.pathname === "/api/system/vision-llm") {

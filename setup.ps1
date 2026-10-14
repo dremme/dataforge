@@ -10,14 +10,26 @@
   On x64, a checksum-verified FFmpeg 7.1 build lands in .ffmpeg\: the copy bundled with
   the Python dependencies is 7.1.0, which predates the 7.1 security fixes.
 
+  The optional background tagger comes last: the PyTorch build for this machine's GPU, its
+  packages, and the tagging model, a few GB the first time. A failure there only warns, since
+  everything else works without it.
+
   Use this directly, or double-click setup.bat for the same behavior.
+
+.PARAMETER SkipTagging
+  Leave out the tagging packages and model.
 
 .EXAMPLE
   .\setup.ps1
+
+.EXAMPLE
+  .\setup.ps1 -SkipTagging
 #>
 
 [CmdletBinding()]
-param()
+param(
+    [switch]$SkipTagging
+)
 
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell 5.1 defaults to TLS 1.0. python.org, nuget.org and nodejs.org
@@ -298,6 +310,15 @@ try {
     Write-Host 'Verifying FFmpeg 7.1.x...'
     & $VenvPy (Join-Path $Root 'scripts\check_ffmpeg.py') | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'FFmpeg 7.1.x is required. Install a matching binary on PATH and run setup again.' }
+    if ($SkipTagging) {
+        Write-Host 'Skipping the optional tagging packages (-SkipTagging).'
+    } else {
+        Write-Host 'Installing the optional tagging packages and model (a few GB the first time)...'
+        & $VenvPy (Join-Path $Root 'scripts\setup_tagging.py') | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host '[WARN] Tagging could not be set up; everything else works. Run setup again to retry.' -ForegroundColor Yellow
+        }
+    }
     Set-Content -LiteralPath (Join-Path $VenvDir '.dataforge-deps-stamp') -Value ((Get-Date).ToString('o')) -Encoding ASCII
 
     Write-Host ''

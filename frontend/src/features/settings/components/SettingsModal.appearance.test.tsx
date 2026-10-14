@@ -58,6 +58,7 @@ describe("SettingsModal: appearance", () => {
     await user.click(
       screen.getByRole("checkbox", { name: "Show the aspect ratio on large cards" }),
     );
+    await user.click(screen.getByRole("checkbox", { name: "Show tags on large cards" }));
     await user.click(screen.getByRole("checkbox", { name: "Show a caption preview" }));
 
     expect(screen.getByText("1 unsaved change")).toBeInTheDocument();
@@ -72,6 +73,7 @@ describe("SettingsModal: appearance", () => {
         large_caption_lines: 6,
         megapixels: false,
         large_aspect_ratio: false,
+        large_tags: false,
         list_caption_preview: true,
       },
     });

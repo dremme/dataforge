@@ -14,6 +14,8 @@ export interface GalleryCardOptions {
   megapixels: boolean;
   /** Large cards only; shown beside the megapixels. */
   largeAspectRatio: boolean;
+  /** Large cards only; the strongest tags in one row under the caption. */
+  largeTags: boolean;
   listCaptionPreview: boolean;
 }
 
@@ -25,6 +27,7 @@ export const DEFAULT_CARD_OPTIONS: GalleryCardOptions = {
   largeCaptionLines: 4,
   megapixels: true,
   largeAspectRatio: true,
+  largeTags: true,
   listCaptionPreview: false,
 };
 
@@ -54,6 +57,7 @@ function parseCardOptions(value: unknown): GalleryCardOptions | null {
     ),
     megapixels: Boolean(flag("megapixels")),
     largeAspectRatio: Boolean(flag("largeAspectRatio")),
+    largeTags: Boolean(flag("largeTags")),
     listCaptionPreview: Boolean(flag("listCaptionPreview")),
   };
 }
@@ -74,6 +78,7 @@ export function cardOptionsFromWire(settings: GalleryCardSettings): GalleryCardO
       largeCaptionLines: settings.large_caption_lines,
       megapixels: settings.megapixels,
       largeAspectRatio: settings.large_aspect_ratio,
+      largeTags: settings.large_tags,
       listCaptionPreview: settings.list_caption_preview,
     }) ?? DEFAULT_CARD_OPTIONS
   );
@@ -85,6 +90,7 @@ export function cardOptionsToWire(options: GalleryCardOptions): GalleryCardSetti
     large_caption_lines: options.largeCaptionLines,
     megapixels: options.megapixels,
     large_aspect_ratio: options.largeAspectRatio,
+    large_tags: options.largeTags,
     list_caption_preview: options.listCaptionPreview,
   };
 }

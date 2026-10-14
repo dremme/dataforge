@@ -25,6 +25,7 @@ from folder_scan import (
     scan_folder,
 )
 from media_dimensions import media_info
+from media_tags import TagRow, folder_tag_rows, get_tag_min_confidence, listed_tags
 
 _EMPTY_SUMMARY = {
     "file_count": 0,
@@ -139,7 +140,20 @@ def summarize_folder_contents(folder: Path) -> dict[str, int]:
     return result
 
 
-def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) -> dict:
+class _FolderTags(NamedTuple):
+    """Read once per listing, not per file."""
+
+    rows: dict[str, TagRow]
+    min_confidence: float
+
+
+def _folder_tags(scan: FolderScan) -> _FolderTags:
+    return _FolderTags(folder_tag_rows(scan.folder), get_tag_min_confidence())
+
+
+def _build_media_item(
+    scan: FolderScan, media: ScannedEntry, media_type: str, tags: _FolderTags
+) -> dict:
     description: str | None = None
     caption_status = "none"
 
@@ -197,6 +211,9 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         "size": media.size,
         "modified_at": datetime.fromtimestamp(media.mtime, tz=UTC).isoformat(),
         "has_backup": f"{media.name}{EDIT_BACKUP_SUFFIX}" in scan.files,
+        "tags": listed_tags(
+            tags.rows.get(media.name), media.mtime_ns, media.size, tags.min_confidence
+        ),
     }
 
 
@@ -205,9 +222,10 @@ def list_media_from_scan(scan: FolderScan) -> list[dict]:
         return []
 
     max_workers = min(16, len(scan.media))
+    tags = _folder_tags(scan)
 
     def build(media: ScannedEntry) -> dict:
-        return _build_media_item(scan, media, get_media_type(media.path) or "image")
+        return _build_media_item(scan, media, get_media_type(media.path) or "image", tags)
 
     if max_workers <= 1:
         return [build(media) for media in scan.media]
@@ -217,8 +235,9 @@ def list_media_from_scan(scan: FolderScan) -> list[dict]:
 
 
 def media_items_named(scan: FolderScan, names: set[str]) -> list[dict]:
+    tags = _folder_tags(scan)
     return [
-        _build_media_item(scan, media, get_media_type(media.path) or "image")
+        _build_media_item(scan, media, get_media_type(media.path) or "image", tags)
         for media in scan.media
         if media.name in names
     ]

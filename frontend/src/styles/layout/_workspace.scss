@@ -189,6 +189,11 @@
       background: var(--accent-soft);
       color: var(--accent);
     }
+    // Green like the header's tagging sweep; only the icon pulses, so the name stays readable.
+    &--tagging svg {
+      color: var(--success);
+      animation: folder-tagging-pulse 2.4s ease-in-out infinite;
+    }
   }
   &__folder-tip {
     display: flex;

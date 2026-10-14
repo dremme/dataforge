@@ -185,7 +185,7 @@ describe("App workspace", () => {
     installMockBackend();
     renderApp();
     const search = await screen.findByRole("searchbox", {
-      name: "Search files and folders by name or caption",
+      name: "Search files and folders by name, caption or tag",
     });
     await user.type(search, "sunset.png");
     await waitFor(() =>

@@ -13,6 +13,7 @@ from constants import (
     SYSPROMPT_FILENAME,
 )
 from folder_fingerprint import clear_remembered_signatures_for_tests
+from media_tags import save_media_tags
 from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
@@ -64,6 +65,29 @@ class FolderChangesTests(unittest.TestCase):
                 "A newly written caption for this one file.",
             )
             self.assertEqual(changes["removed"], [])
+
+    def test_new_tags_return_only_the_tagged_item(self) -> None:
+        """The tagger writes no file, so its revision is what must reach the gallery."""
+        with TempMediaFolder() as root:
+            tagged = write_media(root, "tagged.png")
+            write_media(root, "untouched.png")
+            listed = self._listing(root)
+            stat = tagged.stat()
+
+            save_media_tags(
+                root.resolve(),
+                "tagged.png",
+                mtime_ns=stat.st_mtime_ns,
+                size=stat.st_size,
+                vocabulary="test",
+                tags=[("dog", 0.9)],
+            )
+
+            changes = self._changes(root, listed["fingerprint"])
+
+            self.assertFalse(changes["full"])
+            self.assertEqual([item["name"] for item in changes["changed"]], ["tagged.png"])
+            self.assertEqual(changes["changed"][0]["tags"], [{"label": "dog", "confidence": 0.9}])
 
     def test_a_new_file_arrives_in_changed(self) -> None:
         with TempMediaFolder() as root:

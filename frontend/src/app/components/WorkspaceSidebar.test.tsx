@@ -47,6 +47,31 @@ afterEach(() => {
 });
 
 describe("WorkspaceSidebar", () => {
+  it("marks the favorite the tagger is working on", async () => {
+    stubViewportWidth(1920);
+    const { sidebar } = renderSidebar({
+      folderFavorites: [HOME_PATH, VACATION_PATH],
+      taggingStatus: {
+        state: "tagging",
+        detail: "",
+        model: "yolov8x-worldv2.pt",
+        vocabulary_size: 280,
+        pending: 12,
+        folder: VACATION_PATH,
+      },
+    });
+
+    const favorites = within(sidebar).getByRole("region", { name: "Favorite folders" });
+    await waitFor(() =>
+      expect(within(favorites).getByRole("button", { name: "Vacation" })).toHaveClass(
+        "workspace-sidebar__folder--tagging",
+      ),
+    );
+    expect(within(favorites).getByRole("button", { name: "Home" })).not.toHaveClass(
+      "workspace-sidebar__folder--tagging",
+    );
+  });
+
   it("starts expanded on wide windows", () => {
     stubViewportWidth(1920);
     renderSidebar();

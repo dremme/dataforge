@@ -217,7 +217,7 @@ describe("App: select-all shortcut", () => {
     await waitForHomeFolder();
 
     const search = screen.getByRole("searchbox", {
-      name: "Search files and folders by name or caption",
+      name: "Search files and folders by name, caption or tag",
     });
     await user.click(search);
     await user.keyboard("{Control>}a{/Control}");

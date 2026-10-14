@@ -16,7 +16,7 @@ import {
   iconImages,
   iconRegex,
   iconSearch,
-  iconTag,
+  iconFile,
   iconX,
   type AppIcon,
 } from "@/shared/icons";
@@ -119,9 +119,9 @@ function ToolbarSearch({
           <span className="toolbar__search-error">{errorText}</span>
         ) : (
           <span className="toolbar__search-help">
-            <ShortcutHint shortcut={SHORTCUTS.search}>Search captions</ShortcutHint>
+            <ShortcutHint shortcut={SHORTCUTS.search}>Search captions and tags</ShortcutHint>
             <span>
-              <Icon icon={iconTag} /> Include file and folder names
+              <Icon icon={iconFile} /> Include file and folder names
             </span>
             <span>
               <Icon icon={iconRegex} /> Use regular expressions
@@ -157,7 +157,11 @@ function ToolbarSearch({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder="Search..."
-            aria-label={names ? "Search files and folders by name or caption" : "Search captions"}
+            aria-label={
+              names
+                ? "Search files and folders by name, caption or tag"
+                : "Search captions and tags"
+            }
             aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.search)}
             aria-invalid={errorText ? true : undefined}
             aria-describedby={errorText ? errorId : undefined}
@@ -178,7 +182,7 @@ function ToolbarSearch({
             aria-label="Match file and folder names"
             aria-pressed={names}
           >
-            <Icon icon={iconTag} className="toolbar__search-names-icon" />
+            <Icon icon={iconFile} className="toolbar__search-names-icon" />
           </button>
           <button
             type="button"

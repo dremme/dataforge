@@ -8,7 +8,7 @@ Get the project from the [repository](https://github.com/dremme/dataforge): choo
 
 ### Windows
 
-1. Run `setup.bat` once. It downloads portable Python 3.13.12 and Node 24 into `.python/` and `.node/`, and on x64 a checksum-verified FFmpeg 7.1.1 into `.ffmpeg/`. Then it creates `backend/.venv`, installs dependencies, and generates frontend API files.
+1. Run `setup.bat` once. It downloads portable Python 3.13.12 and Node 24 into `.python/` and `.node/`, and on x64 a checksum-verified FFmpeg 7.1.1 into `.ffmpeg/`. Then it creates `backend/.venv`, installs dependencies, and generates frontend API files. Last, it installs the optional [tagger](user-guide.md#tags) for your GPU and downloads its model, a few GB; `setup.bat -SkipTagging` leaves it out.
 2. Run `start.bat`. It builds the UI when needed, starts the server, and opens `http://localhost:18081`.
 
 No global Python or Node is needed. Keep the launcher window open while using the app.
@@ -21,6 +21,8 @@ Install Python 3.13.x, FFmpeg 7.1.x, and Node 20.19.x or later in the 20 series,
 ./setup.sh
 ./start.sh
 ```
+
+Setup also installs the optional [tagger](user-guide.md#tags) and its model, a few GB; `./setup.sh --skip-tagging` leaves it out.
 
 Any final Python 3.13.x release is supported locally. `.python-version` records 3.13.12 as the default for CI and Windows setup. To use that default with pyenv, run `pyenv install 3.13.12` and `pyenv local 3.13.12`. To select another installed 3.13.x interpreter, use `DATAFORGE_PYTHON=/path/to/python3.13 ./setup.sh`. Setup rebuilds an existing virtual environment if it uses another Python release series or a prerelease. The first start builds the UI; later starts reuse it unless sources or dependencies have changed.
 

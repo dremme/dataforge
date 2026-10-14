@@ -265,7 +265,7 @@ check_backend_dependency_drift() {
     local name req
 
     if [ -f "$DEV_DEPS_STAMP" ]; then
-        for name in requirements.txt requirements-dev.txt; do
+        for name in requirements.txt requirements-dev.txt requirements-tagging.txt; do
             req="$DEV_BACKEND/$name"
             if [ -f "$req" ] && [ "$req" -nt "$DEV_DEPS_STAMP" ]; then
                 warn "backend/$name is newer than the last dependency install."

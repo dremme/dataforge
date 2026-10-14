@@ -60,6 +60,9 @@ VIDEO_PROJECT_UNTITLED_NAME = "Untitled project"
 GIF_MP4_FRAME_RATE = 24.0
 GIF_MP4_EXTENSION = ".mp4"
 
+# The tagger stores detections down to this score; the confidence setting cannot go lower.
+TAG_SCORE_FLOOR = 0.1
+
 # GIF excluded: a Pillow round-trip flattens the animation.
 IMAGE_EDIT_EXTENSIONS = IMAGE_EXTENSIONS
 

@@ -33,6 +33,7 @@ export function mediaItem(
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
+    tags: [],
     has_candidate: false,
     caption_status: "none",
     media_type: MEDIA_TYPE_BY_EXTENSION[extension] ?? "image",
@@ -193,6 +194,7 @@ export function appSettings(overrides: Partial<AppSettingsResponse> = {}): AppSe
     thumbnail_cache_max_mb: number(2048, 0),
     job_history_days: number(30, 0),
     notification_history_days: number(3, 0),
+    tag_min_confidence: number(0.25, 0.1, 1),
     ...overrides,
   };
 }

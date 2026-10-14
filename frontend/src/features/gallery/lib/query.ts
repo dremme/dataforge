@@ -4,7 +4,7 @@ import { isCandidateItem } from "./candidateReview";
 import { isAudio, isMotion } from "@/features/gallery/lib/itemKind";
 import { DEFAULT_GALLERY_SORT } from "@/shared/constants";
 import { durationSeconds } from "@/shared/lib/format";
-import type { GalleryItem, GallerySort, Subfolder } from "@/shared/types";
+import type { GalleryItem, GallerySort, MediaTag, Subfolder } from "@/shared/types";
 
 export type SortOption = GallerySort;
 
@@ -152,19 +152,21 @@ function matchesSearchQuery(
   matchNames: boolean,
   name: string,
   description?: string | null,
+  tags: readonly MediaTag[] = [],
 ): boolean {
   // An invalid pattern matches nothing: a literal fallback would contradict the regex toggle.
   if (useRegex) {
     if (!pattern) return false;
     if (matchNames && pattern.test(name)) return true;
     if (description != null && pattern.test(description)) return true;
-    return false;
+    return tags.some((tag) => pattern.test(tag.label));
   }
 
   const needle = query.toLowerCase();
   if (matchNames && name.toLowerCase().includes(needle)) return true;
   if (description?.toLowerCase().includes(needle)) return true;
-  return false;
+  // Tags describe the content like a caption does, so they are searched with it.
+  return tags.some((tag) => tag.label.includes(needle));
 }
 
 /** matchNames off searches captions only: an OR over both fields would keep every item. */
@@ -180,7 +182,7 @@ export function filterBySearch(
   const pattern = regex ? compileSearchRegex(trimmed) : null;
 
   return items.filter((item) =>
-    matchesSearchQuery(trimmed, pattern, regex, matchNames, item.name, item.description),
+    matchesSearchQuery(trimmed, pattern, regex, matchNames, item.name, item.description, item.tags),
   );
 }
 

@@ -278,7 +278,7 @@ function Test-BackendDependencyDrift {
     $stamp = Join-Path $paths.Backend '.venv\.dataforge-deps-stamp'
     if (Test-Path $stamp) {
         $stampTime = (Get-Item $stamp).LastWriteTimeUtc
-        foreach ($name in @('requirements.txt', 'requirements-dev.txt')) {
+        foreach ($name in @('requirements.txt', 'requirements-dev.txt', 'requirements-tagging.txt')) {
             $req = Join-Path $paths.Backend $name
             if ((Test-Path $req) -and ((Get-Item $req).LastWriteTimeUtc -gt $stampTime)) {
                 Write-Host ('[WARN] backend/{0} is newer than the last dependency install.' -f $name) -ForegroundColor Yellow

@@ -544,6 +544,27 @@
     @include line-clamp(var(--card-caption-lines));
   }
 
+  // One row: pills that do not fit are clipped, never wrapped, so the masonry height holds.
+  &__tags {
+    display: flex;
+    flex: none;
+    gap: 0.3125rem;
+    height: 1.25rem;
+    overflow: hidden;
+  }
+
+  &__tag {
+    @include text-pill(1.25rem, 1px);
+    flex: none;
+    padding-inline: 0.4375rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--surface-hover);
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-medium);
+  }
+
   &__caption-status {
     display: inline-flex;
     align-items: center;

@@ -58,6 +58,12 @@ export const SETTING_FIELDS: Record<AppSettingKey, SettingField> = {
   thumbnail_cache_max_mb: { label: "Cache limit", kind: "integer", unit: "MB" },
   job_history_days: { label: "Keep jobs", kind: "integer", unit: "days" },
   notification_history_days: { label: "Keep notifications", kind: "integer", unit: "days" },
+  tag_min_confidence: {
+    label: "Minimum confidence",
+    kind: "decimal",
+    fullLabel: "Tag confidence",
+    step: 0.05,
+  },
 };
 
 const SETTING_KEYS = Object.keys(SETTING_FIELDS) as AppSettingKey[];

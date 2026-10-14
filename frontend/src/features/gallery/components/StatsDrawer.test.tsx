@@ -206,6 +206,37 @@ describe("StatsDrawer", () => {
     expect(onSearchWord).toHaveBeenCalledWith("brown");
   });
 
+  it("ranks tags by how many files carry them and sends one to the search", async () => {
+    const user = userEvent.setup();
+    const onSearchWord = vi.fn();
+    const tag = (label: string) => ({ label, confidence: 0.8 });
+    renderDrawer({
+      onSearchWord,
+      items: [
+        mediaItem("one.png", HOME_PATH, { tags: [tag("dog"), tag("beach")] }),
+        mediaItem("two.png", HOME_PATH, { tags: [tag("dog")] }),
+        mediaItem("three.png", HOME_PATH),
+      ],
+    });
+
+    const chart = screen.getByRole("figure", {
+      name: "Distribution by how many files have each tag",
+    });
+    const labels = within(chart)
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(labels).toEqual(["dog", "beach"]);
+    await user.click(within(chart).getByRole("button", { name: "dog" }));
+
+    expect(onSearchWord).toHaveBeenCalledWith("dog");
+  });
+
+  it("has no tag chart for an untagged folder", () => {
+    renderDrawer();
+
+    expect(screen.queryByText("Most frequent tags")).not.toBeInTheDocument();
+  });
+
   it("leaves the word list read-only when nothing handles a search", () => {
     renderDrawer();
 

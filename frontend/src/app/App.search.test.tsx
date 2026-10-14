@@ -16,7 +16,7 @@ describe("App: search and filters", () => {
     });
 
     await user.type(
-      screen.getByRole("searchbox", { name: "Search files and folders by name or caption" }),
+      screen.getByRole("searchbox", { name: "Search files and folders by name, caption or tag" }),
       "sunset",
     );
 
@@ -36,7 +36,7 @@ describe("App: search and filters", () => {
     });
 
     await user.type(
-      screen.getByRole("searchbox", { name: "Search files and folders by name or caption" }),
+      screen.getByRole("searchbox", { name: "Search files and folders by name, caption or tag" }),
       "vac",
     );
 
@@ -61,7 +61,7 @@ describe("App: search and filters", () => {
     });
 
     await user.type(
-      screen.getByRole("searchbox", { name: "Search files and folders by name or caption" }),
+      screen.getByRole("searchbox", { name: "Search files and folders by name, caption or tag" }),
       "sunset",
     );
 
@@ -87,7 +87,7 @@ describe("App: search and filters", () => {
     await user.keyboard("{Control>}f{/Control}");
     await user.click(screen.getByRole("button", { name: "Match file and folder names" }));
 
-    await user.type(screen.getByRole("searchbox", { name: "Search captions" }), "golden");
+    await user.type(screen.getByRole("searchbox", { name: "Search captions and tags" }), "golden");
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("App: search and filters", () => {
     });
 
     const search = screen.getByRole("searchbox", {
-      name: "Search files and folders by name or caption",
+      name: "Search files and folders by name, caption or tag",
     });
     await user.type(search, "sunset");
     expect(search).toHaveValue("sunset");
@@ -243,7 +243,7 @@ describe("App: search and filters", () => {
     expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
 
     const searchbox = screen.getByRole("searchbox", {
-      name: "Search files and folders by name or caption",
+      name: "Search files and folders by name, caption or tag",
     });
     await user.type(searchbox, "sunset");
 
