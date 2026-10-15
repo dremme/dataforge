@@ -4,8 +4,12 @@ export function folderLeafName(path: string): string {
   return parts[parts.length - 1] || trimmed || path;
 }
 
+/** One spelling per folder: a POSIX path keeps its slashes, a Windows path gets backslashes. */
 export function normalizeFolderPath(path: string): string {
-  const trimmed = path.trim().replace(/\//g, "\\");
+  const posix = path.trim();
+  // A single leading slash is a POSIX root; two are a Windows network share.
+  if (/^\/(?!\/)/.test(posix)) return posix.replace(/\/+$/, "") || "/";
+  const trimmed = posix.replace(/\//g, "\\");
   const driveRootMatch = trimmed.match(/^([A-Za-z]:)(?:\\)?$/i);
 
   if (driveRootMatch) {

@@ -16,4 +16,14 @@ describe("folderPath", () => {
   it("still normalizes regular folder paths", () => {
     expect(normalizeFolderPath("C:/Photos/Vacation/")).toBe("C:\\Photos\\Vacation");
   });
+
+  it("keeps POSIX paths in their own separators", () => {
+    expect(normalizeFolderPath("/home/dev/Photos/")).toBe("/home/dev/Photos");
+    expect(normalizeFolderPath("/")).toBe("/");
+    expect(folderPathsEqual("/home/dev/Photos", "/home/dev/Photos/")).toBe(true);
+  });
+
+  it("still treats a forward-slash network share as Windows", () => {
+    expect(normalizeFolderPath("//server/share/")).toBe("\\\\server\\share");
+  });
 });
