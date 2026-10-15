@@ -133,6 +133,8 @@ def main() -> int:
 
     os.environ["OPENAI_API_BASE_URL"] = f"http://127.0.0.1:{start_model_server(workspace)}/v1"
     os.environ["OPENAI_MODEL"] = "e2e-stand-in"
+    # The fresh database's default favorite is the real home folder; never tag that.
+    os.environ["DATAFORGE_DISABLE_TAGGING"] = "1"
 
     from main import app
 

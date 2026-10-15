@@ -1,6 +1,7 @@
 import { renderWithThumbnails as render } from "@/test/renderWithThumbnails";
 import { StrictMode } from "react";
 import { act, createEvent, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { HOME_PATH } from "@/test/fixtures";
@@ -94,18 +95,31 @@ describe("GalleryCard", () => {
     expect(media?.querySelector(".card__badge--duplicate")).toBeInTheDocument();
   });
 
-  it("shows the five strongest tags on large cards when asked", () => {
+  it("lists every tag strongest first and counts the ones that wrapped out of sight", async () => {
     const labels = ["dog", "beach", "sea", "sky", "sand", "person"];
     const tagged = {
       ...captionedItem,
       tags: labels.map((label, index) => ({ label, confidence: 0.9 - index * 0.1 })),
     };
+    // jsdom lays nothing out, so the last two tags stand in for the ones that wrapped.
+    const offsetTop = vi
+      .spyOn(HTMLElement.prototype, "offsetTop", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("card__tag") &&
+          ["sand", "person"].includes(this.textContent ?? "")
+          ? 20
+          : 0;
+      });
     const { container, rerender } = render(
       <GalleryCard item={tagged} onSelect={vi.fn()} showTags />,
     );
 
     const shown = [...container.querySelectorAll(".card__tag")].map((tag) => tag.textContent);
-    expect(shown).toEqual(labels.slice(0, 5));
+    expect(shown).toEqual(labels);
+    const more = screen.getByText("+2 more");
+    await userEvent.setup().hover(more);
+    expect(await screen.findByText("sand, person")).toBeInTheDocument();
+    offsetTop.mockRestore();
 
     rerender(<GalleryCard item={tagged} onSelect={vi.fn()} />);
     expect(container.querySelector(".card__tags")).toBeNull();

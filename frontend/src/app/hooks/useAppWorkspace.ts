@@ -16,7 +16,11 @@ import { useDuplicateResolverOverlay } from "@/features/gallery/hooks/useDuplica
 import { useCandidateReviewOverlay } from "@/features/gallery/hooks/useCandidateReviewOverlay";
 import { useSidecarSweep } from "@/features/gallery/hooks/useSidecarSweep";
 import { useSettleAllCandidates } from "@/features/gallery/hooks/useSettleAllCandidates";
-import { countDuplicateGroups, countDuplicates } from "@/features/gallery/lib/duplicates";
+import {
+  countDuplicateGroups,
+  countDuplicates,
+  isDuplicateItem,
+} from "@/features/gallery/lib/duplicates";
 import { jobEligibleItems } from "@/features/gallery/lib/itemKind";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
 import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
@@ -153,7 +157,10 @@ export function useAppWorkspace() {
   const shortcuts = useShortcutsDialog();
 
   // Refresh on close: per-deletion reloads race the watcher's push against the frozen queue.
-  const duplicateResolver = useDuplicateResolverOverlay(refreshFolder);
+  const duplicateResolverOverlay = useDuplicateResolverOverlay(
+    refreshFolder,
+    gallery.returnToGalleryItem,
+  );
   const duplicateGroupCount = useMemo(() => countDuplicateGroups(items), [items]);
   const candidateSourcePaths = useMemo(
     () => items.filter(isCandidateItem).map((item) => item.path),
@@ -177,6 +184,16 @@ export function useAppWorkspace() {
   );
 
   const candidateReview = { ...candidateReviewOverlay, reviewGalleryItemCandidate };
+
+  const { openDuplicateResolver } = duplicateResolverOverlay;
+  const resolveGalleryItemDuplicate = useCallback(
+    (item: GalleryItem) => {
+      if (!folder?.path || !isDuplicateItem(item)) return;
+      void openDuplicateResolver(folder.path, { path: item.path, onOpen: closeGalleryItem });
+    },
+    [closeGalleryItem, folder?.path, openDuplicateResolver],
+  );
+  const duplicateResolver = { ...duplicateResolverOverlay, resolveGalleryItemDuplicate };
   const settleAllCandidates = useSettleAllCandidates({
     folderLabel,
     folderItemCount: items.length,

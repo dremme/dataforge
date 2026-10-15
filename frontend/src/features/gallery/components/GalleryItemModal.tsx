@@ -45,6 +45,7 @@ import {
   iconChevronRight,
   iconClapperboard,
   iconCopy,
+  iconFiles,
   iconFolderInput,
   iconLoader2,
   iconMessageCheck,
@@ -59,6 +60,7 @@ import {
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
+import { isDuplicateItem } from "@/features/gallery/lib/duplicates";
 import {
   isAudio,
   isEditableImage,
@@ -86,6 +88,7 @@ import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
 import { CaptionSaveStatus } from "./CaptionSaveStatus";
 import { MediaInfoBar } from "./MediaInfoBar";
+import { MediaTagList } from "./MediaTagList";
 import { Icon } from "@/shared/ui/Icon";
 import { TokenEstimate } from "@/shared/ui/TokenEstimate";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -136,6 +139,7 @@ interface GalleryItemModalProps {
   onCopied?: () => void | Promise<void>;
   onResolveIssue?: (item: GalleryItem) => void;
   onReviewCandidate?: (item: GalleryItem) => void;
+  onResolveDuplicate?: (item: GalleryItem) => void;
   focusView?: boolean;
   onFocusViewChange?: (focus: boolean) => void;
   /** Editing or capture expanded a docked view: the gallery is covered, its layout unsaved. */
@@ -161,6 +165,7 @@ export function GalleryItemModal({
   onCopied,
   onResolveIssue,
   onReviewCandidate,
+  onResolveDuplicate,
   focusView = true,
   onFocusViewChange,
   onEditExpandedChange,
@@ -383,6 +388,11 @@ export function GalleryItemModal({
     void leave(() => onReviewCandidate(item));
   }, [busy, leave, item, onReviewCandidate]);
 
+  const handleResolveDuplicate = useCallback(() => {
+    if (!item || busy || !onResolveDuplicate) return;
+    void leave(() => onResolveDuplicate(item));
+  }, [busy, leave, item, onResolveDuplicate]);
+
   const handleOpenInViewer = useCallback(async () => {
     if (!item || openingInViewer) return;
 
@@ -538,6 +548,7 @@ export function GalleryItemModal({
   const canRestoreBackup = backupCaption !== null && backupCaption.trim() !== caption.trim();
   const canResolveIssue = isResolvableIssueItem(item) && Boolean(onResolveIssue);
   const canReviewCandidate = isCandidateItem(item) && Boolean(onReviewCandidate);
+  const canResolveDuplicate = isDuplicateItem(item) && Boolean(onResolveDuplicate);
   // Destination folder only; a missing onCopied costs the refresh, not the save.
   const canCaptureFrame = (itemIsVideo || itemIsGif) && Boolean(currentFolder);
   const placeholder =
@@ -1020,6 +1031,7 @@ export function GalleryItemModal({
               hasComfyWorkflow={hasComfyWorkflow}
               onInspectComfyWorkflow={() => setComfyWorkflowOpen(true)}
             />
+            {!inline && <MediaTagList tags={item.tags} />}
             <footer className="gallery-item-modal__footer">
               <div className="gallery-item-modal__caption-editor">
                 <div className="gallery-item-modal__caption-toolbar">
@@ -1092,6 +1104,22 @@ export function GalleryItemModal({
                           className="gallery-item-modal__caption-action-icon"
                         />
                         Review candidate
+                      </button>
+                    )}
+                    {canResolveDuplicate && (
+                      <button
+                        type="button"
+                        className="gallery-item-modal__caption-action"
+                        onClick={handleResolveDuplicate}
+                        disabled={busy}
+                        aria-label={`Resolve duplicate for ${item.name}`}
+                        title="Compare this file with its duplicates and keep one"
+                      >
+                        <Icon
+                          icon={iconFiles}
+                          className="gallery-item-modal__caption-action-icon"
+                        />
+                        Resolve duplicate
                       </button>
                     )}
                     <button

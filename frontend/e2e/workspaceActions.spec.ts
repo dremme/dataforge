@@ -300,7 +300,7 @@ test("sends only filtered media paths to bulk tools", async ({ page }, testInfo)
   await openWorkspace(page);
   await page.keyboard.press("Control+f");
   await page
-    .getByRole("searchbox", { name: "Search files and folders by name or caption" })
+    .getByRole("searchbox", { name: "Search files and folders by name, caption or tag" })
     .fill("photo.png");
   await expect(page.getByRole("button", { name: "View clip.mp4", exact: true })).toHaveCount(0);
   const toolbarHeight = (await page.locator(".toolbar").boundingBox())!.height;

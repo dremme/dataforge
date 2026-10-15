@@ -31,10 +31,27 @@
 }
 
 // The file open in the caption inspector.
-.card[data-inspected],
 .gallery-list-row[data-inspected] {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+.card[data-inspected] {
+  &,
+  &:hover {
+    border-color: var(--accent);
+  }
+
+  // Paint above the preview, which otherwise covers the inner pixel of an inset outline.
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: 3;
+    border: 2px solid var(--accent);
+    border-radius: inherit;
+    pointer-events: none;
+  }
 }
 
 // A chip per active filter, at the start of the Media header actions.
@@ -203,6 +220,7 @@
 }
 
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -292,6 +310,11 @@
     background: var(--bg-media);
     overflow: hidden;
 
+    &--fitted {
+      // Thumbnail dimensions can round away from the source aspect ratio by a pixel.
+      --card-media-fit: cover;
+    }
+
     // Drawn over the media's last pixels, so it adds nothing to the masonry's packed heights.
     &::after {
       content: "";
@@ -349,7 +372,7 @@
     z-index: 0;
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: var(--card-media-fit, contain);
     -webkit-user-drag: none;
     user-select: none;
     opacity: 0;
@@ -407,7 +430,8 @@
 
   &__overlay {
     position: absolute;
-    inset: 0;
+    // Overlap the clipped edge so opacity compositing cannot expose a fractional-pixel seam.
+    inset: -1px;
     z-index: 1;
     display: flex;
     align-items: center;
@@ -553,9 +577,39 @@
     overflow: hidden;
   }
 
+  // Tags that do not fit wrap onto a second line the fixed height hides: a tag is whole or gone.
+  &__tag-list {
+    display: flex;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    gap: 0.3125rem;
+    min-width: 0;
+    height: 1.25rem;
+    overflow: hidden;
+  }
+
+  &__tags-more-tip {
+    display: inline-flex;
+    flex: none;
+  }
+
+  &__tags-more {
+    @include text-pill(1.25rem, 1px);
+    padding-inline: 0.4375rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-pill);
+    color: var(--text-subtle);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-medium);
+  }
+
+  // A tag wider than the whole card shortens rather than clips.
   &__tag {
     @include text-pill(1.25rem, 1px);
     flex: none;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     padding-inline: 0.4375rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-pill);

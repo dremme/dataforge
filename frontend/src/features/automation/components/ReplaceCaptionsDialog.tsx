@@ -61,7 +61,7 @@ export function ReplaceCaptionsDialog({
   const [caseSensitive, setCaseSensitive] = useState(initialSettings.case_sensitive);
   const [error, setError] = useState<string | null>(null);
 
-  const searchRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLTextAreaElement>(null);
   const searchId = useId();
   const replacementId = useId();
   const errorId = useId();
@@ -146,7 +146,8 @@ export function ReplaceCaptionsDialog({
     hint = (
       <>
         Refer to capture groups in the replacement as <code>$1</code>, <code>$2</code>.{" "}
-        <code>$0</code> is the whole match.
+        <code>$0</code> is the whole match. <code>^</code> and <code>$</code> match at every line; a
+        line break or <code>{"\\n"}</code> matches across lines.
       </>
     );
   }
@@ -193,11 +194,11 @@ export function ReplaceCaptionsDialog({
             <label htmlFor={searchId} className="dialog__label">
               Search for
             </label>
-            <input
+            {/* Multi-line, so a term can span the lines of a caption; Enter adds a line. */}
+            <textarea
               ref={searchRef}
               id={searchId}
-              type="text"
-              className="dialog__input"
+              className="dialog__input dialog__input--multiline"
               value={search}
               onChange={(event) => {
                 setSearch(event.target.value);
@@ -216,10 +217,9 @@ export function ReplaceCaptionsDialog({
             <label htmlFor={replacementId} className="dialog__label">
               {isReplace ? "Replace with" : "Text to add"}
             </label>
-            <input
+            <textarea
               id={replacementId}
-              type="text"
-              className="dialog__input"
+              className="dialog__input dialog__input--multiline"
               value={replacement}
               onChange={(event) => {
                 setReplacement(event.target.value);

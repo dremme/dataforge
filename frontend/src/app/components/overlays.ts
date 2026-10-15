@@ -42,6 +42,7 @@ type GalleryOverlayState = {
   onCopied?: () => void | Promise<void>;
   onResolveIssue?: (item: GalleryItem) => void;
   onReviewCandidate?: (item: GalleryItem) => void;
+  onResolveDuplicate?: (item: GalleryItem) => void;
 };
 
 type IssueResolverOverlayState = {
@@ -66,7 +67,7 @@ type DuplicateResolverOverlayState = {
   onClose: () => void;
   onIndexChange: (index: number) => void;
   deletesToTrash: boolean;
-  onResolved: () => void;
+  onResolved: (deletedPaths: string[]) => void;
 };
 
 type CandidateReviewOverlayState = {

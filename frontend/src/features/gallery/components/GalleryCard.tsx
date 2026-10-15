@@ -1,6 +1,6 @@
-import { memo, useState, type CSSProperties, type MouseEvent } from "react";
+import { memo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { formatAspectRatio } from "@/features/gallery/lib/aspectRatio";
-import { LARGE_CARD_TAG_COUNT, largeCardShowsTags } from "@/features/gallery/lib/cardGeometry";
+import { largeCardShowsTags } from "@/features/gallery/lib/cardGeometry";
 import { DEFAULT_CARD_OPTIONS } from "@/features/gallery/lib/cardOptions";
 import { getCardCaptionDisplay, getCardModifierClass } from "@/features/gallery/lib/captionStatus";
 import {
@@ -23,6 +23,7 @@ import {
   isVideo,
 } from "@/features/gallery/lib/itemKind";
 import { useHoverVideoPreview } from "@/features/gallery/hooks/useHoverVideoPreview";
+import { useWrappedCount } from "@/features/gallery/hooks/useWrappedCount";
 import { selectionIntentFor } from "@/features/gallery/lib/selectionIntent";
 import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
@@ -76,6 +77,9 @@ export const GalleryCard = memo(function GalleryCard({
   // The editable set is exactly what a <video> element can decode.
   const { previewing, hoverHandlers } = useHoverVideoPreview(isEditableVideo(item));
   const [previewPlaying, setPreviewPlaying] = useState(false);
+  const tagsShown = displayMode === "large" && largeCardShowsTags(item, showTags);
+  const tagListRef = useRef<HTMLSpanElement>(null);
+  const hiddenTags = useWrappedCount(tagListRef, tagsShown ? item.tags : null);
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     const intent = selectionIntentFor(event, selectionMode);
@@ -124,7 +128,15 @@ export const GalleryCard = memo(function GalleryCard({
         }
         aria-pressed={selectionMode ? selected : undefined}
       >
-        <div className="card__media">
+        <div
+          className={classNames(
+            "card__media",
+            displayMode === "large" &&
+              (item.width ?? 0) > 0 &&
+              (item.height ?? 0) > 0 &&
+              "card__media--fitted",
+          )}
+        >
           <GalleryCardMedia
             item={item}
             previewing={previewing}
@@ -199,13 +211,28 @@ export const GalleryCard = memo(function GalleryCard({
             <span className="card__title">{item.name}</span>
             {meta && <span className="card__meta">{meta}</span>}
           </span>
-          {displayMode === "large" && largeCardShowsTags(item, showTags) && (
+          {tagsShown && (
             <span className="card__tags">
-              {item.tags.slice(0, LARGE_CARD_TAG_COUNT).map((tag) => (
-                <span key={tag.label} className="card__tag">
-                  {tag.label}
-                </span>
-              ))}
+              {/* Every tag, strongest first: the ones that do not fit wrap out of sight. */}
+              <span ref={tagListRef} className="card__tag-list">
+                {item.tags.map((tag) => (
+                  <span key={tag.label} className="card__tag">
+                    {tag.label}
+                  </span>
+                ))}
+              </span>
+              {hiddenTags > 0 && (
+                <Tooltip
+                  content={item.tags
+                    .slice(item.tags.length - hiddenTags)
+                    .map((tag) => tag.label)
+                    .join(", ")}
+                  placement="top"
+                  className="card__tags-more-tip"
+                >
+                  <span className="card__tags-more">+{hiddenTags} more</span>
+                </Tooltip>
+              )}
             </span>
           )}
           {captionLines === 0 ? null : item.description ? (

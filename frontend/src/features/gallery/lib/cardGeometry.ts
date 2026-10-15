@@ -14,9 +14,6 @@ export const LARGE_CARD_BODY_PX = {
 /** `.card__body`'s gap plus the one-row `.card__tags`, whose pills are 20px tall. */
 export const LARGE_CARD_TAG_ROW_PX = 7 + 20;
 
-/** More rarely fit a column; the row clips whatever does not. */
-export const LARGE_CARD_TAG_COUNT = 5;
-
 /** `.card__body`'s gap plus one `.card__description` line: --text-sm at --leading-relaxed. */
 const LARGE_CARD_CAPTION_GAP_PX = 7;
 const LARGE_CARD_CAPTION_LINE_PX = 14 * 1.6;

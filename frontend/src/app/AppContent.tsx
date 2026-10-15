@@ -264,6 +264,7 @@ export function AppContent() {
                 onCopied: onGalleryItemsCopied,
                 onResolveIssue: gallery.onResolveGalleryItemIssue,
                 onReviewCandidate: candidateReview.reviewGalleryItemCandidate,
+                onResolveDuplicate: duplicateResolver.resolveGalleryItemDuplicate,
                 suspended: editorRequest !== null,
               }}
               issueResolver={gallery.issueResolver.overlay}

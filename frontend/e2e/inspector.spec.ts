@@ -281,3 +281,52 @@ for (const theme of ["dark", "light"]) {
     });
   }
 }
+
+test("the media view counts the tags that do not fit and recounts on resize", async ({ page }) => {
+  await page.setViewportSize({ width: 500, height: 900 });
+  const tags = Array.from({ length: 12 }, (_, index) => ({
+    label: `tag number ${index + 1}`,
+    confidence: 0.9 - index * 0.05,
+  }));
+  const tagged = (items: { name: string }[] | undefined) =>
+    items
+      ?.filter((item) => item.name === "photo.png" || item.name === "clip.mp4")
+      .map((item) => (item.name === "photo.png" ? { ...item, tags } : item));
+  // Not openWorkspace: its listing route would answer first and skip this one. Deltas after the
+  // listing carry items too, so both supply the tags.
+  for (const pattern of ["**/api/folders/contents?**", "**/api/folders/changes?**"]) {
+    await page.route(pattern, async (route) => {
+      const body = await (await route.fetch()).json();
+      const items = tagged(body.items);
+      await route.fulfill({
+        json: {
+          ...body,
+          ...(items && { items, item_count: items.length, subfolders: [], subfolder_count: 0 }),
+          changed: tagged(body.changed),
+        },
+      });
+    });
+  }
+  await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
+  await page.getByRole("button", { name: "View photo.png", exact: true }).click();
+  const row = page
+    .getByRole("dialog", { name: "Viewing photo.png" })
+    .getByRole("group", { name: "Tags" });
+  const more = row.locator(".media-tags__more");
+
+  const hiddenAt = async () => Number((await more.textContent())?.match(/\d+/)?.[0]);
+  await expect(more).toHaveText(/^\+\d+ more$/);
+  const narrow = await hiddenAt();
+  expect(await row.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  // The left-over tags are the weakest, so the tooltip names the end of the list in order.
+  await more.hover();
+  const expected = tags
+    .slice(tags.length - narrow)
+    .map((tag) => tag.label)
+    .join(", ");
+  await expect(page.getByRole("tooltip")).toHaveText(expected);
+
+  // Still a modal below 1000px; the row is wider, so fewer tags are left over.
+  await page.setViewportSize({ width: 960, height: 900 });
+  await expect.poll(hiddenAt).toBeLessThan(narrow);
+});

@@ -124,6 +124,7 @@ export function AppOverlays({
           onCopied={gallery.onCopied}
           onResolveIssue={gallery.onResolveIssue}
           onReviewCandidate={gallery.onReviewCandidate}
+          onResolveDuplicate={gallery.onResolveDuplicate}
         />
       )}
 

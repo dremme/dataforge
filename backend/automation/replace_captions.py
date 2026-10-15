@@ -64,7 +64,8 @@ def _build_replacer(
     if not search:
         raise ValueError("Enter the text to search for")
 
-    flags = 0 if case_sensitive else re.IGNORECASE
+    # Per-line anchors, as in a text editor; ``.`` still stops at a line break.
+    flags = re.MULTILINE if case_sensitive else re.MULTILINE | re.IGNORECASE
     try:
         pattern = re.compile(search if use_regex else re.escape(search), flags)
     except re.error as exc:

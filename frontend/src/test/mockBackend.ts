@@ -9,6 +9,7 @@ import type {
   JobFileResult,
   FolderResponse,
   InstructionFileResponse,
+  DuplicateGroup,
   TaggingStatusResponse,
   VideoProjectSummary,
 } from "@/shared/types";
@@ -40,6 +41,8 @@ export interface MockBackendOptions {
   folderFavorites?: string[];
   /** The background tagger's status; idle when absent. */
   taggingStatus?: TaggingStatusResponse;
+  /** Duplicate groups the resolver is served; none unless a test needs them. */
+  duplicateGroups?: DuplicateGroup[];
   /** Video editor drafts keyed by folder path; none unless a test needs them. */
   videoProjects?: Record<string, VideoProjectSummary[]>;
 }
@@ -520,6 +523,25 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         return jsonResponse(cleared);
       }
       return jsonResponse(thumbnailCache);
+    }
+
+    if (url.pathname === "/api/duplicates" && method === "GET") {
+      return jsonResponse({
+        folder: url.searchParams.get("folder") ?? "",
+        groups: options.duplicateGroups ?? [],
+        stale: [],
+        deletes_to_trash: true,
+      });
+    }
+
+    if (url.pathname === "/api/duplicates/resolve" && method === "POST") {
+      const body = init?.body ? JSON.parse(init.body as string) : {};
+      return jsonResponse({ kept: body.keep, deleted: body.discard ?? [], failed: [] });
+    }
+
+    if (url.pathname === "/api/duplicates/dismiss" && method === "POST") {
+      const body = init?.body ? JSON.parse(init.body as string) : {};
+      return jsonResponse({ cleared: body.paths ?? [], failed: [] });
     }
 
     if (url.pathname === "/api/system/tagging") {

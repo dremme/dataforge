@@ -26,6 +26,31 @@ function installIssueBackend() {
   });
 }
 
+function installDuplicateBackend() {
+  const flagged = (name: string) =>
+    mediaItem(name, HOME_PATH, { has_duplicate_file: true, duplicate_group: "g1" });
+  const duplicateFolder: FolderResponse = {
+    ...homeFolder,
+    items: homeFolder.items.map((item) =>
+      item.name === "sunset.png" || item.name === "beach.jpg"
+        ? { ...item, has_duplicate_file: true }
+        : item,
+    ),
+  };
+  return installMockBackend({
+    folderByPath: { undefined: duplicateFolder, [HOME_PATH]: duplicateFolder },
+    duplicateGroups: [
+      { group: "g0", max_distance: 0, threshold: "exact", members: [flagged("other.png")] },
+      {
+        group: "g1",
+        max_distance: 0,
+        threshold: "exact",
+        members: [flagged("sunset.png"), flagged("beach.jpg")],
+      },
+    ],
+  });
+}
+
 const STAGING_PATH = `${HOME_PATH}\\staging`;
 
 const candidateFolder: FolderResponse = {
@@ -172,6 +197,45 @@ describe("App: gallery item modal", () => {
     expect(
       within(reopened).queryByRole("button", { name: "Resolve caption issue for sunset.png" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("resolves a file's own duplicate group and returns to the file it kept", async () => {
+    const user = userEvent.setup();
+    const backend = installDuplicateBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
+    const modal = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+    await user.click(
+      within(modal).getByRole("button", { name: "Resolve duplicate for sunset.png" }),
+    );
+
+    // Only this file's group, not the folder's whole queue.
+    const resolver = await screen.findByRole("dialog", { name: "Resolve duplicate group 1 of 1" });
+    await user.click(within(resolver).getByRole("radio", { name: /sunset\.png/ }));
+    await user.click(within(resolver).getByRole("button", { name: "Resolve" }));
+
+    await waitFor(() => {
+      const [[, init]] = backend.requestsTo("/api/duplicates/resolve", "POST");
+      expect(JSON.parse(init?.body as string)).toEqual({
+        keep: `${HOME_PATH}\\sunset.png`,
+        discard: [`${HOME_PATH}\\beach.jpg`],
+      });
+    });
+    expect(
+      await screen.findByRole("complementary", { name: "Viewing sunset.png" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no duplicate button for a file without a finding", async () => {
+    const user = userEvent.setup();
+    installDuplicateBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "View waves.mp4" }));
+
+    const modal = await screen.findByRole("complementary", { name: "Viewing waves.mp4" });
+    expect(within(modal).queryByRole("button", { name: /Resolve duplicate/ })).toBeNull();
   });
 
   it("returns to the gallery item modal when the resolver is dismissed unresolved", async () => {

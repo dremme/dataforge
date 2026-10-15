@@ -8,6 +8,7 @@ lands in ``media_tags``, whose revision moves the folder fingerprint and so reac
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -227,8 +228,19 @@ def _run(worker: TaggingWorker, stop: threading.Event) -> None:
     worker.close()
 
 
+#: Set by the E2E backend: a fresh database's default favorite is the real home folder.
+DISABLE_TAGGING_ENV = "DATAFORGE_DISABLE_TAGGING"
+
+
+def tagging_disabled() -> bool:
+    return os.environ.get(DISABLE_TAGGING_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def start_tagging_worker() -> Callable[[], None]:
     """Returns the stop function. A daemon thread: a long model load must not hold up shutdown."""
+    if tagging_disabled():
+        _worker._report("unavailable", detail=f"Tagging is turned off by {DISABLE_TAGGING_ENV}.")
+        return lambda: None
     stop = threading.Event()
     threading.Thread(target=_run, args=(_worker, stop), name="tagging", daemon=True).start()
     return stop.set

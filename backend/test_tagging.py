@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -36,6 +37,8 @@ from tagging_worker import (
     IDLE_SECONDS,
     UNAVAILABLE_RECHECK_SECONDS,
     TaggingWorker,
+    start_tagging_worker,
+    tagging_status,
 )
 
 TERMS = ["dog", "cat", "beach"]
@@ -280,6 +283,19 @@ class TaggingWorkerTests(TaggingTestCase):
         self.assertTrue(self.models[0].closed)
         # Only the files before the model was given up on are stored, empty.
         self.assertEqual(len(folder_tag_rows(self.root)), 2)
+
+
+class TaggingSwitchTests(unittest.TestCase):
+    def test_the_switch_keeps_the_worker_from_starting_and_says_so(self) -> None:
+        """The E2E backend sets it: its default favorite is the real home folder."""
+        with patch.dict(os.environ, {"DATAFORGE_DISABLE_TAGGING": "1"}):
+            stop = start_tagging_worker()
+        stop()
+
+        self.assertNotIn("tagging", {thread.name for thread in threading.enumerate()})
+        status = tagging_status()
+        self.assertEqual(status.state, "unavailable")
+        self.assertIn("DATAFORGE_DISABLE_TAGGING", status.detail)
 
 
 class TagListingTests(TaggingTestCase):

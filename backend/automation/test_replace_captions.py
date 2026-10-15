@@ -37,6 +37,24 @@ class CaptionReplacerTests(unittest.TestCase):
 
         self.assertEqual(replace("a brown dog runs"), "a brown cat runs")
 
+    def test_regex_anchors_match_at_every_line(self) -> None:
+        caption = "a red\ndog runs\nred sky"
+
+        starts = build_caption_replacer(search="^red", replacement="blue", use_regex=True)
+        ends = build_caption_replacer(search=r"red$", replacement="blue", use_regex=True)
+
+        self.assertEqual(starts(caption), "a red\ndog runs\nblue sky")
+        self.assertEqual(ends(caption), "a blue\ndog runs\nred sky")
+
+    def test_regex_spans_lines_with_a_line_break_but_dot_stays_on_its_line(self) -> None:
+        caption = "a red\ndog runs"
+
+        spanning = build_caption_replacer(search=r"red\n(\w+)", replacement="$1", use_regex=True)
+        dotted = build_caption_replacer(search="red.*", replacement="X", use_regex=True)
+
+        self.assertEqual(spanning(caption), "a dog runs")
+        self.assertEqual(dotted(caption), "a X\ndog runs")
+
     def test_regex_replacement_accepts_dollar_groups(self) -> None:
         replace = build_caption_replacer(
             search=r"(\w+) dog",
@@ -142,6 +160,20 @@ class ReplaceCaptionsJobTests(unittest.TestCase):
             self.assertEqual(
                 media.with_suffix(".txt").read_text(encoding="utf-8").strip(),
                 "a brown cat in a field",
+            )
+
+    def test_a_search_spanning_lines_matches_windows_line_endings(self) -> None:
+        """The dialog sends LF; a caption written elsewhere on Windows may hold CRLF."""
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            media.with_suffix(".txt").write_bytes(b"a red\r\ndog in a field")
+
+            result = run_replace_captions_job(root, search="red\ndog", replacement="blue\ncat")
+
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(
+                media.with_suffix(".txt").read_text(encoding="utf-8").splitlines(),
+                ["a blue", "cat in a field"],
             )
 
     def test_leftover_json_is_not_replaced(self) -> None:

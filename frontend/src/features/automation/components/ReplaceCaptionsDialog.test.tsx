@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { previewCaptionReplacements } from "@/features/automation/api/jobs";
@@ -63,6 +63,20 @@ describe("ReplaceCaptionsDialog", () => {
     });
   });
 
+  it("takes several lines in both fields, where Enter adds a line instead of submitting", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog();
+
+    await user.type(screen.getByLabelText("Search for"), "red{Enter}dog");
+    await user.type(screen.getByLabelText("Replace with"), "blue{Enter}cat");
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ search: "red\ndog", replacement: "blue\ncat" }),
+    );
+  });
+
   it("refuses to submit without a search term", async () => {
     const user = userEvent.setup();
     const onConfirm = renderDialog();
@@ -110,10 +124,11 @@ describe("ReplaceCaptionsDialog", () => {
       expect(screen.getByRole("status")).toHaveTextContent("3 of 10 captions would change.");
     });
     // The sample shows only what the edit touches, not the caption twice over.
-    expect(screen.getByText("dog")).toBeInTheDocument();
-    expect(screen.getByText("cat")).toBeInTheDocument();
+    const panel = screen.getByRole("status");
+    expect(within(panel).getByText("dog")).toBeInTheDocument();
+    expect(within(panel).getByText("cat")).toBeInTheDocument();
     // 3 matched, 1 sampled.
-    expect(screen.getByText("and 2 more")).toBeInTheDocument();
+    expect(within(panel).getByText("and 2 more")).toBeInTheDocument();
   });
 
   it("explains dollar capture groups once regex is on", async () => {
@@ -128,6 +143,7 @@ describe("ReplaceCaptionsDialog", () => {
     expect(hint).toHaveTextContent("$1");
     expect(hint).toHaveTextContent("$2");
     expect(hint).toHaveTextContent("$0");
+    expect(hint).toHaveTextContent(/\^ and \$ match at every line; a line break or \\n matches/);
   });
 
   it("blocks submitting an edit the backend rejected", async () => {

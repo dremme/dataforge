@@ -70,6 +70,35 @@ describe("GalleryItemModal", () => {
     expect(within(dialog).queryByText("Frames")).not.toBeInTheDocument();
   });
 
+  it("lists every tag with its confidence, and says why a file has none", async () => {
+    const props = {
+      index: 0,
+      onClose: vi.fn(),
+      onPrevious: vi.fn(),
+      onNext: vi.fn(),
+      onCaptionSaved: vi.fn(),
+    };
+    const tagged = makeItem("photo.png", {
+      tags: [
+        { label: "dog", confidence: 0.874 },
+        { label: "beach", confidence: 0.31 },
+      ],
+    });
+    const { rerender } = renderWithProviders(<GalleryItemModal items={[tagged]} {...props} />);
+
+    const tags = await screen.findByRole("group", { name: "Tags" });
+    expect(
+      within(tags)
+        .getAllByRole("listitem")
+        .map((tag) => tag.textContent),
+    ).toEqual(["dog87%", "beach31%"]);
+
+    rerender(<GalleryItemModal items={[makeItem("plain.png")]} {...props} />);
+    expect(await screen.findByRole("group", { name: "Tags" })).toHaveTextContent(
+      "None. Only favorite folders are tagged.",
+    );
+  });
+
   it("opens the workflow prompts from the ComfyUI badge", async () => {
     const user = userEvent.setup();
     vi.spyOn(captionsApi, "fetchComfyWorkflow").mockResolvedValue({ has_workflow: true });

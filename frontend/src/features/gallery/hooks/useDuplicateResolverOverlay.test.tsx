@@ -45,21 +45,77 @@ describe("useDuplicateResolverOverlay", () => {
     const onResolved = vi.fn();
     const { result } = renderHook(() => useDuplicateResolverOverlay(onResolved), { wrapper });
 
-    act(() => result.current.overlay.onResolved());
+    act(() => result.current.overlay.onResolved([]));
 
     expect(onResolved).toHaveBeenCalledOnce();
   });
 
-  it("opens on the group the card was flagged with", async () => {
+  it("opens a file's own group alone, closing the file first", async () => {
     fetchGroups.mockResolvedValue(listing({ groups: [group("g1"), group("g2")] }));
+    const onOpen = vi.fn();
     const { result } = renderHook(() => useDuplicateResolverOverlay(), { wrapper });
 
-    await result.current.openDuplicateResolver(HOME_PATH, "g2");
+    await result.current.openDuplicateResolver(HOME_PATH, {
+      path: `${HOME_PATH}\\g2-two.png`,
+      onOpen,
+    });
 
     await waitFor(() => expect(result.current.open).toBe(true));
-    expect(result.current.index).toBe(1);
+    expect(result.current.groups.map((entry) => entry.group)).toEqual(["g2"]);
+    expect(onOpen).toHaveBeenCalledOnce();
     // Nothing to announce: the modal is the feedback.
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("returns to the file when it was kept", async () => {
+    const onReturn = vi.fn();
+    const { result } = renderHook(() => useDuplicateResolverOverlay(undefined, onReturn), {
+      wrapper,
+    });
+    const kept = `${HOME_PATH}\\g1-one.png`;
+
+    await result.current.openDuplicateResolver(HOME_PATH, { path: kept, onOpen: vi.fn() });
+    await waitFor(() => expect(result.current.open).toBe(true));
+    act(() => {
+      result.current.overlay.onResolved([`${HOME_PATH}\\g1-two.png`]);
+      result.current.overlay.onClose();
+    });
+
+    expect(onReturn).toHaveBeenCalledWith(kept);
+  });
+
+  it("drops back to the gallery when the file itself was deleted", async () => {
+    const onReturn = vi.fn();
+    const { result } = renderHook(() => useDuplicateResolverOverlay(undefined, onReturn), {
+      wrapper,
+    });
+    const deleted = `${HOME_PATH}\\g1-one.png`;
+
+    await result.current.openDuplicateResolver(HOME_PATH, { path: deleted, onOpen: vi.fn() });
+    await waitFor(() => expect(result.current.open).toBe(true));
+    // The modal settles its last group and closes in one go, before a refresh could land.
+    act(() => {
+      result.current.overlay.onResolved([deleted]);
+      result.current.overlay.onClose();
+    });
+
+    expect(onReturn).not.toHaveBeenCalled();
+  });
+
+  it("says so when the file's group is gone", async () => {
+    const onOpen = vi.fn();
+    const { result } = renderHook(() => useDuplicateResolverOverlay(), { wrapper });
+
+    await result.current.openDuplicateResolver(HOME_PATH, {
+      path: `${HOME_PATH}\\elsewhere.png`,
+      onOpen,
+    });
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "elsewhere.png has no duplicate left to compare.",
+    );
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(result.current.open).toBe(false);
   });
 
   it("says so rather than opening on nothing when every finding lost its partner", async () => {

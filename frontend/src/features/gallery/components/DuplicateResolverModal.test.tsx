@@ -135,7 +135,7 @@ describe("DuplicateResolverModal", () => {
         `${HOME_PATH}\\small.png`,
       ]);
     });
-    expect(props.onResolved).toHaveBeenCalled();
+    expect(props.onResolved).toHaveBeenCalledWith([`${HOME_PATH}\\small.png`]);
     expect(props.onIndexChange).toHaveBeenCalledWith(1);
   });
 
@@ -225,7 +225,7 @@ describe("DuplicateResolverModal", () => {
       ]);
     });
     expect(resolveGroup).not.toHaveBeenCalled();
-    expect(props.onResolved).toHaveBeenCalled();
+    expect(props.onResolved).toHaveBeenCalledWith([]);
     expect(props.onIndexChange).toHaveBeenCalledWith(1);
   });
 

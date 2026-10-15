@@ -31,7 +31,8 @@ interface DuplicateResolverModalProps {
   onClose: () => void;
   onIndexChange: (index: number) => void;
   deletesToTrash: boolean;
-  onResolved: () => void;
+  /** After each settled group, with the files it deleted; none when it was dismissed. */
+  onResolved: (deletedPaths: string[]) => void;
 }
 
 export function DuplicateResolverModal({
@@ -88,9 +89,9 @@ export function DuplicateResolverModal({
   );
 
   const settle = useCallback(
-    (groupId: string) => {
+    (groupId: string, deletedPaths: string[]) => {
       setSettledGroups((current) => new Set(current).add(groupId));
-      onResolved();
+      onResolved(deletedPaths);
 
       if (index < queue.length - 1) {
         onIndexChange(index + 1);
@@ -119,7 +120,10 @@ export function DuplicateResolverModal({
         return;
       }
 
-      settle(group.group);
+      settle(
+        group.group,
+        discard.map((member) => member.path),
+      );
     } catch (caught) {
       setError(formatApiError(caught));
     } finally {
@@ -141,7 +145,7 @@ export function DuplicateResolverModal({
         return;
       }
 
-      settle(group.group);
+      settle(group.group, []);
     } catch (caught) {
       setError(formatApiError(caught));
     } finally {

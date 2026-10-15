@@ -133,6 +133,8 @@ def download_model() -> None:
     """Loads the model the app will load, which downloads and prepares it."""
     importlib.invalidate_caches()
     sys.path.insert(0, str(BACKEND))
+    # As the app does on startup, so a models folder set in .env is where setup downloads to.
+    importlib.import_module("env_file").load_env_file()
     tagger = importlib.import_module("tagger")
 
     model_name = tagger.select_model_name()

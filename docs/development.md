@@ -34,6 +34,7 @@ Stopping the launcher stops its servers. Use the stop script for detached/direct
 | `DATAFORGE_PYTHON`         | auto-detected | Interpreter override for Unix setup; set in the shell when running `./setup.sh`              |
 | `DATAFORGE_RELOAD`         | on            | Development API reload; `0`, `false`, `no`, `off`, or blank disables it                      |
 | `DATAFORGE_DISABLE_DOTENV` | off           | `1`, `true`, `yes`, or `on` skips `.env` loading in the Python backend; used by tests and CI |
+| `DATAFORGE_DISABLE_TAGGING` | off          | `1`, `true`, `yes`, or `on` keeps the background tagger from starting; set by the E2E backend |
 
 These are startup settings. Command-line launcher options override reload preferences.
 

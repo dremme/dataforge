@@ -1,32 +1,60 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { fetchDuplicateGroups } from "@/features/gallery/api/duplicates";
 import { duplicateOpenOutcome } from "@/features/gallery/lib/duplicates";
+import { pathBaseName } from "@/features/gallery/lib/mediaActionMessages";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { DuplicateGroup } from "@/shared/types";
 
-export function useDuplicateResolverOverlay(onResolved?: () => void) {
+export interface DuplicateResolverFocus {
+  /** The file whose group alone is shown; listings never say which group that is. */
+  path: string;
+  /** Runs in the same commit that opens the resolver, so the file's modal never overlaps it. */
+  onOpen: () => void;
+}
+
+export function useDuplicateResolverOverlay(
+  onResolved?: () => void,
+  onReturnToItem?: (path: string) => void,
+) {
   const notify = useNotify();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
+  // A ref: the modal settles its last group and closes in one tick, before state would update.
+  const returnPathRef = useRef<string | null>(null);
   // Assume the worst until the backend says otherwise: a stale true skips confirmation.
   const [deletesToTrash, setDeletesToTrash] = useState(false);
 
   const openDuplicateResolver = useCallback(
-    async (folder: string, groupId?: string) => {
+    async (folder: string, focus?: DuplicateResolverFocus) => {
       try {
         const response = await fetchDuplicateGroups(folder);
 
         const outcome = duplicateOpenOutcome(response.stale.length, response.groups.length);
-        if (outcome) notify(outcome);
+        if (outcome && !focus) notify(outcome);
 
-        if (response.groups.length === 0) return;
+        const shown = focus
+          ? response.groups.filter((group) =>
+              group.members.some((member) => member.path === focus.path),
+            )
+          : response.groups;
 
-        setGroups(response.groups);
+        if (shown.length === 0) {
+          if (focus) {
+            notify({
+              variant: "warning",
+              message: `${pathBaseName(focus.path)} has no duplicate left to compare.`,
+            });
+          }
+          return;
+        }
+
+        focus?.onOpen();
+        setGroups(shown);
         setDeletesToTrash(response.deletes_to_trash);
-        const start = groupId ? response.groups.findIndex((group) => group.group === groupId) : -1;
-        setIndex(start >= 0 ? start : 0);
+        setIndex(0);
+        returnPathRef.current = focus?.path ?? null;
         setOpen(true);
       } catch (caught) {
         notify({ variant: "danger", message: formatApiError(caught) });
@@ -40,7 +68,21 @@ export function useDuplicateResolverOverlay(onResolved?: () => void) {
     setIndex(0);
     setGroups([]);
     onResolved?.();
-  }, [onResolved]);
+    const returnPath = returnPathRef.current;
+    returnPathRef.current = null;
+    if (returnPath) onReturnToItem?.(returnPath);
+  }, [onResolved, onReturnToItem]);
+
+  const handleResolved = useCallback(
+    (deletedPaths: string[]) => {
+      // The listing still holds a file deleted a moment ago, so it cannot answer this.
+      if (returnPathRef.current && deletedPaths.includes(returnPathRef.current)) {
+        returnPathRef.current = null;
+      }
+      onResolved?.();
+    },
+    [onResolved],
+  );
 
   return {
     open,
@@ -55,7 +97,7 @@ export function useDuplicateResolverOverlay(onResolved?: () => void) {
       onClose: closeDuplicateResolver,
       onIndexChange: setIndex,
       deletesToTrash,
-      onResolved: () => onResolved?.(),
+      onResolved: handleResolved,
     },
   };
 }

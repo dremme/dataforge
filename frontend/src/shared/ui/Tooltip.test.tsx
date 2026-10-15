@@ -182,6 +182,45 @@ describe("Tooltip", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
+  it("steps aside for a nested trigger and comes back when the pointer returns", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <Tooltip content="photo.png">
+        <div>
+          <span>Card title</span>
+          <Tooltip content="sea, sky">
+            <span>+2 more</span>
+          </Tooltip>
+        </div>
+      </Tooltip>,
+    );
+    const title = screen.getByText("Card title");
+    const more = screen.getByText("+2 more");
+    const settle = () =>
+      act(async () => {
+        vi.advanceTimersByTime(400);
+      });
+
+    // Moves as a browser reports them: each over/out names where the pointer came from.
+    fireEvent.mouseOver(title, { relatedTarget: document.body });
+    await settle();
+    expect(screen.getByRole("tooltip")).toHaveTextContent("photo.png");
+
+    fireEvent.mouseOut(title, { relatedTarget: more });
+    fireEvent.mouseOver(more, { relatedTarget: title });
+    await settle();
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("sea, sky");
+
+    // Still inside the outer trigger, so no new mouseenter: only the mouseover can bring it back.
+    fireEvent.mouseOut(more, { relatedTarget: title });
+    fireEvent.mouseOver(title, { relatedTarget: more });
+    await settle();
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("photo.png");
+  });
+
   it("hides a focused trigger's tooltip when another one opens on hover", async () => {
     vi.useFakeTimers();
 

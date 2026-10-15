@@ -9,6 +9,7 @@ import {
   useState,
   type CSSProperties,
   type FocusEvent,
+  type MouseEvent,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -119,6 +120,34 @@ export function Tooltip({
       document.removeEventListener("scroll", onScroll, { capture: true });
   }, [hide, show]);
 
+  // A trigger nested inside this one, like a card's "+N more", owns the hover while the pointer
+  // is over it. This one steps aside, and comes back when the pointer returns to its own part:
+  // that move stays inside the wrapper, so no second mouseenter would bring it back.
+  const steppedAsideRef = useRef(false);
+  const handleMouseOver = useCallback(
+    (event: MouseEvent<HTMLSpanElement>) => {
+      const wrapper = wrapperRef.current;
+      // The bubble is portalled, so its events arrive here too; it is no part of the trigger.
+      if (!wrapper || !(event.target instanceof Element) || !wrapper.contains(event.target)) {
+        return;
+      }
+      const owner = event.target.closest(".tooltip");
+      if (owner !== wrapper) {
+        steppedAsideRef.current = true;
+        hide();
+      } else if (steppedAsideRef.current) {
+        steppedAsideRef.current = false;
+        showOnHover();
+      }
+    },
+    [hide, showOnHover],
+  );
+
+  const handleMouseLeave = useCallback(() => {
+    steppedAsideRef.current = false;
+    hide();
+  }, [hide]);
+
   const showOnFocus = useCallback(() => {
     stopScrollWatch();
     show();
@@ -192,7 +221,8 @@ export function Tooltip({
       className={classNames("tooltip", childDisabled && "tooltip--disabled-wrap", className)}
       style={style}
       onMouseEnter={showOnHover}
-      onMouseLeave={hide}
+      onMouseOver={handleMouseOver}
+      onMouseLeave={handleMouseLeave}
       onPointerDown={hide}
       onClick={hide}
     >

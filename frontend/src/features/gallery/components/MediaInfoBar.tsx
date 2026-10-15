@@ -45,7 +45,9 @@ export function MediaInfoBar({
       {modifiedLabel && (
         <>
           <div className="media-info__item">
-            <span className="media-info__value">{modifiedLabel}</span>
+            <span className="media-info__value" title={modifiedLabel}>
+              {modifiedLabel}
+            </span>
             <span className="media-info__label">Modified</span>
           </div>
           <MetaDivider show={hasMetaAfterModified} />
@@ -70,7 +72,10 @@ export function MediaInfoBar({
           </div>
           <span className="media-info__divider" aria-hidden="true" />
           <div className="media-info__item">
-            <span className="media-info__value">
+            <span
+              className="media-info__value"
+              title={`${formatCount(resolution.width)} × ${formatCount(resolution.height)} px`}
+            >
               {formatCount(resolution.width)}
               <span className="media-info__times">×</span>
               {formatCount(resolution.height)}
