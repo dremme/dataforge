@@ -1,7 +1,9 @@
 import { useRef } from "react";
 import { useCountUp } from "@/features/gallery/hooks/useCountUp";
 import type { CreationTimelineGrouping, StatBucket } from "@/features/gallery/lib/datasetStats";
+import { iconChevronLeft, iconChevronRight } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
+import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
 const countFormatter = new Intl.NumberFormat("en", {
@@ -12,9 +14,11 @@ const countFormatter = new Intl.NumberFormat("en", {
 export function CreationTimelineChart({
   buckets,
   grouping,
+  onNavigatePeriod,
 }: {
   buckets: StatBucket[];
   grouping: CreationTimelineGrouping;
+  onNavigatePeriod: (direction: -1 | 1) => void;
 }) {
   const chartRef = useRef<HTMLElement>(null);
   const progress = useCountUp(buckets.length > 0 ? 100 : 0, chartRef);
@@ -26,6 +30,7 @@ export function CreationTimelineChart({
   const maximum = Math.max(step, Math.ceil(peak / step) * step);
   const ticks = Array.from({ length: maximum / step + 1 }, (_, index) => index * step);
   const labelStep = Math.ceil(buckets.length / 7);
+  const navigationUnit = grouping === "day" ? "month" : "year";
   const period =
     grouping === "day"
       ? buckets[0].label.replace(/ \d+,/, "")
@@ -39,13 +44,10 @@ export function CreationTimelineChart({
       className="stats-drawer__timeline"
       aria-label="Distribution by media creation date"
     >
-      <div className="stats-drawer__timeline-axis-title">Media</div>
       <div className="stats-drawer__timeline-body">
         <div className="stats-drawer__timeline-y-axis" aria-hidden="true">
           {ticks.map((tick) => (
-            <span key={tick} style={{ bottom: `${(tick / maximum) * 100}%` }}>
-              {countFormatter.format(tick)}
-            </span>
+            <span key={tick}>{countFormatter.format(tick)}</span>
           ))}
         </div>
         <div className="stats-drawer__timeline-viewport">
@@ -120,10 +122,33 @@ export function CreationTimelineChart({
         </div>
       </div>
       <figcaption className="stats-drawer__timeline-caption">
-        <span>Creation date</span>
-        <span>{period}</span>
+        <div className="stats-drawer__timeline-navigation">
+          {peak === 0 && <p className="stats-drawer__note">No media created in this period.</p>}
+          {grouping !== "year" && (
+            <button
+              type="button"
+              className="stats-drawer__timeline-step"
+              aria-label={`Previous ${navigationUnit}`}
+              onClick={() => onNavigatePeriod(-1)}
+            >
+              <Icon icon={iconChevronLeft} />
+            </button>
+          )}
+          <span aria-live="polite" aria-atomic="true">
+            {period}
+          </span>
+          {grouping !== "year" && (
+            <button
+              type="button"
+              className="stats-drawer__timeline-step"
+              aria-label={`Next ${navigationUnit}`}
+              onClick={() => onNavigatePeriod(1)}
+            >
+              <Icon icon={iconChevronRight} />
+            </button>
+          )}
+        </div>
       </figcaption>
-      {peak === 0 && <p className="stats-drawer__note">No media created in this period.</p>}
     </figure>
   );
 }

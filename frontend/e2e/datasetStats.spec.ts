@@ -1,7 +1,26 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { COUNT_UP_MS } from "../src/features/gallery/lib/countUp";
 import type { FolderResponse } from "../src/shared/types";
 import { WORKSPACE } from "./workspace";
+
+async function openTimelineWorkspace(page: Page, photoCreatedAt: string, clipCreatedAt: string) {
+  await page.route("**/api/folders/contents?**", async (route) => {
+    const response = await route.fetch();
+    const folder = (await response.json()) as FolderResponse;
+    // Earlier specs add media to the shared workspace; only these two belong to this fixture.
+    const items = folder.items
+      .filter((item) => item.name === "photo.png" || item.name === "clip.mp4")
+      .map((item) => ({
+        ...item,
+        created_at: item.name === "photo.png" ? photoCreatedAt : clipCreatedAt,
+        modified_at: "2026-09-01T12:00:00",
+      }));
+    await route.fulfill({
+      json: { ...folder, items, item_count: items.length, subfolders: [], subfolder_count: 0 },
+    });
+  });
+  await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
+}
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date(2026, 5, 15, 12));
@@ -10,17 +29,7 @@ test.beforeEach(async ({ page }) => {
 test("statistics chart media creation dates above caption length", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.route("**/api/folders/contents?**", async (route) => {
-    const response = await route.fetch();
-    const folder = (await response.json()) as FolderResponse;
-    const items = folder.items.map((item) => ({
-      ...item,
-      created_at: item.name === "photo.png" ? "2026-06-01T12:00:00" : "2026-06-03T12:00:00",
-      modified_at: "2026-09-01T12:00:00",
-    }));
-    await route.fulfill({ json: { ...folder, items } });
-  });
-  await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
+  await openTimelineWorkspace(page, "2026-06-01T12:00:00", "2026-06-03T12:00:00");
   await page.getByRole("button", { name: "Open dataset statistics" }).click();
 
   const drawer = page.getByRole("dialog", { name: "Dataset statistics" });
@@ -35,8 +44,9 @@ test("statistics chart media creation dates above caption length", async ({ page
   await expect(chart).toBeVisible();
   const days = Array.from({ length: 30 }, (_, index) => `Jun ${index + 1}, 2026`);
   await expectBuckets(days);
-  await expect(chart.getByText("Media", { exact: true })).toBeVisible();
-  await expect(chart.getByText("Creation date", { exact: true })).toBeVisible();
+  await expect(chart.getByText("Media", { exact: true })).toHaveCount(0);
+  await expect(chart.getByText("Creation date", { exact: true })).toHaveCount(0);
+  await expect(chart.getByText("Jun 2026", { exact: true })).toBeVisible();
   await expect(chart.locator(".stats-drawer__timeline-y-axis span")).toHaveText(["0", "1"]);
   await expect(chart).not.toContainText("Sep");
   const timeline = (await drawer.getByRole("heading", { name: "Media created" }).boundingBox())!;
@@ -98,16 +108,7 @@ test("timeline tabs filter the current period and keep historical years availabl
 }, testInfo) => {
   await page.setViewportSize({ width: 375, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.route("**/api/folders/contents?**", async (route) => {
-    const response = await route.fetch();
-    const folder = (await response.json()) as FolderResponse;
-    const items = folder.items.map((item) => ({
-      ...item,
-      created_at: item.name === "photo.png" ? "2025-06-01T12:00:00" : "2026-01-01T12:00:00",
-    }));
-    await route.fulfill({ json: { ...folder, items } });
-  });
-  await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
+  await openTimelineWorkspace(page, "2025-06-01T12:00:00", "2026-01-01T12:00:00");
   await page.getByRole("button", { name: "Open dataset statistics" }).click();
   const grouping = page.getByRole("radiogroup", { name: "Creation timeline grouping" });
   await expect(grouping.getByRole("radio", { name: "Month" })).toBeChecked();
@@ -138,16 +139,7 @@ test("timeline bars grow on opening and replay when statistics reopen", async ({
 }, testInfo) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.clock.install({ time: new Date(2026, 5, 15, 11) });
-  await page.route("**/api/folders/contents?**", async (route) => {
-    const response = await route.fetch();
-    const folder = (await response.json()) as FolderResponse;
-    const items = folder.items.map((item) => ({
-      ...item,
-      created_at: item.name === "photo.png" ? "2025-06-01T12:00:00" : "2026-06-01T12:00:00",
-    }));
-    await route.fulfill({ json: { ...folder, items } });
-  });
-  await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
+  await openTimelineWorkspace(page, "2025-06-01T12:00:00", "2026-06-01T12:00:00");
   const trigger = page.getByRole("button", { name: "Open dataset statistics" });
   await expect(trigger).toBeVisible();
   await page.clock.pauseAt(new Date(2026, 5, 15, 12));
@@ -182,4 +174,54 @@ test("timeline bars grow on opening and replay when statistics reopen", async ({
   await page.clock.runFor(16 + COUNT_UP_MS);
   expect((await bar.boundingBox())!.height).toBeCloseTo(finalHeight, 0);
   await chart.screenshot({ path: testInfo.outputPath("creation-timeline-complete.png") });
+});
+
+test("period arrows browse months and years beside the caption", async ({ page }, testInfo) => {
+  await page.clock.setFixedTime(new Date(2026, 0, 31, 12));
+  await page.setViewportSize({ width: 375, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openTimelineWorkspace(page, "2025-12-31T12:00:00", "2026-02-28T12:00:00");
+  await page.getByRole("button", { name: "Open dataset statistics" }).click();
+  const grouping = page.getByRole("radiogroup", { name: "Creation timeline grouping" });
+  await grouping.getByText("Day", { exact: true }).click();
+  const chart = page.getByRole("figure", { name: "Distribution by media creation date" });
+  await expect(chart.getByText("Jan 2026", { exact: true })).toBeVisible();
+  const navigation = chart.locator(".stats-drawer__timeline-navigation");
+  const note = navigation.getByText("No media created in this period.");
+  await expect(note).toBeVisible();
+  const noteBounds = (await note.boundingBox())!;
+  const navigationBounds = (await navigation.boundingBox())!;
+  expect(
+    Math.abs(
+      noteBounds.y + noteBounds.height / 2 - navigationBounds.y - navigationBounds.height / 2,
+    ),
+  ).toBeLessThan(1);
+  await chart.screenshot({ path: testInfo.outputPath("creation-timeline-empty-period.png") });
+  await chart.getByRole("button", { name: "Previous month" }).click();
+  await expect(chart.getByText("Dec 2025", { exact: true })).toBeVisible();
+  await expect(chart.getByRole("img", { name: "1 file" })).toHaveCount(1);
+  await chart.getByRole("button", { name: "Next month" }).click();
+  await chart.getByRole("button", { name: "Next month" }).click();
+  await expect(chart.getByText("Feb 2026", { exact: true })).toBeVisible();
+  await expect(chart.getByRole("term")).toHaveCount(28);
+  await expect(chart.getByRole("img", { name: "1 file" })).toHaveCount(1);
+
+  const caption = navigation.locator(":scope > span");
+  const previous = (await chart.getByRole("button", { name: "Previous month" }).boundingBox())!;
+  const next = (await chart.getByRole("button", { name: "Next month" }).boundingBox())!;
+  const label = (await caption.boundingBox())!;
+  expect(previous.x + previous.width).toBeLessThanOrEqual(label.x);
+  expect(label.x + label.width).toBeLessThanOrEqual(next.x);
+  await chart.getByRole("button", { name: "Next month" }).hover();
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await chart.screenshot({ path: testInfo.outputPath("creation-timeline-month-navigation.png") });
+
+  await grouping.getByText("Month", { exact: true }).click();
+  await chart.getByRole("button", { name: "Previous year" }).click();
+  await expect(caption).toHaveText("2025");
+  await expect(chart.getByRole("term").first()).toHaveAttribute("title", "Jan 2025");
+  await expect(chart.getByRole("img", { name: "1 file" })).toHaveCount(1);
+  await chart.getByRole("button", { name: "Next year" }).click();
+  await expect(caption).toHaveText("2026");
+  await chart.screenshot({ path: testInfo.outputPath("creation-timeline-year-navigation.png") });
 });

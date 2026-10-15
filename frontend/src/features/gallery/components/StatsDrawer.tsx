@@ -108,10 +108,11 @@ function StatsContent({
       return CREATION_GROUPING_OPTIONS.find((option) => option.value === stored)?.value;
     },
   );
+  const [creationPeriod, setCreationPeriod] = useState(() => new Date());
   const groupingName = useId();
   const stats = useMemo(
-    () => computeDatasetStats(items, creationGrouping),
-    [items, creationGrouping],
+    () => computeDatasetStats(items, creationGrouping, creationPeriod),
+    [items, creationGrouping, creationPeriod],
   );
 
   if (stats.total === 0) {
@@ -157,6 +158,19 @@ function StatsContent({
         <CreationTimelineChart
           buckets={stats.creationTimeline}
           grouping={stats.creationTimelineGrouping}
+          onNavigatePeriod={(direction) => {
+            // Day one avoids skipping February when navigating from January 31.
+            setCreationPeriod(
+              (period) =>
+                new Date(
+                  period.getFullYear() +
+                    (stats.creationTimelineGrouping === "month" ? direction : 0),
+                  period.getMonth() + (stats.creationTimelineGrouping === "day" ? direction : 0),
+                  1,
+                  12,
+                ),
+            );
+          }}
         />
         {stats.creationTimeline.length === 0 && (
           <p className="stats-drawer__note">Creation dates are unavailable for this folder.</p>

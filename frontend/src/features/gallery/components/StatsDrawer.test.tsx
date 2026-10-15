@@ -122,8 +122,9 @@ describe("StatsDrawer", () => {
     expect(within(chart).getAllByRole("term").at(-1)).toHaveAttribute("title", "Jun 30, 2026");
     expect(within(chart).getByLabelText("1 file")).toBeInTheDocument();
     expect(within(chart).getByLabelText("2 files")).toBeInTheDocument();
-    expect(within(chart).getByText("Media")).toBeInTheDocument();
-    expect(within(chart).getByText("Creation date")).toBeInTheDocument();
+    expect(within(chart).queryByText("Media")).not.toBeInTheDocument();
+    expect(within(chart).queryByText("Creation date")).not.toBeInTheDocument();
+    expect(within(chart).getByText("Jun 2026")).toBeInTheDocument();
     expect(screen.getByText("1 file has an unknown creation date.")).toBeInTheDocument();
   });
 
@@ -220,6 +221,62 @@ describe("StatsDrawer", () => {
     });
 
     expect(screen.getByRole("radio", { name: "Year" })).toBeChecked();
+  });
+
+  it("steps through months across year boundaries without skipping a short month", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 0, 31, 12));
+    localStorage.setItem("stats-creation-grouping", "day");
+    const user = userEvent.setup();
+    renderDrawer({
+      items: [
+        mediaItem("december.png", HOME_PATH, { created_at: "2025-12-31T12:00:00" }),
+        mediaItem("january.png", HOME_PATH, { created_at: "2026-01-31T12:00:00" }),
+        mediaItem("february.png", HOME_PATH, { created_at: "2026-02-28T12:00:00" }),
+      ],
+    });
+    const chart = screen.getByRole("figure", { name: "Distribution by media creation date" });
+    expect(within(chart).getByText("Jan 2026")).toBeInTheDocument();
+
+    await user.click(within(chart).getByRole("button", { name: "Next month" }));
+    expect(within(chart).getByText("Feb 2026")).toBeInTheDocument();
+    expect(within(chart).getAllByRole("term")).toHaveLength(28);
+    expect(within(chart).getByRole("img", { name: "1 file" })).toBeInTheDocument();
+
+    await user.click(within(chart).getByRole("button", { name: "Previous month" }));
+    await user.click(within(chart).getByRole("button", { name: "Previous month" }));
+    expect(within(chart).getByText("Dec 2025")).toBeInTheDocument();
+    expect(within(chart).getAllByRole("term")).toHaveLength(31);
+    expect(within(chart).getByRole("img", { name: "1 file" })).toBeInTheDocument();
+  });
+
+  it("steps through years in monthly view and keeps empty periods navigable", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 5, 15, 12));
+    localStorage.setItem("stats-creation-grouping", "month");
+    const user = userEvent.setup();
+    renderDrawer({
+      items: [
+        mediaItem("previous.png", HOME_PATH, { created_at: "2025-06-01T12:00:00" }),
+        mediaItem("current.png", HOME_PATH, { created_at: "2026-06-01T12:00:00" }),
+      ],
+    });
+    const chart = screen.getByRole("figure", { name: "Distribution by media creation date" });
+    await user.click(within(chart).getByRole("button", { name: "Previous year" }));
+    expect(within(chart).getByText("2025")).toBeInTheDocument();
+    expect(within(chart).getAllByRole("term")[0]).toHaveAttribute("title", "Jan 2025");
+    expect(within(chart).getByRole("img", { name: "1 file" })).toBeInTheDocument();
+
+    await user.click(within(chart).getByRole("button", { name: "Next year" }));
+    await user.click(within(chart).getByRole("button", { name: "Next year" }));
+    expect(within(chart).getByText("2027")).toBeInTheDocument();
+    expect(within(chart).getByText("No media created in this period.")).toBeInTheDocument();
+    await user.click(within(chart).getByRole("button", { name: "Previous year" }));
+    expect(within(chart).queryByText("No media created in this period.")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Year" }));
+    expect(within(chart).queryByRole("button", { name: "Previous year" })).not.toBeInTheDocument();
+    expect(within(chart).queryByRole("button", { name: "Next year" })).not.toBeInTheDocument();
   });
 
   it("states each warning in words, never by colour alone", () => {

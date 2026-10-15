@@ -194,7 +194,7 @@ function countTags(media: GalleryItem[]): StatBucket[] {
 function creationTimeline(
   dates: Date[],
   grouping: CreationTimelineGrouping | undefined,
-  now: Date,
+  period: Date,
 ) {
   if (dates.length === 0) return { buckets: [], grouping: grouping ?? "day" };
 
@@ -216,21 +216,21 @@ function creationTimeline(
   });
   const counts = new Map<string, number>();
   for (const date of dates) {
-    if (interval !== "year" && date.getFullYear() !== now.getFullYear()) continue;
-    if (interval === "day" && date.getMonth() !== now.getMonth()) continue;
+    if (interval !== "year" && date.getFullYear() !== period.getFullYear()) continue;
+    if (interval === "day" && date.getMonth() !== period.getMonth()) continue;
     const label = formatter.format(date);
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
   const cursor =
     interval === "year"
       ? new Date(first.getFullYear(), 0, 1, 12)
-      : new Date(now.getFullYear(), interval === "day" ? now.getMonth() : 0, 1, 12);
+      : new Date(period.getFullYear(), interval === "day" ? period.getMonth() : 0, 1, 12);
   const end =
     interval === "year"
       ? new Date(last.getFullYear(), 0, 1, 12)
       : interval === "month"
-        ? new Date(now.getFullYear(), 11, 1, 12)
-        : new Date(now.getFullYear(), now.getMonth() + 1, 0, 12);
+        ? new Date(period.getFullYear(), 11, 1, 12)
+        : new Date(period.getFullYear(), period.getMonth() + 1, 0, 12);
   const buckets: StatBucket[] = [];
   // Walk calendar buckets so gaps retain their spacing across daylight-saving changes.
   while (cursor <= end) {
@@ -249,7 +249,7 @@ function creationTimeline(
 export function computeDatasetStats(
   media: GalleryItem[],
   creationGrouping?: CreationTimelineGrouping,
-  now = new Date(),
+  creationPeriod = new Date(),
 ): DatasetStats {
   const captions: string[] = [];
   const lengths: number[] = [];
@@ -326,7 +326,7 @@ export function computeDatasetStats(
   }
 
   const sortedLengths = [...lengths].sort((a, b) => a - b);
-  const timeline = creationTimeline(creationDates, creationGrouping, now);
+  const timeline = creationTimeline(creationDates, creationGrouping, creationPeriod);
 
   return {
     total: media.length,
