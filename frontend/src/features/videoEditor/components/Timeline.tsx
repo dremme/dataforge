@@ -93,7 +93,7 @@ interface TimelineProps {
   onSelect: (ids: Set<string>, transition?: string | null) => void;
   onRange: (range: TimeRange | null) => void;
   onPreview: (project: Project) => void;
-  onCommit: (next: Project, from: Project) => void;
+  onCommit: (next: Project) => void;
   onError: (message: string) => void;
   onSeek: (time: number) => void;
   onDropSource: (path: string, time: number, trackId: string) => void;
@@ -290,7 +290,7 @@ export function Timeline({
     const time = frame(timeAt(event.clientX));
     if (tool === "blade") {
       const result = splitClips(project, time, [clip.id]);
-      if (result.project) onCommit(result.project, project);
+      if (result.project) onCommit(result.project);
       else onError(result.error);
       return;
     }
@@ -446,7 +446,7 @@ export function Timeline({
     dragRef.current = null;
     setSnapAt(null);
     if (!drag || drag.kind === "scrub" || drag.kind === "range") return;
-    if (drag.result?.project) onCommit(drag.result.project, drag.base);
+    if (drag.result?.project) onCommit(drag.result.project);
     else if (drag.error) onError(drag.error);
     setDragError(null);
   }

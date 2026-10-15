@@ -1,3 +1,4 @@
+import { VIDEO_PROJECT_QUALITY_PRESETS } from "@/shared/constants";
 import type { VideoProjectExportSettings, VideoProjectOrientation } from "@/shared/types";
 import {
   clipEnd,
@@ -42,6 +43,31 @@ export function exportSize(
   if (orientation === "landscape") return { width: even(longSide), height: even(shortSide) };
   if (orientation === "portrait") return { width: even(shortSide), height: even(longSide) };
   return { width: even(shortSide), height: even(shortSide) };
+}
+
+/** The frame size the presets' bits-per-pixel figures were read at. */
+const ESTIMATE_REFERENCE_PIXELS = 1920 * 1080;
+/** x264 spends fewer bits on each pixel of a bigger frame; sample clips fit pixels^-0.2. */
+const ESTIMATE_PIXEL_EXPONENT = -0.2;
+
+/**
+ * A middle guess at the exported file's bytes. Rate-factor encodes follow the footage, so busy
+ * or grainy video can come out several times larger. Silent audio encodes to almost nothing.
+ */
+export function estimateExportBytes(
+  project: Project,
+  settings: VideoProjectExportSettings,
+): number {
+  const { width, height } = exportSize(project, settings);
+  const quality = VIDEO_PROJECT_QUALITY_PRESETS[settings.quality];
+  const pixels = width * height;
+  const bitsPerPixel =
+    quality.bits_per_pixel * (pixels / ESTIMATE_REFERENCE_PIXELS) ** ESTIMATE_PIXEL_EXPONENT;
+  const audioBits = project.clips.some((clip) => clip.kind === "audio")
+    ? quality.audio_kbps * 1000
+    : 0;
+  const bitsPerSecond = bitsPerPixel * pixels * project.frame_rate + audioBits;
+  return (bitsPerSecond * projectDuration(project)) / 8;
 }
 
 /** Seconds each clip fades in or out over because of a dissolve, linked sound included. */

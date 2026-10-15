@@ -34,6 +34,17 @@ describe("matchesChord", () => {
     ).toBe(true);
   });
 
+  it("matches the letter typed, not its position, on a Latin layout that moves letters", () => {
+    // German QWERTZ: the key labelled Z sits where QWERTY has Y, and the other way round.
+    const ctrlZ = keydown({ key: "z", code: "KeyY", ctrlKey: true });
+    const ctrlY = keydown({ key: "y", code: "KeyZ", ctrlKey: true });
+
+    expect(matchesShortcut(ctrlZ, SHORTCUTS.editorUndo)).toBe(true);
+    expect(matchesShortcut(ctrlZ, SHORTCUTS.editorRedo)).toBe(false);
+    expect(matchesShortcut(ctrlY, SHORTCUTS.editorRedo)).toBe(true);
+    expect(matchesShortcut(ctrlY, SHORTCUTS.editorUndo)).toBe(false);
+  });
+
   it("leaves Shift to the layout for printable symbols", () => {
     expect(matchesChord(keydown({ key: "?", shiftKey: true }), { key: "?" })).toBe(true);
     expect(matchesChord(keydown({ key: "/", shiftKey: true }), { key: "/" })).toBe(true);

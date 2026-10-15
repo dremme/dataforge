@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { VIDEO_PROJECT_EXPORT_EXTENSION, VIDEO_PROJECT_EXPORT_TAG } from "@/shared/constants";
+import { formatFileSize } from "@/shared/lib/format";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import { RadioTileGroup } from "@/shared/ui/RadioTileGroup";
 import type {
@@ -8,7 +9,11 @@ import type {
   VideoProjectQuality,
   VideoProjectSizePreset,
 } from "@/shared/types";
-import { exportSize, projectOrientation } from "@/features/videoEditor/lib/composition";
+import {
+  estimateExportBytes,
+  exportSize,
+  projectOrientation,
+} from "@/features/videoEditor/lib/composition";
 import {
   formatTimecode,
   projectDuration,
@@ -165,6 +170,7 @@ export function ExportDialog({
         {formatTimecode(duration, project.frame_rate)}
         {(frame.width !== project.width || frame.height !== project.height) &&
           " · fitted without stretching"}
+        {duration > 0 && ` · about ${formatFileSize(estimateExportBytes(project, settings))}`}
       </p>
       {blocked && <p className="dialog__error">{blocked}</p>}
       {error && <p className="dialog__error">{error}</p>}

@@ -74,6 +74,13 @@ describe("ExportDialog", () => {
     await user.click(screen.getByRole("radio", { name: "1080p" }));
     await user.click(screen.getByRole("radio", { name: "Portrait" }));
     expect(screen.getByText(/1080 × 1920/)).toBeInTheDocument();
+    const estimate = () =>
+      /about [\d.]+ [KMG]?B/.exec(screen.getByText(/1080 × 1920/).textContent!)?.[0];
+    const standard = estimate();
+    expect(standard).toBeDefined();
+    await user.click(screen.getByRole("radio", { name: "Smaller file" }));
+    expect(estimate()).not.toBe(standard);
+    await user.click(screen.getByRole("radio", { name: "Standard" }));
     await user.click(screen.getByRole("button", { name: "Export" }));
 
     expect(onExport).toHaveBeenCalledWith(

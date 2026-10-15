@@ -15,7 +15,7 @@ import {
   iconX,
 } from "@/shared/icons";
 import { formatApiError } from "@/shared/api/http";
-import { isEditableTarget } from "@/shared/lib/isEditableTarget";
+import { isEditableTarget, isTextEntryTarget } from "@/shared/lib/isEditableTarget";
 import { matchesShortcut, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { readStoredJson, writeStored } from "@/shared/lib/storage";
 import { Dialog, DialogButton } from "@/shared/ui/Dialog";
@@ -25,6 +25,7 @@ import type {
   GalleryItem,
   VideoProjectDocument,
   VideoProjectExportSettings,
+  VideoProjectSource,
   VideoProjectSourceInfo,
 } from "@/shared/types";
 import {
@@ -285,7 +286,6 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
   const [autoPending, setAutoPending] = useState<Set<string>>(new Set());
   const [exportIds, setExportIds] = useState<string[]>([]);
   const timelineBoxRef = useRef<HTMLDivElement>(null);
-  const transientBase = useRef<Project | null>(null);
   const sourceTransportRef = useRef<SourceTransport | null>(null);
   const { exports, track, cancel, dismiss } = useVideoExports();
 
@@ -305,6 +305,18 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
     );
   }, [project.clips, state.sources]);
   const selectedClips = project.clips.filter((clip) => selection.has(clip.id));
+  // Undo and redo can take away what is chosen; a choice never names a clip that is gone.
+  useEffect(() => {
+    const ids = new Set(project.clips.map((clip) => clip.id));
+    setSelectionState((current) =>
+      [...current].every((id) => ids.has(id))
+        ? current
+        : new Set([...current].filter((id) => ids.has(id))),
+    );
+    setTransitionId((current) =>
+      current && project.transitions.some((item) => item.id === current) ? current : null,
+    );
+  }, [project.clips, project.transitions]);
   const duration = projectDuration(project);
 
   useEffect(() => () => engine.dispose(), [engine]);
@@ -337,9 +349,9 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
   }, [fitTimeline]);
 
   const apply = useCallback(
-    (result: EditResult, from?: Project): boolean => {
+    (result: EditResult): boolean => {
       if (result.project) {
-        state.commit(result.project, from);
+        state.commit(result.project);
         setMessage(null);
         return true;
       }
@@ -356,15 +368,10 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
         setMessage(result.error);
         return;
       }
-      if (!transientBase.current) transientBase.current = project;
-      if (final) {
-        state.commit(result.project, transientBase.current);
-        transientBase.current = null;
-      } else {
-        state.preview(result.project);
-      }
+      if (final) state.commit(result.project);
+      else state.preview(result.project);
     },
-    [project, state],
+    [state],
   );
 
   const deleteSelection = useCallback(() => {
@@ -520,7 +527,11 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
       setBusy(true);
       try {
         const info = await probeVideoProjectSource(path);
-        const sources = project.sources.map((source) =>
+        if (project.sources.some((item) => item.id !== sourceId && item.name === info.name)) {
+          setMessage(`${info.name} is already a source of this project; relink to another file.`);
+          return;
+        }
+        const relink = (source: VideoProjectSource): VideoProjectSource =>
           source.id === sourceId
             ? {
                 ...source,
@@ -533,13 +544,8 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
                 frame_rate: info.frame_rate ?? null,
                 has_audio: info.has_audio,
               }
-            : source,
-        );
-        if (sources.some((source) => source.id !== sourceId && source.name === info.name)) {
-          setMessage(`${info.name} is already a source of this project; relink to another file.`);
-          return;
-        }
-        state.commit({ ...project, sources });
+            : source;
+        state.amend((current) => ({ ...current, sources: current.sources.map(relink) }));
         state.setSources(
           state.sources.map((status) =>
             status.source_id === sourceId ? { ...status, state: "ok", path: info.path } : status,
@@ -566,8 +572,7 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
 
   const startExport = useCallback(
     async (settings: VideoProjectExportSettings) => {
-      const next = { ...project, export: settings };
-      state.commit(next);
+      const next = state.amend((current) => ({ ...current, export: settings }));
       setExportBusy(true);
       setExportError(null);
       try {
@@ -581,7 +586,7 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
         setExportBusy(false);
       }
     },
-    [project, state, track],
+    [state, track],
   );
 
   /** I and O on the timeline mark the range a ripple delete removes, like a source's in and out. */
@@ -597,16 +602,22 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
     [engine, project.frame_rate],
   );
 
-  // Keys reach the editor only outside text fields and while none of its dialogs is open.
+  // Keys reach the editor only outside form controls and while none of its dialogs is open.
+  // Undo and redo also reach it from sliders and the like, which have no history of their own.
   const keysRef = useRef<(event: KeyboardEvent) => void>(() => undefined);
   keysRef.current = (event: KeyboardEvent) => {
-    if (dialogOpen || menuOpen || event.defaultPrevented || isEditableTarget(event.target)) return;
-    const frame = 1 / project.frame_rate;
-    const source = previewMode === "source" ? sourceTransportRef.current : null;
+    if (dialogOpen || menuOpen || event.defaultPrevented) return;
     const run = (action: () => void) => {
       event.preventDefault();
       action();
     };
+    if (!isTextEntryTarget(event.target)) {
+      if (matchesShortcut(event, SHORTCUTS.editorRedo)) return run(state.redo);
+      if (matchesShortcut(event, SHORTCUTS.editorUndo)) return run(state.undo);
+    }
+    if (isEditableTarget(event.target)) return;
+    const frame = 1 / project.frame_rate;
+    const source = previewMode === "source" ? sourceTransportRef.current : null;
     const jump = (direction: -1 | 1) => {
       const now = engine.currentTime;
       const points = editPoints(project);
@@ -657,8 +668,6 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
     else if (matchesShortcut(event, SHORTCUTS.editorRippleDelete)) run(ripple);
     else if (matchesShortcut(event, SHORTCUTS.editorDelete)) run(deleteSelection);
     else if (matchesShortcut(event, SHORTCUTS.editorDuplicate)) run(duplicate);
-    else if (matchesShortcut(event, SHORTCUTS.editorRedo)) run(state.redo);
-    else if (matchesShortcut(event, SHORTCUTS.editorUndo)) run(state.undo);
   };
   // A layout effect, so a key pressed as the editor first shows is never dropped.
   useLayoutEffect(() => {
@@ -930,7 +939,7 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
               }}
               onRange={setRange}
               onPreview={state.preview}
-              onCommit={(next, from) => state.commit(next, from)}
+              onCommit={state.commit}
               onError={setMessage}
               onSeek={seekTimeline}
               onDropSource={(path, time, trackId) => void addSource(path, time, trackId)}

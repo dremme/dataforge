@@ -243,8 +243,11 @@ function isLayoutSymbol(key: string): boolean {
 
 function keyMatches(event: KeyboardEvent, key: string): boolean {
   if (isLetter(key)) {
-    // `code` keeps letter chords working on non-Latin layouts.
-    return event.key.toLowerCase() === key || event.code === `Key${key.toUpperCase()}`;
+    // The letter typed wins, or QWERTZ Ctrl+Z (code KeyY) would also match Ctrl+Y. `code` is the
+    // fallback for non-Latin layouts, which type no Latin letter at all.
+    return isLetter(event.key)
+      ? event.key.toLowerCase() === key
+      : event.code === `Key${key.toUpperCase()}`;
   }
   return event.key === key;
 }

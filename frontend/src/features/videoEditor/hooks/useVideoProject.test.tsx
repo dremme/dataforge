@@ -166,9 +166,63 @@ describe("useVideoProject", () => {
 
     act(() => result.current.preview({ ...start, name: "Dragging" }));
     act(() => result.current.preview({ ...start, name: "Still dragging" }));
-    act(() => result.current.commit({ ...start, name: "Dropped" }, start));
+    act(() => result.current.commit({ ...start, name: "Dropped" }));
     act(() => result.current.undo());
 
     expect(result.current.project.name).toBe("Edit");
+  });
+
+  it("saves nothing for a preview alone, and a flush settles and saves an unfinished gesture", async () => {
+    saveMock.mockResolvedValue({
+      path: "C:\\media\\a.video-project.json",
+      revision: 1,
+      updated_at: "",
+    });
+    const { result } = renderHook(() => useVideoProject(document()));
+
+    act(() => result.current.preview({ ...result.current.project, name: "Dragging" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS);
+    });
+    expect(saveMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.flush();
+    });
+    expect(saveMock).toHaveBeenCalledWith(
+      "C:\\media",
+      null,
+      null,
+      expect.objectContaining({ name: "Dragging" }),
+    );
+    act(() => result.current.undo());
+    expect(result.current.project.name).toBe("Edit");
+  });
+
+  it("saves an amendment without making it an undo step", async () => {
+    saveMock.mockResolvedValue({
+      path: "C:\\media\\a.video-project.json",
+      revision: 1,
+      updated_at: "",
+    });
+    const { result } = renderHook(() => useVideoProject(document()));
+    act(() => result.current.commit({ ...result.current.project, name: "Renamed" }));
+
+    act(() => {
+      result.current.amend((project) => ({ ...project, width: 1280 }));
+    });
+    await act(async () => {
+      await result.current.flush();
+    });
+    expect(saveMock).toHaveBeenLastCalledWith(
+      "C:\\media",
+      null,
+      null,
+      expect.objectContaining({ name: "Renamed", width: 1280 }),
+    );
+
+    act(() => result.current.undo());
+    expect(result.current.project).toMatchObject({ name: "Edit", width: 1280 });
+    expect(result.current.canUndo).toBe(false);
   });
 });

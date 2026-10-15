@@ -20,6 +20,7 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont
 
 from automation.watermark import resolve_watermark_font
 from color_adjust import adjust_lut, is_adjust_identity, is_global_identity, write_cube
+from constants import VIDEO_PROJECT_QUALITY_PRESETS
 from image_io import displayed_image
 from schemas import (
     VideoEditSpec,
@@ -49,19 +50,6 @@ AUDIO_SAMPLE_RATE = 48000
 
 GRAPH_FILE_NAME = "graph.txt"
 
-
-@dataclass(frozen=True, slots=True)
-class QualityPreset:
-    crf: int
-    preset: str
-    audio_bitrate: str
-
-
-QUALITY_PRESETS = {
-    "standard": QualityPreset(crf=20, preset="fast", audio_bitrate="192k"),
-    "high": QualityPreset(crf=16, preset="slow", audio_bitrate="256k"),
-    "small": QualityPreset(crf=27, preset="medium", audio_bitrate="128k"),
-}
 
 #: Line spacing of a multi-line title, as a fraction of its size.
 TITLE_LINE_SPACING = 0.2
@@ -466,7 +454,7 @@ def build_render(
 
     (workspace / GRAPH_FILE_NAME).write_text(";\n".join(links), encoding="utf-8")
 
-    quality = QUALITY_PRESETS[settings.quality]
+    quality = VIDEO_PROJECT_QUALITY_PRESETS[settings.quality]
     command = [
         executable,
         "-nostdin",
@@ -487,9 +475,9 @@ def build_render(
         "-c:v",
         "libx264",
         "-preset",
-        quality.preset,
+        quality["preset"],
         "-crf",
-        str(quality.crf),
+        str(quality["crf"]),
         "-pix_fmt",
         "yuv420p",
         "-r",
@@ -497,7 +485,7 @@ def build_render(
         "-c:a",
         "aac",
         "-b:a",
-        quality.audio_bitrate,
+        f"{quality['audio_kbps']}k",
         "-ar",
         str(AUDIO_SAMPLE_RATE),
         "-t",

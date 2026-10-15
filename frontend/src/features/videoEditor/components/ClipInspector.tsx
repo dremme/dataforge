@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -632,9 +633,19 @@ interface SliderProps {
   resting?: number;
 }
 
-/** Previews while dragged; the release, or a key, records one undo step. */
+/**
+ * Previews while dragged; the release, or a key, records one undo step. Only a moved slider
+ * commits: the input reports its value rounded to ``step``, so settling an untouched one would
+ * round the clip's value, e.g. on the key-up of the Ctrl+Z that undid it, and clear redo.
+ */
 export function Slider({ label, value, min, max, step, format, onChange, resting }: SliderProps) {
   const id = useId();
+  const movedRef = useRef(false);
+  const settle = (event: { currentTarget: HTMLInputElement }) => {
+    if (!movedRef.current) return;
+    movedRef.current = false;
+    onChange(Number(event.currentTarget.value), true);
+  };
   const clamped = Math.min(max, Math.max(min, value));
   const changed = resting !== undefined && Math.abs(clamped - resting) > step / 2;
   const origin = resting !== undefined && resting >= min && resting <= max ? resting : min;
@@ -657,10 +668,13 @@ export function Slider({ label, value, min, max, step, format, onChange, resting
         step={step}
         value={clamped}
         style={rangeFill(clamped, min, max, origin)}
-        onChange={(event) => onChange(Number(event.target.value), false)}
-        onPointerUp={(event) => onChange(Number(event.currentTarget.value), true)}
-        onKeyUp={(event) => onChange(Number(event.currentTarget.value), true)}
-        onBlur={(event) => onChange(Number(event.currentTarget.value), true)}
+        onChange={(event) => {
+          movedRef.current = true;
+          onChange(Number(event.target.value), false);
+        }}
+        onPointerUp={settle}
+        onKeyUp={settle}
+        onBlur={settle}
       />
       <output htmlFor={id}>{format(clamped)}</output>
     </div>

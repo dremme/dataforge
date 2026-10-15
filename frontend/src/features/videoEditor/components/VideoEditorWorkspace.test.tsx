@@ -369,6 +369,40 @@ describe("VideoEditorWorkspace", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Undo" }));
     expect(screen.getByRole<HTMLInputElement>("slider", { name: "Fade in" }).value).toBe("1");
   });
+
+  it("undoes and redoes with the keyboard while a slider still has focus", async () => {
+    renderEditor();
+    await screen.findByRole("button", { name: "Back to gallery" });
+    fireEvent.keyDown(clips()[0], { key: "Enter" });
+    const fadeIn = () => screen.getByRole<HTMLInputElement>("slider", { name: "Fade in" });
+    fadeIn().focus();
+    fireEvent.change(fadeIn(), { target: { value: "1" } });
+    fireEvent.keyUp(fadeIn(), { key: "ArrowRight" });
+    expect(fadeIn().value).toBe("1");
+
+    fireEvent.keyDown(fadeIn(), { key: "z", ctrlKey: true });
+    await waitFor(() => expect(fadeIn().value).toBe("0"));
+    fireEvent.keyUp(fadeIn(), { key: "z" });
+
+    fireEvent.keyDown(fadeIn(), { key: "Z", ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(fadeIn().value).toBe("1"));
+  });
+
+  it("leaves Ctrl+Z to a text field being typed in", async () => {
+    renderEditor();
+    await screen.findByRole("button", { name: "Back to gallery" });
+    fireEvent.keyDown(clips()[0], { key: "Enter" });
+    fireEvent.keyDown(document.body, { key: "Delete" });
+    await waitFor(() => expect(clips()).toHaveLength(0));
+
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Project name" }), {
+      key: "z",
+      ctrlKey: true,
+    });
+    expect(clips()).toHaveLength(0);
+    fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
+    await waitFor(() => expect(clips()).toHaveLength(2));
+  });
   it("lets Auto read the clip's take and adds its suggestion, then takes it back off", async () => {
     const user = userEvent.setup();
     const suggest = vi.mocked(api.suggestVideoProjectAdjust).mockResolvedValue({
@@ -480,6 +514,22 @@ describe("VideoEditorWorkspace", () => {
     });
     await user.click(screen.getByRole("button", { name: "Duplicate" }));
     expect(screen.getAllByRole("button", { name: /^clip\.mp4, 00:04 to 00:06/ })).toHaveLength(2);
+  });
+
+  it("lets go of chosen clips that an undo takes away", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await screen.findByRole("button", { name: "Back to gallery" });
+    fireEvent.keyDown(clips()[0], { key: "Enter" });
+    const everyClip = () => screen.getAllByRole("button", { name: /^clip\.mp4, / });
+    await user.click(screen.getByRole("button", { name: "Duplicate" }));
+    expect(everyClip()).toHaveLength(4);
+    expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
+
+    fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
+
+    await waitFor(() => expect(everyClip()).toHaveLength(2));
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
   });
 
   it("ripple-deletes a range marked with I and O", async () => {

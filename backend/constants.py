@@ -1,4 +1,4 @@
-from typing import Final
+from typing import Final, TypedDict
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 GIF_EXTENSION = ".gif"
@@ -55,6 +55,23 @@ VIDEO_PROJECT_MAX_TRACKS = 16
 VIDEO_PROJECT_STILL_SECONDS = 5.0
 # A project opened without a video; the first video added names it after itself.
 VIDEO_PROJECT_UNTITLED_NAME = "Untitled project"
+
+
+class VideoExportQuality(TypedDict):
+    crf: int
+    preset: str
+    audio_kbps: int
+    #: What the export dialog's size estimate assumes at 1080p, a middle reading of sample
+    #: clips: rate-factor output varies with the footage, several times over.
+    bits_per_pixel: float
+
+
+#: Keyed by the wire ``VideoProjectQuality``; x264 rate factor and speed, AAC bitrate.
+VIDEO_PROJECT_QUALITY_PRESETS: dict[str, VideoExportQuality] = {
+    "standard": {"crf": 20, "preset": "fast", "audio_kbps": 192, "bits_per_pixel": 0.08},
+    "high": {"crf": 16, "preset": "slow", "audio_kbps": 256, "bits_per_pixel": 0.13},
+    "small": {"crf": 27, "preset": "medium", "audio_kbps": 128, "bits_per_pixel": 0.03},
+}
 
 # GIF delays are per-frame, not a rate; 24 matches the rest of the video tooling.
 GIF_MP4_FRAME_RATE = 24.0
@@ -261,6 +278,7 @@ SHARED_CONSTANTS: dict[str, object] = {
     "VIDEO_PROJECT_MAX_TRACKS": VIDEO_PROJECT_MAX_TRACKS,
     "VIDEO_PROJECT_STILL_SECONDS": VIDEO_PROJECT_STILL_SECONDS,
     "VIDEO_PROJECT_UNTITLED_NAME": VIDEO_PROJECT_UNTITLED_NAME,
+    "VIDEO_PROJECT_QUALITY_PRESETS": VIDEO_PROJECT_QUALITY_PRESETS,
     "IMAGE_EDIT_EXTENSIONS": sorted(IMAGE_EDIT_EXTENSIONS),
     "GIF_EXTENSION": GIF_EXTENSION,
     "GIF_MP4_FRAME_RATE": GIF_MP4_FRAME_RATE,

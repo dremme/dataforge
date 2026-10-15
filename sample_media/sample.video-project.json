@@ -33,6 +33,18 @@
       "height": null,
       "frame_rate": null,
       "has_audio": true
+    },
+    {
+      "id": "b725e869239d",
+      "name": "beach_rays.mp4",
+      "kind": "video",
+      "size": 85440,
+      "modified_us": 1790762696835973,
+      "duration": 1.625,
+      "width": 612,
+      "height": 478,
+      "frame_rate": 24.0,
+      "has_audio": false
     }
   ],
   "tracks": [
@@ -80,7 +92,7 @@
       "kind": "title",
       "source_id": null,
       "start": 0.0,
-      "duration": 1.5,
+      "duration": 2.918333333333333,
       "source_in": 0.0,
       "speed": 1.0,
       "link_id": null,
@@ -173,8 +185,50 @@
       "track_id": "064038d9e44c",
       "kind": "audio",
       "source_id": "694875603eb7",
-      "start": 0.020000000000000018,
+      "start": 0.0,
       "duration": 1.48,
+      "source_in": 0.0,
+      "speed": 1.0,
+      "link_id": null,
+      "transform": {
+        "x": 0.0,
+        "y": 0.0,
+        "scale": 1.0,
+        "rotation": 0.0,
+        "opacity": 1.0
+      },
+      "crop": null,
+      "fit": "fit",
+      "adjust": {
+        "exposure": 0.0,
+        "brilliance": 0.0,
+        "highlights": 0.0,
+        "shadows": 0.0,
+        "contrast": 0.0,
+        "brightness": 0.0,
+        "black_point": 0.0,
+        "white_point": 0.0,
+        "saturation": 0.0,
+        "vibrance": 0.0,
+        "warmth": 0.0,
+        "tint": 0.0,
+        "hue": 0.0,
+        "definition": 0.0,
+        "noise_reduction": 0.0
+      },
+      "auto_adjust": null,
+      "gain": 1.0,
+      "fade_in": 0.0,
+      "fade_out": 0.0,
+      "title": null
+    },
+    {
+      "id": "e1bae36a8f57",
+      "track_id": "a578f3d3cd9c",
+      "kind": "video",
+      "source_id": "b725e869239d",
+      "start": 1.293333333333333,
+      "duration": 1.625,
       "source_in": 0.0,
       "speed": 1.0,
       "link_id": null,
@@ -211,7 +265,13 @@
       "title": null
     }
   ],
-  "transitions": [],
+  "transitions": [
+    {
+      "id": "c12636ec2ba5",
+      "from_clip_id": "574907f9fd3a",
+      "to_clip_id": "e1bae36a8f57"
+    }
+  ],
   "export": {
     "filename": "",
     "size": "source",

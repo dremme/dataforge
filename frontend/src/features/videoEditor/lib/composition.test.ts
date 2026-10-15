@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   audibleTrackIds,
+  estimateExportBytes,
   exportSize,
   fadeLevel,
   layersAt,
@@ -103,6 +104,24 @@ describe("exportSize", () => {
       width: 1920,
       height: 1080,
     });
+  });
+});
+
+describe("estimateExportBytes", () => {
+  it("grows with length and quality, and counts sound only when there is some", () => {
+    const picture = project([clip("v", "v1", 0, 10)]);
+    const standard = estimateExportBytes(picture, settings);
+
+    expect(estimateExportBytes(project([clip("v", "v1", 0, 20)]), settings)).toBeCloseTo(
+      2 * standard,
+    );
+    expect(estimateExportBytes(picture, { ...settings, quality: "high" })).toBeGreaterThan(
+      standard,
+    );
+    expect(estimateExportBytes(picture, { ...settings, quality: "small" })).toBeLessThan(standard);
+    expect(estimateExportBytes(picture, { ...settings, size: "720p" })).toBeLessThan(standard);
+    const voiced = project([clip("v", "v1", 0, 10), clip("s", "a1", 0, 10)]);
+    expect(estimateExportBytes(voiced, settings) - standard).toBeCloseTo((192_000 * 10) / 8);
   });
 });
 

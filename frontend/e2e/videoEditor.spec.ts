@@ -1,10 +1,27 @@
 import fs from "node:fs";
 import path from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { WORKSPACE, openWorkspace } from "./workspace";
 
 const drafts = () =>
   fs.readdirSync(WORKSPACE).filter((name) => name.endsWith(".video-project.json"));
+
+/**
+ * Ctrl plus a letter as a German QWERTZ keyboard reports it: Z and Y trade places, so the key
+ * labelled Z has the physical code of QWERTY's Y. Playwright's own presses are always QWERTY.
+ */
+async function pressQwertz(page: Page, letter: "z" | "y") {
+  const session = await page.context().newCDPSession(page);
+  const key = {
+    key: letter,
+    code: letter === "z" ? "KeyY" : "KeyZ",
+    windowsVirtualKeyCode: letter.toUpperCase().charCodeAt(0),
+    modifiers: 2, // Ctrl
+  };
+  await session.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...key });
+  await session.send("Input.dispatchKeyEvent", { type: "keyUp", ...key });
+  await session.detach();
+}
 
 test("edits a video into a saved project, reopens it from the gallery and deletes it", async ({
   page,
@@ -19,7 +36,18 @@ test("edits a video into a saved project, reopens it from the gallery and delete
   await expect(page.getByRole("button", { name: /^clip\.mp4, 00:00 to 00:02/ })).toHaveCount(1);
 
   await page.getByRole("button", { name: "Add title" }).click();
-  await expect(page.getByRole("button", { name: /^Title, 00:00 to / })).toBeVisible();
+  const title = page.getByRole("button", { name: /^Title, 00:00 to / });
+  await expect(title).toBeVisible();
+
+  // Undo and redo from the keyboard, on QWERTY and on a layout that swaps Z and Y.
+  await page.keyboard.press("Control+z");
+  await expect(title).toHaveCount(0);
+  await page.keyboard.press("Control+y");
+  await expect(title).toBeVisible();
+  await pressQwertz(page, "z");
+  await expect(title).toHaveCount(0);
+  await pressQwertz(page, "y");
+  await expect(title).toBeVisible();
   await name.fill("E2E cut");
   await name.press("Enter");
 

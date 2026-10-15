@@ -41,7 +41,7 @@ from video_frames import media_has_audio
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_FRAME_RATE = 30.0
+DEFAULT_FRAME_RATE = 24.0
 DEFAULT_CANVAS = (1920, 1080)
 #: Numbered names tried before giving up; far beyond anything a person makes by hand.
 MAX_NUMBERED_NAMES = 9999

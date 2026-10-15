@@ -17,6 +17,7 @@ from video_project import (
     is_draft_file,
     is_snapshot_file,
     list_drafts,
+    new_empty_project,
     new_id,
     new_project_for_video,
     probe_source_file,
@@ -73,6 +74,9 @@ class NewProjectTests(unittest.TestCase):
 
             self.assertEqual([clip.kind for clip in project.clips], ["video"])
             self.assertIsNone(project.clips[0].link_id)
+
+    def test_an_empty_project_starts_at_24_fps(self) -> None:
+        self.assertEqual(new_empty_project().frame_rate, 24.0)
 
     def test_the_live_file_is_used_even_when_a_quick_edit_backup_exists(self) -> None:
         with TempMediaFolder() as root:

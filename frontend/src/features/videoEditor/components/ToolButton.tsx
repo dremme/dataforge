@@ -1,7 +1,8 @@
 import type { AppIcon } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
-import { ariaKeyShortcuts, formatShortcut, type ShortcutDefinition } from "@/shared/lib/shortcuts";
+import { ariaKeyShortcuts, type ShortcutDefinition } from "@/shared/lib/shortcuts";
 import { Icon } from "@/shared/ui/Icon";
+import { ShortcutHint } from "@/shared/ui/ShortcutKeys";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
 interface ToolButtonProps {
@@ -31,7 +32,8 @@ export function ToolButton({
   tooltip,
   tooltipPlacement = "top",
 }: ToolButtonProps) {
-  const hint = shortcut ? `${tooltip ?? label} (${formatShortcut(shortcut)})` : (tooltip ?? label);
+  const name = tooltip ?? label;
+  const hint = shortcut ? <ShortcutHint shortcut={shortcut}>{name}</ShortcutHint> : name;
   return (
     <Tooltip content={hint} placement={tooltipPlacement}>
       <button

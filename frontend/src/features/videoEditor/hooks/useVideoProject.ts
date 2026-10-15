@@ -2,11 +2,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, formatApiError } from "@/shared/api/http";
 import type { VideoProjectDocument, VideoProjectSourceStatus } from "@/shared/types";
 import { saveVideoProject } from "@/features/videoEditor/api/videoProjects";
+import {
+  amendAll,
+  canRedo,
+  canUndo,
+  commitEdit,
+  previewEdit,
+  redoEdit,
+  settledProject,
+  settleGesture,
+  startHistory,
+  undoEdit,
+  type ProjectHistory,
+} from "@/features/videoEditor/lib/projectHistory";
 import type { Project } from "@/features/videoEditor/lib/timeline";
 
 /** Long enough that a drag's last frames land in one save, short enough to lose little. */
 export const AUTOSAVE_DELAY_MS = 800;
-const HISTORY_LIMIT = 200;
 
 export type ProjectSaveState = "new" | "unsaved" | "saving" | "saved" | "error" | "conflict";
 
@@ -19,10 +31,14 @@ export interface VideoProjectState {
   saveError: string | null;
   canUndo: boolean;
   canRedo: boolean;
-  /** Shows a change without recording it; a drag calls this, then ``commit`` once. */
+  /**
+   * Every edit goes through ``commit``, or ``preview`` while a gesture runs and then ``commit``:
+   * the gesture becomes one undo step from where its first preview started. See projectHistory.
+   */
   preview: (next: Project) => void;
-  /** Records the change as one undo step. ``from`` is the state before a previewed drag. */
-  commit: (next: Project, from?: Project) => void;
+  commit: (next: Project) => void;
+  /** Changes that are not edits; see ``amendAll``. Returns the project as it now stands. */
+  amend: (update: (project: Project) => Project) => Project;
   undo: () => void;
   redo: () => void;
   /** Saves anything pending now; resolves false when the save did not succeed. */
@@ -35,18 +51,16 @@ export interface VideoProjectState {
 }
 
 export function useVideoProject(initial: VideoProjectDocument): VideoProjectState {
-  const [project, setProject] = useState<Project>(initial.project);
   const [path, setPath] = useState<string | null>(initial.path ?? null);
   const [folder, setFolder] = useState(initial.folder);
   const [sources, setSources] = useState(initial.sources);
   const [saveState, setSaveState] = useState<ProjectSaveState>(initial.path ? "saved" : "new");
   const [saveError, setSaveError] = useState<string | null>(null);
   // Kept in a ref and mirrored into state: updaters with side effects run twice in StrictMode.
-  const historyRef = useRef<{ past: Project[]; future: Project[] }>({ past: [], future: [] });
+  const historyRef = useRef<ProjectHistory | null>(null);
+  historyRef.current ??= startHistory(initial.project);
   const [history, setHistory] = useState(historyRef.current);
 
-  const projectRef = useRef(project);
-  projectRef.current = project;
   const pathRef = useRef<string | null>(initial.path ?? null);
   const folderRef = useRef(initial.folder);
   const revisionRef = useRef<number | null>(initial.path ? initial.project.revision : null);
@@ -66,7 +80,7 @@ export function useVideoProject(initial: VideoProjectDocument): VideoProjectStat
     const run = async (): Promise<boolean> => {
       if (!dirtyRef.current && !asCopy) return true;
       if (blockedRef.current && !asCopy) return false;
-      const snapshot = projectRef.current;
+      const snapshot = settledProject(historyRef.current!);
       setSaveState("saving");
       try {
         const response = await saveVideoProject(
@@ -80,7 +94,7 @@ export function useVideoProject(initial: VideoProjectDocument): VideoProjectStat
         blockedRef.current = false;
         setPath(response.path);
         setSaveError(null);
-        if (projectRef.current === snapshot) {
+        if (settledProject(historyRef.current!) === snapshot) {
           dirtyRef.current = false;
           setSaveState("saved");
         } else {
@@ -106,56 +120,40 @@ export function useVideoProject(initial: VideoProjectDocument): VideoProjectStat
     timerRef.current = window.setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
   }, [save]);
 
-  const preview = useCallback((next: Project) => setProject(next), []);
-
-  const commit = useCallback(
-    (next: Project, from?: Project) => {
-      const before = from ?? projectRef.current;
-      if (next === before) {
-        setProject(next);
-        return;
-      }
-      historyRef.current = {
-        past: [...historyRef.current.past, before].slice(-HISTORY_LIMIT),
-        future: [],
-      };
-      setHistory(historyRef.current);
-      setProject(next);
-      projectRef.current = next;
-      schedule();
+  /** Saves only when what a save would write changed; a preview alone never does. */
+  const update = useCallback(
+    (next: ProjectHistory) => {
+      const before = settledProject(historyRef.current!);
+      historyRef.current = next;
+      setHistory(next);
+      if (settledProject(next) !== before) schedule();
     },
     [schedule],
   );
 
-  const undo = useCallback(() => {
-    const current = historyRef.current;
-    const previous = current.past.at(-1);
-    if (!previous) return;
-    historyRef.current = {
-      past: current.past.slice(0, -1),
-      future: [projectRef.current, ...current.future],
-    };
-    projectRef.current = previous;
-    setHistory(historyRef.current);
-    setProject(previous);
-    schedule();
-  }, [schedule]);
+  const preview = useCallback(
+    (next: Project) => update(previewEdit(historyRef.current!, next)),
+    [update],
+  );
+  const commit = useCallback(
+    (next: Project) => update(commitEdit(historyRef.current!, next)),
+    [update],
+  );
+  const amend = useCallback(
+    (change: (project: Project) => Project) => {
+      update(amendAll(historyRef.current!, change));
+      return historyRef.current!.present;
+    },
+    [update],
+  );
+  const undo = useCallback(() => update(undoEdit(historyRef.current!)), [update]);
+  const redo = useCallback(() => update(redoEdit(historyRef.current!)), [update]);
+  const settle = useCallback(() => update(settleGesture(historyRef.current!)), [update]);
 
-  const redo = useCallback(() => {
-    const current = historyRef.current;
-    const following = current.future[0];
-    if (!following) return;
-    historyRef.current = {
-      past: [...current.past, projectRef.current],
-      future: current.future.slice(1),
-    };
-    projectRef.current = following;
-    setHistory(historyRef.current);
-    setProject(following);
-    schedule();
-  }, [schedule]);
-
-  const flush = useCallback(() => save(), [save]);
+  const flush = useCallback(() => {
+    settle();
+    return save();
+  }, [save, settle]);
   const saveAsCopy = useCallback(() => {
     dirtyRef.current = true;
     return save(true);
@@ -168,36 +166,38 @@ export function useVideoProject(initial: VideoProjectDocument): VideoProjectStat
     pathRef.current = document.path ?? null;
     folderRef.current = document.folder;
     revisionRef.current = document.path ? document.project.revision : null;
-    projectRef.current = document.project;
-    setProject(document.project);
+    historyRef.current = startHistory(document.project);
+    setHistory(historyRef.current);
     setPath(document.path ?? null);
     setFolder(document.folder);
     setSources(document.sources);
-    historyRef.current = { past: [], future: [] };
-    setHistory(historyRef.current);
     setSaveError(null);
     setSaveState(document.path ? "saved" : "new");
   }, []);
 
-  // A pending save must not be lost when the editor unmounts without a flush.
+  // A pending save, or a gesture never let go, must not be lost when the editor unmounts.
   useEffect(
     () => () => {
-      if (timerRef.current !== null && dirtyRef.current) void save();
+      const before = settledProject(historyRef.current!);
+      historyRef.current = settleGesture(historyRef.current!);
+      if (historyRef.current.present !== before) dirtyRef.current = true;
+      if (dirtyRef.current) void save();
     },
     [save],
   );
 
   return {
-    project,
+    project: history.present,
     path,
     folder,
     sources,
     saveState,
     saveError,
-    canUndo: history.past.length > 0,
-    canRedo: history.future.length > 0,
+    canUndo: canUndo(history),
+    canRedo: canRedo(history),
     preview,
     commit,
+    amend,
     undo,
     redo,
     flush,
