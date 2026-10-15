@@ -121,10 +121,15 @@ describe("isAudio", () => {
     expect(isAudio(item("still.png", "audio"))).toBe(true);
   });
 
-  it("falls back to the extension for WAV and MP3 only", () => {
-    expect(["voice.wav", "song.mp3", "SONG.MP3"].filter((name) => !isAudioName(name))).toEqual([]);
-    expect(["track.flac", "clip.mp4", "photo.png"].filter(isAudioName)).toEqual([]);
+  it("falls back to the extension for WAV, MP3, and FLAC", () => {
+    expect(
+      ["voice.wav", "song.mp3", "SONG.MP3", "track.flac", "TRACK.FLAC"].filter(
+        (name) => !isAudioName(name),
+      ),
+    ).toEqual([]);
+    expect(["track.ogg", "clip.mp4", "photo.png"].filter(isAudioName)).toEqual([]);
     expect(isAudio(item("song.mp3", undefined))).toBe(true);
+    expect(isAudio(item("track.flac", undefined))).toBe(true);
   });
 
   it("is neither motion nor editable", () => {

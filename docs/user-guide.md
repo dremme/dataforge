@@ -156,7 +156,7 @@ To remove color changes from a batch, open **Auto-adjust** and select **Reset al
 
 The clapperboard in a video's viewer opens a multi-track editor for MP4, MOV, and M4V files. It starts a project with that video at 00:00 on V1 and, when it has sound, the sound linked on A1. **Open video editor** in the sidebar instead starts an empty project in the open folder; the first video added to it sets its frame size, frame rate, and name. Tracks have fixed positions: a clip stays where it is put, and a clip dragged into another one stops flush against it.
 
-- **Media** lists the open folder's videos, images, WAV, and MP3 files. Click one to preview it as the **Source**, set in and out points, then **Add to timeline**, or drag it onto a track. Files are referenced, never copied.
+- **Media** lists the open folder's videos, images, and audio files. Click one to preview it as the **Source**, set in and out points, then **Add to timeline**, or drag it onto a track. Files are referenced, never copied.
 - **Timeline** has Select, Blade, and Range tools, split, duplicate, delete, undo, snapping, and zoom. Higher video tracks cover lower ones. Tracks can be renamed (double-click), reordered, locked, hidden, muted, or soloed; empty tracks can be removed.
 - **Linked clips:** a video's sound moves, trims, splits, retimes, and deletes with it. Unlink it in the inspector to edit either alone.
 - **Ripple delete** removes a range marked with the Range tool, or with `I` and `O` at the playhead, from every track and closes the gap. It is refused while a track it would change is locked.
@@ -208,7 +208,7 @@ All listed formats appear in the gallery and take `.txt` captions. Images and vi
 | GIF                | Animation and frame capture                                   | Convert to MP4 first  | —                | Yes       | —                         |
 | MP4, MOV, M4V      | Playback and frame capture, if the browser supports the codec | Video                 | Yes              | Yes       | Yes                       |
 | AVI, MKV, WMV, FLV | Thumbnail only                                                | —                     | —                | —         | —                         |
-| WAV, MP3           | Waveform and playback                                         | —                     | —                | —         | —                         |
+| WAV, MP3, FLAC     | Waveform and playback                                         | —                     | —                | —         | —                         |
 
 GIF captioning and verification use its first frame. Video caption jobs sample frames across the clip, even for containers without browser playback. GIF-to-MP4 conversion uses 24 fps and asks before overwriting an existing MP4. A watermarked GIF stays an animated GIF with the original frame timing, loop count, and transparency.
 

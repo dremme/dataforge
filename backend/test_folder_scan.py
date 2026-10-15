@@ -21,11 +21,13 @@ from duplicates import (
     duplicate_finding_from_sidecar,
     save_duplicate_finding,
 )
+from ffmpeg_bin import ffmpeg_path
 from folder_scan import _entry_from_dir_entry, get_media_type, scan_folder
 from media_listing import list_media_from_scan
 from testing_fixtures import (
     TempMediaFolder,
     unreadable_files,
+    write_flac,
     write_gif,
     write_issue_sidecar,
     write_media,
@@ -77,13 +79,11 @@ class MediaTypeTests(unittest.TestCase):
             self.assertIsNone(get_media_type(root / "notes.md"))
             # Vector, so nothing that decodes pixels here could read it.
             self.assertIsNone(get_media_type(root / "logo.svg"))
-            for name in ("track.flac", "track.ogg"):
-                with self.subTest(name=name):
-                    self.assertIsNone(get_media_type(root / name))
+            self.assertIsNone(get_media_type(root / "track.ogg"))
 
     def test_classifies_audio_formats(self) -> None:
         with TempMediaFolder() as root:
-            for name in ("track.wav", "track.mp3", "TRACK.MP3"):
+            for name in ("track.wav", "track.mp3", "TRACK.MP3", "track.flac", "TRACK.FLAC"):
                 with self.subTest(name=name):
                     self.assertEqual(get_media_type(root / name), "audio")
 
@@ -293,6 +293,18 @@ class ScanBackedListingTests(unittest.TestCase):
             for item in by_name.values():
                 self.assertIsNone(item["width"])
                 self.assertIsNone(item["height"])
+
+    @unittest.skipUnless(ffmpeg_path(), "ffmpeg is not available")
+    def test_listing_carries_flac_duration_without_dimensions(self) -> None:
+        with TempMediaFolder() as root:
+            write_flac(root, "track.FLAC", seconds=2.0)
+
+            item = _listing(root)[0]
+
+            self.assertEqual(item["media_type"], "audio")
+            self.assertEqual(item["duration"], 2.0)
+            self.assertIsNone(item["width"])
+            self.assertIsNone(item["height"])
 
     def test_listing_leaves_audio_duration_empty_when_unreadable(self) -> None:
         with TempMediaFolder() as root:

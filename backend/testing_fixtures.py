@@ -440,6 +440,35 @@ def write_wav(root: Path, name: str = "tone.wav", *, seconds: float = 2.0) -> Pa
     return media
 
 
+def write_flac(root: Path, name: str = "tone.flac", *, seconds: float = 2.0) -> Path:
+    """A playable lossless sine wave for metadata, waveform, and browser playback tests."""
+    from ffmpeg_bin import ffmpeg_path
+
+    executable = ffmpeg_path()
+    if executable is None:
+        raise RuntimeError("FFmpeg is required for FLAC fixtures")
+    media = root / name
+    subprocess.run(
+        [
+            executable,
+            "-nostdin",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency=440:duration={seconds}",
+            "-c:a",
+            "flac",
+            str(media),
+        ],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+    return media
+
+
 def write_mp3(root: Path, name: str = "tone.mp3", *, frames: int = 100) -> Path:
     """Zero-filled CBR frames (MPEG-1 Layer III, 128 kbps, 44.1 kHz): 1152 samples each."""
     header = bytes.fromhex("fffb9004")

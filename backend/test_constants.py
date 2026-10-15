@@ -20,8 +20,8 @@ from constants import (
     WATERMARK_EXTENSIONS,
 )
 
-#: Only WAV and MP3 are listed so far, and SVG is vector - nothing here decodes it.
-UNSUPPORTED_EXTENSIONS = {".flac", ".ogg", ".svg"}
+#: OGG is not listed, and SVG is vector - nothing here decodes it.
+UNSUPPORTED_EXTENSIONS = {".ogg", ".svg"}
 
 
 class MediaExtensionInvariantTests(unittest.TestCase):

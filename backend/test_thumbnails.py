@@ -16,6 +16,7 @@ from testing_fixtures import (
     CacheFolderTestCase,
     TempMediaFolder,
     make_png_bytes,
+    write_flac,
     write_gif,
     write_image,
     write_media,
@@ -158,16 +159,18 @@ class AudioWaveformThumbnailTests(CacheFolderTestCase):
                             get_or_create_thumbnail(media, 200)
 
     @unittest.skipUnless(ffmpeg_path(), "ffmpeg is not available")
-    def test_wav_renders_a_tintable_waveform(self) -> None:
+    def test_audio_renders_a_tintable_waveform(self) -> None:
         with TempMediaFolder() as root:
-            thumbnail = get_or_create_thumbnail(write_wav(root), 200)
+            for media in (write_wav(root), write_flac(root)):
+                with self.subTest(name=media.name):
+                    thumbnail = get_or_create_thumbnail(media, 200)
 
-            with Image.open(thumbnail) as image:
-                self.assertEqual(image.format, "WEBP")
-                self.assertEqual(image.size, (200, round(200 / WAVEFORM_ASPECT)))
-                # The frontend masks with alpha, so the wave must be opaque on a clear ground.
-                alpha = image.convert("RGBA").getchannel("A")
-                self.assertEqual(alpha.getextrema(), (0, 255))
+                    with Image.open(thumbnail) as image:
+                        self.assertEqual(image.format, "WEBP")
+                        self.assertEqual(image.size, (200, round(200 / WAVEFORM_ASPECT)))
+                        # The frontend masks with alpha; the wave needs a clear ground.
+                        alpha = image.convert("RGBA").getchannel("A")
+                        self.assertEqual(alpha.getextrema(), (0, 255))
 
 
 class ThumbnailCachePruneTests(CacheFolderTestCase):

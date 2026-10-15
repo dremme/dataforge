@@ -10,7 +10,7 @@ MOTION_EXTENSIONS = VIDEO_EXTENSIONS | {GIF_EXTENSION}
 
 MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
-AUDIO_EXTENSIONS = {".wav", ".mp3"}
+AUDIO_EXTENSIONS = {".wav", ".mp3", ".flac"}
 
 # Listed, served, captioned by hand and moved around; jobs list MEDIA_EXTENSIONS, so skip audio.
 GALLERY_EXTENSIONS = MEDIA_EXTENSIONS | AUDIO_EXTENSIONS
@@ -110,6 +110,7 @@ MEDIA_MIME_TYPES = {
     ".flv": "video/x-flv",
     ".wav": "audio/wav",
     ".mp3": "audio/mpeg",
+    ".flac": "audio/flac",
 }
 
 # Only .txt is a caption; leftover Ideogram .json next to media is not.

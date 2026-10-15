@@ -46,6 +46,8 @@ class MediaEndpointTests(unittest.TestCase):
             "clip.flv": "video/x-flv",
             "voice.wav": "audio/wav",
             "song.mp3": "audio/mpeg",
+            "track.flac": "audio/flac",
+            "TRACK.FLAC": "audio/flac",
         }
 
         with TempMediaFolder() as root:
