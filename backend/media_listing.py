@@ -209,6 +209,11 @@ def _build_media_item(
         "height": info.height,
         "duration": info.duration,
         "size": media.size,
+        "created_at": (
+            datetime.fromtimestamp(media.birthtime, tz=UTC).isoformat()
+            if media.birthtime is not None
+            else None
+        ),
         "modified_at": datetime.fromtimestamp(media.mtime, tz=UTC).isoformat(),
         "has_backup": f"{media.name}{EDIT_BACKUP_SUFFIX}" in scan.files,
         "tags": listed_tags(

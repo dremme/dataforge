@@ -27,6 +27,7 @@ class ScannedEntry:
     mtime: float
     mtime_ns: int
     size: int
+    birthtime: float | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,8 @@ def _entry_from_dir_entry(
         mtime=stat.st_mtime,
         mtime_ns=stat.st_mtime_ns,
         size=stat.st_size,
+        # ctime is a metadata-change time on Unix, so it cannot substitute for birthtime.
+        birthtime=getattr(stat, "st_birthtime", None),
     )
 
 

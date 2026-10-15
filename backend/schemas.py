@@ -153,6 +153,8 @@ class GalleryItem(BaseModel):
     #: Empty for stills, GIFs, non-MP4-family containers, and audio mutagen cannot read.
     duration: float | None = None
     size: int | None = None
+    #: Filesystem creation time; unknown when the filesystem does not expose birthtime.
+    created_at: str | None = None
     modified_at: str | None = None
     has_backup: bool = False
     #: Strongest first, above the confidence setting. Only favorite folders are tagged.

@@ -96,6 +96,132 @@ describe("StatsDrawer", () => {
     expect(screen.getByText("1 of 3 files captioned")).toBeInTheDocument();
   });
 
+  it("places a creation-date chart above caption length and notes unknown dates", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 5, 15, 12));
+    renderDrawer({
+      items: [
+        { ...items[0], created_at: "2026-06-01T12:00:00", modified_at: "2026-09-01T12:00:00" },
+        { ...items[1], created_at: "2026-06-02T12:00:00" },
+        { ...items[2], created_at: "2026-06-02T14:00:00" },
+        mediaItem("unknown.png", HOME_PATH),
+      ],
+    });
+
+    const headings = screen
+      .getAllByRole("heading", { level: 3 })
+      .map((heading) => heading.textContent);
+    expect(headings.slice(0, 3)).toEqual(["Overview", "Media created", "Caption length"]);
+    const chart = screen.getByRole("figure", { name: "Distribution by media creation date" });
+    expect(
+      within(chart)
+        .getAllByRole("term")
+        .map((label) => label.getAttribute("title")),
+    ).toHaveLength(30);
+    expect(within(chart).getAllByRole("term")[0]).toHaveAttribute("title", "Jun 1, 2026");
+    expect(within(chart).getAllByRole("term").at(-1)).toHaveAttribute("title", "Jun 30, 2026");
+    expect(within(chart).getByLabelText("1 file")).toBeInTheDocument();
+    expect(within(chart).getByLabelText("2 files")).toBeInTheDocument();
+    expect(within(chart).getByText("Media")).toBeInTheDocument();
+    expect(within(chart).getByText("Creation date")).toBeInTheDocument();
+    expect(screen.getByText("1 file has an unknown creation date.")).toBeInTheDocument();
+  });
+
+  it("explains when no creation dates are available", () => {
+    renderDrawer();
+
+    expect(screen.getByText("Creation dates are unavailable for this folder.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("figure", { name: "Distribution by media creation date" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("radiogroup", { name: "Creation timeline grouping" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets the user switch the automatic grouping to day, month, and year", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 5, 15, 12));
+    const user = userEvent.setup();
+    renderDrawer({
+      items: [
+        { ...items[0], created_at: "2025-06-01T12:00:00" },
+        { ...items[1], created_at: "2026-01-01T12:00:00" },
+        { ...items[2], created_at: "2026-06-02T12:00:00" },
+        mediaItem("unknown.png", HOME_PATH),
+      ],
+    });
+
+    const grouping = screen.getByRole("radiogroup", { name: "Creation timeline grouping" });
+    const chart = screen.getByRole("figure", { name: "Distribution by media creation date" });
+    const labels = () =>
+      within(chart)
+        .getAllByRole("term")
+        .map((label) => label.getAttribute("title"));
+    expect(within(grouping).getByRole("radio", { name: "Year" })).toBeChecked();
+    expect(labels()).toEqual(["2025", "2026"]);
+
+    await user.click(within(grouping).getByRole("radio", { name: "Day" }));
+    expect(within(grouping).getByRole("radio", { name: "Day" })).toBeChecked();
+    expect(labels()).toHaveLength(30);
+    expect(labels()[0]).toBe("Jun 1, 2026");
+    expect(labels().at(-1)).toBe("Jun 30, 2026");
+    expect(within(chart).getAllByText("0 files")).toHaveLength(29);
+
+    await user.click(within(grouping).getByRole("radio", { name: "Month" }));
+    expect(within(grouping).getByRole("radio", { name: "Month" })).toBeChecked();
+    expect(labels()).toHaveLength(12);
+    expect(labels()[0]).toBe("Jan 2026");
+    expect(labels()).toContain("Jun 2026");
+    expect(labels().at(-1)).toBe("Dec 2026");
+
+    await user.click(within(grouping).getByRole("radio", { name: "Year" }));
+    expect(within(grouping).getByRole("radio", { name: "Year" })).toBeChecked();
+    expect(labels()).toEqual(["2025", "2026"]);
+    expect(screen.getByText("1 file has an unknown creation date.")).toBeInTheDocument();
+  });
+
+  it("keeps grouping available when the current month has no created media", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 5, 15, 12));
+    const user = userEvent.setup();
+    renderDrawer({ items: [{ ...items[0], created_at: "2025-01-01T12:00:00" }] });
+
+    expect(screen.getByText("No media created in this period.")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Year" }));
+    expect(screen.queryByText("No media created in this period.")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "1 file" })).toBeInTheDocument();
+  });
+
+  it("remembers the selected timeline grouping when the drawer mounts again", async () => {
+    const user = userEvent.setup();
+    const datedItems = [
+      mediaItem("one.png", HOME_PATH, { created_at: "2025-06-01T12:00:00" }),
+      mediaItem("two.png", HOME_PATH, { created_at: "2026-06-01T12:00:00" }),
+    ];
+    const { unmount } = render(<StatsDrawer open items={datedItems} onClose={vi.fn()} />);
+    expect(screen.getByRole("radio", { name: "Year" })).toBeChecked();
+
+    await user.click(screen.getByRole("radio", { name: "Month" }));
+    expect(localStorage.getItem("stats-creation-grouping")).toBe("month");
+    unmount();
+    renderDrawer({ items: datedItems });
+
+    expect(screen.getByRole("radio", { name: "Month" })).toBeChecked();
+  });
+
+  it("ignores an invalid saved timeline grouping", () => {
+    localStorage.setItem("stats-creation-grouping", "week");
+    renderDrawer({
+      items: [
+        mediaItem("one.png", HOME_PATH, { created_at: "2025-06-01T12:00:00" }),
+        mediaItem("two.png", HOME_PATH, { created_at: "2026-06-01T12:00:00" }),
+      ],
+    });
+
+    expect(screen.getByRole("radio", { name: "Year" })).toBeChecked();
+  });
+
   it("states each warning in words, never by colour alone", () => {
     renderDrawer();
 
@@ -341,6 +467,48 @@ describe("StatsDrawer", () => {
     renderDrawer({ items: photos });
 
     expect(tileFigure("Images")).toHaveTextContent("40");
+  });
+
+  it("grows creation timeline bars and counts their labels up together", () => {
+    stubReducedMotion(false);
+    const frames = stubCountUpFrames();
+    renderDrawer({
+      items: [
+        ...Array.from({ length: 40 }, (_, index) =>
+          mediaItem(`photo-${index}.png`, HOME_PATH, { created_at: "2025-06-01T12:00:00" }),
+        ),
+        mediaItem("two.png", HOME_PATH, { created_at: "2026-06-01T12:00:00" }),
+      ],
+    });
+    const chart = screen.getByRole("figure", { name: "Distribution by media creation date" });
+    const bar = within(chart).getByRole("img", { name: "40 files" }).parentElement!;
+
+    expect(bar).toHaveStyle({ height: "0%" });
+    expect(bar).toHaveTextContent(/^0$/);
+    frames.playTo(COUNT_UP_MS / 2);
+    expect(Number.parseFloat(bar.style.height)).toBeGreaterThan(0);
+    expect(Number.parseFloat(bar.style.height)).toBeLessThan(100);
+    expect(Number(bar.textContent)).toBeGreaterThan(0);
+    expect(Number(bar.textContent)).toBeLessThan(40);
+    frames.playTo(COUNT_UP_MS);
+    expect(bar).toHaveStyle({ height: "100%" });
+    expect(bar).toHaveTextContent(/^40$/);
+  });
+
+  it("shows creation timeline bars at full height when motion is reduced", () => {
+    stubReducedMotion(true);
+    stubCountUpFrames();
+    renderDrawer({
+      items: [
+        mediaItem("one.png", HOME_PATH, { created_at: "2025-06-01T12:00:00" }),
+        mediaItem("two.png", HOME_PATH, { created_at: "2026-06-01T12:00:00" }),
+      ],
+    });
+    const chart = screen.getByRole("figure", { name: "Distribution by media creation date" });
+    const bar = within(chart).getAllByRole("img", { name: "1 file" })[0].parentElement!;
+
+    expect(bar).toHaveStyle({ height: "100%" });
+    expect(bar).toHaveTextContent(/^1$/);
   });
 
   it("draws a mix bar whose segments follow each extension's share of the folder", () => {

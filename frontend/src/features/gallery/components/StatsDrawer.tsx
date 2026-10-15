@@ -1,12 +1,15 @@
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
+import { CreationTimelineChart } from "@/features/gallery/components/CreationTimelineChart";
 import { useCountUp } from "@/features/gallery/hooks/useCountUp";
 import {
   computeDatasetStats,
+  type CreationTimelineGrouping,
   type DatasetStats,
   type StatBucket,
 } from "@/features/gallery/lib/datasetStats";
 import {
   iconBookOpen,
+  iconCalendar,
   iconChartBar,
   iconFiles,
   iconHourglass,
@@ -22,10 +25,18 @@ import {
   type AppIcon,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
+import { readStored, writeStored } from "@/shared/lib/storage";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import type { GalleryItem } from "@/shared/types";
+
+const CREATION_GROUPING_KEY = "stats-creation-grouping";
+const CREATION_GROUPING_OPTIONS = [
+  { value: "day", label: "Day" },
+  { value: "month", label: "Month" },
+  { value: "year", label: "Year" },
+] as const;
 
 interface StatsDrawerProps {
   open: boolean;
@@ -91,7 +102,17 @@ function StatsContent({
   items: GalleryItem[];
   onSearchWord?: (word: string) => void;
 }) {
-  const stats = useMemo(() => computeDatasetStats(items), [items]);
+  const [creationGrouping, setCreationGrouping] = useState<CreationTimelineGrouping | undefined>(
+    () => {
+      const stored = readStored(CREATION_GROUPING_KEY);
+      return CREATION_GROUPING_OPTIONS.find((option) => option.value === stored)?.value;
+    },
+  );
+  const groupingName = useId();
+  const stats = useMemo(
+    () => computeDatasetStats(items, creationGrouping),
+    [items, creationGrouping],
+  );
 
   if (stats.total === 0) {
     return (
@@ -107,6 +128,46 @@ function StatsContent({
   return (
     <div className="stats-drawer__stats">
       <Overview stats={stats} />
+
+      <Section title="Media created" icon={iconCalendar}>
+        {stats.creationTimeline.length > 0 && (
+          <div
+            className="stats-drawer__grouping"
+            role="radiogroup"
+            aria-label="Creation timeline grouping"
+          >
+            {CREATION_GROUPING_OPTIONS.map(({ value, label }) => (
+              <label key={value} className="stats-drawer__grouping-option">
+                <input
+                  className="stats-drawer__grouping-input"
+                  type="radio"
+                  name={groupingName}
+                  value={value}
+                  checked={stats.creationTimelineGrouping === value}
+                  onChange={() => {
+                    setCreationGrouping(value);
+                    writeStored(CREATION_GROUPING_KEY, value);
+                  }}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        )}
+        <CreationTimelineChart
+          buckets={stats.creationTimeline}
+          grouping={stats.creationTimelineGrouping}
+        />
+        {stats.creationTimeline.length === 0 && (
+          <p className="stats-drawer__note">Creation dates are unavailable for this folder.</p>
+        )}
+        {stats.creationTimeline.length > 0 && stats.unknownCreationDate > 0 && (
+          <p className="stats-drawer__note">
+            {stats.unknownCreationDate}{" "}
+            {stats.unknownCreationDate === 1 ? "file has" : "files have"} an unknown creation date.
+          </p>
+        )}
+      </Section>
 
       {stats.captionLength && (
         <Section title="Caption length" icon={iconMessageSquareText}>

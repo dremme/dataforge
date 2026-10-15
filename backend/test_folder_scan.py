@@ -6,7 +6,11 @@ isolate_test_database()
 
 import os
 import unittest
+from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from caption_cache import clear_caption_cache_for_tests
 from captions import caption_summary_from_sidecar, issue_file_path, issue_summary_from_sidecar
@@ -17,7 +21,7 @@ from duplicates import (
     duplicate_finding_from_sidecar,
     save_duplicate_finding,
 )
-from folder_scan import get_media_type, scan_folder
+from folder_scan import _entry_from_dir_entry, get_media_type, scan_folder
 from media_listing import list_media_from_scan
 from testing_fixtures import (
     TempMediaFolder,
@@ -85,6 +89,27 @@ class MediaTypeTests(unittest.TestCase):
 
 
 class FolderScanTests(unittest.TestCase):
+    def test_scan_preserves_filesystem_creation_time(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+
+            scan = scan_folder(root)
+
+            assert scan is not None
+            self.assertEqual(scan.media[0].birthtime, getattr(media.stat(), "st_birthtime", None))
+
+    def test_scan_does_not_use_ctime_when_birthtime_is_unavailable(self) -> None:
+        entry = Mock(spec=os.DirEntry)
+        entry.name = "photo.png"
+        entry.stat.return_value = SimpleNamespace(
+            st_mtime=2000.0, st_mtime_ns=2_000_000_000_000, st_size=100, st_ctime=3000.0
+        )
+
+        scanned = _entry_from_dir_entry(entry, Path("media"))
+
+        assert scanned is not None
+        self.assertIsNone(scanned.birthtime)
+
     def test_returns_none_for_unreadable_folder(self) -> None:
         with TempMediaFolder() as root:
             self.assertIsNone(scan_folder(root / "does-not-exist"))
@@ -176,6 +201,23 @@ def _listing(root: Path) -> list[dict]:
 
 
 class ScanBackedListingTests(unittest.TestCase):
+    def test_listing_uses_creation_time_independently_of_modification_time(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            scan = scan_folder(root)
+            assert scan is not None
+            created = datetime(2025, 1, 2, tzinfo=UTC)
+            modified = datetime(2026, 6, 15, tzinfo=UTC)
+            for birthtime in (created.timestamp(), None):
+                with self.subTest(birthtime=birthtime):
+                    media = replace(scan.media[0], birthtime=birthtime, mtime=modified.timestamp())
+                    item = list_media_from_scan(replace(scan, media=[media]))[0]
+
+                    self.assertEqual(
+                        item["created_at"], created.isoformat() if birthtime is not None else None
+                    )
+                    self.assertEqual(item["modified_at"], modified.isoformat())
+
     def test_listing_reports_caption_and_issue_metadata(self) -> None:
         with TempMediaFolder() as root:
             captioned = write_media(root, "captioned.png")

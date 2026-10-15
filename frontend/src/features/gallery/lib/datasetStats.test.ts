@@ -7,6 +7,138 @@ function captioned(name: string, description: string) {
 }
 
 describe("computeDatasetStats", () => {
+  it("counts only the current month in daily buckets across media types", () => {
+    const stats = computeDatasetStats(
+      [
+        mediaItem("clip.mp4", HOME_PATH, {
+          created_at: "2026-06-03T12:00:00",
+          modified_at: "2026-09-01T12:00:00",
+        }),
+        mediaItem("photo.png", HOME_PATH, { created_at: "2026-06-01T12:00:00" }),
+        mediaItem("audio.wav", HOME_PATH, { created_at: "2026-06-03T15:00:00" }),
+        mediaItem("loop.gif", HOME_PATH, { created_at: "2026-06-03T18:00:00" }),
+        mediaItem("previous.png", HOME_PATH, { created_at: "2026-05-31T23:59:59" }),
+        mediaItem("next.png", HOME_PATH, { created_at: "2026-07-01T00:00:00" }),
+        mediaItem("last-year.png", HOME_PATH, { created_at: "2025-06-03T12:00:00" }),
+      ],
+      "day",
+      new Date(2026, 5, 15, 12),
+    );
+
+    expect(stats.creationTimeline).toHaveLength(30);
+    expect(stats.creationTimeline[0]).toEqual({ label: "Jun 1, 2026", count: 1 });
+    expect(stats.creationTimeline[1]).toEqual({ label: "Jun 2, 2026", count: 0 });
+    expect(stats.creationTimeline[2]).toEqual({ label: "Jun 3, 2026", count: 3 });
+    expect(stats.creationTimeline.at(-1)).toEqual({ label: "Jun 30, 2026", count: 0 });
+    expect(stats.creationTimeline.reduce((total, bucket) => total + bucket.count, 0)).toBe(4);
+    expect(stats.creationTimelineGrouping).toBe("day");
+    expect(stats.unknownCreationDate).toBe(0);
+  });
+
+  it("counts only the current year in all twelve monthly buckets", () => {
+    const stats = computeDatasetStats(
+      [
+        mediaItem("january.png", HOME_PATH, { created_at: "2026-01-01T00:00:00" }),
+        mediaItem("june.png", HOME_PATH, { created_at: "2026-06-03T12:00:00" }),
+        mediaItem("december.png", HOME_PATH, { created_at: "2026-12-31T23:59:59" }),
+        mediaItem("previous.png", HOME_PATH, { created_at: "2025-12-31T23:59:59" }),
+        mediaItem("next.png", HOME_PATH, { created_at: "2027-01-01T00:00:00" }),
+        mediaItem("same-month.png", HOME_PATH, { created_at: "2025-06-03T12:00:00" }),
+      ],
+      "month",
+      new Date(2026, 5, 15, 12),
+    );
+
+    expect(stats.creationTimeline).toHaveLength(12);
+    expect(stats.creationTimeline[0]).toEqual({ label: "Jan 2026", count: 1 });
+    expect(stats.creationTimeline[1]).toEqual({ label: "Feb 2026", count: 0 });
+    expect(stats.creationTimeline[5]).toEqual({ label: "Jun 2026", count: 1 });
+    expect(stats.creationTimeline[11]).toEqual({ label: "Dec 2026", count: 1 });
+    expect(stats.creationTimeline.reduce((total, bucket) => total + bucket.count, 0)).toBe(3);
+    expect(stats.creationTimelineGrouping).toBe("month");
+  });
+
+  it("keeps every year and empty intervening years in yearly buckets", () => {
+    const stats = computeDatasetStats(
+      [
+        mediaItem("a.png", HOME_PATH, { created_at: "2026-01-01T12:00:00" }),
+        mediaItem("b.png", HOME_PATH, { created_at: "2024-12-31T12:00:00" }),
+        mediaItem("c.png", HOME_PATH, { created_at: "2026-12-31T12:00:00" }),
+      ],
+      "year",
+      new Date(2026, 5, 15, 12),
+    );
+
+    expect(stats.creationTimeline).toEqual([
+      { label: "2024", count: 1 },
+      { label: "2025", count: 0 },
+      { label: "2026", count: 2 },
+    ]);
+    expect(stats.creationTimelineGrouping).toBe("year");
+  });
+
+  it("retains automatic grouping while applying the current calendar period", () => {
+    const stats = computeDatasetStats(
+      [
+        mediaItem("a.png", HOME_PATH, { created_at: "2026-01-01T12:00:00" }),
+        mediaItem("b.png", HOME_PATH, { created_at: "2026-06-01T12:00:00" }),
+      ],
+      undefined,
+      new Date(2026, 5, 15, 12),
+    );
+
+    expect(stats.creationTimelineGrouping).toBe("month");
+    expect(stats.creationTimeline).toHaveLength(12);
+  });
+
+  it("includes leap day and excludes adjacent months in daily buckets", () => {
+    const stats = computeDatasetStats(
+      [
+        mediaItem("before.png", HOME_PATH, { created_at: "2024-01-31T23:59:59" }),
+        mediaItem("leap.png", HOME_PATH, { created_at: "2024-02-29T12:00:00" }),
+        mediaItem("after.png", HOME_PATH, { created_at: "2024-03-01T00:00:00" }),
+      ],
+      "day",
+      new Date(2024, 1, 15, 12),
+    );
+
+    expect(stats.creationTimeline).toHaveLength(29);
+    expect(stats.creationTimeline[0]).toEqual({ label: "Feb 1, 2024", count: 0 });
+    expect(stats.creationTimeline.at(-1)).toEqual({ label: "Feb 29, 2024", count: 1 });
+    expect(stats.creationTimeline.reduce((total, bucket) => total + bucket.count, 0)).toBe(1);
+  });
+
+  it("counts missing and invalid creation dates without falling back to modification dates", () => {
+    const stats = computeDatasetStats([
+      mediaItem("missing.png", HOME_PATH, { modified_at: "2026-06-01T12:00:00Z" }),
+      mediaItem("null.png", HOME_PATH, { created_at: null }),
+      mediaItem("invalid.png", HOME_PATH, { created_at: "invalid" }),
+    ]);
+
+    expect(stats.creationTimeline).toEqual([]);
+    expect(stats.unknownCreationDate).toBe(3);
+    expect(computeDatasetStats([]).creationTimeline).toEqual([]);
+  });
+
+  it("uses local calendar dates for creation timestamps with a timezone", () => {
+    const timestamp = "2026-06-01T23:30:00-08:00";
+    const label = new Date(timestamp).toLocaleDateString("en", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    const stats = computeDatasetStats(
+      [mediaItem("photo.png", HOME_PATH, { created_at: timestamp })],
+      "day",
+      new Date(timestamp),
+    );
+
+    expect(stats.creationTimeline.find((bucket) => bucket.label === label)).toEqual({
+      label,
+      count: 1,
+    });
+  });
+
   it("counts caption coverage and issues", () => {
     const stats = computeDatasetStats([
       captioned("one.png", "a dog"),

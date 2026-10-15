@@ -48,6 +48,8 @@ export interface StatBucket {
   count: number;
 }
 
+export type CreationTimelineGrouping = "day" | "month" | "year";
+
 export interface WordCount {
   word: string;
   count: number;
@@ -85,6 +87,9 @@ export interface DatasetFindings {
 export interface DatasetStats {
   total: number;
   findings: DatasetFindings;
+  creationTimeline: StatBucket[];
+  creationTimelineGrouping: CreationTimelineGrouping;
+  unknownCreationDate: number;
   captionLength: CaptionLengthStats | null;
   topWords: WordCount[];
   /** How many files carry each tag, most common first. */
@@ -186,11 +191,71 @@ function countTags(media: GalleryItem[]): StatBucket[] {
     .slice(0, TOP_TAG_LIMIT);
 }
 
-export function computeDatasetStats(media: GalleryItem[]): DatasetStats {
+function creationTimeline(
+  dates: Date[],
+  grouping: CreationTimelineGrouping | undefined,
+  now: Date,
+) {
+  if (dates.length === 0) return { buckets: [], grouping: grouping ?? "day" };
+
+  dates.sort((a, b) => a.getTime() - b.getTime());
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  // Compare calendar days independently of daylight-saving shifts.
+  const daySpan =
+    (Date.UTC(last.getFullYear(), last.getMonth(), last.getDate()) -
+      Date.UTC(first.getFullYear(), first.getMonth(), first.getDate())) /
+    86_400_000;
+  const monthSpan =
+    (last.getFullYear() - first.getFullYear()) * 12 + last.getMonth() - first.getMonth();
+  const interval = grouping ?? (daySpan < 14 ? "day" : monthSpan < 12 ? "month" : "year");
+  const formatter = new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    ...(interval !== "year" && { month: "short" }),
+    ...(interval === "day" && { day: "numeric" }),
+  });
+  const counts = new Map<string, number>();
+  for (const date of dates) {
+    if (interval !== "year" && date.getFullYear() !== now.getFullYear()) continue;
+    if (interval === "day" && date.getMonth() !== now.getMonth()) continue;
+    const label = formatter.format(date);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  const cursor =
+    interval === "year"
+      ? new Date(first.getFullYear(), 0, 1, 12)
+      : new Date(now.getFullYear(), interval === "day" ? now.getMonth() : 0, 1, 12);
+  const end =
+    interval === "year"
+      ? new Date(last.getFullYear(), 0, 1, 12)
+      : interval === "month"
+        ? new Date(now.getFullYear(), 11, 1, 12)
+        : new Date(now.getFullYear(), now.getMonth() + 1, 0, 12);
+  const buckets: StatBucket[] = [];
+  // Walk calendar buckets so gaps retain their spacing across daylight-saving changes.
+  while (cursor <= end) {
+    const label = formatter.format(cursor);
+    buckets.push({ label, count: counts.get(label) ?? 0 });
+    if (interval === "day") cursor.setDate(cursor.getDate() + 1);
+    else if (interval === "month") cursor.setMonth(cursor.getMonth() + 1);
+    else cursor.setFullYear(cursor.getFullYear() + 1);
+  }
+  return {
+    buckets,
+    grouping: interval,
+  };
+}
+
+export function computeDatasetStats(
+  media: GalleryItem[],
+  creationGrouping?: CreationTimelineGrouping,
+  now = new Date(),
+): DatasetStats {
   const captions: string[] = [];
   const lengths: number[] = [];
   const megapixels: number[] = [];
   const durations: number[] = [];
+  const creationDates: Date[] = [];
   const aspectRatioLabels: string[] = [];
   let captioned = 0;
   let issues = 0;
@@ -209,6 +274,11 @@ export function computeDatasetStats(media: GalleryItem[]): DatasetStats {
   let unknownDuration = 0;
 
   for (const item of media) {
+    if (item.created_at) {
+      const date = new Date(item.created_at);
+      if (Number.isFinite(date.getTime())) creationDates.push(date);
+    }
+
     if (item.has_issue_file) issues += 1;
 
     if (item.has_duplicate_file) {
@@ -256,6 +326,7 @@ export function computeDatasetStats(media: GalleryItem[]): DatasetStats {
   }
 
   const sortedLengths = [...lengths].sort((a, b) => a - b);
+  const timeline = creationTimeline(creationDates, creationGrouping, now);
 
   return {
     total: media.length,
@@ -266,6 +337,9 @@ export function computeDatasetStats(media: GalleryItem[]): DatasetStats {
       duplicates,
       duplicateGroups: duplicateGroups.size + ungroupedDuplicates,
     },
+    creationTimeline: timeline.buckets,
+    creationTimelineGrouping: timeline.grouping,
+    unknownCreationDate: media.length - creationDates.length,
     captionLength:
       sortedLengths.length === 0
         ? null
