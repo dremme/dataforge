@@ -81,6 +81,22 @@ class StaticSiteTests(unittest.TestCase):
         with TestClient(self.app) as client:
             self.assertEqual(client.get("/api/health").json(), {"status": "ok"})
 
+    def test_client_routes_serve_the_index_so_a_reload_reopens_them(self) -> None:
+        _write_dist(self.dist)
+        with patch.dict(os.environ, SERVE_UI_ON, clear=True):
+            mount_ui(self.app, self.dist)
+
+        with TestClient(self.app) as client:
+            route = client.get("/editor/video", params={"path": "C:\\media\\clip.mp4"})
+            missing_asset = client.get("/assets/gone-123.js")
+            missing_api = client.get("/api/no-such-endpoint")
+
+        self.assertEqual(route.status_code, 200)
+        self.assertEqual(route.text, INDEX_BODY)
+        self.assertEqual(route.headers["cache-control"], INDEX_CACHE_CONTROL)
+        self.assertEqual(missing_asset.status_code, 404)
+        self.assertEqual(missing_api.status_code, 404)
+
     def test_index_is_not_cached_but_hashed_assets_are(self) -> None:
         _write_dist(self.dist)
         with patch.dict(os.environ, SERVE_UI_ON, clear=True):

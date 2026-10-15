@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI
+from starlette.exceptions import HTTPException
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
 from starlette.types import Scope
@@ -26,6 +27,20 @@ INDEX_CACHE_CONTROL = "no-cache"
 
 
 class SpaFiles(StaticFiles):
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        """A client route such as ``/editor/video`` gets the index, so a reload reopens it.
+
+        Missing files (they have a suffix) and unknown API paths stay 404s.
+        """
+        try:
+            return await super().get_response(path, scope)
+        except HTTPException as exc:
+            # ``path`` is OS-normalized, so it splits on either separator.
+            asked = Path(path)
+            if exc.status_code != 404 or asked.suffix or asked.parts[:1] == ("api",):
+                raise
+            return await super().get_response(INDEX_FILE, scope)
+
     def file_response(
         self,
         full_path: str | os.PathLike[str],

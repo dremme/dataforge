@@ -1,4 +1,11 @@
-const FOLDER_PARAM = "path";
+import type { HistoryLocation, RegisteredRouter } from "@tanstack/react-router";
+import { editorFolder, editorRequestAt } from "@/features/videoEditor/lib/editorLocation";
+
+/**
+ * The folder view's side of the router: which folder a history entry shows, and the key its
+ * scroll offset is remembered under. Entries the folder view did not push, like the video
+ * editor's, show the folder of what they open and carry the key of the entry they cover.
+ */
 
 // Random prefix plus a counter: `crypto.randomUUID` is absent over plain HTTP on a LAN address.
 const ENTRY_KEY_PREFIX = `fs-${Math.random().toString(36).slice(2, 8)}`;
@@ -9,62 +16,47 @@ function mintEntryKey(): string {
   return `${ENTRY_KEY_PREFIX}-${entryKeyCounter}`;
 }
 
-interface FolderHistoryState {
-  folderPath: string | null;
-  entryKey: string;
+export function folderOfLocation(
+  router: RegisteredRouter,
+  location: HistoryLocation = router.history.location,
+): string | undefined {
+  const search = router.options.parseSearch(location.search);
+  const editor = editorRequestAt(location.pathname, search);
+  if (editor) return editorFolder(editor);
+  return typeof search.path === "string" && search.path ? search.path : undefined;
 }
 
-function readEntryKey(state: unknown): string | undefined {
-  const key = (state as FolderHistoryState | null)?.entryKey;
+export function entryKeyOf(location: HistoryLocation): string | undefined {
+  const key: unknown = location.state.entryKey;
   return typeof key === "string" ? key : undefined;
-}
-
-export function getFolderFromUrl(): string | undefined {
-  const value = new URL(window.location.href).searchParams.get(FOLDER_PARAM);
-  return value ?? undefined;
-}
-
-function buildFolderUrl(path: string): string {
-  const url = new URL(window.location.href);
-  url.searchParams.set(FOLDER_PARAM, path);
-  return url.pathname + url.search + url.hash;
-}
-
-function buildDefaultUrl(): string {
-  const url = new URL(window.location.href);
-  url.searchParams.delete(FOLDER_PARAM);
-  return url.pathname + url.search + url.hash;
 }
 
 export type HistoryMode = "push" | "replace" | "none";
 
-export function syncFolderHistory(path: string | undefined, mode: HistoryMode): string | undefined {
+/**
+ * Records ``path`` as the folder shown and returns the entry's key. A replace keeps the entry's
+ * key and, over the editor, its address: the editor's file names the folder there.
+ */
+export function syncFolderHistory(
+  router: RegisteredRouter,
+  path: string | undefined,
+  mode: HistoryMode,
+): string | undefined {
   if (mode === "none") return undefined;
-
-  const url = path ? buildFolderUrl(path) : buildDefaultUrl();
+  const location = router.history.location;
+  const search = path ? { path } : {};
 
   if (mode === "replace") {
-    const entryKey = readEntryKey(history.state) ?? mintEntryKey();
-    history.replaceState({ folderPath: path ?? null, entryKey }, "", url);
+    const entryKey = entryKeyOf(location) ?? mintEntryKey();
+    if (!editorRequestAt(location.pathname, router.options.parseSearch(location.search))) {
+      void router.navigate({ to: "/", search, replace: true, state: (s) => ({ ...s, entryKey }) });
+    } else {
+      router.history.replace(location.href, { ...location.state, entryKey });
+    }
     return entryKey;
   }
 
   const entryKey = mintEntryKey();
-  history.pushState({ folderPath: path ?? null, entryKey }, "", url);
+  void router.navigate({ to: "/", search, state: { entryKey } });
   return entryKey;
-}
-
-export function getCurrentEntryKey(): string | undefined {
-  return readEntryKey(history.state);
-}
-
-export function getEntryKeyFromHistoryEvent(event: PopStateEvent): string | undefined {
-  return readEntryKey(event.state);
-}
-
-export function getFolderFromHistoryEvent(event: PopStateEvent): string | undefined {
-  const fromState = event.state?.folderPath;
-  if (typeof fromState === "string") return fromState;
-  if (fromState === null) return undefined;
-  return getFolderFromUrl();
 }

@@ -8,12 +8,11 @@ import {
   type SetStateAction,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { buildBreadcrumbs } from "@/features/folder/lib/breadcrumbs";
 import {
-  getCurrentEntryKey,
-  getEntryKeyFromHistoryEvent,
-  getFolderFromHistoryEvent,
-  getFolderFromUrl,
+  entryKeyOf,
+  folderOfLocation,
   syncFolderHistory,
   type HistoryMode,
 } from "@/features/folder/lib/folderHistory";
@@ -78,10 +77,13 @@ export function useFolderNavigation(
   requestTransition?: (action: () => void | Promise<void>) => Promise<void>,
 ) {
   const queryClient = useQueryClient();
-  const [requestedPath, setRequestedPath] = useState<string | undefined>(getFolderFromUrl);
+  const router = useRouter();
+  const [requestedPath, setRequestedPath] = useState(() => folderOfLocation(router));
+  const requestedPathRef = useRef(requestedPath);
+  requestedPathRef.current = requestedPath;
   const [scrollIntent, setScrollIntent] = useState<FolderScrollIntent | null>(null);
   const scrollIntentIdRef = useRef(0);
-  const currentEntryKeyRef = useRef<string | undefined>(getCurrentEntryKey());
+  const currentEntryKeyRef = useRef(entryKeyOf(router.history.location));
   const initialHistorySyncedRef = useRef(false);
   const lastFolderRef = useRef<FolderResponse | null>(null);
 
@@ -109,9 +111,9 @@ export function useFolderNavigation(
     }
     if (canonical || !initialHistorySyncedRef.current) {
       initialHistorySyncedRef.current = true;
-      currentEntryKeyRef.current = syncFolderHistory(settledPath, "replace");
+      currentEntryKeyRef.current = syncFolderHistory(router, settledPath, "replace");
     }
-  }, [data, queryClient, requestedPath, settledPath]);
+  }, [data, queryClient, requestedPath, router, settledPath]);
 
   // Opening a folder, not re-reading it, is what makes it recent.
   useEffect(() => {
@@ -163,7 +165,7 @@ export function useFolderNavigation(
       setScrollIntent({ id: ++scrollIntentIdRef.current, mode: "reset", path, target: 0 });
 
       if (path && historyMode !== "none") {
-        currentEntryKeyRef.current = syncFolderHistory(path, historyMode);
+        currentEntryKeyRef.current = syncFolderHistory(router, path, historyMode);
         if (historyMode === "replace") {
           forgetFolderScroll(currentEntryKeyRef.current);
         }
@@ -172,33 +174,41 @@ export function useFolderNavigation(
       onFolderChange?.();
       await openFolder(path);
     },
-    [folder?.path, onFolderChange, openFolder, saveOutgoingScroll],
+    [folder?.path, onFolderChange, openFolder, router, saveOutgoingScroll],
   );
 
-  useEffect(() => {
-    const onPopState = (event: PopStateEvent) => {
-      const path = getFolderFromHistoryEvent(event);
-      const open = async () => {
-        saveOutgoingScroll();
-        const entryKey = getEntryKeyFromHistoryEvent(event);
-        currentEntryKeyRef.current = entryKey;
-        setScrollIntent({
-          id: ++scrollIntentIdRef.current,
-          mode: "restore",
-          path,
-          target: recallFolderScroll(entryKey) ?? 0,
-        });
+  // Back and Forward; the folder view's own pushes and replaces are handled where they are made.
+  useEffect(
+    () =>
+      router.history.subscribe(({ location, action }) => {
+        if (action.type === "PUSH" || action.type === "REPLACE") return;
+        const path = folderOfLocation(router, location);
+        const entryKey = entryKeyOf(location);
+        // An entry over this one, like the video editor's, shares its key and folder.
+        if (
+          entryKey === currentEntryKeyRef.current &&
+          (path === requestedPathRef.current || foldersMatch(path, requestedPathRef.current))
+        ) {
+          return;
+        }
+        const open = async () => {
+          saveOutgoingScroll();
+          currentEntryKeyRef.current = entryKey;
+          setScrollIntent({
+            id: ++scrollIntentIdRef.current,
+            mode: "restore",
+            path,
+            target: recallFolderScroll(entryKey) ?? 0,
+          });
 
-        onFolderChange?.();
-        await openFolder(path);
-      };
-      if (requestTransition) void requestTransition(open);
-      else void open();
-    };
-
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, [onFolderChange, openFolder, requestTransition, saveOutgoingScroll]);
+          onFolderChange?.();
+          await openFolder(path);
+        };
+        if (requestTransition) void requestTransition(open);
+        else void open();
+      }),
+    [onFolderChange, openFolder, requestTransition, router, saveOutgoingScroll],
+  );
 
   /** Re-reads in place: the listing stays on screen while the changes are fetched. */
   const reloadFolder = useCallback(

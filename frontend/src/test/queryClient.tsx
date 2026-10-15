@@ -7,6 +7,8 @@ import {
   type RenderOptions,
 } from "@testing-library/react";
 import { createQueryClient } from "@/shared/query/queryClient";
+import { RouterHarness } from "./RouterHarness";
+import { createTestRouter } from "./router";
 
 /** The app's own client, so retry and cache rules under test are the shipped ones. */
 export function createTestQueryClient({ retry = true }: { retry?: boolean } = {}): QueryClient {
@@ -20,19 +22,25 @@ export function createTestQueryClient({ retry = true }: { retry?: boolean } = {}
 }
 
 /**
- * A `renderHook`/`render` wrapper around a fresh client; reuse `client` to seed or inspect.
+ * A `renderHook`/`render` wrapper around a fresh client and router; reuse `client` to seed or
+ * inspect, and `router` to move through history.
  * StrictMode sits at the root: nested under a non-strict root it would not double-invoke effects.
  */
-export function queryWrapper(client: QueryClient = createTestQueryClient()) {
+export function queryWrapper(
+  client: QueryClient = createTestQueryClient(),
+  router = createTestRouter(),
+) {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <StrictMode>
-        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        <QueryClientProvider client={client}>
+          <RouterHarness router={router}>{children}</RouterHarness>
+        </QueryClientProvider>
       </StrictMode>
     );
   }
 
-  return { client, wrapper: Wrapper };
+  return { client, router, wrapper: Wrapper };
 }
 
 /** `render` under a fresh query client, for components that read server state. */
@@ -40,8 +48,8 @@ export function renderWithQueryClient(
   ui: ReactElement,
   options: Omit<RenderOptions, "wrapper"> = {},
 ) {
-  const { client, wrapper } = queryWrapper();
-  return { client, ...render(ui, { ...options, wrapper }) };
+  const { client, router, wrapper } = queryWrapper();
+  return { client, router, ...render(ui, { ...options, wrapper }) };
 }
 
 /** `renderHook` under a fresh query client, for hooks that read server state. */
@@ -49,6 +57,6 @@ export function renderHookWithQueryClient<Result, Props>(
   callback: (props: Props) => Result,
   options: Omit<RenderHookOptions<Props>, "wrapper"> = {},
 ) {
-  const { client, wrapper } = queryWrapper();
-  return { client, ...renderHook(callback, { ...options, wrapper }) };
+  const { client, router, wrapper } = queryWrapper();
+  return { client, router, ...renderHook(callback, { ...options, wrapper }) };
 }

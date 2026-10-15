@@ -61,6 +61,19 @@ test("edits a video into a saved project, reopens it from the gallery and delete
   expect(saved.name).toBe("E2E cut");
   expect(saved.clips.map((clip) => clip.kind).sort()).toEqual(["title", "video"]);
 
+  // The editor is a route: its address names the saved draft, so a reload reopens it, Back
+  // returns to the gallery and Forward comes back.
+  const draftAddress = new RegExp(`/editor/project\\?path=.+${drafts()[0].replace(/\./g, "\\.")}$`);
+  await expect(page).toHaveURL(draftAddress);
+  await page.reload();
+  await expect(name).toHaveValue("E2E cut");
+  await page.goBack();
+  await expect(name).toBeHidden();
+  await expect(page).toHaveURL(/\/\?path=/);
+  await expect(page.getByRole("region", { name: "Video projects" })).toBeVisible();
+  await page.goForward();
+  await expect(name).toHaveValue("E2E cut");
+
   await page.getByRole("button", { name: "Back to gallery" }).click();
   await expect(name).toBeHidden();
   await page
@@ -77,4 +90,22 @@ test("edits a video into a saved project, reopens it from the gallery and delete
   // The confirmation hides the editor from the accessibility tree, so wait for the editor itself.
   await expect(page.locator(".video-editor")).toHaveCount(0);
   await expect.poll(drafts).toHaveLength(0);
+});
+
+test("leaves an untouched empty project with Back and with its own button", async ({ page }) => {
+  await openWorkspace(page);
+  const name = page.getByRole("textbox", { name: "Project name" });
+
+  await page.getByRole("button", { name: "Open video editor" }).click();
+  await expect(name).toHaveValue("Untitled project");
+  await expect(page).toHaveURL(/\/editor\/new\?path=/);
+  await page.goBack();
+  await expect(page.locator(".video-editor")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/\?path=/);
+
+  await page.getByRole("button", { name: "Open video editor" }).click();
+  await expect(name).toHaveValue("Untitled project");
+  await page.getByRole("button", { name: "Back to gallery" }).click();
+  await expect(page.locator(".video-editor")).toHaveCount(0);
+  expect(drafts()).toHaveLength(0);
 });

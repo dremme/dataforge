@@ -1,7 +1,7 @@
 import { act, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/folder/api/folderContents";
-import * as folderHistory from "@/features/folder/lib/folderHistory";
+import { entryKeyOf, folderOfLocation } from "@/features/folder/lib/folderHistory";
 import * as folderPreferences from "@/features/folder/lib/folderPreferences";
 import { folderKeys } from "@/features/folder/lib/folderQuery";
 import {
@@ -15,34 +15,6 @@ import { createTestQueryClient, queryWrapper, renderHookWithQueryClient } from "
 import { renderHook } from "@testing-library/react";
 import type { FolderChangesResponse, FolderResponse } from "@/shared/types";
 import { useFolderNavigation } from "./useFolderNavigation";
-
-// Stands in for the real History API: a push mints a key, a replace keeps the
-// one already on the entry, and popstate hands both back off the event state.
-vi.mock("@/features/folder/lib/folderHistory", () => {
-  let minted = 0;
-  let currentKey: string | undefined;
-
-  return {
-    getFolderFromUrl: () => undefined,
-    getFolderFromHistoryEvent: (event: PopStateEvent) => event.state?.folderPath ?? undefined,
-    getEntryKeyFromHistoryEvent: (event: PopStateEvent) => event.state?.entryKey,
-    getCurrentEntryKey: () => currentKey,
-    syncFolderHistory: vi.fn((_path: string | undefined, mode: string) => {
-      if (mode === "none") return undefined;
-      if (mode === "push" || !currentKey) {
-        minted += 1;
-        currentKey = `entry-${minted}`;
-      }
-      return currentKey;
-    }),
-    __resetHistory: () => {
-      minted = 0;
-      currentKey = undefined;
-    },
-  };
-});
-
-const resetHistory = (folderHistory as unknown as { __resetHistory: () => void }).__resetHistory;
 
 /** jsdom has no layout, so `.main` needs a writable `scrollTop` to observe. */
 function mountScrollElement(scrollTop: number): HTMLElement {
@@ -98,7 +70,6 @@ describe("useFolderNavigation", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     clearFolderScrollMemory();
-    resetHistory();
   });
 
   afterEach(() => {
@@ -130,11 +101,12 @@ describe("useFolderNavigation", () => {
   });
 
   it("files the default folder under the path the server named", async () => {
-    const { result, client } = await renderAtHome();
+    const { result, client, router } = await renderAtHome();
 
     expect(client.getQueryData(folderKeys.folder(HOME_PATH))).toBe(homeFolder);
     expect(result.current.folder).toBe(homeFolder);
-    expect(folderHistory.syncFolderHistory).toHaveBeenLastCalledWith(HOME_PATH, "replace");
+    expect(folderOfLocation(router)).toBe(HOME_PATH);
+    expect(router.history.length).toBe(1);
   });
 
   it("keeps navigation context when a folder fails to load", async () => {
@@ -360,15 +332,15 @@ describe("useFolderNavigation", () => {
 
   describe("scroll intents", () => {
     it("remembers where the outgoing folder was left and asks for the top", async () => {
-      const { result } = await renderAtHome();
+      const { result, router } = await renderAtHome();
+      const homeKey = entryKeyOf(router.history.location);
       const element = mountScrollElement(900);
 
       await act(async () => {
         await result.current.navigateTo(VACATION_PATH);
       });
 
-      // "entry-1" is the entry the initial load replaced into.
-      expect(recallFolderScroll("entry-1")).toBe(900);
+      expect(recallFolderScroll(homeKey)).toBe(900);
       expect(result.current.scrollIntent).toEqual({
         id: 1,
         mode: "reset",
@@ -379,47 +351,63 @@ describe("useFolderNavigation", () => {
     });
 
     it("saves the outgoing entry and restores the target entry on back", async () => {
-      const { result } = await renderAtHome();
+      const { result, router } = await renderAtHome();
       mountScrollElement(900);
 
       await act(async () => {
         await result.current.navigateTo(VACATION_PATH);
       });
+      const vacationKey = entryKeyOf(router.history.location);
 
       const element = document.querySelector("main") as HTMLElement;
       element.scrollTop = 300;
 
       await act(async () => {
-        window.dispatchEvent(
-          new PopStateEvent("popstate", {
-            state: { folderPath: HOME_PATH, entryKey: "entry-1" },
-          }),
-        );
+        router.history.back();
       });
 
+      await waitFor(() =>
+        expect(result.current.scrollIntent).toEqual({
+          id: 2,
+          mode: "restore",
+          path: HOME_PATH,
+          target: 900,
+        }),
+      );
       // The entry we just left keeps its own offset for a later Forward.
-      expect(recallFolderScroll("entry-2")).toBe(300);
-      expect(result.current.scrollIntent).toEqual({
-        id: 2,
-        mode: "restore",
-        path: HOME_PATH,
-        target: 900,
-      });
+      expect(recallFolderScroll(vacationKey)).toBe(300);
     });
 
     it("targets the top for a history entry with no remembered offset", async () => {
-      const { result } = await renderAtHome();
+      const { result, router } = await renderAtHome();
       mountScrollElement(900);
+      await act(async () => {
+        await result.current.navigateTo(VACATION_PATH);
+      });
+      clearFolderScrollMemory();
 
       await act(async () => {
-        window.dispatchEvent(
-          new PopStateEvent("popstate", {
-            state: { folderPath: VACATION_PATH, entryKey: "entry-from-a-previous-page-load" },
-          }),
-        );
+        router.history.back();
       });
 
-      expect(result.current.scrollIntent).toMatchObject({ mode: "restore", target: 0 });
+      await waitFor(() =>
+        expect(result.current.scrollIntent).toMatchObject({ mode: "restore", target: 0 }),
+      );
+    });
+
+    it("leaves the folder alone when stepping off an entry layered over it", async () => {
+      const { result, router } = await renderAtHome();
+      const { entryKey } = router.history.location.state;
+      router.history.push(`/editor/new?${new URLSearchParams({ path: HOME_PATH })}`, {
+        entryKey,
+      });
+
+      await act(async () => {
+        router.history.back();
+      });
+
+      expect(result.current.scrollIntent).toBeNull();
+      expect(result.current.folder?.path).toBe(HOME_PATH);
     });
 
     it("emits nothing for a reload", async () => {
@@ -439,9 +427,9 @@ describe("useFolderNavigation", () => {
     });
 
     it("emits nothing when navigating to the folder already open", async () => {
-      const { result } = await renderAtHome();
+      const { result, router } = await renderAtHome();
       mountScrollElement(900);
-      rememberFolderScroll("entry-1", 900);
+      rememberFolderScroll(entryKeyOf(router.history.location), 900);
 
       await act(async () => {
         await result.current.navigateTo(HOME_PATH);

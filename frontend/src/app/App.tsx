@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { Matches, RouterContextProvider } from "@tanstack/react-router";
 import { AppContent } from "./AppContent";
+import { createAppRouter } from "./router";
 import { BackendUnavailable } from "@/app/components/BackendUnavailable";
 import { JobsProvider } from "@/features/jobs/context/JobsContext";
 import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
@@ -22,6 +24,7 @@ function EditorOptionsProvider({ children }: { children: ReactNode }) {
 
 export default function App() {
   const [queryClient] = useState(createQueryClient);
+  const [router] = useState(() => createAppRouter());
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -30,8 +33,12 @@ export default function App() {
         <ServerEventsProvider>
           <NotificationsProvider>
             <JobsProvider>
-              <AppContent />
-              <BackendUnavailable />
+              <RouterContextProvider router={router}>
+                {/* Resolves each new location; the routes render nothing of their own. */}
+                <Matches />
+                <AppContent />
+                <BackendUnavailable />
+              </RouterContextProvider>
             </JobsProvider>
           </NotificationsProvider>
         </ServerEventsProvider>

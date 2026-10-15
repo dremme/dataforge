@@ -8,24 +8,17 @@ import { useAppWorkspace } from "@/app/hooks/useAppWorkspace";
 import { GallerySelectionProvider } from "@/features/gallery/context/GallerySelectionContext";
 import { WorkspaceSidebar } from "@/app/components/WorkspaceSidebar";
 import { ActiveFilters } from "@/features/gallery/components/ActiveFilters";
-import { folderPathsEqual } from "@/features/folder/lib/folderPath";
+import { folderPathsEqual, parentFolderPath } from "@/features/folder/lib/folderPath";
 import { useTaggingFolder } from "@/features/tagging/hooks/useTaggingFolder";
 import { WorkspaceActions, WorkspaceActivity } from "@/app/components/WorkspaceActions";
 import { VideoEditorWorkspace } from "@/features/videoEditor/components/VideoEditorWorkspace";
 import { VideoExportTracker } from "@/features/videoEditor/components/VideoExportTracker";
 import { VIDEO_PROJECTS_QUERY_KEY } from "@/features/videoEditor/hooks/useVideoProjectList";
-import {
-  VideoEditorContext,
-  type VideoEditorRequest,
-} from "@/features/videoEditor/context/VideoEditorContext";
+import { useVideoEditorRoute } from "@/features/videoEditor/hooks/useVideoEditorRoute";
+import { VideoEditorContext } from "@/features/videoEditor/context/VideoEditorContext";
 
 /** How long an exported video may take to show up in the listing before the open gives up. */
 const OPEN_EXPORT_TIMEOUT_MS = 15_000;
-
-function parentFolder(path: string): string {
-  const cut = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
-  return cut > 0 ? path.slice(0, cut) : path;
-}
 
 export function AppContent() {
   const {
@@ -77,15 +70,22 @@ export function AppContent() {
   } = gallery;
 
   const queryClient = useQueryClient();
-  const [editorRequest, setEditorRequest] = useState<VideoEditorRequest | null>(null);
+  // Drafts are not part of the folder's fingerprint, so leaving the editor re-reads them.
+  const editor = useVideoEditorRoute(
+    useCallback(() => {
+      void queryClient.invalidateQueries({ queryKey: VIDEO_PROJECTS_QUERY_KEY });
+    }, [queryClient]),
+  );
+  const editorRequest = editor.request;
   const [pendingOpen, setPendingOpen] = useState<string | null>(null);
+  const { open: openEditor, close: closeEditor } = editor;
   const editorLauncher = useMemo(
     () => ({
-      open: (path: string) => setEditorRequest({ kind: "video", path }),
-      openProject: (path: string) => setEditorRequest({ kind: "project", path }),
+      open: (path: string) => openEditor({ kind: "video", path }),
+      openProject: (path: string) => openEditor({ kind: "project", path }),
       isOpen: editorRequest !== null,
     }),
-    [editorRequest],
+    [editorRequest, openEditor],
   );
 
   // An export lands in the listing once the folder watcher reports it; open it then.
@@ -101,18 +101,14 @@ export function AppContent() {
     return () => window.clearTimeout(timer);
   }, [openItem, pendingOpen, query.filteredItems]);
 
-  // Drafts are not part of the folder's fingerprint, so leaving the editor re-reads them.
-  const closeEditor = useCallback(() => {
-    setEditorRequest(null);
-    void queryClient.invalidateQueries({ queryKey: VIDEO_PROJECTS_QUERY_KEY });
-  }, [queryClient]);
-
+  // The folder change waits until the editor's entry is gone, or the folder's URL would keep it.
   const openExport = useCallback(
     (path: string) => {
-      closeEditor();
-      const target = parentFolder(path);
-      if (folder?.path !== target) void navigateTo(target);
-      setPendingOpen(path);
+      closeEditor(() => {
+        const target = parentFolderPath(path);
+        if (folder?.path !== target) void navigateTo(target);
+        setPendingOpen(path);
+      });
     },
     [closeEditor, folder, navigateTo],
   );
@@ -145,7 +141,7 @@ export function AppContent() {
             onNavigate={navigateTo}
             onCreateFolder={createFolder.openDialog}
             onOpenSettings={settings.openSettings}
-            onOpenVideoEditor={() => folder && setEditorRequest({ kind: "new", path: folder.path })}
+            onOpenVideoEditor={() => folder && openEditor({ kind: "new", path: folder.path })}
             videoEditorDisabled={!folder || folderNotFound}
             createDisabled={!folder || folderNotFound || createFolder.busy}
           />
@@ -305,8 +301,9 @@ export function AppContent() {
             <VideoEditorWorkspace
               request={editorRequest}
               items={items}
-              onExit={closeEditor}
+              onExit={() => closeEditor()}
               onOpenInGallery={openExport}
+              onRelocate={editor.relocate}
             />
           )}
           <VideoExportTracker hidden={editorRequest !== null} onOpen={openExport} />

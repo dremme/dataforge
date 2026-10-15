@@ -28,3 +28,9 @@ export function foldersMatch(a: string | null | undefined, b: string | null | un
 export function folderPathsEqual(left: string, right: string): boolean {
   return foldersMatch(left, right);
 }
+
+/** The folder holding a file; a path with no separator is its own folder. */
+export function parentFolderPath(path: string): string {
+  const cut = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+  return cut > 0 ? path.slice(0, cut) : path;
+}

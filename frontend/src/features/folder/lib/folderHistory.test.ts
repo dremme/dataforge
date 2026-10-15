@@ -1,97 +1,85 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import {
-  getCurrentEntryKey,
-  getEntryKeyFromHistoryEvent,
-  getFolderFromHistoryEvent,
-  getFolderFromUrl,
-  syncFolderHistory,
-} from "./folderHistory";
+import { describe, expect, it } from "vitest";
+import { createTestRouter } from "@/test/router";
+import { entryKeyOf, folderOfLocation, syncFolderHistory } from "./folderHistory";
 
 const HOME_PATH = "C:\\Users\\dev\\Photos";
 const VACATION_PATH = "C:\\Users\\dev\\Photos\\Vacation";
 
-describe("folderHistory", () => {
-  beforeEach(() => {
-    history.replaceState(null, "", "/");
-  });
+const query = (path: string) => `?${new URLSearchParams({ path })}`;
 
+describe("folderHistory", () => {
   it("pushes the folder into the query string and mints an entry key", () => {
-    const entryKey = syncFolderHistory(HOME_PATH, "push");
+    const router = createTestRouter();
+    const entryKey = syncFolderHistory(router, HOME_PATH, "push");
 
     expect(entryKey).toBeTypeOf("string");
-    expect(getFolderFromUrl()).toBe(HOME_PATH);
-    expect(history.state).toEqual({ folderPath: HOME_PATH, entryKey });
-    expect(getCurrentEntryKey()).toBe(entryKey);
+    expect(folderOfLocation(router)).toBe(HOME_PATH);
+    expect(entryKeyOf(router.history.location)).toBe(entryKey);
+    expect(router.history.length).toBe(2);
   });
 
   it("mints a distinct key for every push", () => {
-    const first = syncFolderHistory(HOME_PATH, "push");
-    const second = syncFolderHistory(VACATION_PATH, "push");
-    const third = syncFolderHistory(HOME_PATH, "push");
+    const router = createTestRouter();
+    const first = syncFolderHistory(router, HOME_PATH, "push");
+    const second = syncFolderHistory(router, VACATION_PATH, "push");
+    const third = syncFolderHistory(router, HOME_PATH, "push");
 
     expect(new Set([first, second, third]).size).toBe(3);
   });
 
   it("keeps the current key when replacing an entry", () => {
-    const pushed = syncFolderHistory(HOME_PATH, "push");
-    const replaced = syncFolderHistory(VACATION_PATH, "replace");
+    const router = createTestRouter();
+    const pushed = syncFolderHistory(router, HOME_PATH, "push");
+    const replaced = syncFolderHistory(router, VACATION_PATH, "replace");
 
     expect(replaced).toBe(pushed);
-    expect(history.state).toEqual({ folderPath: VACATION_PATH, entryKey: pushed });
+    expect(folderOfLocation(router)).toBe(VACATION_PATH);
+    expect(router.history.length).toBe(2);
   });
 
   it("mints a key when replacing an entry that was never stamped", () => {
-    const entryKey = syncFolderHistory(HOME_PATH, "replace");
+    const router = createTestRouter();
+    const entryKey = syncFolderHistory(router, HOME_PATH, "replace");
 
     expect(entryKey).toBeTypeOf("string");
-    expect(getCurrentEntryKey()).toBe(entryKey);
+    expect(entryKeyOf(router.history.location)).toBe(entryKey);
   });
 
   it("clears the query string for the default folder", () => {
-    syncFolderHistory(HOME_PATH, "push");
-    syncFolderHistory(undefined, "push");
+    const router = createTestRouter();
+    syncFolderHistory(router, HOME_PATH, "push");
+    syncFolderHistory(router, undefined, "push");
 
-    expect(getFolderFromUrl()).toBeUndefined();
-    expect(history.state.folderPath).toBeNull();
+    expect(folderOfLocation(router)).toBeUndefined();
+    expect(router.history.location.search).toBe("");
   });
 
   it("writes nothing for mode none", () => {
-    syncFolderHistory(HOME_PATH, "push");
-    const before = history.state;
+    const router = createTestRouter();
+    syncFolderHistory(router, HOME_PATH, "push");
+    const before = router.history.location;
 
-    expect(syncFolderHistory(VACATION_PATH, "none")).toBeUndefined();
-    expect(history.state).toBe(before);
-    expect(getFolderFromUrl()).toBe(HOME_PATH);
+    expect(syncFolderHistory(router, VACATION_PATH, "none")).toBeUndefined();
+    expect(router.history.location).toBe(before);
   });
 
-  it("reads the entry key off a popstate event", () => {
-    const event = new PopStateEvent("popstate", {
-      state: { folderPath: HOME_PATH, entryKey: "fs-abc-1" },
-    });
-
-    expect(getEntryKeyFromHistoryEvent(event)).toBe("fs-abc-1");
+  it("reads the folder under the video editor from what it opens", () => {
+    const video = `${VACATION_PATH}\\clip.mp4`;
+    expect(folderOfLocation(createTestRouter(`/editor/video${query(video)}`))).toBe(VACATION_PATH);
+    expect(folderOfLocation(createTestRouter(`/editor/new${query(HOME_PATH)}`))).toBe(HOME_PATH);
   });
 
-  it("reports no entry key for state this app did not write", () => {
-    const foreign = new PopStateEvent("popstate", { state: null });
+  it("stamps a key on the editor's entry without leaving the editor", () => {
+    const address = `/editor/project${query(`${HOME_PATH}\\a.video-project.json`)}`;
+    const router = createTestRouter(address);
 
-    expect(getEntryKeyFromHistoryEvent(foreign)).toBeUndefined();
+    const entryKey = syncFolderHistory(router, HOME_PATH, "replace");
+
+    expect(entryKeyOf(router.history.location)).toBe(entryKey);
+    expect(router.history.location.href).toBe(address);
   });
 
-  it("resolves the folder from popstate state, falling back to the url", () => {
-    expect(
-      getFolderFromHistoryEvent(
-        new PopStateEvent("popstate", { state: { folderPath: HOME_PATH } }),
-      ),
-    ).toBe(HOME_PATH);
-
-    expect(
-      getFolderFromHistoryEvent(new PopStateEvent("popstate", { state: { folderPath: null } })),
-    ).toBeUndefined();
-
-    syncFolderHistory(VACATION_PATH, "replace");
-    expect(getFolderFromHistoryEvent(new PopStateEvent("popstate", { state: null }))).toBe(
-      VACATION_PATH,
-    );
+  it("reports no entry key for an entry this app did not stamp", () => {
+    expect(entryKeyOf(createTestRouter().history.location)).toBeUndefined();
   });
 });

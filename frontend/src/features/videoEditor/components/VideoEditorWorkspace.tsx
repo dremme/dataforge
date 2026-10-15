@@ -14,6 +14,7 @@ import {
   iconTriangleAlert,
   iconX,
 } from "@/shared/icons";
+import { useBlocker } from "@tanstack/react-router";
 import { formatApiError } from "@/shared/api/http";
 import { isEditableTarget, isTextEntryTarget } from "@/shared/lib/isEditableTarget";
 import { matchesShortcut, SHORTCUTS } from "@/shared/lib/shortcuts";
@@ -39,6 +40,7 @@ import {
 } from "@/features/videoEditor/api/videoProjects";
 import { withAuto, withoutAuto } from "@/features/gallery/lib/autoAdjust";
 import type { VideoEditorRequest } from "@/features/videoEditor/context/VideoEditorContext";
+import { EDITOR_ROUTE } from "@/features/videoEditor/lib/editorLocation";
 import { useVideoExports } from "@/features/videoEditor/hooks/useVideoExports";
 import {
   useVideoProject,
@@ -94,6 +96,8 @@ interface VideoEditorWorkspaceProps {
   items: GalleryItem[];
   onExit: () => void;
   onOpenInGallery: (path: string) => void;
+  /** Told the draft once saving makes or changes one, so the address reopens it. */
+  onRelocate?: (request: VideoEditorRequest) => void;
 }
 
 const MESSAGE_MS = 7000;
@@ -143,6 +147,7 @@ export function VideoEditorWorkspace({
   items,
   onExit,
   onOpenInGallery,
+  onRelocate,
 }: VideoEditorWorkspaceProps) {
   const [document, setDocument] = useState<VideoProjectDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -211,16 +216,14 @@ export function VideoEditorWorkspace({
       items={items}
       onExit={onExit}
       onOpenInGallery={onOpenInGallery}
+      onRelocate={onRelocate}
     />
   );
 }
 
-interface EditorSessionProps {
+type EditorSessionProps = Omit<VideoEditorWorkspaceProps, "request"> & {
   document: VideoProjectDocument;
-  items: GalleryItem[];
-  onExit: () => void;
-  onOpenInGallery: (path: string) => void;
-}
+};
 
 function sourceLocations(
   statuses: VideoProjectState["sources"],
@@ -252,7 +255,13 @@ function clampZoom(value: number): number {
   return Math.min(MAX_PX_PER_SECOND, Math.max(MIN_PX_PER_SECOND, value));
 }
 
-function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessionProps) {
+function EditorSession({
+  document,
+  items,
+  onExit,
+  onOpenInGallery,
+  onRelocate,
+}: EditorSessionProps) {
   const state = useVideoProject(document);
   const { project } = state;
   const [engine] = useState(() => new PreviewEngine());
@@ -494,11 +503,29 @@ function EditorSession({ document, items, onExit, onOpenInGallery }: EditorSessi
     [apply, locations, project],
   );
 
-  const requestExit = useCallback(async () => {
+  /** Saves what is owed; when that fails, asks the user and resolves false. */
+  const confirmLeave = useCallback(async () => {
     engine.pause();
-    if (await state.flush()) onExit();
-    else setLeaveOpen(true);
-  }, [engine, onExit, state]);
+    if (await state.flush()) return true;
+    setLeaveOpen(true);
+    return false;
+  }, [engine, state]);
+  const requestExit = useCallback(async () => {
+    if (await confirmLeave()) onExit();
+  }, [confirmLeave, onExit]);
+  // Back, Forward or any other way out saves first; a failed save asks before going. A reload
+  // or a closed tab cannot wait for a save, so the browser asks while one is owed.
+  const owesSaveRef = useRef(false);
+  owesSaveRef.current = state.saveState !== "new" && state.saveState !== "saved";
+  useBlocker({
+    shouldBlockFn: async ({ next }) => next.routeId !== EDITOR_ROUTE && !(await confirmLeave()),
+    enableBeforeUnload: () => owesSaveRef.current,
+  });
+
+  const draftPath = state.path;
+  useEffect(() => {
+    if (draftPath) onRelocate?.({ kind: "project", path: draftPath });
+  }, [draftPath, onRelocate]);
 
   const openDraft = useCallback(
     async (path: string) => {
