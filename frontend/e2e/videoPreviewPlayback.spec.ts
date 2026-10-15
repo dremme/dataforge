@@ -27,9 +27,12 @@ interface Picture {
   slot: number;
 }
 
-// Hosted runners hand off in 50-117 ms where every local setup, including software decode and
-// compositing on one core, stays within two frames; the timing cannot be asserted there.
+// Hosted runners hand off in 50-117 ms where a local GPU stays within two frames; the timing
+// cannot be asserted there.
 test.skip(!!process.env.CI, "Loop timing is unreliable on hosted CI runners");
+// Headless Chromium composites on SwiftShader, which skips whole frames after about one lap in
+// five; the GPU backend measures the handoff instead of the CPU rasterizer.
+test.use({ launchOptions: { args: ["--use-angle=default"] } });
 
 for (const overlays of [false, true]) {
   test(`trimmed preview hands off decoded frames${overlays ? " with Adjust and Blur" : ""}`, async ({
