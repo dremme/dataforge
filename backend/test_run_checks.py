@@ -317,6 +317,10 @@ class DetailTests(RunChecksTestCase):
         output = " Test Files  3 passed (3)\n      Tests  10 passed | 2 skipped (12)\n"
         self.assertEqual(self._detail(self.run_checks.FRONTEND_TEST_COUNT, output), "12 tests")
 
+    def test_playwright_reports_its_passed_count_through_its_color_codes(self) -> None:
+        output = "  \x1b[32m31 passed\x1b[39m\x1b[2m (1.4m)\x1b[22m\n"
+        self.assertEqual(self._detail(self.run_checks.E2E_TEST_COUNT, output), "31 tests")
+
     def test_an_unrecognised_summary_shows_nothing(self) -> None:
         self.assertEqual(self._detail(self.run_checks.FRONTEND_TEST_COUNT, "all good\n"), "")
 
@@ -473,6 +477,12 @@ class ProgressProtocolTests(RunChecksTestCase):
         self.assertIn(f'WARNING_PREFIX = "{run_tests.WARNING_PREFIX}"', source)
         self.assertIn(f"process.env.{self.run_checks.PROGRESS_ENV}", source)
 
+    def test_the_end_to_end_reporter_speaks_the_same_marker(self) -> None:
+        run_tests = self._load_run_tests()
+        source = (ROOT / "frontend" / "playwright.progress.ts").read_text(encoding="utf-8")
+        self.assertIn(f'PROGRESS_PREFIX = "{run_tests.PROGRESS_PREFIX}"', source)
+        self.assertIn(f"process.env.{self.run_checks.PROGRESS_ENV}", source)
+
     def test_the_backend_runner_counts_shown_warnings_but_not_expected_ones(self) -> None:
         run_tests = self._load_run_tests()
 
@@ -510,6 +520,36 @@ class ProgressProtocolTests(RunChecksTestCase):
         frontend_tests = next(step for step in steps if step.label == "Frontend tests")
         reporter = next(arg for arg in frontend_tests.command if arg.startswith("--reporter=./"))
         self.assertTrue((ROOT / "frontend" / reporter.removeprefix("--reporter=./")).is_file())
+
+    def _labels(self, **options: bool) -> list[str]:
+        steps = self.run_checks._check_steps(
+            "python", "npm", interpreter=Path("python"), scope="all", **options
+        )
+        return [step.label for step in steps]
+
+    def test_end_to_end_tests_run_last_only_when_asked(self) -> None:
+        self.assertNotIn("Frontend E2E tests", self._labels())
+        self.assertEqual(self._labels(e2e=True)[-1], "Frontend E2E tests")
+
+    def test_end_to_end_tests_need_the_frontend_and_the_test_steps(self) -> None:
+        self.assertNotIn("Frontend E2E tests", self._labels(e2e=True, lint_only=True))
+        steps = self.run_checks._check_steps(
+            "python", None, interpreter=Path("python"), scope="backend", e2e=True
+        )
+        self.assertNotIn("Frontend E2E tests", [step.label for step in steps])
+
+    def test_the_end_to_end_step_runs_the_script_the_manifest_names(self) -> None:
+        steps = self.run_checks._check_steps(
+            None, "npm", interpreter=Path("python"), scope="all", e2e=True
+        )
+        [e2e] = [step for step in steps if step.label == "Frontend E2E tests"]
+        manifest = json.loads((ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))
+        self.assertEqual(e2e.command[1], "run")
+        self.assertIn(e2e.command[2], manifest["scripts"])
+        reporters = next(arg for arg in e2e.command if arg.startswith("--reporter="))
+        local = [name for name in reporters.removeprefix("--reporter=").split(",") if "/" in name]
+        self.assertEqual(local, ["./playwright.progress.ts"])
+        self.assertTrue((ROOT / "frontend" / "playwright.progress.ts").is_file())
 
     def test_the_backend_result_reports_each_finished_test_against_the_total(self) -> None:
         run_tests = self._load_run_tests()

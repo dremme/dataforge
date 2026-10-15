@@ -24,5 +24,5 @@
 - Run commands from the project root using `backend/.venv/Scripts/python` on Windows or `backend/.venv/bin/python` on Linux/macOS.
 - Use focused checks while iterating. Before finishing code changes, run `scripts/run_checks.py --fix` with `--scope backend` or `--scope frontend` when isolated; omit scope for shared tooling or cross-stack changes. Review fixer changes and preserve unrelated work. Rerun if auto-fixes return a failure.
 - `--lint-only` skips tests but retains type checks; use for changes that **do not** affect runtime behavior. Documentation-only changes need a content/diff review, not the code suite.
-- For UI changes, inspect the affected UI and run relevant covered E2E tests with `npm run test:e2e` from `frontend/`; the checks runner does not include them. See `docs/development.md` for setup when needed.
+- For UI changes, inspect the affected UI and run relevant covered E2E tests with `npm run test:e2e` from `frontend/`; the checks runner includes them only with `--e2e`. See `docs/development.md` for setup when needed.
 - Fix failures caused by the task. Report unrelated failures and blockers without weakening checks. Inspect the final diff before reporting completion.

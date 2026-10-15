@@ -23,6 +23,7 @@
     "vitest.progress.ts",
     "eslint.config.js",
     "playwright.config.ts",
+    "playwright.progress.ts",
     "e2e"
   ]
 }

@@ -92,8 +92,8 @@ jobs:
           DATAFORGE_DISABLE_DOTENV: "1"
         run: backend/.venv/bin/python scripts/run_checks.py --scope frontend
 
-  # Kept out of run_checks.py, which is the pre-commit hook: this boots two servers
-  # and a browser. It runs here and on demand via `npm run test:e2e`.
+  # Kept out of run_checks.py's default run, which is the pre-commit hook: this boots two
+  # servers and a browser. It runs here and on demand via `npm run test:e2e` or `--e2e`.
   e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 45

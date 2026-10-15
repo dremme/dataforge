@@ -1,7 +1,7 @@
 """Run backend and frontend linting, formatting checks, typechecking, and tests.
 
 Run from the project root:
-  backend/.venv/Scripts/python scripts/run_checks.py [--fix] [--lint-only] [--scope SCOPE]
+  backend/.venv/Scripts/python scripts/run_checks.py [--fix] [--lint-only] [--e2e] [--scope SCOPE]
 
 A passing step is one line. A failing step prints everything it wrote, and the run stops there.
 Lint and type warnings fail their step. Warnings raised while tests pass cannot fail it; their
@@ -40,6 +40,7 @@ SCRIPTS = ROOT / "scripts"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 BACKEND_TEST_COUNT = re.compile(r"^Ran (\d+) tests? in", re.MULTILINE)
 FRONTEND_TEST_COUNT = re.compile(r"^\s*Tests\s.*\((\d+)\)\s*$", re.MULTILINE)
+E2E_TEST_COUNT = re.compile(r"^\s*(\d+) passed\b", re.MULTILINE)
 PROGRESS_MARKER = re.compile(r"@progress (\d+)/(\d+)\n?")
 WARNINGS_MARKER = re.compile(r"@warnings (\d+)\n?")
 WARNING_MARKER = re.compile(r"@warning (\".*\")\n?")
@@ -413,6 +414,7 @@ def _check_steps(
     interpreter: Path,
     scope: str,
     lint_only: bool = False,
+    e2e: bool = False,
 ) -> list[Step]:
     """``None`` for either tool means that side of the stack is out of scope."""
     steps: list[Step] = []
@@ -458,6 +460,15 @@ def _check_steps(
                 test_count=FRONTEND_TEST_COUNT,
             )
         )
+        if e2e:
+            steps.append(
+                Step(
+                    "Frontend E2E tests",
+                    [npm, "run", "test:e2e", "--", "--reporter=list,./playwright.progress.ts"],
+                    FRONTEND,
+                    test_count=E2E_TEST_COUNT,
+                )
+            )
     return steps
 
 
@@ -579,6 +590,11 @@ def main() -> int:
         help="Run lint and formatting checks only (skip tests).",
     )
     parser.add_argument(
+        "--e2e",
+        action="store_true",
+        help="Also run the frontend end-to-end tests, which boot servers and a browser.",
+    )
+    parser.add_argument(
         "--scope",
         choices=("all", "backend", "frontend"),
         default="all",
@@ -590,6 +606,10 @@ def main() -> int:
         help="Skip measuring test coverage, which makes the tests run slower.",
     )
     args = parser.parse_args()
+    if args.e2e and args.lint_only:
+        parser.error("--e2e runs tests, so it cannot be combined with --lint-only")
+    if args.e2e and args.scope == "backend":
+        parser.error("--e2e is a frontend check, so it cannot be combined with --scope backend")
 
     # Backend venv is always needed: frontend API types are generated and not checked in.
     # ``backend_python`` gates backend steps; holding the interpreter is not the same thing.
@@ -604,6 +624,7 @@ def main() -> int:
         interpreter=python,
         scope=args.scope,
         lint_only=args.lint_only,
+        e2e=args.e2e,
     )
     labels = [generate.label, *(step.label for step in checks)]
     if args.fix:

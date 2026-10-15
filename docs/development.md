@@ -86,7 +86,7 @@ Use `--scope backend` or `--scope frontend` for isolated changes; omit scope for
 
 This generates API files and runs formatting, lint, type checks, comment/theme/transition checks, and backend/frontend tests. Backend tools include Ruff and ty; frontend tools include ESLint, Prettier, TypeScript, and Vitest. Tool configuration and pins live in the respective project manifests.
 
-`--fix` applies formatting/lint fixes. If it changes files, the runner completes checks but returns a failure requiring review; rerun after reviewing the changes. Failed steps print their output and stop the run; successful steps show a compact result. `--lint-only` skips tests but still checks types. `--scope backend` or `--scope frontend` narrows checks; frontend checks still need the backend venv for generation. CI uses this runner for each side separately.
+`--fix` applies formatting/lint fixes. If it changes files, the runner completes checks but returns a failure requiring review; rerun after reviewing the changes. Failed steps print their output and stop the run; successful steps show a compact result. `--lint-only` skips tests but still checks types. `--e2e` also runs the end-to-end tests after the frontend tests; it cannot be combined with `--lint-only` or `--scope backend`. `--scope backend` or `--scope frontend` narrows checks; frontend checks still need the backend venv for generation. CI uses this runner for each side separately.
 
 The tests run under coverage, and the run ends with one line per side (coverage.py and Vitest's v8 provider). `--no-coverage` skips that and makes the tests noticeably faster. While coverage is on, Vitest's per-test timeout is 20s instead of 5s, because instrumentation slows tests enough to time out the heaviest ones; plain `npm test` keeps the 5s budget.
 
@@ -104,7 +104,7 @@ The tests run under coverage, and the run ends with one line per side (coverage.
 
 ### CI and end-to-end tests
 
-Backend, frontend, and end-to-end CI all use the exact Python 3.13.12 release recorded in `.python-version`. Backend CI has one runner. Windows setup uses the same default; local setup and server startup accept any final Python 3.13.x release and reject other release series and prereleases. Frontend CI generates files with Python and runs its scoped checks. End-to-end CI runs separately from `run_checks.py` and the pre-commit hook.
+Backend, frontend, and end-to-end CI all use the exact Python 3.13.12 release recorded in `.python-version`. Backend CI has one runner. Windows setup uses the same default; local setup and server startup accept any final Python 3.13.x release and reject other release series and prereleases. Frontend CI generates files with Python and runs its scoped checks. End-to-end CI runs separately from `run_checks.py` and the pre-commit hook; locally, `run_checks.py --e2e` adds the suite to a full run.
 
 The E2E suite drives Chromium against its own backend on 18090 and Vite on 18091, using temporary data and a stand-in vision model. It needs no existing servers or real model. It covers captioning, gallery thumbnails, media editing, the workflow inspector, notifications, and job controls. Avoid using those ports for another service during the run.
 
