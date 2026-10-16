@@ -17,6 +17,111 @@ for (const viewport of [
   { name: "desktop", width: 1280, height: 800 },
   { name: "narrow", width: 390, height: 844 },
 ]) {
+  test(`${viewport.name}: workflow map groups preparations and scrolls through later passes`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await mkdir(WORKSPACE, { recursive: true });
+    const folder = await mkdtemp(path.join(WORKSPACE, "comfy-map-"));
+    const graph = {
+      "1": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "base.safetensors" } },
+      "2": {
+        class_type: "LoraLoader",
+        inputs: { model: ["1", 0], lora_name: "lighting.safetensors", strength_model: 0.8 },
+      },
+      "3": { class_type: "CLIPLoader", inputs: { clip_name: "encoder.safetensors" } },
+      "4": {
+        class_type: "CLIPTextEncode",
+        inputs: { clip: ["3", 0], text: "a quiet lake at sunrise" },
+      },
+      "5": {
+        class_type: "CLIPTextEncode",
+        inputs: { clip: ["3", 0], text: "blurry, low quality" },
+      },
+      "6": { class_type: "VAELoader", inputs: { vae_name: "decoder.safetensors" } },
+      "7": { class_type: "LoadImage", inputs: { image: "reference.png" } },
+      "8": { class_type: "VAEEncode", inputs: { pixels: ["7", 0], vae: ["6", 0] } },
+      "9": {
+        class_type: "KSampler",
+        _meta: { title: "Base pass" },
+        inputs: {
+          model: ["2", 0],
+          positive: ["4", 0],
+          negative: ["5", 0],
+          latent_image: ["8", 0],
+          steps: 20,
+          cfg: 7,
+          seed: 1,
+        },
+      },
+      "10": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "refiner.safetensors" } },
+      "11": {
+        class_type: "LoraLoader",
+        inputs: { model: ["10", 0], lora_name: "detail.safetensors", strength_model: 0.5 },
+      },
+      "12": {
+        class_type: "FaceDetailer",
+        _meta: { title: "Refine pass" },
+        inputs: {
+          model: ["11", 0],
+          positive: ["4", 0],
+          negative: ["5", 0],
+          image: ["13", 0],
+          vae: ["6", 0],
+          steps: 10,
+          cfg: 5,
+          seed: 2,
+        },
+      },
+      "13": { class_type: "VAEDecode", inputs: { samples: ["9", 0], vae: ["6", 0] } },
+      "14": { class_type: "SaveImage", inputs: { images: ["12", 0], filename_prefix: "scene" } },
+    };
+    execFileSync(python, [
+      "-c",
+      "import sys; from PIL import Image, PngImagePlugin; " +
+        "metadata = PngImagePlugin.PngInfo(); metadata.add_text('prompt', sys.argv[2]); " +
+        "Image.new('RGB', (640, 480), 'steelblue').save(sys.argv[1], pnginfo=metadata)",
+      path.join(folder, "scene_00001_.png"),
+      JSON.stringify(graph),
+    ]);
+    await page.goto(`/?path=${encodeURIComponent(folder)}`);
+    await page.getByRole("button", { name: "View scene_00001_.png", exact: true }).click();
+    await page.getByRole("button", { name: /ComfyUI/ }).click();
+    const dialog = page.getByRole("dialog", { name: "ComfyUI workflow" });
+    const map = dialog.getByRole("group", { name: "Workflow map" });
+    await expect(map.getByRole("button", { name: "Pass 1: Base pass" })).toBeAttached();
+    await expect(map.locator("svg text")).toHaveCount(0);
+    const boxes = await map.locator(".comfy-workflow-dialog__map-node").evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        return { label: node.textContent!, x: rect.x, y: rect.y, width: rect.width };
+      }),
+    );
+    const find = (label: string) => boxes.find((box) => box.label.includes(label))!;
+    expect(Math.abs(find("base").x - find("lighting").x)).toBeLessThan(1);
+    expect(Math.abs(find("base").x - find("refiner").x)).toBeLessThan(1);
+    expect(Math.abs(find("encoder").x - find("a quiet lake").x)).toBeLessThan(1);
+    expect(find("Base pass").y).toBeLessThan(find("refiner").y);
+    expect(find("refiner").y).toBeLessThan(find("Refine pass").y);
+    const bounds = (await map.boundingBox())!;
+    for (const box of boxes) {
+      expect(box.width).toBeGreaterThanOrEqual((120 / 480) * Math.min(bounds.width, 480));
+      expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+    }
+    await map.evaluate((element) => element.scrollIntoView({ block: "start" }));
+    await page.screenshot({
+      path: testInfo.outputPath("map-preparations.png"),
+      animations: "disabled",
+    });
+    await map.getByText("Output", { exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath("map-output.png"), animations: "disabled" });
+    await map.getByRole("button", { name: "Pass 2: Refine pass" }).click();
+    await expect(
+      dialog.locator(".comfy-workflow-dialog__pass-label").getByText("Refine pass"),
+    ).toBeVisible();
+  });
+
   test(`${viewport.name}: unresolved workflow opens on the first output`, async ({
     page,
   }, testInfo) => {

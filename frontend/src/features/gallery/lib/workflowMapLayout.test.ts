@@ -57,6 +57,22 @@ const MAP = [
   box("out", "output", []),
 ];
 
+const SEMANTIC_MAP: ComfyMapNode[] = [
+  box("model-a", "model", ["lora-a"]),
+  box("model-b", "model", ["lora-b"]),
+  box("lora-a", "loras", ["base", "refine"]),
+  box("lora-b", "loras", ["base"]),
+  box("clip", "clip", ["positive", "negative"]),
+  box("vae", "vae", ["base", "out"]),
+  box("image", "input", ["base"]),
+  { ...box("positive", "prompt", ["base", "refine"]), role: "positive" },
+  { ...box("negative", "prompt", ["base", "refine"]), role: "negative" },
+  box("base", "pass", ["refine", "out"]),
+  box("refiner-model", "model", ["refine"]),
+  box("refine", "pass", ["out"]),
+  box("out", "output", []),
+];
+
 describe("layoutWorkflowMap", () => {
   const layout = layoutWorkflowMap(MAP);
   const placed = (id: string) => layout.nodes.find((node) => node.node.id === id)!;
@@ -67,7 +83,7 @@ describe("layoutWorkflowMap", () => {
     expect(Math.max(...layout.nodes.map((node) => node.y))).toBe(placed("out").y);
   });
 
-  it("sizes each row's boxes to that row, so a crowded row narrows only itself", () => {
+  it("keeps the pass wider than preparations in separate columns", () => {
     expect(placed("model").width).toBeLessThan(placed("base").width);
   });
 
@@ -77,7 +93,7 @@ describe("layoutWorkflowMap", () => {
     expect(placed("model").y).toBeLessThan(placed("base").y);
   });
 
-  it("lifts a source only as far as its first reader, not to the top", () => {
+  it("introduces a later source in the preparation section of its first reader", () => {
     const late = layoutWorkflowMap([
       box("model", "model", ["base"]),
       box("base", "pass", ["refine"]),
@@ -87,7 +103,8 @@ describe("layoutWorkflowMap", () => {
     ]);
     const y = (id: string) => late.nodes.find((node) => node.node.id === id)!.y;
 
-    expect(y("upscaler")).toBe(y("base"));
+    expect(y("upscaler")).toBeGreaterThan(y("base"));
+    expect(y("upscaler")).toBeLessThan(y("refine"));
     // Straight down into the next row: it leaves from the box's bottom, not through a lane.
     const upscaler = late.nodes.find((node) => node.node.id === "upscaler")!;
     const edge = late.edges.find((candidate) => candidate.from === "upscaler")!;
@@ -95,7 +112,7 @@ describe("layoutWorkflowMap", () => {
   });
 
   it("runs an edge that skips rows between the boxes of the rows it passes", () => {
-    // The model's neighbours share its row, and it feeds both the next row and the output.
+    // Preparations share columns, and the model feeds both the base pass and the output.
     const crowded = layoutWorkflowMap([
       box("model", "model", ["base", "out"]),
       box("lora", "loras", ["base"]),
@@ -116,11 +133,10 @@ describe("layoutWorkflowMap", () => {
       );
 
     expect(points.filter(([x, y]) => inside(x, y))).toEqual([]);
-    // No detour out to a lane: it stays within the span of the boxes at its two ends.
-    const ends = crowded.nodes.filter((node) => ["model", "out"].includes(node.node.id));
+    // Shared connections can use the gutters beside their semantic column.
     const xs = points.map(([x]) => x);
-    expect(Math.max(...xs)).toBeLessThanOrEqual(Math.max(...ends.map((n) => n.x + n.width)));
-    expect(Math.min(...xs)).toBeGreaterThanOrEqual(Math.min(...ends.map((n) => n.x)));
+    expect(Math.max(...xs)).toBeLessThanOrEqual(crowded.width);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
     // It comes in from the top of its target.
     const out = crowded.nodes.find((node) => node.node.id === "out")!;
     const { x: endX, y: endY } = end(skip.path);
@@ -129,7 +145,7 @@ describe("layoutWorkflowMap", () => {
     expect(endX).toBeLessThan(out.x + out.width);
   });
 
-  it("spreads a crowded row over a wider map, but never lays out narrower than its minimum", () => {
+  it("widens preparation columns with the map, but never lays out below its minimum width", () => {
     const row = [
       box("a", "model", ["base"]),
       box("b", "loras", ["base"]),
@@ -148,8 +164,7 @@ describe("layoutWorkflowMap", () => {
     expect(layoutWorkflowMap(row, 200).width).toBe(narrow.width);
   });
 
-  it("orders a row so its edges do not cross", () => {
-    // Listed so that, kept in this order, the two edges would cross.
+  it("groups independent preparations with their consumer despite the source listing order", () => {
     const swapped = layoutWorkflowMap([
       box("first", "model", ["late"]),
       box("second", "model", ["early"]),
@@ -157,9 +172,11 @@ describe("layoutWorkflowMap", () => {
       box("late", "pass", ["out"]),
       box("out", "output", []),
     ]);
-    const x = (id: string) => swapped.nodes.find((node) => node.node.id === id)!.x;
+    const y = (id: string) => swapped.nodes.find((node) => node.node.id === id)!.y;
 
-    expect(Math.sign(x("first") - x("second"))).toBe(Math.sign(x("late") - x("early")));
+    expect(y("second")).toBeLessThan(y("early"));
+    expect(y("early")).toBeLessThan(y("first"));
+    expect(y("first")).toBeLessThan(y("late"));
   });
 
   it("closes the map with the output even when nothing reached it", () => {
@@ -181,13 +198,20 @@ describe("layoutWorkflowMap", () => {
       box("base", "pass", ["out"]),
       box("out", "output", []),
     ]);
-    const x = (id: string) => fanned.nodes.find((node) => node.node.id === id)!.x;
+    const target = fanned.nodes.find((node) => node.node.id === "base")!;
+    const incomingX = (path: string) => {
+      const points = sample(path);
+      const y = target.y - 18;
+      const index = points.findIndex(([, pointY]) => pointY >= y);
+      const [a, b] = [points[index - 1], points[index]];
+      return a[0] + ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]);
+    };
     const into = fanned.edges
       .filter((edge) => edge.to === "base")
-      .sort((a, b) => x(a.from) - x(b.from))
+      .sort((a, b) => incomingX(a.path) - incomingX(b.path))
       .map((edge) => end(edge.path).x);
 
-    // Left to right like their sources, so the three edges never cross on the way in.
+    // Left to right like their incoming wires, so they never cross as they meet the target.
     expect(into).toEqual([...into].sort((a, b) => a - b));
     expect(new Set(into).size).toBe(3);
   });
@@ -204,6 +228,66 @@ describe("layoutWorkflowMap", () => {
       "base>out": true,
       "detailer>out": false,
     });
+  });
+
+  it("keeps model, conditioning and media preparations in consistent columns", () => {
+    const grouped = layoutWorkflowMap(SEMANTIC_MAP);
+    const x = (id: string) => grouped.nodes.find((node) => node.node.id === id)!.x;
+
+    for (const group of [
+      ["model-a", "model-b", "lora-a", "lora-b", "refiner-model"],
+      ["clip", "positive", "negative"],
+      ["vae", "image"],
+    ]) {
+      const xs = group.map(x);
+      expect(Math.max(...xs) - Math.min(...xs)).toBeLessThan(24);
+    }
+    expect(x("lora-a")).toBeLessThan(x("positive"));
+    expect(x("positive")).toBeLessThan(x("image"));
+  });
+
+  it("uses more height to keep crowded preparations readable and wires clear of boxes", () => {
+    const grouped = layoutWorkflowMap(SEMANTIC_MAP);
+    expect(Math.min(...grouped.nodes.map((node) => node.width))).toBeGreaterThanOrEqual(120);
+    for (const edge of grouped.edges) {
+      const intersects = sample(edge.path).some(([x, y]) =>
+        grouped.nodes.some(
+          (node) =>
+            x > node.x + 0.01 &&
+            x < node.x + node.width - 0.01 &&
+            y > node.y + 0.01 &&
+            y < node.y + node.height - 0.01,
+        ),
+      );
+      expect(intersects, `${edge.from} -> ${edge.to}`).toBe(false);
+    }
+  });
+
+  it("draws shared connections with long curves instead of a bend at every row", () => {
+    const grouped = layoutWorkflowMap(SEMANTIC_MAP);
+    const shared = grouped.edges.find((edge) => edge.from === "vae" && edge.to === "out")!;
+
+    expect(shared.path).not.toContain("L");
+    expect(shared.path.match(/C/g)!.length).toBeLessThanOrEqual(3);
+  });
+
+  it("places every dependency above its consumer and keeps boxes apart", () => {
+    const grouped = layoutWorkflowMap(SEMANTIC_MAP);
+    for (const edge of grouped.edges) {
+      const from = grouped.nodes.find((node) => node.node.id === edge.from)!;
+      const to = grouped.nodes.find((node) => node.node.id === edge.to)!;
+      expect(from.y + from.height).toBeLessThan(to.y);
+    }
+    for (const [index, node] of grouped.nodes.entries()) {
+      for (const other of grouped.nodes.slice(index + 1)) {
+        expect(
+          node.x + node.width <= other.x ||
+            other.x + other.width <= node.x ||
+            node.y + node.height <= other.y ||
+            other.y + other.height <= node.y,
+        ).toBe(true);
+      }
+    }
   });
 });
 

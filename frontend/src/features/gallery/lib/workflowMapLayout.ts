@@ -2,42 +2,41 @@ import type { ComfyMapNode } from "@/shared/types";
 
 // Layout runs in viewBox units, one per CSS pixel at the width it is given, so no box is
 // measured: the SVG scales to its column, and the boxes over it are placed in percentages of the
-// same box. Below the minimum the whole drawing scales down instead of crowding its rows.
+// same box. Below the minimum the whole drawing scales down instead of crowding its columns.
 const MIN_WIDTH = 480;
 const PAD = 8;
 const NODE_HEIGHT = 30;
-const LAYER_GAP = 28;
-const COLUMN_GAP = 8;
-/** The clearance a wire keeps from its neighbours in a row. */
+const LAYER_GAP = 36;
+/** Preferred clearance between wires; busy gutters divide their available room. */
 const WIRE_GAP = 6;
 const MAX_NODE_WIDTH = 240;
 const ORDER_SWEEPS = 12;
 const SWAP_PASSES = 4;
 const PLACE_ROUNDS = 8;
-/** What one pair of boxes out of kind order costs, in viewBox units of sideways wire. */
-const MIXED_KIND_COST = 60;
+/** Room beside each preparation column for connections shared by later passes. */
+const COLUMN_WIRE_ROOM = 24;
 /** Crossings outweigh any amount of sideways wire. */
 const CROSSING_COST = 10_000;
 
-/** Within a row, kinds read left to right in this order unless the wires say otherwise. */
-const KIND_RANK = {
+/** Related preparations share a column, with unused columns omitted. */
+const KIND_COLUMN = {
   model: 0,
-  loras: 1,
-  clip: 2,
-  vae: 3,
-  input: 4,
-  positive: 5,
-  negative: 6,
-  pass: 7,
-  output: 8,
+  loras: 0,
+  clip: 1,
+  prompt: 1,
+  vae: 2,
+  input: 2,
 } as const;
+
+function columnOf(node: ComfyMapNode): number | undefined {
+  return node.kind === "pass" || node.kind === "output" ? undefined : KIND_COLUMN[node.kind];
+}
 
 export interface PlacedMapNode {
   node: ComfyMapNode;
   ran: boolean;
   x: number;
   y: number;
-  /** Rows size their own boxes, so one crowded row does not narrow every other. */
   width: number;
   height: number;
 }
@@ -66,17 +65,14 @@ interface Slot {
 }
 
 /**
- * A layered drawing: boxes in rows by their longest chain of upstream boxes, the output last.
- * A source such as a model or prompt sits just above the first box it feeds, so rows stay
- * short. An edge that skips rows passes through each row between as a wire with a slot of its
- * own, so it runs between boxes, never through one; a source's skipping edges share its wire.
- *
- * Each row is ordered to cut crossings (barycentre sweeps, then neighbour swaps that also
- * shorten the wires), and every slot is pulled over the slots it links to, so edges run as
- * straight as the row's room allows.
+ * Passes read down the centre, each preceded by its new preparations in semantic columns:
+ * models and LoRAs, CLIP and prompts, then VAE and media. Crowded columns grow vertically.
+ * Shared preparations appear once, before their first consumer. Long connections reserve
+ * wire slots between boxes; crossing reduction can reorder wires, but not semantic columns.
  */
 export function layoutWorkflowMap(map: ComfyMapNode[], available = MIN_WIDTH): WorkflowMapLayout {
   const width = Math.max(MIN_WIDTH, Math.floor(available));
+  if (map.length === 0) return { width, height: 2 * PAD, nodes: [], edges: [] };
   const rowOf = assignRows(map);
   const rowCount = Math.max(0, ...rowOf.values()) + 1;
 
@@ -102,23 +98,36 @@ export function layoutWorkflowMap(map: ComfyMapNode[], available = MIN_WIDTH): W
     return chain;
   });
 
-  const rank = new Map(
-    map.map((node) => [
-      node.id,
-      KIND_RANK[node.kind === "prompt" ? (node.role ?? "positive") : node.kind],
-    ]),
-  );
+  const columns = [...new Set(map.flatMap((node) => columnOf(node) ?? []))].sort();
+  const column = new Map(map.map((node) => [node.id, columnOf(node)]));
   const order = new Map(map.map((node, index) => [node.id, index]));
-  const ownerOf = (id: string) => id.split("@")[0];
-  // The map arrives earliest first and kind-ordered; a wire starts beside its source.
+  const owner = new Map(map.map((node) => [node.id, node.id]));
+  for (const chain of chains) for (const id of chain.slice(1, -1)) owner.set(id, chain[0]);
+  const columnRank = (id: string) => column.get(owner.get(id)!) ?? 1;
   const rows: string[][] = Array.from({ length: rowCount }, () => []);
   for (const placed of slots.values()) rows[placed.row].push(placed.id);
-  for (const row of rows) row.sort((a, b) => order.get(ownerOf(a))! - order.get(ownerOf(b))!);
+  for (const row of rows) {
+    row.sort(
+      (a, b) =>
+        columnRank(a) - columnRank(b) || order.get(owner.get(a)!)! - order.get(owner.get(b)!)!,
+    );
+  }
 
   const get = (id: string) => slots.get(id)!;
   const centre = (placed: Slot) => placed.x + placed.width / 2;
-  const gap = (a: Slot, b: Slot) => (a.box && b.box ? COLUMN_GAP : WIRE_GAP);
   const contentWidth = width - 2 * PAD;
+  const columnWidth = contentWidth / Math.max(1, columns.length);
+  const wantedX = (placed: Slot) => {
+    const group = column.get(placed.id);
+    const middle =
+      group === undefined ? width / 2 : PAD + (columns.indexOf(group) + 0.5) * columnWidth;
+    return middle - placed.width / 2;
+  };
+  const keepColumns = (row: string[]) => {
+    const boxes = row.filter((id) => get(id).box).sort((a, b) => columnRank(a) - columnRank(b));
+    let index = 0;
+    return row.map((id) => (get(id).box ? boxes[index++] : id));
+  };
 
   const crossings = () => {
     const position = new Map(rows.flatMap((row) => row.map((id, index) => [id, index])));
@@ -151,6 +160,7 @@ export function layoutWorkflowMap(map: ComfyMapNode[], available = MIN_WIDTH): W
         }),
       );
       rows[row].sort((a, b) => value.get(a)! - value.get(b)!);
+      rows[row] = keepColumns(rows[row]);
     }
     const count = crossings();
     if (count < fewest) {
@@ -160,75 +170,67 @@ export function layoutWorkflowMap(map: ComfyMapNode[], available = MIN_WIDTH): W
   }
   best.forEach((ids, row) => (rows[row] = ids));
 
-  // A box whose only link down is a box whose only link up is it, such as a model over its
-  // LoRAs: the pair stacks in one column when the row has room.
-  const paired = (a: Slot, b: Slot) =>
-    a.box &&
-    b.box &&
-    down.get(a.id)?.size === 1 &&
-    down.get(a.id)!.has(b.id) &&
-    up.get(b.id)?.size === 1;
-  // How hard ``other`` pulls ``placed``: wires straighten, pairs stack, a wire barely moves a box.
-  const pull = (placed: Slot, other: Slot) => {
-    if (!placed.box) return other.box ? 2 : 8;
-    if (!other.box) return 0.25;
-    return paired(placed, other) || paired(other, placed) ? 8 : 1;
-  };
-
   const arrange = () => {
-    for (const row of rows) {
-      const members = row.map(get);
-      const boxes = members.filter((placed) => placed.box);
-      const wires = members.length - boxes.length;
-      const room = contentWidth - (boxes.length - 1) * COLUMN_GAP - wires * 2 * WIRE_GAP;
-      const boxWidth = Math.min(MAX_NODE_WIDTH, room / Math.max(1, boxes.length));
-      for (const placed of boxes) placed.width = boxWidth;
-      // Packed and centred, before the pulls below move it.
-      const span = members.reduce((t, s, i) => t + s.width + (i ? gap(members[i - 1], s) : 0), 0);
-      let x = PAD + (contentWidth - span) / 2;
-      members.forEach((placed, index) => {
-        if (index) x += gap(members[index - 1], placed);
-        placed.x = x;
-        x += placed.width;
-      });
+    for (const placed of slots.values()) {
+      if (!placed.box) continue;
+      placed.width = Math.min(
+        MAX_NODE_WIDTH,
+        column.get(placed.id) === undefined ? MAX_NODE_WIDTH : columnWidth - COLUMN_WIRE_ROOM,
+      );
+      placed.x = wantedX(placed);
     }
+    const placeWires = (row: string[], wanted?: (placed: Slot) => number) => {
+      let low = PAD;
+      let wires: Slot[] = [];
+      const fill = (high: number) => {
+        if (!wires.length) return;
+        const gap = Math.min(WIRE_GAP, (high - low) / (wires.length + 1));
+        const positions = wires.map(
+          (placed, i) => wanted?.(placed) ?? low + ((high - low) * (i + 1)) / (wires.length + 1),
+        );
+        placeRow(wires, positions, () => gap, low + gap, high - gap);
+        wires = [];
+      };
+      for (const id of row) {
+        const placed = get(id);
+        if (placed.box) {
+          fill(placed.x);
+          low = placed.x + placed.width;
+        } else wires.push(placed);
+      }
+      fill(width - PAD);
+    };
+    for (const row of rows) placeWires(row);
     for (let round = 0; round < PLACE_ROUNDS; round++) {
       const indices = [...rows.keys()];
       for (const row of round % 2 === 0 ? indices : indices.reverse()) {
-        const members = rows[row].map(get);
-        const wanted = members.map((placed) => {
+        placeWires(rows[row], (placed) => {
           const near = [...(up.get(placed.id) ?? []), ...(down.get(placed.id) ?? [])].map(get);
           if (!near.length) return placed.x;
-          const weights = near.map((other) => pull(placed, other));
+          const weights = near.map((other) => (other.box ? 2 : 8));
           const total = weights.reduce((a, b) => a + b, 0);
           const mean = near.reduce((t, other, i) => t + centre(other) * weights[i], 0) / total;
           return mean - placed.width / 2;
         });
-        placeRow(members, wanted, gap, PAD, PAD + contentWidth);
       }
     }
   };
 
-  // Then swap neighbours while that cuts crossings, or keeps them and shortens the wires. Kinds
-  // out of their usual order cost a little, so a row stays readable when little is at stake.
+  // Swap wire slots to reduce crossings while keeping boxes in their semantic columns.
   const cost = () => {
     arrange();
     let sideways = 0;
     for (const [from, targets] of down) {
       for (const to of targets) sideways += Math.abs(centre(get(from)) - centre(get(to)));
     }
-    let mixed = 0;
-    for (const row of rows) {
-      const ranks = row.filter((id) => get(id).box).map((id) => rank.get(id)!);
-      ranks.forEach((a, i) => (mixed += ranks.slice(i + 1).filter((b) => b < a).length));
-    }
-    return crossings() * CROSSING_COST + sideways + mixed * MIXED_KIND_COST;
+    return crossings() * CROSSING_COST + sideways;
   };
   let current = cost();
   for (let pass = 0; pass < SWAP_PASSES; pass++) {
     let improved = false;
     for (const row of rows) {
       for (let i = 0; i + 1 < row.length; i++) {
+        if (get(row[i]).box && get(row[i + 1]).box) continue;
         [row[i], row[i + 1]] = [row[i + 1], row[i]];
         const next = cost();
         if (next < current - 0.5) {
@@ -267,22 +269,76 @@ export function layoutWorkflowMap(map: ComfyMapNode[], available = MIN_WIDTH): W
   };
   const edges = links.map(({ from, to }, index) => {
     const chain = chains[index];
-    const path = chain
-      .slice(1)
-      .map((id, step) => {
-        const source = get(chain[step]);
-        const x1 = portX(source.id, id, down);
-        const y1 = top(source.row) + NODE_HEIGHT;
-        const x2 = portX(id, source.id, up);
-        const y2 = top(source.row + 1);
-        const middle = (y1 + y2) / 2;
-        return `${step ? "L" : "M"} ${x1} ${y1} C ${x1} ${middle}, ${x2} ${middle}, ${x2} ${y2}`;
-      })
-      .join(" ");
+    const points = [
+      { x: portX(from, chain[1], down), y: top(get(from).row) + NODE_HEIGHT },
+      ...chain.slice(1, -1).flatMap((id) => [
+        { x: centre(get(id)), y: top(get(id).row) },
+        { x: centre(get(id)), y: top(get(id).row) + NODE_HEIGHT },
+      ]),
+      { x: portX(to, chain.at(-2)!, up), y: top(get(to).row) },
+    ];
+    const path = smoothPath(points, nodes);
     return { from, to, ran: ran.get(from)! && ran.get(to)!, path };
   });
 
-  return { width, height: top(rowCount - 1) + NODE_HEIGHT + PAD, nodes, edges };
+  return {
+    width,
+    height: top(rowCount - 1) + NODE_HEIGHT + PAD,
+    nodes,
+    edges,
+  };
+}
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+/** Merge row detours into the longest clear curves; every join keeps a vertical tangent. */
+function smoothPath(points: Point[], nodes: PlacedMapNode[]): string {
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let start = 0; start < points.length - 1;) {
+    let end = points.length - 1;
+    while (
+      end > start + 1 &&
+      nodes.some((node) => curveIntersects(points[start], points[end], node))
+    ) {
+      end--;
+    }
+    const a = points[start];
+    const b = points[end];
+    const middle = (a.y + b.y) / 2;
+    path += ` C ${a.x} ${middle}, ${b.x} ${middle}, ${b.x} ${b.y}`;
+    start = end;
+  }
+  return path;
+}
+
+/** A vertical-tangent cubic is monotone in both axes, so its span over a box's height suffices. */
+function curveIntersects(a: Point, b: Point, node: PlacedMapNode): boolean {
+  const top = Math.max(a.y, node.y);
+  const bottom = Math.min(b.y, node.y + node.height);
+  if (bottom <= top) return false;
+  const left = Math.min(a.x, b.x);
+  const right = Math.max(a.x, b.x);
+  if (right <= node.x || left >= node.x + node.width) return false;
+  const xAtY = (y: number) => {
+    const progress = (y - a.y) / (b.y - a.y);
+    let low = 0;
+    let high = 1;
+    // Invert y(t) for controls at the vertical midpoint; x(t) then gives the box-height span.
+    for (let step = 0; step < 24; step++) {
+      const t = (low + high) / 2;
+      const curveY = t * (1.5 + t * (t - 1.5));
+      if (curveY < progress) low = t;
+      else high = t;
+    }
+    const t = (low + high) / 2;
+    return a.x + (b.x - a.x) * t * t * (3 - 2 * t);
+  };
+  const x1 = xAtY(top);
+  const x2 = xAtY(bottom);
+  return Math.max(x1, x2) > node.x + 0.01 && Math.min(x1, x2) < node.x + node.width - 0.01;
 }
 
 function slot(id: string, row: number, box: boolean): Slot {
@@ -290,31 +346,43 @@ function slot(id: string, row: number, box: boolean): Slot {
 }
 
 /**
- * Each box's row: one below the lowest box it reads, except that a source sits just above the
- * first box it feeds, and the output always closes the map, even when nothing reached it.
+ * Each pass gets a preparation section. Dependencies assign a preparation to its first pass;
+ * boxes in the same semantic column stack instead of squeezing into one dependency row.
  */
 function assignRows(map: ComfyMapNode[]): Map<string, number> {
   const readers = new Map<string, string[]>();
   for (const node of map) {
     for (const target of node.feeds) readers.set(target, [...(readers.get(target) ?? []), node.id]);
   }
-  // The map arrives earliest first, so every box a node reads already has its layer.
-  const layer = new Map<string, number>();
-  for (const node of map) {
-    const above = (readers.get(node.id) ?? []).map((id) => layer.get(id) ?? 0);
-    layer.set(node.id, above.length > 0 ? Math.max(...above) + 1 : 0);
-  }
-  for (const node of map) {
-    if (!readers.has(node.id) && node.feeds.length > 0) {
-      layer.set(node.id, Math.min(...node.feeds.map((id) => layer.get(id)!)) - 1);
+  const passes = map.filter((node) => node.kind === "pass" || node.kind === "output");
+  const section = new Map(passes.map((node, index) => [node.id, index]));
+  // The backend supplies topological order, so consumers already have sections on this walk.
+  for (const node of [...map].reverse()) {
+    if (!section.has(node.id)) {
+      const targets = node.feeds.flatMap((id) => section.get(id) ?? []);
+      section.set(node.id, targets.length ? Math.min(...targets) : 0);
     }
   }
-  const last = Math.max(...map.filter((n) => n.kind !== "output").map((n) => layer.get(n.id)!));
-  for (const node of map) {
-    if (node.kind === "output") layer.set(node.id, Math.max(layer.get(node.id)!, last + 1));
+  const rowOf = new Map<string, number>();
+  let start = 0;
+  for (let index = 0; index < Math.max(1, passes.length); index++) {
+    const lastInColumn = new Map<number, number>();
+    let bottom = start - 1;
+    for (const node of map) {
+      const column = columnOf(node);
+      if (column === undefined || section.get(node.id) !== index) continue;
+      const above = (readers.get(node.id) ?? []).map((id) => rowOf.get(id)! + 1);
+      const row = Math.max(start, (lastInColumn.get(column) ?? start - 1) + 1, ...above);
+      rowOf.set(node.id, row);
+      lastInColumn.set(column, row);
+      bottom = Math.max(bottom, row);
+    }
+    if (passes[index]) {
+      rowOf.set(passes[index].id, bottom + 1);
+      start = bottom + 2;
+    }
   }
-  const used = [...new Set(layer.values())].sort((a, b) => a - b);
-  return new Map(map.map((node) => [node.id, used.indexOf(layer.get(node.id)!)]));
+  return rowOf;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { PASS_NOT_RUN, splitLora, splitPath } from "@/features/gallery/lib/comfyWorkflow";
 import { layoutWorkflowMap, splitLabel } from "@/features/gallery/lib/workflowMapLayout";
 import {
@@ -212,7 +212,7 @@ export function ComfyWorkflowMap({
   const mapRef = useRef<HTMLDivElement>(null);
   // Zero until measured: the layout's minimum width stands in for the first render.
   const [available, setAvailable] = useState(0);
-  const layout = layoutWorkflowMap(map, available);
+  const layout = useMemo(() => layoutWorkflowMap(map, available), [map, available]);
   const tones = new Map(map.map((node) => [node.id, tone(node)]));
   const [trace, setTrace] = useState<Trace>(null);
 
