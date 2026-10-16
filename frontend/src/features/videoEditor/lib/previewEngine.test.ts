@@ -73,6 +73,18 @@ describe("PreviewEngine", () => {
 
     expect(engine.currentTime).toBeLessThanOrEqual(engine.duration);
   });
+
+  it("replays from the start after playing to the end", async () => {
+    // 10.01 s is 300.3 frames at 30 fps; the nearest frame lies before the end.
+    engine.setProject(project(10.01), new Map());
+    engine.play();
+    engine.seek(10.01);
+    await vi.waitFor(() => expect(engine.isPlaying).toBe(false));
+
+    engine.play();
+
+    expect(engine.currentTime).toBeLessThan(1);
+  });
 });
 
 interface Call {

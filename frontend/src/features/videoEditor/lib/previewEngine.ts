@@ -138,8 +138,9 @@ export class PreviewEngine {
     this.playing = false;
     this.waiting = false;
     // A paused playhead sits on a frame, so stepping and cutting start from one, but never past
-    // the end: rounding there can land on a frame the project does not reach.
-    if (this.project) {
+    // the end: rounding there can land on a frame the project does not reach. One that ran to the
+    // end stays there, or rounding down from it would leave `play` nothing to rewind from.
+    if (this.project && this.time < this.duration) {
       const frame = Math.round(this.time * this.project.frame_rate) / this.project.frame_rate;
       this.time = Math.min(frame, this.duration);
     }
