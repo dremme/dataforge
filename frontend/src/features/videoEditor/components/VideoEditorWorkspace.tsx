@@ -29,6 +29,7 @@ import type {
   VideoProjectExportSettings,
   VideoProjectSource,
   VideoProjectSourceInfo,
+  VideoProjectSourceStatus,
   VideoProjectVersionSummary,
 } from "@/shared/types";
 import {
@@ -54,6 +55,26 @@ import {
   useVideoProject,
   type VideoProjectState,
 } from "@/features/videoEditor/hooks/useVideoProject";
+import {
+  insertSource,
+  nudgeClips,
+  replaceClip,
+  setClipLength,
+  setClipsLength,
+  setClipStart,
+  slipClip,
+  trimToPlayhead,
+  updateClips,
+  type ReplacePolicy,
+} from "@/features/videoEditor/lib/assembly";
+import {
+  copyClips,
+  pasteAttributes,
+  pastableGroups,
+  pasteClips,
+  type AttributeGroup,
+} from "@/features/videoEditor/lib/clipboard";
+import { setEditorClipboard, useEditorClipboard } from "@/features/videoEditor/lib/clipboardStore";
 import { editorMediaKind } from "@/features/videoEditor/lib/mediaKinds";
 import { PreviewEngine, type SourceLocation } from "@/features/videoEditor/lib/previewEngine";
 import {
@@ -70,7 +91,6 @@ import {
   projectDuration,
   removeDissolve,
   rippleDelete,
-  setClipDuration,
   setClipSpeed,
   setDissolveDuration,
   snapToFrame,
@@ -88,6 +108,7 @@ import { EditorTopBar } from "./EditorTopBar";
 import { ExportDialog } from "./ExportDialog";
 import { MediaBrowser, type MediaView } from "./MediaBrowser";
 import { MediaProblems } from "./MediaProblems";
+import { PasteAttributesDialog } from "./PasteAttributesDialog";
 import {
   PreviewPanel,
   type PreviewMode,
@@ -301,6 +322,7 @@ function EditorSession({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [attributesOpen, setAttributesOpen] = useState(false);
   const [converting, setConverting] = useState<ReadonlySet<string>>(new Set());
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -313,7 +335,9 @@ function EditorSession({
   const queryClient = useQueryClient();
   const mediaProblems = useMediaProblems(engine);
 
-  const dialogOpen = exportOpen || settingsOpen || leaveOpen || deleteOpen || versionsOpen;
+  const clipboard = useEditorClipboard();
+  const dialogOpen =
+    exportOpen || settingsOpen || leaveOpen || deleteOpen || versionsOpen || attributesOpen;
   const locations = useMemo(
     () => sourceLocations(state.sources, project.sources),
     [state.sources, project.sources],
@@ -329,6 +353,11 @@ function EditorSession({
     );
   }, [project.clips, state.sources]);
   const selectedClips = project.clips.filter((clip) => selection.has(clip.id));
+  // Read by edits that wait on the server, so they act on the latest project and selection.
+  const projectRef = useRef(project);
+  projectRef.current = project;
+  const selectedClipsRef = useRef(selectedClips);
+  selectedClipsRef.current = selectedClips;
   // Undo and redo can take away what is chosen; a choice never names a clip that is gone.
   useEffect(() => {
     const ids = new Set(project.clips.map((clip) => clip.id));
@@ -431,6 +460,82 @@ function EditorSession({
     if (apply(result) && result.copies) setSelection(new Set(result.copies));
   }, [apply, project, selection, setSelection]);
 
+  const nudge = useCallback(
+    (frames: number) => apply(nudgeClips(project, selection, frames, project.frame_rate)),
+    [apply, project, selection],
+  );
+
+  const trimEdge = useCallback(
+    (edge: "start" | "end") =>
+      apply(
+        trimToPlayhead(
+          project,
+          selection,
+          snapToFrame(engine.currentTime, project.frame_rate),
+          edge,
+        ),
+      ),
+    [apply, engine, project, selection],
+  );
+
+  const copySelection = useCallback(
+    (cut: boolean) => {
+      const content = copyClips(project, selection, state.folder);
+      if (!content) {
+        setMessage(`Select clips to ${cut ? "cut" : "copy"}.`);
+        return;
+      }
+      if (cut && !apply(deleteClips(project, selection))) return;
+      setEditorClipboard(content);
+      if (cut) setSelection(new Set());
+    },
+    [apply, project, selection, setSelection, state.folder],
+  );
+
+  /** Copies land at the playhead; a file new to this project is checked in this folder. */
+  const paste = useCallback(async () => {
+    if (!clipboard) {
+      setMessage("Copy clips first, then paste them at the playhead.");
+      return;
+    }
+    const result = pasteClips(
+      project,
+      clipboard,
+      snapToFrame(engine.currentTime, project.frame_rate),
+    );
+    if (!apply(result)) return;
+    if (result.placed) setSelection(new Set(result.placed));
+    const separator = state.folder.includes("\\") ? "\\" : "/";
+    const statuses = await Promise.all(
+      (result.added ?? []).map(async (source): Promise<VideoProjectSourceStatus> => {
+        const path = `${state.folder}${separator}${source.name}`;
+        try {
+          const found = await probeVideoProjectSource(path);
+          const same = found.size === source.size && found.modified_us === source.modified_us;
+          return { source_id: source.id, state: same ? "ok" : "changed", path };
+        } catch {
+          return { source_id: source.id, state: "missing", path };
+        }
+      }),
+    );
+    if (statuses.length) state.setSources([...state.sources, ...statuses]);
+  }, [apply, clipboard, engine, project, setSelection, state]);
+
+  const attributeDonor = clipboard?.clips.find((clip) => clip.id === clipboard.donorId) ?? null;
+  const attributeGroups =
+    attributeDonor && selectedClips.length > 0 ? pastableGroups(attributeDonor, selectedClips) : [];
+  const openPasteAttributes = useCallback(() => {
+    if (!attributeDonor || selection.size === 0) {
+      setMessage("Copy a clip, select the clips to change, then paste its attributes.");
+      return;
+    }
+    if (attributeGroups.length === 0) {
+      setMessage("The selected clips cannot take any of the copied clip's settings.");
+      return;
+    }
+    setAttributesOpen(true);
+  }, [attributeDonor, attributeGroups.length, selection.size]);
+
   const insertTitle = useCallback(() => {
     const result = addTitle(project, snapToFrame(engine.currentTime, project.frame_rate));
     if (apply(result) && result.placed) setSelection(new Set(result.placed));
@@ -442,6 +547,56 @@ function EditorSession({
       engine.seek(time);
     },
     [engine],
+  );
+
+  /** A source new to the project is recorded as found where it was just read. */
+  const noteSource = useCallback(
+    (next: Project | undefined, path: string, name: string) => {
+      const source = next?.sources.find((item) => item.name === name);
+      if (source && !state.sources.some((status) => status.source_id === source.id)) {
+        state.setSources([...state.sources, { source_id: source.id, state: "ok", path }]);
+      }
+    },
+    [state],
+  );
+
+  /** Insert, or a replacement of the one selected clip, from the source monitor's marks. */
+  const placeFromSource = useCallback(
+    async (mode: "insert" | ReplacePolicy) => {
+      if (!sourceItem) return;
+      const target = selectedClipsRef.current;
+      if (mode !== "insert" && target.length !== 1) {
+        setMessage("Select the one clip on the timeline to replace.");
+        return;
+      }
+      setBusy(true);
+      try {
+        const info = await probeVideoProjectSource(sourceItem.path);
+        const marks = { rangeIn: sourceRange.start, rangeOut: sourceRange.end ?? undefined };
+        const latest = projectRef.current;
+        if (mode === "insert") {
+          const time = snapToFrame(engine.currentTime, latest.frame_rate);
+          const result = insertSource(latest, { info, start: time, ...marks });
+          if (apply(result)) {
+            noteSource(result.project, info.path, info.name);
+            if (result.placed) setSelection(new Set(result.placed));
+            setPreviewMode("timeline");
+          }
+        } else {
+          const result = replaceClip(latest, target[0].id, { info, policy: mode, ...marks });
+          if (apply(result)) {
+            noteSource(result.project, info.path, info.name);
+            setPreviewMode("timeline");
+            if (result.note) setMessage(result.note);
+          }
+        }
+      } catch (caught) {
+        setMessage(formatApiError(caught));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [apply, engine, noteSource, setSelection, sourceItem, sourceRange],
   );
 
   const addSource = useCallback(
@@ -476,10 +631,6 @@ function EditorSession({
     },
     [apply, project, setSelection, state],
   );
-
-  // The answer lands on the latest project, so edits made while the wand reads are kept.
-  const projectRef = useRef(project);
-  projectRef.current = project;
 
   /** Reads the clip's take of its source as it is now and composes the suggestion onto it. */
   const autoAdjustClip = useCallback(
@@ -774,6 +925,17 @@ function EditorSession({
     else if (matchesShortcut(event, SHORTCUTS.editorRippleDelete)) run(ripple);
     else if (matchesShortcut(event, SHORTCUTS.editorDelete)) run(deleteSelection);
     else if (matchesShortcut(event, SHORTCUTS.editorDuplicate)) run(duplicate);
+    else if (matchesShortcut(event, SHORTCUTS.editorNudgeBack)) run(() => nudge(-1));
+    else if (matchesShortcut(event, SHORTCUTS.editorNudgeForward)) run(() => nudge(1));
+    else if (matchesShortcut(event, SHORTCUTS.editorTrimStart)) run(() => trimEdge("start"));
+    else if (matchesShortcut(event, SHORTCUTS.editorTrimEnd)) run(() => trimEdge("end"));
+    // Copy and cut leave the browser's own text copy alone while no clip is chosen.
+    else if (matchesShortcut(event, SHORTCUTS.editorCopy) && selection.size > 0)
+      run(() => copySelection(false));
+    else if (matchesShortcut(event, SHORTCUTS.editorCut) && selection.size > 0)
+      run(() => copySelection(true));
+    else if (matchesShortcut(event, SHORTCUTS.editorPasteAttributes)) run(openPasteAttributes);
+    else if (matchesShortcut(event, SHORTCUTS.editorPaste)) run(() => void paste());
   };
   // A layout effect, so a key pressed as the editor first shows is never dropped.
   useLayoutEffect(() => {
@@ -901,8 +1063,15 @@ function EditorSession({
               sourceItem &&
               void addSource(sourceItem.path, engine.currentTime, undefined, sourceRange)
             }
+            onInsertSource={() => void placeFromSource("insert")}
+            onReplaceSource={(policy) => void placeFromSource(policy)}
+            replaceLabel={
+              selectedClips.length === 1 && selectedClips[0].kind !== "title"
+                ? clipLabel(project, selectedClips[0])
+                : null
+            }
             sourceTransportRef={sourceTransportRef}
-            hasMissing={state.sources.some((status) => status.state === "missing")}
+            hasMissing={usedIssues.some((status) => status.state === "missing")}
             guides={layout.guides}
             onGuides={() => setLayout((current) => ({ ...current, guides: !current.guides }))}
             renderFrame={(time) => renderVideoProjectFrame(state.folder, project, time)}
@@ -947,10 +1116,21 @@ function EditorSession({
                     onSpeed={(speed) =>
                       selectedClips[0] && apply(setClipSpeed(project, selectedClips[0].id, speed))
                     }
+                    onStart={(seconds) =>
+                      selectedClips[0] && apply(setClipStart(project, selectedClips[0].id, seconds))
+                    }
+                    onSourceIn={(seconds) =>
+                      selectedClips[0] && apply(slipClip(project, selectedClips[0].id, seconds))
+                    }
                     onDuration={(seconds) =>
                       selectedClips[0] &&
-                      apply(setClipDuration(project, selectedClips[0].id, seconds))
+                      apply(setClipLength(project, selectedClips[0].id, seconds))
                     }
+                    onBatchEdit={(patch, final) =>
+                      applyTransient(updateClips(project, selection, patch), final)
+                    }
+                    onBatchLength={(seconds) => apply(setClipsLength(project, selection, seconds))}
+                    onPasteAttributes={attributeGroups.length > 0 ? openPasteAttributes : undefined}
                     onUnlink={() => apply(unlinkClips(project, selection))}
                     onLink={() => apply(linkClips(project, selection))}
                     onAddDissolve={() => {
@@ -1090,6 +1270,19 @@ function EditorSession({
             await state.flush();
             await deleteVideoProject(path);
             onExit();
+          }}
+        />
+      )}
+      {attributesOpen && attributeDonor && (
+        <PasteAttributesDialog
+          donorLabel={clipLabel(project, attributeDonor)}
+          targetCount={selectedClips.length}
+          groups={attributeGroups}
+          onCancel={() => setAttributesOpen(false)}
+          onPaste={(groups: AttributeGroup[]) => {
+            if (apply(pasteAttributes(project, selection, attributeDonor, groups))) {
+              setAttributesOpen(false);
+            }
           }}
         />
       )}

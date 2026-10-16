@@ -1,12 +1,15 @@
 import { NetworkError, parseApiError, postJson, putJson, requestJson } from "@/shared/api/http";
 import type {
   AutoAdjustResponse,
+  ColorAdjust,
   VideoProject,
   VideoProjectAutoAdjustRequest,
   VideoProjectDocument,
   VideoProjectExportState,
   VideoProjectExportsResponse,
   VideoProjectFontsResponse,
+  VideoProjectGrade,
+  VideoProjectGradesResponse,
   VideoProjectListResponse,
   VideoProjectSaveResponse,
   VideoProjectSourceInfo,
@@ -109,6 +112,22 @@ export function suggestVideoProjectAdjust(
   request: VideoProjectAutoAdjustRequest,
 ): Promise<AutoAdjustResponse> {
   return postJson(`${BASE}/auto-adjust`, request);
+}
+
+export function listVideoProjectGrades(): Promise<VideoProjectGradesResponse> {
+  return requestJson(`${BASE}/grades`);
+}
+
+/** A taken name, in any case, is replaced. */
+export function saveVideoProjectGrade(
+  name: string,
+  adjust: ColorAdjust,
+): Promise<VideoProjectGrade> {
+  return postJson(`${BASE}/grades`, { name, adjust });
+}
+
+export async function deleteVideoProjectGrade(gradeId: string): Promise<void> {
+  await requestJson<unknown>(`${BASE}/grades/${encodeURIComponent(gradeId)}`, { method: "DELETE" });
 }
 
 export function listVideoProjectFonts(): Promise<VideoProjectFontsResponse> {

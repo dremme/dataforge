@@ -18,7 +18,7 @@ const summary: VideoProjectSummary = {
   duration: 4,
   clip_count: 1,
   initial_source_name: null,
-  initial_source_path: null,
+  thumbnail_path: null,
 };
 
 describe("VideoProjectGrid", () => {

@@ -121,65 +121,66 @@ export function ExportDialog({
           <span className="video-export-dialog__suffix">{VIDEO_PROJECT_EXPORT_EXTENSION}</span>
         </div>
         <p className="dialog__hint">
-          Saved in this folder. If the name or one of its sidecars is taken, a numbered name is used
-          instead, and nothing is overwritten.
+          Saved in this folder; a taken name gets a number, so nothing is overwritten.
         </p>
       </div>
-      <RadioTileGroup
-        label="Size"
-        name="video-export-size"
-        groupLabel="Export size"
-        value={size}
-        disabled={busy}
-        onChange={setSize}
-        options={[
-          { value: "source", title: "Source size" },
-          { value: "720p", title: "720p" },
-          { value: "1080p", title: "1080p" },
-        ]}
-      />
-      <RadioTileGroup
-        label="Shape"
-        name="video-export-orientation"
-        groupLabel="Export shape"
-        value={orientation}
-        disabled={busy}
-        onChange={setOrientation}
-        options={[
-          { value: "landscape", title: "Landscape" },
-          { value: "portrait", title: "Portrait" },
-          { value: "square", title: "Square" },
-        ]}
-      />
-      <RadioTileGroup
-        label="Quality"
-        name="video-export-quality"
-        groupLabel="Export quality"
-        value={quality}
-        disabled={busy}
-        onChange={setQuality}
-        options={[
-          { value: "standard", title: "Standard" },
-          { value: "high", title: "High quality" },
-          { value: "small", title: "Smaller file" },
-        ]}
-      />
-      <RadioTileGroup
-        label="Sound"
-        name="video-export-audio-level"
-        groupLabel="Export sound level"
-        value={audioLevel}
-        disabled={busy}
-        onChange={setAudioLevel}
-        options={[
-          { value: "limit", title: "Limit peaks" },
-          { value: "normalize", title: "Normalize" },
-          { value: "unchanged", title: "As mixed" },
-        ]}
-      />
-      <p className="dialog__hint video-export-dialog__sound-hint">
-        {AUDIO_LEVEL_HINTS[audioLevel]}
-      </p>
+      <div className="video-export-dialog__choices">
+        <RadioTileGroup
+          label="Size"
+          name="video-export-size"
+          groupLabel="Export size"
+          value={size}
+          disabled={busy}
+          onChange={setSize}
+          options={[
+            { value: "source", title: "Source size" },
+            { value: "720p", title: "720p" },
+            { value: "1080p", title: "1080p" },
+          ]}
+        />
+        <RadioTileGroup
+          label="Shape"
+          name="video-export-orientation"
+          groupLabel="Export shape"
+          value={orientation}
+          disabled={busy}
+          onChange={setOrientation}
+          options={[
+            { value: "landscape", title: "Landscape" },
+            { value: "portrait", title: "Portrait" },
+            { value: "square", title: "Square" },
+          ]}
+        />
+        <RadioTileGroup
+          label="Quality"
+          name="video-export-quality"
+          groupLabel="Export quality"
+          value={quality}
+          disabled={busy}
+          onChange={setQuality}
+          options={[
+            { value: "standard", title: "Standard" },
+            { value: "high", title: "High quality" },
+            { value: "small", title: "Smaller file" },
+          ]}
+        />
+        <RadioTileGroup
+          label="Sound"
+          name="video-export-audio-level"
+          groupLabel="Export sound level"
+          value={audioLevel}
+          disabled={busy}
+          onChange={setAudioLevel}
+          options={[
+            { value: "limit", title: "Limit peaks" },
+            { value: "normalize", title: "Normalize" },
+            { value: "unchanged", title: "As mixed" },
+          ]}
+        />
+        <p className="dialog__hint video-export-dialog__sound-hint">
+          {AUDIO_LEVEL_HINTS[audioLevel]}
+        </p>
+      </div>
       <div className="dialog__field">
         <label className="dialog__checkbox" htmlFor={captionId}>
           <input

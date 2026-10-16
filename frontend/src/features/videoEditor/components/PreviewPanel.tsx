@@ -12,10 +12,12 @@ import { formatApiError } from "@/shared/api/http";
 import {
   iconImage,
   iconImageDown,
+  iconInsert,
   iconLoader2,
   iconPause,
   iconPlay,
   iconPlus,
+  iconReplace,
   iconScanSquare,
   iconSkipBack,
   iconSkipForward,
@@ -48,8 +50,10 @@ import {
   type Clip,
   type Project,
 } from "@/features/videoEditor/lib/timeline";
+import type { ReplacePolicy } from "@/features/videoEditor/lib/assembly";
 import { MixMeter } from "./MixMeter";
 import { RenderedFrame, type RenderedFrameState } from "./RenderedFrame";
+import { TimecodeField } from "./TimecodeField";
 import { ToolButton } from "./ToolButton";
 
 export type PreviewMode = "timeline" | "source";
@@ -79,6 +83,12 @@ interface PreviewPanelProps {
   sourceRange: SourceRange;
   onSourceRange: (range: SourceRange) => void;
   onAddSource: () => void;
+  /** Places the marked range at the playhead and moves everything after it later. */
+  onInsertSource: () => void;
+  /** Puts the marked range in place of the selected clip. */
+  onReplaceSource: (policy: ReplacePolicy) => void;
+  /** The clip a replacement would take the place of; null when none can be replaced. */
+  replaceLabel: string | null;
   sourceTransportRef: Ref<SourceTransport | null>;
   hasMissing: boolean;
   guides: boolean;
@@ -100,6 +110,9 @@ export function PreviewPanel({
   sourceRange,
   onSourceRange,
   onAddSource,
+  onInsertSource,
+  onReplaceSource,
+  replaceLabel,
   sourceTransportRef,
   hasMissing,
   guides,
@@ -159,6 +172,9 @@ export function PreviewPanel({
           range={sourceRange}
           onRange={onSourceRange}
           onAdd={onAddSource}
+          onInsert={onInsertSource}
+          onReplace={onReplaceSource}
+          replaceLabel={replaceLabel}
           frameRate={project.frame_rate}
           transportRef={sourceTransportRef}
         />
@@ -348,9 +364,13 @@ function TimelinePreview({
           onChange={(event) => engine.seek(Number(event.target.value) / project.frame_rate)}
         />
         <div className="video-editor__transport">
-          <span className="video-editor__timecode video-editor__timecode--current" aria-live="off">
-            {formatTimecode(time, project.frame_rate)}
-          </span>
+          <TimecodeField
+            label="Playhead time"
+            className="video-editor__timecode video-editor__timecode--current"
+            value={time}
+            frameRate={project.frame_rate}
+            onCommit={(seconds) => engine.seek(seconds)}
+          />
           <div className="video-editor__transport-buttons">
             <ToolButton
               icon={iconSkipBack}
@@ -524,6 +544,9 @@ function SourcePreview({
   range,
   onRange,
   onAdd,
+  onInsert,
+  onReplace,
+  replaceLabel,
   frameRate,
   transportRef,
 }: {
@@ -531,6 +554,9 @@ function SourcePreview({
   range: SourceRange;
   onRange: (range: SourceRange) => void;
   onAdd: () => void;
+  onInsert: () => void;
+  onReplace: (policy: ReplacePolicy) => void;
+  replaceLabel: string | null;
   frameRate: number;
   transportRef: Ref<SourceTransport | null>;
 }) {
@@ -722,40 +748,89 @@ function SourcePreview({
               <MarkButton label="Mark out" shortcut={SHORTCUTS.editorMarkOut} onClick={markOut} />
             </div>
           )}
-          <div className="video-editor__source-actions">
-            {timed && (
-              <span className="video-editor__source-marks">
-                <span>
-                  In <b>{formatTimecode(range.start, frameRate)}</b>
-                </span>
-                <span>
-                  Out <b>{end === null ? "end" : formatTimecode(end, frameRate)}</b>
-                </span>
-                {marked && (
+        </div>
+        <div className="video-editor__source-bar">
+          {timed && (
+            <span className="video-editor__source-marks">
+              <span>
+                In <b>{formatTimecode(range.start, frameRate)}</b>
+              </span>
+              <span>
+                Out <b>{end === null ? "end" : formatTimecode(end, frameRate)}</b>
+              </span>
+              {marked && (
+                <Tooltip content="Clear in and out, to use the whole file" placement="top">
                   <button
                     type="button"
                     className="video-editor__icon-btn"
                     aria-label="Clear in and out"
-                    title="Clear in and out"
                     onClick={() => onRange({ start: 0, end: null })}
                   >
                     <Icon icon={iconX} />
                   </button>
-                )}
-              </span>
+                </Tooltip>
+              )}
+            </span>
+          )}
+          <div className="video-editor__source-actions">
+            {replaceLabel && (
+              <>
+                <SourceAction
+                  tip={`Put this take in place of ${replaceLabel}. Its start, link, look and dissolves stay; a shorter take ends the clip early and leaves a gap.`}
+                  onClick={() => onReplace("keep-speed")}
+                >
+                  <Icon icon={iconReplace} /> Replace
+                </SourceAction>
+                <SourceAction
+                  tip={`Retime the marked range so it fills ${replaceLabel} exactly, between 0.25× and 4× speed.`}
+                  onClick={() => onReplace("fit-to-fill")}
+                >
+                  Fit to fill
+                </SourceAction>
+              </>
             )}
-            <button
-              type="button"
-              className="video-editor__primary-btn"
+            <SourceAction
+              tip="Place it at the playhead and move everything after it later, on every track."
+              onClick={onInsert}
+            >
+              <Icon icon={iconInsert} /> Insert
+            </SourceAction>
+            <SourceAction
+              tip="Place it at the playhead on the first free track; nothing else moves."
+              primary
               onClick={onAdd}
-              title="Places it at the timeline playhead"
             >
               <Icon icon={iconPlus} /> Add to timeline
-            </button>
+            </SourceAction>
           </div>
         </div>
       </div>
     </>
+  );
+}
+
+/** One way to put the source on the timeline, explained by its tooltip. */
+function SourceAction({
+  tip,
+  primary = false,
+  onClick,
+  children,
+}: {
+  tip: string;
+  primary?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip content={tip} placement="top" bubbleClassName="video-editor__source-tip">
+      <button
+        type="button"
+        className={primary ? "video-editor__primary-btn" : "video-editor__secondary-btn"}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 

@@ -1834,8 +1834,9 @@ class VideoProjectSummary(BaseModel):
     duration: float
     clip_count: int
     initial_source_name: str | None = None
-    #: The first video's path, for a thumbnail; None when it is gone.
-    initial_source_path: str | None = None
+    #: The picture that stands for the project: its first video while that file is here,
+    #: otherwise the earliest video or still on the timeline that is. None when none is.
+    thumbnail_path: str | None = None
 
 
 class VideoProjectListResponse(BaseModel):
@@ -1939,6 +1940,24 @@ class VideoProjectCompatibleCopyRequest(BaseModel):
     """A source video the browser cannot play, to be copied as H.264 beside it."""
 
     path: str
+
+
+class VideoProjectGradeRequest(BaseModel):
+    """A grade kept under a name; saving one under a taken name replaces it."""
+
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    adjust: ColorAdjust
+
+
+class VideoProjectGrade(BaseModel):
+    id: str
+    name: str
+    adjust: ColorAdjust
+    created_at: str
+
+
+class VideoProjectGradesResponse(BaseModel):
+    grades: list[VideoProjectGrade] = Field(default_factory=list)
 
 
 class VideoProjectVersionRequest(BaseModel):

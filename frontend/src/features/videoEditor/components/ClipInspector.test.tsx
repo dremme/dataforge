@@ -27,7 +27,11 @@ function renderInspector(overrides: Partial<ComponentProps<typeof ClipInspector>
     transitionId: null,
     onEdit: vi.fn(),
     onSpeed: vi.fn(),
+    onStart: vi.fn(),
+    onSourceIn: vi.fn(),
     onDuration: vi.fn(),
+    onBatchEdit: vi.fn(),
+    onBatchLength: vi.fn(),
     onUnlink: vi.fn(),
     onLink: vi.fn(),
     onAddDissolve: vi.fn(),
@@ -132,13 +136,38 @@ describe("ClipInspector", () => {
     expect(onAddDissolve).toHaveBeenCalled();
   });
 
+  it("keeps each fade's scale fixed and never lets one fade push the other", () => {
+    const fadeIn = () => screen.getByRole("slider", { name: "Fade in" });
+    const fadeOut = () => screen.getByRole("slider", { name: "Fade out" });
+    for (const fade_out of [0.5, 1.2]) {
+      const faded = { ...after, fade_in: 0.5, fade_out };
+      const { unmount } = renderInspector({
+        project: projectWith([video, sound, faded]),
+        selection: [faded],
+      });
+      // The other fade's length must not rescale this slider, or its thumb jumps.
+      expect(fadeIn()).toHaveAttribute("max", "2");
+      expect(fadeOut()).toHaveAttribute("max", "2");
+      unmount();
+    }
+
+    const faded = { ...after, fade_in: 0.5, fade_out: 1.2 };
+    const { onEdit } = renderInspector({
+      project: projectWith([video, sound, faded]),
+      selection: [faded],
+    });
+    // Dragged into the fade out, the fade in stops where it begins.
+    fireEvent.change(fadeIn(), { target: { value: "1.5" } });
+    expect(onEdit).toHaveBeenLastCalledWith({ fade_in: 0.8 }, false);
+  });
+
   it("types a still's duration and gives sound a gain instead of a picture", async () => {
     const user = userEvent.setup();
     const { onDuration, unmount } = renderInspector({ selection: [after] });
 
-    const field = screen.getByRole("spinbutton", { name: "Duration (s)" });
+    const field = screen.getByRole("textbox", { name: "Length" });
     await user.clear(field);
-    await user.type(field, "3{Enter}");
+    await user.type(field, "3s{Enter}");
     expect(onDuration).toHaveBeenCalledWith(3);
     unmount();
 

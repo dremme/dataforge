@@ -26,7 +26,7 @@ const summary: VideoProjectSummary = {
   duration: 12,
   clip_count: 3,
   initial_source_name: "clip.mp4",
-  initial_source_path: null,
+  thumbnail_path: null,
 };
 
 function draft(): VideoProjectDocument {

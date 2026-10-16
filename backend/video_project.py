@@ -380,6 +380,22 @@ def save_project(
     return target, saved
 
 
+def thumbnail_path(folder: Path, project: VideoProject) -> str | None:
+    """The first video while its file is here; a deleted one falls back to the earliest picture
+    the timeline still shows, so a project outlives the take it was started from."""
+    sources = {source.id: source for source in project.sources}
+    candidates = [sources.get(project.initial_source_id or "")]
+    pictured = sorted(
+        (clip for clip in project.clips if clip.kind in ("video", "image")),
+        key=lambda clip: clip.start,
+    )
+    candidates += [sources.get(clip.source_id or "") for clip in pictured]
+    for source in candidates:
+        if source is not None and (folder / source.name).is_file():
+            return str(folder / source.name)
+    return None
+
+
 def list_drafts(folder: Path) -> list[VideoProjectSummary]:
     summaries: list[VideoProjectSummary] = []
     try:
@@ -400,11 +416,7 @@ def list_drafts(folder: Path) -> list[VideoProjectSummary]:
                 duration=project_duration(project),
                 clip_count=len(project.clips),
                 initial_source_name=initial.name if initial else None,
-                initial_source_path=(
-                    str(folder / initial.name)
-                    if initial and (folder / initial.name).is_file()
-                    else None
-                ),
+                thumbnail_path=thumbnail_path(folder, project),
             )
         )
     summaries.sort(key=lambda summary: summary.updated_at, reverse=True)

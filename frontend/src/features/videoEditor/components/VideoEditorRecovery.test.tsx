@@ -115,6 +115,25 @@ describe("VideoEditorWorkspace recovery", () => {
     expect(screen.getAllByRole("button", { name: /^clip-h264\.mp4, / })).toHaveLength(1);
   });
 
+  it("says nothing about a missing file no clip uses any more", async () => {
+    const opened = document();
+    // The video the project started from was deleted after its clip was replaced.
+    opened.project = {
+      ...opened.project,
+      sources: [...opened.project.sources, makeSource("old", "old.mp4", "video")],
+    };
+    opened.sources = [
+      ...opened.sources,
+      { source_id: "old", state: "missing", path: "C:\\media\\old.mp4" },
+    ];
+    vi.mocked(api.startVideoProject).mockResolvedValue(opened);
+    renderEditor();
+
+    await screen.findByRole("button", { name: "Back to gallery" });
+    expect(screen.queryByText(/Some media is missing/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/needs attention/)).not.toBeInTheDocument();
+  });
+
   it("duplicates the project under a new id and carries on in the copy", async () => {
     const copyPath = "C:\\media\\clip-edit-2.video-project.json";
     vi.mocked(api.saveVideoProject).mockResolvedValue({

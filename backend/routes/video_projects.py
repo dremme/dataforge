@@ -27,6 +27,9 @@ from schemas import (
     VideoProjectFontFamily,
     VideoProjectFontsResponse,
     VideoProjectFrameRequest,
+    VideoProjectGrade,
+    VideoProjectGradeRequest,
+    VideoProjectGradesResponse,
     VideoProjectListResponse,
     VideoProjectSaveRequest,
     VideoProjectSaveResponse,
@@ -57,6 +60,7 @@ from video_project import (
 )
 from video_project_compat import make_compatible_copy
 from video_project_export import FFMPEG_MISSING_MESSAGE, export_manager
+from video_project_grades import delete_grade, list_grades, save_grade
 from video_project_media import filmstrip, waveform
 from video_project_render import build_frame, render_title_image
 from video_project_versions import (
@@ -278,6 +282,24 @@ def render_video_project_frame(body: VideoProjectFrameRequest) -> Response:
             status_code=422, detail=f"The frame could not be rendered: {exc}"
         ) from exc
     return Response(content=picture, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@router.get("/video-projects/grades", response_model=VideoProjectGradesResponse)
+def list_video_project_grades() -> VideoProjectGradesResponse:
+    """Saved grades, shared by every project."""
+    return VideoProjectGradesResponse(grades=list_grades())
+
+
+@router.post("/video-projects/grades", response_model=VideoProjectGrade)
+def save_video_project_grade(body: VideoProjectGradeRequest) -> VideoProjectGrade:
+    return save_grade(body.name, body.adjust)
+
+
+@router.delete("/video-projects/grades/{grade_id}", status_code=204)
+def delete_video_project_grade(grade_id: str) -> Response:
+    if not delete_grade(grade_id):
+        raise HTTPException(status_code=404, detail="Grade not found")
+    return Response(status_code=204)
 
 
 @router.get("/video-projects/fonts", response_model=VideoProjectFontsResponse)

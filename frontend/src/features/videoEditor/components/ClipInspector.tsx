@@ -1,22 +1,12 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useId } from "react";
 import {
   iconBlend,
-  iconChevronDown,
+  iconClipboardPaste,
   iconFilm,
   iconImage,
   iconLink,
   iconLoader2,
   iconMusic,
-  iconRotateCcw,
   iconTrash2,
   iconType,
   iconUnlink,
@@ -24,7 +14,6 @@ import {
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { SHORTCUTS, type ShortcutDefinition } from "@/shared/lib/shortcuts";
-import { readStoredJson, writeStoredJson } from "@/shared/lib/storage";
 import { Icon } from "@/shared/ui/Icon";
 import { ShortcutKeys } from "@/shared/ui/ShortcutKeys";
 import { AUTO_ADJUST_DEFAULT_AMOUNT } from "@/shared/constants";
@@ -37,7 +26,6 @@ import {
 } from "@/features/gallery/lib/colorAdjust";
 import { rescaleAuto, withoutAuto } from "@/features/gallery/lib/autoAdjust";
 import { SPEED_PRESETS } from "@/features/gallery/lib/videoEdit";
-import { rangeFill } from "@/features/videoEditor/lib/rangeFill";
 import {
   clipEnd,
   clipLabel,
@@ -53,6 +41,10 @@ import {
   type Project,
 } from "@/features/videoEditor/lib/timeline";
 import { FontPicker } from "./FontPicker";
+import { GradePresets } from "./GradePresets";
+import { InspectorHeader, Panel, ResetButton, SectionMemory, Slider } from "./InspectorParts";
+import { MultiClipInspector, type BatchEdit } from "./MultiClipInspector";
+import { TimecodeField } from "./TimecodeField";
 
 const COLOR_GROUPS: { label: string; tools: { id: AdjustTool; label: string }[] }[] = [
   {
@@ -105,6 +97,15 @@ const QUICK_KEYS: { label: string; shortcuts: ShortcutDefinition[] }[] = [
   },
   { label: "Mark in, out", shortcuts: [SHORTCUTS.editorMarkIn, SHORTCUTS.editorMarkOut] },
   { label: "Ripple delete the range", shortcuts: [SHORTCUTS.editorRippleDelete] },
+  { label: "Copy, paste", shortcuts: [SHORTCUTS.editorCopy, SHORTCUTS.editorPaste] },
+  {
+    label: "Nudge a frame earlier, later",
+    shortcuts: [SHORTCUTS.editorNudgeBack, SHORTCUTS.editorNudgeForward],
+  },
+  {
+    label: "Trim start, end to the playhead",
+    shortcuts: [SHORTCUTS.editorTrimStart, SHORTCUTS.editorTrimEnd],
+  },
   {
     label: "Previous, next edit",
     shortcuts: [SHORTCUTS.editorPreviousEdit, SHORTCUTS.editorNextEdit],
@@ -117,38 +118,6 @@ function firstChord(shortcut: ShortcutDefinition): ShortcutDefinition {
   return { ...shortcut, chords: shortcut.chords.slice(0, 1) };
 }
 
-const SECTIONS_KEY = "video-editor-inspector-sections";
-
-/** Collapsed or open per section title, remembered across clips and sessions. */
-const SectionContext = createContext<{
-  isOpen: (title: string, fallback: boolean) => boolean;
-  toggle: (title: string, fallback: boolean) => void;
-}>({ isOpen: (_title, fallback) => fallback, toggle: () => undefined });
-
-function parseSections(value: unknown): Record<string, boolean> | null {
-  if (!value || typeof value !== "object") return null;
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
-    ),
-  );
-}
-
-function SectionMemory({ children }: { children: ReactNode }) {
-  const [sections, setSections] = useState<Record<string, boolean>>(() =>
-    readStoredJson(SECTIONS_KEY, parseSections, {}),
-  );
-  useEffect(() => writeStoredJson(SECTIONS_KEY, sections), [sections]);
-  const isOpen = useCallback(
-    (title: string, fallback: boolean) => sections[title] ?? fallback,
-    [sections],
-  );
-  const toggle = useCallback((title: string, fallback: boolean) => {
-    setSections((current) => ({ ...current, [title]: !(current[title] ?? fallback) }));
-  }, []);
-  return <SectionContext.Provider value={{ isOpen, toggle }}>{children}</SectionContext.Provider>;
-}
-
 /** ``final`` is false while a control is still being dragged; only the final edit is recorded. */
 export type ClipEdit = (patch: Partial<Clip>, final: boolean) => void;
 
@@ -158,7 +127,15 @@ interface ClipInspectorProps {
   transitionId: string | null;
   onEdit: ClipEdit;
   onSpeed: (speed: number) => void;
+  /** Exact timing of the one selected clip: where it starts, its in point, and its length. */
+  onStart: (seconds: number) => void;
+  onSourceIn: (seconds: number) => void;
   onDuration: (seconds: number) => void;
+  /** Sets one value on every selected clip it applies to. */
+  onBatchEdit: BatchEdit;
+  onBatchLength: (seconds: number) => void;
+  /** Present while the clipboard holds a clip whose settings can be pasted. */
+  onPasteAttributes?: () => void;
   onUnlink: () => void;
   onLink: () => void;
   onAddDissolve: () => void;
@@ -185,7 +162,12 @@ function InspectorContent({
   transitionId,
   onEdit,
   onSpeed,
+  onStart,
+  onSourceIn,
   onDuration,
+  onBatchEdit,
+  onBatchLength,
+  onPasteAttributes,
   onUnlink,
   onLink,
   onAddDissolve,
@@ -290,28 +272,29 @@ function InspectorContent({
       selection.filter((clip) => clip.kind === "video").length === 1 &&
       selection.some((clip) => clip.kind === "audio");
     return (
-      <div className="video-editor__inspector-body">
-        <InspectorHeader
-          icon={iconFilm}
-          kind="multiple"
-          title={`${selection.length} clips selected`}
-          meta="Drag one of them to move them together. Linked clips always come along."
-        />
-        <div className="video-editor__inspector-actions video-editor__inspector-actions--padded">
-          {linkable && (
-            <button type="button" className="video-editor__secondary-btn" onClick={onLink}>
-              <Icon icon={iconLink} /> Link video and audio
+      <MultiClipInspector
+        project={project}
+        selection={selection}
+        onBatchEdit={onBatchEdit}
+        onBatchLength={onBatchLength}
+        onPasteAttributes={onPasteAttributes}
+        actions={
+          <>
+            {linkable && (
+              <button type="button" className="video-editor__secondary-btn" onClick={onLink}>
+                <Icon icon={iconLink} /> Link video and audio
+              </button>
+            )}
+            <button
+              type="button"
+              className="video-editor__secondary-btn video-editor__secondary-btn--danger"
+              onClick={onDelete}
+            >
+              <Icon icon={iconTrash2} /> Delete clips
             </button>
-          )}
-          <button
-            type="button"
-            className="video-editor__secondary-btn video-editor__secondary-btn--danger"
-            onClick={onDelete}
-          >
-            <Icon icon={iconTrash2} /> Delete clips
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
     );
   }
 
@@ -344,8 +327,47 @@ function InspectorContent({
         }
       />
 
+      {onPasteAttributes && (
+        <div className="video-editor__inspector-actions video-editor__inspector-actions--padded">
+          <button type="button" className="video-editor__secondary-btn" onClick={onPasteAttributes}>
+            <Icon icon={iconClipboardPaste} /> Paste attributes...
+          </button>
+        </div>
+      )}
+
       <Panel title="Timing" changed={clip.speed !== 1 || clip.fade_in > 0 || clip.fade_out > 0}>
-        {timed ? (
+        <div className="video-editor__timing">
+          <label className="video-editor__field">
+            <span>Start</span>
+            <TimecodeField
+              label="Start"
+              value={clip.start}
+              frameRate={project.frame_rate}
+              onCommit={onStart}
+            />
+          </label>
+          {timed && (
+            <label className="video-editor__field">
+              <span title="Where the take begins in the file; the clip stays in place">In</span>
+              <TimecodeField
+                label="In point"
+                value={clip.source_in}
+                frameRate={project.frame_rate}
+                onCommit={onSourceIn}
+              />
+            </label>
+          )}
+          <label className="video-editor__field">
+            <span>Length</span>
+            <TimecodeField
+              label="Length"
+              value={clip.duration}
+              frameRate={project.frame_rate}
+              onCommit={onDuration}
+            />
+          </label>
+        </div>
+        {timed && (
           <div className="video-editor__field video-editor__field--stacked">
             <span id={`speed-${clip.id}`}>Speed</span>
             <div
@@ -370,38 +392,35 @@ function InspectorContent({
               ))}
             </div>
           </div>
-        ) : (
-          <NumberField
-            label="Duration"
-            unit="s"
-            value={clip.duration}
-            min={MIN_CLIP_SECONDS}
-            step={0.1}
-            onCommit={onDuration}
-          />
         )}
         {timed && clip.speed !== 1 && (
           <p className="video-editor__hint">Sound keeps its pitch at any speed.</p>
         )}
+        {/* Both scales span the whole clip, so moving one fade never moves the other's thumb;
+            a fade dragged into the other stops where that one begins. */}
         <Slider
           label="Fade in"
           value={clip.fade_in}
           resting={0}
           min={0}
-          max={Math.max(0, clip.duration - clip.fade_out)}
+          max={clip.duration}
           step={frame}
           format={seconds}
-          onChange={(value, final) => onEdit({ fade_in: value }, final)}
+          onChange={(value, final) =>
+            onEdit({ fade_in: Math.min(value, clip.duration - clip.fade_out) }, final)
+          }
         />
         <Slider
           label="Fade out"
           value={clip.fade_out}
           resting={0}
           min={0}
-          max={Math.max(0, clip.duration - clip.fade_in)}
+          max={clip.duration}
           step={frame}
           format={seconds}
-          onChange={(value, final) => onEdit({ fade_out: value }, final)}
+          onChange={(value, final) =>
+            onEdit({ fade_out: Math.min(value, clip.duration - clip.fade_in) }, final)
+          }
         />
       </Panel>
 
@@ -522,203 +541,6 @@ function sameTransform(a: Clip["transform"], b: Clip["transform"]): boolean {
     a.scale === b.scale &&
     a.rotation === b.rotation &&
     a.opacity === b.opacity
-  );
-}
-
-function InspectorHeader({
-  icon,
-  kind,
-  title,
-  meta,
-  detail,
-  action,
-}: {
-  icon: typeof iconFilm;
-  kind: Clip["kind"] | "dissolve" | "multiple";
-  title: string;
-  meta: string;
-  detail?: string;
-  action?: ReactNode;
-}) {
-  return (
-    <header
-      className={classNames("video-editor__clip-header", `video-editor__clip-header--${kind}`)}
-    >
-      <span className="video-editor__clip-icon" aria-hidden="true">
-        <Icon icon={icon} />
-      </span>
-      <div className="video-editor__clip-heading">
-        <h3 className="video-editor__clip-title" title={title}>
-          {title}
-        </h3>
-        <p className="video-editor__clip-meta">{meta}</p>
-        {detail && (
-          <p className="video-editor__clip-meta" title={detail}>
-            {detail}
-          </p>
-        )}
-      </div>
-      {action}
-    </header>
-  );
-}
-
-/** A collapsible group; a dot marks one that holds changes while it is folded away. */
-function Panel({
-  title,
-  action,
-  changed = false,
-  defaultOpen = true,
-  children,
-}: {
-  title: string;
-  action?: ReactNode;
-  changed?: boolean;
-  defaultOpen?: boolean;
-  children: ReactNode;
-}) {
-  const { isOpen, toggle } = useContext(SectionContext);
-  const open = isOpen(title, defaultOpen);
-  const bodyId = useId();
-  return (
-    <section className={classNames("video-editor__section", open && "video-editor__section--open")}>
-      <header className="video-editor__section-header">
-        <button
-          type="button"
-          className="video-editor__section-toggle"
-          aria-expanded={open}
-          aria-controls={bodyId}
-          onClick={() => toggle(title, defaultOpen)}
-        >
-          <Icon icon={iconChevronDown} className="video-editor__section-chevron" />
-          <h3 className="video-editor__section-title">{title}</h3>
-          {changed && (
-            <span className="video-editor__section-changed" title="Changed from the default" />
-          )}
-        </button>
-        {action}
-      </header>
-      {open && (
-        <div id={bodyId} className="video-editor__section-body">
-          {children}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function ResetButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      className="video-editor__icon-btn"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-    >
-      <Icon icon={iconRotateCcw} />
-    </button>
-  );
-}
-
-interface SliderProps {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  format: (value: number) => string;
-  onChange: (value: number, final: boolean) => void;
-  /** The untouched value: the fill grows from it, and double-clicking the label returns to it. */
-  resting?: number;
-}
-
-/**
- * Previews while dragged; the release, or a key, records one undo step. Only a moved slider
- * commits: the input reports its value rounded to ``step``, so settling an untouched one would
- * round the clip's value, e.g. on the key-up of the Ctrl+Z that undid it, and clear redo.
- */
-export function Slider({ label, value, min, max, step, format, onChange, resting }: SliderProps) {
-  const id = useId();
-  const movedRef = useRef(false);
-  const settle = (event: { currentTarget: HTMLInputElement }) => {
-    if (!movedRef.current) return;
-    movedRef.current = false;
-    onChange(Number(event.currentTarget.value), true);
-  };
-  const clamped = Math.min(max, Math.max(min, value));
-  const changed = resting !== undefined && Math.abs(clamped - resting) > step / 2;
-  const origin = resting !== undefined && resting >= min && resting <= max ? resting : min;
-  return (
-    <div className={classNames("video-editor__slider", changed && "video-editor__slider--changed")}>
-      <label
-        htmlFor={id}
-        title={resting !== undefined ? "Double-click to reset" : undefined}
-        onDoubleClick={() => {
-          if (resting !== undefined && changed) onChange(resting, true);
-        }}
-      >
-        {label}
-      </label>
-      <input
-        id={id}
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={clamped}
-        style={rangeFill(clamped, min, max, origin)}
-        onChange={(event) => {
-          movedRef.current = true;
-          onChange(Number(event.target.value), false);
-        }}
-        onPointerUp={settle}
-        onKeyUp={settle}
-        onBlur={settle}
-      />
-      <output htmlFor={id}>{format(clamped)}</output>
-    </div>
-  );
-}
-
-function NumberField({
-  label,
-  unit,
-  value,
-  min,
-  step,
-  onCommit,
-}: {
-  label: string;
-  unit: string;
-  value: number;
-  min: number;
-  step: number;
-  onCommit: (value: number) => void;
-}) {
-  return (
-    <label className="video-editor__field">
-      <span>{label}</span>
-      <span className="video-editor__number">
-        <input
-          key={value}
-          type="number"
-          min={min}
-          step={step}
-          defaultValue={Number(value.toFixed(2))}
-          aria-label={`${label} (${unit})`}
-          onBlur={(event) => {
-            const next = Number(event.target.value);
-            if (Number.isFinite(next) && Math.abs(next - value) > 1e-6)
-              onCommit(Math.max(min, next));
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.currentTarget.blur();
-          }}
-        />
-        <span aria-hidden="true">{unit}</span>
-      </span>
-    </label>
   );
 }
 
@@ -906,6 +728,10 @@ function ColorPanel({
           </p>
         )}
       </div>
+      <GradePresets
+        current={clip.adjust}
+        onApply={(adjust) => onEdit({ adjust, auto_adjust: null }, true)}
+      />
       {COLOR_GROUPS.map((group) => (
         <div key={group.label} className="video-editor__group">
           <h4 className="video-editor__group-title">{group.label}</h4>

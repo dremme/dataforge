@@ -207,8 +207,41 @@ class SaveAndReopenTests(unittest.TestCase):
 
             self.assertEqual(summary.path, str(path))
             self.assertEqual(summary.initial_source_name, "clip.mp4")
-            self.assertEqual(summary.initial_source_path, str(media))
+            self.assertEqual(summary.thumbnail_path, str(media))
             self.assertEqual(summary.clip_count, 2)
+
+    def test_a_project_whose_first_video_is_gone_shows_its_earliest_remaining_picture(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_video(root, "first.mp4")
+            later = write_video(root, "later.mp4")
+            write_image(root, "card.png")
+            project = new_project_for_video(first)
+            sources = [
+                source_from_info(probe_source_file(root / name), name)
+                for name in ("later.mp4", "card.png")
+            ]
+            v1 = next(track.id for track in project.tracks if track.name == "V1")
+            clips = [
+                VideoProjectClip(
+                    id=name, track_id=v1, kind=kind, source_id=name, start=start, duration=1
+                )
+                for name, kind, start in (("later.mp4", "video", 4.0), ("card.png", "image", 2.0))
+            ]
+            # The first video is still a source, but no clip uses it any more.
+            project = project.model_copy(
+                update={"sources": [*project.sources, *sources], "clips": clips}
+            )
+            save_project(root, None, None, project)
+            self.assertEqual(list_drafts(root)[0].thumbnail_path, str(first))
+
+            first.unlink()
+            (summary,) = list_drafts(root)
+            self.assertEqual(summary.thumbnail_path, str(root / "card.png"))
+
+            (root / "card.png").unlink()
+            self.assertEqual(list_drafts(root)[0].thumbnail_path, str(later))
+            later.unlink()
+            self.assertIsNone(list_drafts(root)[0].thumbnail_path)
 
     def test_allocation_skips_taken_names(self) -> None:
         with TempMediaFolder() as root:

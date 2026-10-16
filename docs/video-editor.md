@@ -7,6 +7,11 @@ The clapperboard in a video's viewer opens a multi-track editor for MP4, MOV, an
 - **Media** lists the open folder's videos, images, and audio files. Click one to preview it as the **Source**, set in and out points, then **Add to timeline**, or drag it onto a track. Files are referenced, never copied.
 - **Timeline** has Select, Blade, and Range tools, split, duplicate, delete, undo, snapping, and zoom. Higher video tracks cover lower ones. Tracks can be renamed (double-click), reordered, locked, hidden, muted, or soloed; empty tracks can be removed.
 - **Linked clips:** a video's sound moves, trims, splits, retimes, and deletes with it. Unlink it in the inspector to edit either alone.
+- **Replace and insert:** with one clip selected, a file previewed in **Source** can **Replace** it: the new take keeps the clip's start, track, link, look, gain, fades, and dissolves. A longer take is cut to the slot; a shorter one ends the clip early and leaves a gap, and is refused when that would undo a dissolve. **Fit to fill** retimes the marked range to fill the slot exactly, between 0.25× and 4×. A new take without sound drops the old linked sound; one with sound replaces it, or is added on a free audio track. **Insert** places the file at the playhead and moves everything after it later on every track, cutting what crosses the playhead; it is refused while a track it would move is locked.
+- **Exact timing:** the inspector's **Start**, **In**, and **Length** fields and the transport's playhead time take a timecode, frames (`36f`), seconds (`1.5s`), or `+12`/`-3` frames. **In** slips the take inside a clip that stays put.
+- **Copy and paste:** clips are copied with their linked sound and dissolves and pasted at the playhead, also into another project opened in the same session. **Paste attributes** gives the selected clips the first copied clip's color, transform, crop, fades, gain, or title style.
+- **Several clips:** with more than one selected, the inspector sets fades, gain, fit, scale, opacity, a still or title length, or a saved grade on all of them as one undo step.
+- **Saved grades:** the Color panel saves a clip's adjustments under a name and applies a saved grade to a clip or a selection, in any project.
 - **Ripple delete** removes a range marked with the Range tool, or with `I` and `O` at the playhead, from every track and closes the gap. It is refused while a track it would change is locked.
 - **Inspector:** transform, crop, fit or fill, Adjust colors with **Auto**, speed (sound keeps its pitch), gain, fades, and title text, font, and style. Titles can use any font installed on this computer; one that is missing draws in the default font. Double-click a slider's label to reset it. A **cross-dissolve** slides the next clip back over the selected one; its length is the overlap, and pulling the clips apart removes it.
 
@@ -25,23 +30,27 @@ On macOS, use `⌘` for app shortcuts shown with `Ctrl`.
 
 Outside text fields, the video editor uses its own keys; gallery shortcuts stay off while it is open.
 
-| Shortcut                  | Action                             |
-| ------------------------- | ---------------------------------- |
-| `Space`                   | Play or pause                      |
-| `←` / `→`                 | Step one frame back / forward      |
-| `↑` / `↓`                 | Jump to the previous / next edit   |
-| `Home` / `End`            | Go to the start / end              |
-| `I` / `O`                 | Mark in / out at the playhead      |
-| `Esc`                     | Clear the selection and the range  |
-| `V` / `B` / `R`           | Select / Blade / Range tool        |
-| `S`                       | Toggle snapping                    |
-| `+` / `-`                 | Zoom the timeline in / out         |
-| `Shift+Z`                 | Fit the project in the timeline    |
-| `Ctrl+B`                  | Split at the playhead              |
-| `Delete` or `Backspace`   | Delete the selected clips          |
-| `Shift+Delete`            | Ripple delete the selected range   |
-| `Ctrl+D`                  | Duplicate the selected clips       |
-| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo (`Ctrl+Y` also redoes) |
-| `Enter` on a clip         | Select it; `Shift+Enter` toggles   |
+| Shortcut                       | Action                                             |
+| ------------------------------ | -------------------------------------------------- |
+| `Space`                        | Play or pause                                      |
+| `←` / `→`                      | Step one frame back / forward                      |
+| `↑` / `↓`                      | Jump to the previous / next edit                   |
+| `Home` / `End`                 | Go to the start / end                              |
+| `I` / `O`                      | Mark in / out at the playhead                      |
+| `Esc`                          | Clear the selection and the range                  |
+| `V` / `B` / `R`                | Select / Blade / Range tool                        |
+| `S`                            | Toggle snapping                                    |
+| `+` / `-`                      | Zoom the timeline in / out                         |
+| `Shift+Z`                      | Fit the project in the timeline                    |
+| `Ctrl+B`                       | Split at the playhead                              |
+| `Delete` or `Backspace`        | Delete the selected clips                          |
+| `Shift+Delete`                 | Ripple delete the selected range                   |
+| `Ctrl+D`                       | Duplicate the selected clips                       |
+| `,` / `.`                      | Nudge the selected clips one frame earlier / later |
+| `Q` / `W`                      | Trim the start / end to the playhead               |
+| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | Copy / cut / paste clips at the playhead           |
+| `Ctrl+Shift+V`                 | Paste attributes onto the selected clips           |
+| `Ctrl+Z` / `Ctrl+Shift+Z`      | Undo / redo (`Ctrl+Y` also redoes)                 |
+| `Enter` on a clip              | Select it; `Shift+Enter` toggles                   |
 
 While the **Source** monitor shows a file, `Space`, the arrows, `Home`, `End`, `I`, and `O` act on that file instead.

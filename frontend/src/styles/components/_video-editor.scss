@@ -1438,13 +1438,24 @@ $lane-inset: 4px;
     @include icon-scope-sm;
   }
 
+  // The ways onto the timeline get a row of their own, so they never crowd the transport.
+  &__source-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.375rem 0.75rem;
+    padding-top: 0.375rem;
+    border-top: 1px solid var(--border);
+  }
+
   &__source-actions {
     display: flex;
-    grid-column: 3;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
-    gap: 0.5rem;
-    min-width: 0;
+    gap: 0.375rem;
+    margin-left: auto;
   }
 
   &__source-marks {
@@ -3156,8 +3167,33 @@ $lane-inset: 4px;
   }
 }
 
+// Each choice's label sits beside its tiles, not above them: a line saved per group keeps the
+// whole dialog on screen without scrolling.
+.confirm-dialog__panel.video-export-dialog {
+  width: min(34rem, 100%);
+}
+
+.video-export-dialog__choices {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  row-gap: 0.5rem;
+  align-items: center;
+  margin-top: 1.125rem;
+
+  // Each field's label and tiles join the grid; the label is centred on its row of tiles.
+  .dialog__field {
+    display: contents;
+  }
+
+  .dialog__label {
+    margin: 0;
+  }
+}
+
 .video-export-dialog__sound-hint {
-  margin-top: -0.5rem;
+  grid-column: 2;
+  margin: -0.25rem 0 0;
 }
 
 // The version list is the dialog's only scroller; the name field stays put.
@@ -3231,4 +3267,98 @@ $lane-inset: 4px;
     font-size: var(--text-xs);
     @include tabular-nums;
   }
+}
+
+// Exact entry: a time typed in the format the editor shows.
+.video-editor__timecode-field {
+  width: 8.5rem;
+  height: var(--control-height-xs);
+  padding: 0 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: right;
+  @include tabular-nums;
+
+  &:focus-visible {
+    border-color: var(--accent-border);
+    outline: none;
+  }
+
+  &[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+
+  // The playhead's own time reads as the transport's readout until it is edited.
+  &.video-editor__timecode--current {
+    width: 7.5rem;
+    border-color: transparent;
+    background: transparent;
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    text-align: left;
+
+    &:hover,
+    &:focus-visible {
+      border-color: var(--border);
+    }
+  }
+}
+
+.video-editor__timing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.video-editor__grades {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.video-editor__grades-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.video-editor__grades-select,
+.video-editor__grades-name {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-height-xs);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--text-xs);
+}
+
+.video-editor__grades-name {
+  padding: 0 0.375rem;
+}
+
+.video-editor__hint--error {
+  color: var(--danger);
+}
+
+.video-editor__attribute-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.tooltip__bubble.video-editor__source-tip {
+  max-width: 18rem;
+  text-align: left;
 }

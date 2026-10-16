@@ -79,12 +79,8 @@ function VideoProjectCard({
         aria-label={`Open the video project ${project.name} in the video editor`}
       >
         <span className="video-project-card__thumb" aria-hidden="true">
-          {project.initial_source_path && (
-            <img
-              src={optionalThumbnailUrl(project.initial_source_path, 200)}
-              alt=""
-              loading="lazy"
-            />
+          {project.thumbnail_path && (
+            <img src={optionalThumbnailUrl(project.thumbnail_path, 200)} alt="" loading="lazy" />
           )}
           <Icon icon={iconClapperboard} className="video-project-card__badge" />
         </span>

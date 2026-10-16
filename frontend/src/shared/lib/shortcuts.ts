@@ -198,6 +198,46 @@ export const SHORTCUTS = {
     label: "Duplicate the selected clips",
     chords: [{ key: "d", mod: true }],
   },
+  editorNudgeBack: {
+    group: "videoEditor",
+    label: "Nudge the selected clips one frame earlier",
+    chords: [{ key: "," }],
+  },
+  editorNudgeForward: {
+    group: "videoEditor",
+    label: "Nudge the selected clips one frame later",
+    chords: [{ key: "." }],
+  },
+  editorTrimStart: {
+    group: "videoEditor",
+    label: "Trim the clip's start to the playhead",
+    chords: [{ key: "q" }],
+  },
+  editorTrimEnd: {
+    group: "videoEditor",
+    label: "Trim the clip's end to the playhead",
+    chords: [{ key: "w" }],
+  },
+  editorCopy: {
+    group: "videoEditor",
+    label: "Copy the selected clips",
+    chords: [{ key: "c", mod: true }],
+  },
+  editorCut: {
+    group: "videoEditor",
+    label: "Cut the selected clips",
+    chords: [{ key: "x", mod: true }],
+  },
+  editorPaste: {
+    group: "videoEditor",
+    label: "Paste at the playhead",
+    chords: [{ key: "v", mod: true }],
+  },
+  editorPasteAttributes: {
+    group: "videoEditor",
+    label: "Paste settings onto the selected clips",
+    chords: [{ key: "v", mod: true, shift: true }],
+  },
   editorUndo: { group: "videoEditor", label: "Undo", chords: [{ key: "z", mod: true }] },
   editorRedo: {
     group: "videoEditor",

@@ -82,7 +82,7 @@ export function withLinked(project: Project, ids: Iterable<string>): Set<string>
   return chosen;
 }
 
-function lockedTrackOf(project: Project, ids: Set<string>): Track | undefined {
+export function lockedTrackOf(project: Project, ids: Set<string>): Track | undefined {
   for (const clip of project.clips) {
     if (!ids.has(clip.id)) continue;
     const track = trackById(project, clip.track_id);
@@ -91,7 +91,7 @@ function lockedTrackOf(project: Project, ids: Set<string>): Track | undefined {
   return undefined;
 }
 
-function lockedMessage(track: Track): string {
+export function lockedMessage(track: Track): string {
   return `${track.name} is locked. Unlock it to change its clips.`;
 }
 
@@ -168,23 +168,24 @@ export function pruneTransitions(project: Project): Project {
   return transitions.length === project.transitions.length ? project : { ...project, transitions };
 }
 
-function finish(project: Project): EditResult {
+/** Drops dissolves the edit pulled apart, then checks the placement rules. */
+export function finish(project: Project): EditResult {
   const pruned = pruneTransitions(project);
   const problem = placementProblem(pruned);
   return problem ? { error: problem } : { project: pruned };
 }
 
-function replaceClips(project: Project, changed: Map<string, Clip>): Project {
+export function replaceClips(project: Project, changed: Map<string, Clip>): Project {
   return { ...project, clips: project.clips.map((clip) => changed.get(clip.id) ?? clip) };
 }
 
-function sourceSpanLimit(project: Project, clip: Clip): number {
+export function sourceSpanLimit(project: Project, clip: Clip): number {
   if (clip.kind !== "video" && clip.kind !== "audio") return Infinity;
   const duration = sourceById(project, clip.source_id)?.duration;
   return duration ?? Infinity;
 }
 
-function clampFades(clip: Clip): Clip {
+export function clampFades(clip: Clip): Clip {
   const fadeIn = Math.min(clip.fade_in, clip.duration);
   const fadeOut = Math.min(clip.fade_out, clip.duration - fadeIn);
   return fadeIn === clip.fade_in && fadeOut === clip.fade_out
@@ -759,6 +760,44 @@ function sourceMatches(source: VideoProjectSource, info: VideoProjectSourceInfo)
   return source.size === info.size && source.modified_us === info.modified_us;
 }
 
+/** The project's record of a file, added when it is new; a changed file must be accepted first. */
+export function sourceEntry(
+  project: Project,
+  info: VideoProjectSourceInfo,
+): { source: VideoProjectSource; sources: VideoProjectSource[] } | { error: string } {
+  const existing = project.sources.find((item) => item.name === info.name);
+  if (existing && !sourceMatches(existing, info)) {
+    return { error: `${info.name} changed since it was added. Accept the change first.` };
+  }
+  if (existing) return { source: existing, sources: project.sources };
+  const source: VideoProjectSource = {
+    id: newId(),
+    name: info.name,
+    kind: info.kind,
+    size: info.size,
+    modified_us: info.modified_us,
+    duration: info.duration ?? null,
+    width: info.width ?? null,
+    height: info.height ?? null,
+    frame_rate: info.frame_rate ?? null,
+    has_audio: info.has_audio,
+  };
+  return { source, sources: [...project.sources, source] };
+}
+
+/** The part of a file a placement takes: a timed file's marked range, or a still's default. */
+export function takeOf(
+  info: VideoProjectSourceInfo,
+  wantedIn?: number,
+  wantedOut?: number,
+): { rangeIn: number; duration: number } {
+  if (info.kind === "image") return { rangeIn: 0, duration: STILL_SECONDS };
+  const total = info.duration ?? STILL_SECONDS;
+  const rangeIn = Math.max(0, Math.min(wantedIn ?? 0, total));
+  const rangeOut = Math.max(rangeIn, Math.min(wantedOut ?? total, total));
+  return { rangeIn, duration: rangeOut - rangeIn };
+}
+
 /**
  * Places a file from the project's folder. A video with sound brings a linked audio clip. The
  * file is referenced, never copied.
@@ -770,32 +809,10 @@ export function placeSource(
   placed?: string[];
 } {
   const { info } = request;
-  let source = project.sources.find((item) => item.name === info.name);
-  if (source && !sourceMatches(source, info)) {
-    return { error: `${info.name} changed since it was added. Accept the change first.` };
-  }
-  let sources = project.sources;
-  if (!source) {
-    source = {
-      id: newId(),
-      name: info.name,
-      kind: info.kind,
-      size: info.size,
-      modified_us: info.modified_us,
-      duration: info.duration ?? null,
-      width: info.width ?? null,
-      height: info.height ?? null,
-      frame_rate: info.frame_rate ?? null,
-      has_audio: info.has_audio,
-    };
-    sources = [...sources, source];
-  }
-
-  const timed = info.kind !== "image";
-  const total = info.duration ?? STILL_SECONDS;
-  const rangeIn = timed ? Math.max(0, Math.min(request.rangeIn ?? 0, total)) : 0;
-  const rangeOut = timed ? Math.max(rangeIn, Math.min(request.rangeOut ?? total, total)) : 0;
-  const duration = timed ? rangeOut - rangeIn : STILL_SECONDS;
+  const entry = sourceEntry(project, info);
+  if ("error" in entry) return entry;
+  const { source, sources } = entry;
+  const { rangeIn, duration } = takeOf(info, request.rangeIn, request.rangeOut);
   if (duration < MIN_CLIP_SECONDS) return { error: "Choose a longer range to add." };
   const start = Math.max(0, request.start);
 
