@@ -6,6 +6,7 @@ import filecmp
 import logging
 import re
 import shutil
+from functools import partial
 from pathlib import Path
 
 from automation.job_runner import ProgressCallback, ShouldCancel
@@ -14,6 +15,7 @@ from candidate_pairing import candidate_path_for
 from comfy_candidates import is_settling, read_candidate_sidecar, write_candidate_sidecar
 from constants import MEDIA_EXTENSIONS
 from edit_sidecars import is_rendering
+from file_write import retry_while_locked
 from media_group import group_target, media_group_paths, shared_stem_paths
 
 logger = logging.getLogger(__name__)
@@ -58,7 +60,8 @@ def build_target_name(stem: str, index: int, padding: int, suffix: str) -> str:
 
 
 def list_rename_media(folder: Path) -> list[Path]:
-    return list_folder_media(folder, MEDIA_EXTENSIONS, order="mtime")
+    media = list_folder_media(folder, MEDIA_EXTENSIONS, order="mtime")
+    return [path for path in media if not path.name.startswith(_TEMP_PREFIX)]
 
 
 def _repoint_candidate_record(source_media: Path, target_media: Path) -> None:
@@ -72,6 +75,9 @@ def _repoint_candidate_record(source_media: Path, target_media: Path) -> None:
 
 def _rename_media_group(source_media: Path, target_media: Path) -> None:
     """A file a same-stem sibling still shares is copied; an identical one already there merges."""
+    if source_media == target_media:
+        # Every sidecar would compare equal to itself and be merged away.
+        return
     shared = shared_stem_paths(source_media)
     # (original, target, copied): a copy is undone by removing it, not by renaming it back.
     renamed: list[tuple[Path, Path, bool]] = []
@@ -83,18 +89,18 @@ def _rename_media_group(source_media: Path, target_media: Path) -> None:
                 renamed.append((path, target, True))
             elif path != source_media and target.is_file() and filecmp.cmp(path, target, False):
                 # A sibling renamed earlier in the batch already carried this shared file here.
-                path.unlink()
+                retry_while_locked(path.unlink)
             else:
-                path.rename(target)
+                retry_while_locked(partial(path.rename, target))
                 renamed.append((path, target, False))
         _repoint_candidate_record(source_media, target_media)
     except OSError:
         for original, target, copied in reversed(renamed):
             try:
                 if copied:
-                    target.unlink(missing_ok=True)
+                    retry_while_locked(partial(target.unlink, missing_ok=True))
                 else:
-                    target.rename(original)
+                    retry_while_locked(partial(target.rename, original))
             except OSError:
                 logger.exception("Failed to restore %s from %s", original, target)
         raise
@@ -153,6 +159,14 @@ def validate_rename_media_folder(
     if not folder.is_dir():
         raise ValueError("Folder not found")
 
+    # Its original name is lost, and this run's temporary names would land on it.
+    leftover = next((p for p in folder.iterdir() if p.name.startswith(_TEMP_PREFIX)), None)
+    if leftover is not None:
+        raise ValueError(
+            f'Cannot rename files: "{leftover.name}" is left over from an interrupted rename. '
+            "Rename or remove it first."
+        )
+
     media_files = list_rename_media(folder)
     media_files = filter_media_list(media_files, selected_paths)
     if not media_files:
@@ -175,19 +189,21 @@ def _rollback_temp_entries(temp_entries: list[tuple[Path, Path, Path]]) -> None:
         try:
             _rename_media_group(temp_media, original_media)
         except OSError:
-            logger.exception("Failed to roll back temporary rename for %s", temp_media)
+            logger.exception("Failed to restore %s; it is left as %s", original_media, temp_media)
 
 
 def _rollback_after_phase2_failure(
     temp_entries: list[tuple[Path, Path, Path]],
     completed_count: int,
 ) -> None:
-    for _original_media, temp_media, target_media in reversed(temp_entries[:completed_count]):
+    for original_media, temp_media, target_media in reversed(temp_entries[:completed_count]):
         if target_media.exists():
             try:
                 _rename_media_group(target_media, temp_media)
             except OSError:
-                logger.exception("Failed to roll back final rename for %s", target_media)
+                logger.exception(
+                    "Failed to restore %s; it is left as %s", original_media, target_media
+                )
     _rollback_temp_entries(temp_entries)
 
 

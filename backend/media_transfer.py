@@ -8,6 +8,7 @@ import shutil
 import tempfile
 from collections.abc import Sequence
 from contextlib import suppress
+from functools import partial
 from pathlib import Path
 from typing import Literal
 
@@ -15,6 +16,7 @@ from fastapi import HTTPException
 
 from candidate_pairing import candidate_path_for
 from file_import import _existing_file_names
+from file_write import retry_while_locked
 from media_group import (
     group_target,
     media_group_paths,
@@ -70,15 +72,15 @@ def preview_media_transfer(destination: Path, source_paths: list[Path]) -> dict[
 
 def move_one_file(source: Path, destination: Path) -> None:
     try:
-        os.replace(source, destination)
+        retry_while_locked(partial(os.replace, source, destination))
         return
     except OSError as exc:
         if exc.errno != errno.EXDEV:
             raise
 
     try:
-        shutil.copy2(source, destination)
-        source.unlink()
+        retry_while_locked(partial(shutil.copy2, source, destination))
+        retry_while_locked(source.unlink)
     except OSError:
         remove_transfer_file(destination)
         raise
@@ -87,7 +89,7 @@ def move_one_file(source: Path, destination: Path) -> None:
 def transfer_one_file(source: Path, destination: Path, mode: TransferMode) -> None:
     if mode == "copy":
         try:
-            shutil.copy2(source, destination)
+            retry_while_locked(partial(shutil.copy2, source, destination))
         except OSError:
             remove_transfer_file(destination)
             raise
@@ -97,7 +99,7 @@ def transfer_one_file(source: Path, destination: Path, mode: TransferMode) -> No
 
 def remove_transfer_file(path: Path) -> None:
     try:
-        path.unlink(missing_ok=True)
+        retry_while_locked(partial(path.unlink, missing_ok=True))
     except OSError as exc:
         logger.warning("Failed to remove transfer file %s: %s", path, exc)
 
@@ -109,7 +111,7 @@ def backup_transfer_destination(destination: Path) -> Path | None:
     os.close(descriptor)
     backup = Path(name)
     try:
-        os.replace(destination, backup)
+        retry_while_locked(partial(os.replace, destination, backup))
     except OSError:
         remove_transfer_file(backup)
         raise
@@ -122,7 +124,7 @@ def undo_transfer(done: list[tuple[Path, Path, TransferMode]]) -> set[Path]:
     for origin, destination, mode in reversed(done):
         try:
             if mode == "copy":
-                destination.unlink(missing_ok=True)
+                retry_while_locked(partial(destination.unlink, missing_ok=True))
             else:
                 move_one_file(destination, origin)
         except OSError as exc:
@@ -137,7 +139,7 @@ def restore_transfer_backups(backups: list[tuple[Path, Path]], unrestored: set[P
             logger.warning("Original destination %s preserved at %s", destination, backup)
             continue
         try:
-            os.replace(backup, destination)
+            retry_while_locked(partial(os.replace, backup, destination))
         except OSError as exc:
             logger.warning(
                 "Failed to restore %s; backup retained at %s: %s", destination, backup, exc
@@ -151,7 +153,7 @@ def discard_replaced_sidecars(destination_media: Path, arrived: set[Path]) -> No
         if path in arrived or path in shared:
             continue
         try:
-            path.unlink()
+            retry_while_locked(path.unlink)
         except OSError as exc:
             logger.warning("Failed to remove replaced sidecar %s: %s", path.name, exc)
 

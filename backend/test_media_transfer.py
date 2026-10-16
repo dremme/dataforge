@@ -4,6 +4,7 @@ import errno
 import os
 import shutil
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
 
@@ -117,6 +118,111 @@ def _blocking_replace(blocked: str):
     return replace
 
 
+def _locked_once(*locked: Callable[[Path, Path], bool]):
+    """``os.replace`` that refuses each matching call once, as a scanner briefly holding a file."""
+    real_replace = os.replace
+    pending = list(locked)
+
+    def replace(source, destination):
+        source, destination = Path(source), Path(destination)
+        for matches in pending:
+            if matches(source, destination):
+                pending.remove(matches)
+                raise PermissionError(13, "The file is being used by another process")
+        real_replace(source, destination)
+
+    return replace
+
+
+class LockedFileRetryTests(unittest.TestCase):
+    """Antivirus and search indexers open a file as soon as its new name appears."""
+
+    def _folders(self, root: Path) -> tuple[Path, Path]:
+        source_dir, destination_dir = root / "Source", root / "Destination"
+        source_dir.mkdir()
+        destination_dir.mkdir()
+        return source_dir, destination_dir
+
+    def _names(self, folder: Path) -> list[str]:
+        return sorted(path.name for path in folder.iterdir())
+
+    def test_a_move_waits_out_a_briefly_locked_sidecar(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            media = write_media(source_dir, "sunset.png")
+            write_txt_caption(media, "Golden hour.")
+
+            with patch(
+                "media_transfer.os.replace", _locked_once(lambda source, _: source.suffix == ".txt")
+            ):
+                transfer_media_with_sidecars(media, destination_dir, mode="move")
+
+            self.assertEqual(self._names(source_dir), [])
+            self.assertEqual(self._names(destination_dir), ["sunset.png", "sunset.txt"])
+
+    def test_a_copy_waits_out_a_briefly_locked_file(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            media = write_media(source_dir, "sunset.png")
+            real_copy = shutil.copy2
+            locked = {"left": 1}
+
+            def copy(source, destination, *args, **kwargs):
+                if locked["left"]:
+                    locked["left"] -= 1
+                    raise PermissionError(13, "The file is being used by another process")
+                return real_copy(source, destination, *args, **kwargs)
+
+            with patch("media_transfer.shutil.copy2", copy):
+                transfer_media_with_sidecars(media, destination_dir, mode="copy")
+
+            self.assertEqual(self._names(source_dir), ["sunset.png"])
+            self.assertEqual(self._names(destination_dir), ["sunset.png"])
+
+    def test_a_failed_move_waits_to_bring_the_arrived_media_back(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            media = write_media(source_dir, "sunset.png")
+            write_txt_caption(media, "Golden hour.")
+            real_replace = _locked_once(lambda source, _: source.parent == destination_dir)
+
+            def replace(source, destination):
+                if Path(source).suffix == ".txt":
+                    raise OSError(errno.EIO, "Input/output error")
+                real_replace(source, destination)
+
+            with patch("media_transfer.os.replace", replace), self.assertRaises(HTTPException):
+                transfer_media_with_sidecars(media, destination_dir, mode="move")
+
+            self.assertEqual(self._names(source_dir), ["sunset.png", "sunset.txt"])
+            self.assertEqual(self._names(destination_dir), [])
+
+    def test_a_failed_overwrite_waits_to_put_the_replaced_file_back(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            media = write_media(source_dir, "sunset.png")
+            write_txt_caption(media, "Golden hour.")
+            existing = destination_dir / media.name
+            existing.write_bytes(b"original destination media")
+            real_replace = _locked_once(
+                lambda source, _: source.name.startswith(".transfer-backup-")
+            )
+
+            def replace(source, destination):
+                if Path(source) == media.with_suffix(".txt"):
+                    raise OSError(errno.EIO, "Input/output error")
+                real_replace(source, destination)
+
+            with patch("media_transfer.os.replace", replace), self.assertRaises(HTTPException):
+                transfer_media_with_sidecars(media, destination_dir, mode="move", overwrite=True)
+
+            self.assertEqual(self._names(destination_dir), ["sunset.png"])
+            self.assertEqual(existing.read_bytes(), b"original destination media")
+            self.assertEqual(self._names(source_dir), ["sunset.png", "sunset.txt"])
+
+
+# These locks never clear, so waiting them out would only slow the tests.
+@patch("file_write.LOCKED_RETRY_DELAYS", ())
 class AbortedMoveTests(unittest.TestCase):
     def test_unmovable_media_leaves_no_copy_in_the_destination(self) -> None:
         with TempMediaFolder() as root:
@@ -203,6 +309,7 @@ class AbortedMoveTests(unittest.TestCase):
             self.assertFalse(issue_file_path(destination_dir / "sunset.png").exists())
 
 
+@patch("file_write.LOCKED_RETRY_DELAYS", ())
 class TransferRollbackTests(unittest.TestCase):
     def test_successful_overwrite_removes_temporary_backups(self) -> None:
         for mode in ("copy", "move"):
@@ -545,6 +652,7 @@ class TransferNameLinkedFilesTests(unittest.TestCase):
             self.assertEqual(caught.exception.status_code, 409)
             self.assertTrue(media.is_file())
 
+    @patch("file_write.LOCKED_RETRY_DELAYS", ())
     def test_a_failed_move_removes_the_subfolders_it_created(self) -> None:
         with TempMediaFolder() as root:
             source_dir, destination_dir = root / "Source", root / "Destination"

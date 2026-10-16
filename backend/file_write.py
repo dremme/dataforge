@@ -3,9 +3,24 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from collections.abc import Generator
+import time
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
+
+#: Antivirus and search indexers open a file as soon as a new name appears; Windows reports that
+#: open handle as a sharing violation until they let go.
+LOCKED_RETRY_DELAYS = (0.05, 0.1, 0.2, 0.4, 0.8, 1.6)
+
+
+def retry_while_locked(operation: Callable[[], object]) -> None:
+    for delay in LOCKED_RETRY_DELAYS:
+        try:
+            operation()
+            return
+        except PermissionError:
+            time.sleep(delay)
+    operation()
 
 
 @contextmanager

@@ -144,7 +144,11 @@ class RenameFailureSafetyTests(unittest.TestCase):
                     raise PermissionError("Caption is locked")
                 return real_rename(source, destination)
 
-            with patch.object(Path, "rename", rename):
+            # The lock never clears, so waiting it out would only slow the test.
+            with (
+                patch.object(Path, "rename", rename),
+                patch("file_write.LOCKED_RETRY_DELAYS", ()),
+            ):
                 result = run_rename_media_job(root, stem="sample")
 
             self.assertEqual(result["stats"]["rename_error"], 1)

@@ -4,12 +4,14 @@ import os
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
 from automation.rename_media import (
+    _rename_media_group,
     build_target_name,
     list_rename_media,
     normalize_name_stem,
@@ -429,6 +431,82 @@ class RenameMediaJobTests(unittest.TestCase):
             self.assertFalse((root / "sample_001.txt").exists())
             self.assertFalse((root / "sample_002.png").exists())
             self.assertFalse((root / "sample_003.png").exists())
+
+
+class RenameMediaInterruptionTests(unittest.TestCase):
+    """Antivirus and search indexers open a file as soon as its new name appears."""
+
+    def _flaky_rename(self, failures: dict[str, OSError]):
+        real_rename = Path.rename
+
+        def rename(path: Path, target: str | Path) -> Path:
+            error = failures.pop(Path(target).name, None)
+            if error is not None:
+                raise error
+            return real_rename(path, target)
+
+        return mock.patch.object(Path, "rename", rename)
+
+    def _write_in_order(self, root: Path, *names: str) -> list[Path]:
+        files = [write_media(root, name) for name in names]
+        now = time.time()
+        for index, path in enumerate(files):
+            os.utime(path, (now - 30 + index, now - 30 + index))
+        return files
+
+    def test_waits_out_another_process_holding_the_file_open(self) -> None:
+        with TempMediaFolder() as root:
+            self._write_in_order(root, "a.png")
+            locked = PermissionError(13, "The file is being used by another process")
+
+            with self._flaky_rename({"portugal_001.png": locked}):
+                result = run_rename_media_job(root, stem="portugal")
+
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(sorted(path.name for path in root.iterdir()), ["portugal_001.png"])
+
+    def test_logs_the_original_name_of_a_file_it_could_not_restore(self) -> None:
+        with TempMediaFolder() as root:
+            self._write_in_order(root, "a.png", "b.png")
+            failures = {
+                "portugal_002.png": OSError(5, "Input/output error"),
+                "a.png": OSError(5, "Input/output error"),
+            }
+
+            with (
+                self._flaky_rename(failures),
+                self.assertLogs("automation.rename_media", "ERROR") as logs,
+            ):
+                result = run_rename_media_job(root, stem="portugal")
+
+            self.assertEqual(result["stats"]["rename_error"], 1)
+            self.assertTrue((root / "b.png").is_file())
+            self.assertTrue((root / ".__df_rename_media_1.png").is_file())
+            self.assertTrue(
+                any("a.png" in line and ".__df_rename_media_1.png" in line for line in logs.output)
+            )
+
+    def test_refuses_while_files_from_an_interrupted_rename_remain(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            leftover = write_media(root, ".__df_rename_media_1.png")
+            write_txt_caption(leftover, "Caption one.")
+
+            with self.assertRaisesRegex(ValueError, r"\.__df_rename_media_1\..*interrupted"):
+                validate_rename_media_folder(root, stem="portugal")
+            self.assertNotIn(leftover, list_rename_media(root))
+            self.assertTrue(leftover.with_suffix(".txt").is_file())
+
+    def test_renaming_a_file_onto_its_own_name_keeps_its_sidecars(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "Caption one.")
+
+            _rename_media_group(media, media)
+
+            self.assertEqual(
+                media.with_suffix(".txt").read_text(encoding="utf-8").strip(), "Caption one."
+            )
 
 
 class SharedStemRenameTests(unittest.TestCase):
