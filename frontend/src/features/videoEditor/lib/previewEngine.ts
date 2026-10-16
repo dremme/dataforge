@@ -25,7 +25,60 @@ const CUE_AHEAD_SECONDS = 1.5;
 /** Elements kept for clips this far from the playhead are released. */
 const KEEP_AROUND_SECONDS = 8;
 /** The colour-adjusted copy of a clip is drawn no wider than this. */
-const MAX_ADJUST_WIDTH = 960;
+export const MAX_ADJUST_WIDTH = 960;
+/** A video that has shown no picture this long after it was asked for is reported as stuck. */
+export const MEDIA_STALL_MS = 15000;
+/** Samples per meter reading: about 21 ms at 48 kHz, short enough to catch a transient. */
+const METER_WINDOW = 1024;
+
+export type MediaProblemKind = "unsupported" | "decode" | "network" | "stalled" | "no-picture";
+
+/** A source the browser could not play, named so the person knows what to do about it. */
+export interface MediaProblem {
+  sourceId: string;
+  kind: MediaProblemKind;
+}
+
+/** What the timeline monitor is not showing exactly as the export will draw it. */
+export interface PreviewFidelity {
+  /** Color adjustments could not be drawn here, so adjusted clips show their original colors. */
+  adjustUnavailable: boolean;
+  /** An adjusted clip is drawn from a copy narrower than its source. */
+  adjustReduced: boolean;
+}
+
+/** Peak sample magnitude of each channel of the preview's mix; 1 is full scale. */
+export interface MeterReading {
+  left: number;
+  right: number;
+}
+
+/** Short words for the monitor's placeholder box; the panel explains each one in full. */
+export const MEDIA_PROBLEM_LABELS: Record<MediaProblemKind, string> = {
+  unsupported: "Format not supported",
+  decode: "Cannot decode",
+  network: "Cannot read file",
+  stalled: "Not loading",
+  "no-picture": "No picture",
+};
+
+/** ``MediaError`` codes, spelled out: the constructor is missing outside browsers. */
+const MEDIA_ERR_NETWORK = 2;
+const MEDIA_ERR_DECODE = 3;
+
+export function problemFromError(error: Pick<MediaError, "code"> | null): MediaProblemKind {
+  if (error?.code === MEDIA_ERR_NETWORK) return "network";
+  if (error?.code === MEDIA_ERR_DECODE) return "decode";
+  return "unsupported";
+}
+
+export function peakOf(samples: Float32Array): number {
+  let peak = 0;
+  for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
+  return peak;
+}
+
+const RESTING_FIDELITY: PreviewFidelity = { adjustUnavailable: false, adjustReduced: false };
 
 export interface SourceLocation {
   path: string;
@@ -58,6 +111,13 @@ export class PreviewEngine {
   private images = new Map<string, HTMLImageElement>();
   private adjusters = new Map<string, AdjustSlot>();
   private audioContext: AudioContext | null = null;
+  private master: GainNode | null = null;
+  private meters: [AnalyserNode, AnalyserNode] | null = null;
+  private meterBuffer = new Float32Array(METER_WINDOW);
+  /** Keyed by media URL, so relinking or accepting a changed file starts it afresh. */
+  private failures = new Map<string, MediaProblemKind>();
+  private problems: MediaProblem[] = [];
+  private fidelity: PreviewFidelity = RESTING_FIDELITY;
   private listeners = new Set<EngineListener>();
   private stateListeners = new Set<() => void>();
   private frameRequest = 0;
@@ -81,6 +141,7 @@ export class PreviewEngine {
     for (const [id, element] of this.audios)
       if (!live.has(id)) this.release(this.audios, id, element);
     if (this.time > this.duration) this.time = this.duration;
+    this.updateProblems();
     this.sync();
     this.render();
   }
@@ -100,6 +161,41 @@ export class PreviewEngine {
   /** True while playback holds for a clip that is not ready to show. */
   get isWaiting(): boolean {
     return this.waiting;
+  }
+
+  /** Sources the browser failed to play; the same array until the set changes. */
+  get mediaProblems(): MediaProblem[] {
+    return this.problems;
+  }
+
+  /** The same object until a reading changes. */
+  get previewFidelity(): PreviewFidelity {
+    return this.fidelity;
+  }
+
+  /** The mix's peaks since the last reading's window; null until playback has started sound. */
+  readMeter(): MeterReading | null {
+    if (!this.meters) return null;
+    const [left, right] = this.meters.map((meter) => {
+      meter.getFloatTimeDomainData(this.meterBuffer);
+      return peakOf(this.meterBuffer);
+    });
+    return { left, right };
+  }
+
+  /** Loads a failed source again, e.g. after it was converted or the server came back. */
+  retry(sourceId: string): void {
+    const location = this.sources.get(sourceId);
+    if (!location) return;
+    const url = mediaUrl(location.path, location.version);
+    this.failures.delete(url);
+    for (const pool of [this.videos, this.audios] as Map<string, HTMLMediaElement>[]) {
+      for (const [id, element] of pool)
+        if (element.dataset.url === url) this.release(pool, id, element);
+    }
+    this.updateProblems();
+    this.sync();
+    this.render();
   }
 
   subscribe(listener: EngineListener): () => void {
@@ -165,6 +261,8 @@ export class PreviewEngine {
     this.adjusters.clear();
     void this.audioContext?.close().catch(() => undefined);
     this.audioContext = null;
+    this.master = null;
+    this.meters = null;
   }
 
   private emit(): void {
@@ -210,9 +308,72 @@ export class PreviewEngine {
       if (layer.clip.kind !== "video") continue;
       const element = this.videos.get(layer.clip.id);
       if (this.sourceFor(layer.clip)?.missing) continue;
+      // A file that cannot play would hold the clock forever; it shows as a marked box instead.
+      if (this.failureFor(layer.clip)) continue;
       if (!element || element.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return false;
     }
     return true;
+  }
+
+  private failureFor(clip: Clip): MediaProblemKind | undefined {
+    const url = this.urlFor(clip);
+    return url ? this.failures.get(url) : undefined;
+  }
+
+  /** Records the first problem a URL shows; later ones from the same file add nothing. */
+  private fail(
+    pool: Map<string, HTMLMediaElement>,
+    id: string,
+    element: HTMLMediaElement,
+    kind: MediaProblemKind,
+  ): void {
+    const url = element.dataset.url;
+    // A released element reports its own teardown; only one still in use speaks for its file.
+    if (!url || pool.get(id) !== element || this.failures.has(url)) return;
+    this.failures.set(url, kind);
+    this.updateProblems();
+    if (!this.playing) this.render();
+  }
+
+  private updateProblems(): void {
+    const next: MediaProblem[] = [];
+    for (const [sourceId, location] of this.sources) {
+      if (location.missing) continue;
+      const kind = this.failures.get(mediaUrl(location.path, location.version));
+      if (kind) next.push({ sourceId, kind });
+    }
+    const same =
+      next.length === this.problems.length &&
+      next.every((item, index) => {
+        const before = this.problems[index];
+        return before.sourceId === item.sourceId && before.kind === item.kind;
+      });
+    if (same) return;
+    this.problems = next;
+    this.emitState();
+  }
+
+  private watchForFailure(
+    pool: Map<string, HTMLMediaElement>,
+    id: string,
+    element: HTMLMediaElement,
+  ): void {
+    element.addEventListener("error", () =>
+      this.fail(pool, id, element, problemFromError(element.error)),
+    );
+    if (!(element instanceof HTMLVideoElement)) return;
+    // A file whose only picture stream the browser cannot decode may still load its sound.
+    element.addEventListener("loadedmetadata", () => {
+      if (element.videoWidth === 0) this.fail(pool, id, element, "no-picture");
+    });
+    // A background tab may defer loading media, so the wait only counts while it is shown.
+    const check = () => {
+      if (pool.get(id) !== element) return;
+      if (document.visibilityState === "hidden") window.setTimeout(check, MEDIA_STALL_MS);
+      else if (element.readyState < HTMLMediaElement.HAVE_CURRENT_DATA && !element.error)
+        this.fail(pool, id, element, "stalled");
+    };
+    window.setTimeout(check, MEDIA_STALL_MS);
   }
 
   private sourceFor(clip: Clip): SourceLocation | undefined {
@@ -255,6 +416,7 @@ export class PreviewEngine {
       element.addEventListener("loadeddata", redraw);
       element.addEventListener("seeked", redraw);
       this.videos.set(clip.id, element);
+      this.watchForFailure(this.videos, clip.id, element);
     }
     return element;
   }
@@ -274,6 +436,7 @@ export class PreviewEngine {
       element.src = url;
       element.preservesPitch = true;
       this.audios.set(clip.id, element);
+      this.watchForFailure(this.audios, clip.id, element);
       this.connectGain(clip.id, element);
     }
     return element;
@@ -282,20 +445,39 @@ export class PreviewEngine {
   private ensureAudioContext(): void {
     if (this.audioContext || typeof AudioContext === "undefined") return;
     try {
-      this.audioContext = new AudioContext();
+      const context = new AudioContext();
+      // Every clip's gain feeds one master, which the meters read; mono sources count twice.
+      const master = context.createGain();
+      master.channelCount = 2;
+      master.channelCountMode = "explicit";
+      master.channelInterpretation = "speakers";
+      master.connect(context.destination);
+      const splitter = context.createChannelSplitter(2);
+      master.connect(splitter);
+      const meters = [0, 1].map((channel) => {
+        const meter = context.createAnalyser();
+        meter.fftSize = METER_WINDOW;
+        splitter.connect(meter, channel);
+        return meter;
+      });
+      this.audioContext = context;
+      this.master = master;
+      this.meters = [meters[0], meters[1]];
       for (const [id, element] of this.audios) this.connectGain(id, element);
     } catch {
       this.audioContext = null;
+      this.master = null;
+      this.meters = null;
     }
   }
 
   /** Gain above 1 needs Web Audio; without it the element's volume caps at 1. */
   private connectGain(id: string, element: HTMLAudioElement): void {
-    if (!this.audioContext || this.gains.has(id)) return;
+    if (!this.audioContext || !this.master || this.gains.has(id)) return;
     try {
       const source = this.audioContext.createMediaElementSource(element);
       const gain = this.audioContext.createGain();
-      source.connect(gain).connect(this.audioContext.destination);
+      source.connect(gain).connect(this.master);
       this.gains.set(id, gain);
     } catch {
       // Already routed, or the browser refused; the element's own volume still works.
@@ -406,9 +588,17 @@ export class PreviewEngine {
     context.fillStyle = canvasColor(canvas, "--video-bg");
     context.fillRect(0, 0, canvas.width, canvas.height);
 
+    const fidelity = { adjustUnavailable: false, adjustReduced: false };
     for (const layer of layers) {
       if (layer.alpha <= 0) continue;
-      this.drawLayer(context, project, layer, scale);
+      this.drawLayer(context, project, layer, scale, fidelity);
+    }
+    if (
+      fidelity.adjustUnavailable !== this.fidelity.adjustUnavailable ||
+      fidelity.adjustReduced !== this.fidelity.adjustReduced
+    ) {
+      this.fidelity = fidelity;
+      this.emitState();
     }
   }
 
@@ -417,6 +607,7 @@ export class PreviewEngine {
     project: Project,
     layer: Layer,
     scale: number,
+    fidelity: PreviewFidelity,
   ): void {
     const { clip } = layer;
     const place = placement(project, clip);
@@ -427,13 +618,18 @@ export class PreviewEngine {
     context.translate(place.centerX * scale, place.centerY * scale);
     context.rotate((place.rotation * Math.PI) / 180);
 
-    const picture = this.pictureFor(clip);
+    const failure = clip.kind === "title" ? undefined : this.failureFor(clip);
+    const picture = failure ? null : this.pictureFor(clip);
     if (!picture) {
       this.drawPlaceholder(
         context,
         width,
         height,
-        this.sourceFor(clip)?.missing ? "Missing media" : "Loading...",
+        this.sourceFor(clip)?.missing
+          ? "Missing media"
+          : failure
+            ? MEDIA_PROBLEM_LABELS[failure]
+            : "Loading...",
       );
       context.restore();
       return;
@@ -446,6 +642,8 @@ export class PreviewEngine {
     const sw = crop ? crop.width * sourceWidth : sourceWidth;
     const sh = crop ? crop.height * sourceHeight : sourceHeight;
     const drawn = adjusted ? this.adjusted(clip, source, sx, sy, sw, sh) : null;
+    if (adjusted && !drawn) fidelity.adjustUnavailable = true;
+    if (drawn && sw > MAX_ADJUST_WIDTH) fidelity.adjustReduced = true;
     if (drawn) context.drawImage(drawn, -width / 2, -height / 2, width, height);
     else context.drawImage(source, sx, sy, sw, sh, -width / 2, -height / 2, width, height);
     context.restore();

@@ -55,6 +55,15 @@ VIDEO_PROJECT_MAX_TRACKS = 16
 VIDEO_PROJECT_STILL_SECONDS = 5.0
 # A project opened without a video; the first video added names it after itself.
 VIDEO_PROJECT_UNTITLED_NAME = "Untitled project"
+# A browser-playable H.264 copy of a source the preview cannot decode: `<stem>-h264.mp4`.
+VIDEO_PROJECT_COMPATIBLE_TAG = "-h264"
+# Export audio protection: the limiter's ceiling and the loudness normalization aims at.
+# -1 dBTP leaves room for lossy encoders; -14 LUFS is the common streaming playback level.
+VIDEO_PROJECT_TRUE_PEAK_CEILING_DB = -1.0
+VIDEO_PROJECT_LOUDNESS_TARGET_LUFS = -14.0
+# Saves keep an automatic checkpoint at most this often, and only the newest few of them.
+VIDEO_PROJECT_CHECKPOINT_SECONDS = 600
+VIDEO_PROJECT_MAX_CHECKPOINTS = 30
 
 
 class VideoExportQuality(TypedDict):
@@ -280,6 +289,8 @@ SHARED_CONSTANTS: dict[str, object] = {
     "VIDEO_PROJECT_STILL_SECONDS": VIDEO_PROJECT_STILL_SECONDS,
     "VIDEO_PROJECT_UNTITLED_NAME": VIDEO_PROJECT_UNTITLED_NAME,
     "VIDEO_PROJECT_QUALITY_PRESETS": VIDEO_PROJECT_QUALITY_PRESETS,
+    "VIDEO_PROJECT_TRUE_PEAK_CEILING_DB": VIDEO_PROJECT_TRUE_PEAK_CEILING_DB,
+    "VIDEO_PROJECT_LOUDNESS_TARGET_LUFS": VIDEO_PROJECT_LOUDNESS_TARGET_LUFS,
     "IMAGE_EDIT_EXTENSIONS": sorted(IMAGE_EDIT_EXTENSIONS),
     "GIF_EXTENSION": GIF_EXTENSION,
     "GIF_MP4_FRAME_RATE": GIF_MP4_FRAME_RATE,

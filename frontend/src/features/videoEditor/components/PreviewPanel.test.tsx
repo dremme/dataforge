@@ -26,6 +26,7 @@ function renderPanel(overrides: Partial<ComponentProps<typeof PreviewPanel>> = {
     hasMissing: false,
     guides: false,
     onGuides: vi.fn(),
+    renderFrame: vi.fn(),
     ...overrides,
   };
   return { ...props, ...render(<PreviewPanel {...props} />) };

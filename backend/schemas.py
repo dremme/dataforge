@@ -1542,6 +1542,9 @@ type VideoProjectTitleAlign = Literal["left", "center", "right"]
 type VideoProjectSizePreset = Literal["source", "720p", "1080p"]
 type VideoProjectOrientation = Literal["landscape", "portrait", "square"]
 type VideoProjectQuality = Literal["standard", "high", "small"]
+#: ``limit`` holds true peaks under the ceiling; ``normalize`` also brings the mix to the
+#: loudness target first. ``unchanged`` sums the clips as they are and can clip.
+type VideoProjectAudioLevel = Literal["unchanged", "limit", "normalize"]
 #: ``changed`` means the file's size or modification time no longer matches the recorded one.
 type VideoProjectSourceState = Literal["ok", "missing", "changed"]
 type VideoProjectExportStatus = Literal["running", "completed", "failed", "cancelled"]
@@ -1684,6 +1687,7 @@ class VideoProjectExportSettings(BaseModel):
     orientation: VideoProjectOrientation | None = None
     quality: VideoProjectQuality = "standard"
     copy_caption: bool = False
+    audio_level: VideoProjectAudioLevel = "limit"
 
 
 class VideoProject(BaseModel):
@@ -1913,10 +1917,55 @@ class VideoProjectExportState(BaseModel):
     error: str | None = None
     started_at: str
     finished_at: str | None = None
+    #: Measured on the finished file; None while running or when it could not be measured.
+    loudness_lufs: float | None = None
+    true_peak_db: float | None = None
 
 
 class VideoProjectExportsResponse(BaseModel):
     exports: list[VideoProjectExportState] = Field(default_factory=list)
+
+
+class VideoProjectFrameRequest(BaseModel):
+    """One frame of the project as the export draws it, at the project's own size."""
+
+    folder: str
+    project: VideoProject
+    #: Timeline seconds; the frame showing at that time is drawn.
+    time: float = Field(ge=0.0)
+
+
+class VideoProjectCompatibleCopyRequest(BaseModel):
+    """A source video the browser cannot play, to be copied as H.264 beside it."""
+
+    path: str
+
+
+class VideoProjectVersionRequest(BaseModel):
+    project: VideoProject
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+
+
+class VideoProjectVersionSummary(BaseModel):
+    id: str
+    created_at: str
+    #: None for an automatic checkpoint; a named version carries the name it was saved under.
+    label: str | None = None
+    revision: int
+    name: str
+    duration: float
+    clip_count: int
+
+
+class VideoProjectVersionsResponse(BaseModel):
+    versions: list[VideoProjectVersionSummary] = Field(default_factory=list)
+
+
+class VideoProjectVersionDocument(BaseModel):
+    """A stored version, with its sources checked against the folder it is restored into."""
+
+    project: VideoProject
+    sources: list[VideoProjectSourceStatus] = Field(default_factory=list)
 
 
 class JobEvent(BaseModel):

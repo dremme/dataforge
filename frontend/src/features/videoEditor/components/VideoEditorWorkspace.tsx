@@ -14,6 +14,7 @@ import {
   iconTriangleAlert,
   iconX,
 } from "@/shared/icons";
+import { useQueryClient } from "@tanstack/react-query";
 import { useBlocker } from "@tanstack/react-router";
 import { formatApiError } from "@/shared/api/http";
 import { isEditableTarget, isTextEntryTarget } from "@/shared/lib/isEditableTarget";
@@ -28,12 +29,17 @@ import type {
   VideoProjectExportSettings,
   VideoProjectSource,
   VideoProjectSourceInfo,
+  VideoProjectVersionSummary,
 } from "@/shared/types";
 import {
   deleteVideoProject,
+  makeCompatibleCopy,
   newVideoProject,
   openVideoProject,
   probeVideoProjectSource,
+  readVideoProjectVersion,
+  renderVideoProjectFrame,
+  saveVideoProject,
   startVideoProject,
   suggestVideoProjectAdjust,
   startVideoProjectExport,
@@ -41,7 +47,9 @@ import {
 import { withAuto, withoutAuto } from "@/features/gallery/lib/autoAdjust";
 import type { VideoEditorRequest } from "@/features/videoEditor/context/VideoEditorContext";
 import { EDITOR_ROUTE } from "@/features/videoEditor/lib/editorLocation";
+import { useMediaProblems } from "@/features/videoEditor/hooks/usePlayhead";
 import { useVideoExports } from "@/features/videoEditor/hooks/useVideoExports";
+import { VIDEO_PROJECTS_QUERY_KEY } from "@/features/videoEditor/hooks/useVideoProjectList";
 import {
   useVideoProject,
   type VideoProjectState,
@@ -57,6 +65,7 @@ import {
   deleteClips,
   duplicateClips,
   linkClips,
+  newId,
   placeSource,
   projectDuration,
   removeDissolve,
@@ -78,6 +87,7 @@ import { DeleteVideoProjectDialog } from "./DeleteVideoProjectDialog";
 import { EditorTopBar } from "./EditorTopBar";
 import { ExportDialog } from "./ExportDialog";
 import { MediaBrowser, type MediaView } from "./MediaBrowser";
+import { MediaProblems } from "./MediaProblems";
 import {
   PreviewPanel,
   type PreviewMode,
@@ -88,6 +98,7 @@ import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
 import { SourceIssues } from "./SourceIssues";
 import { Splitter } from "./Splitter";
 import { Timeline, TIMELINE_ORIGIN_PX, TRACK_HEADER_PX, type TimelineTool } from "./Timeline";
+import { VersionsDialog } from "./VersionsDialog";
 import { MAX_PX_PER_SECOND, MIN_PX_PER_SECOND, TimelineToolbar } from "./TimelineToolbar";
 
 interface VideoEditorWorkspaceProps {
@@ -289,6 +300,8 @@ function EditorSession({
   const [exportError, setExportError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [converting, setConverting] = useState<ReadonlySet<string>>(new Set());
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -297,8 +310,10 @@ function EditorSession({
   const timelineBoxRef = useRef<HTMLDivElement>(null);
   const sourceTransportRef = useRef<SourceTransport | null>(null);
   const { exports, track, cancel, dismiss } = useVideoExports();
+  const queryClient = useQueryClient();
+  const mediaProblems = useMediaProblems(engine);
 
-  const dialogOpen = exportOpen || settingsOpen || leaveOpen || deleteOpen;
+  const dialogOpen = exportOpen || settingsOpen || leaveOpen || deleteOpen || versionsOpen;
   const locations = useMemo(
     () => sourceLocations(state.sources, project.sources),
     [state.sources, project.sources],
@@ -587,6 +602,70 @@ function EditorSession({
     [project, state],
   );
 
+  /** Writes an H.264 copy of a source the browser cannot play, and relinks the project to it. */
+  const convertSource = useCallback(
+    async (sourceId: string) => {
+      const status = state.sources.find((item) => item.source_id === sourceId);
+      if (!status) return;
+      setConverting((current) => new Set([...current, sourceId]));
+      try {
+        const copy = await makeCompatibleCopy(status.path);
+        await resolveSource(sourceId, copy.path);
+      } catch (caught) {
+        setMessage(formatApiError(caught));
+      } finally {
+        setConverting((current) => new Set([...current].filter((id) => id !== sourceId)));
+      }
+    },
+    [resolveSource, state.sources],
+  );
+
+  /** Saves a copy under a new id and name, then carries on editing the copy. */
+  const duplicateProject = useCallback(async () => {
+    if (!(await state.flush())) {
+      setMessage("Save this project before duplicating it; it has unsaved changes.");
+      return;
+    }
+    try {
+      const copy: Project = {
+        ...state.project,
+        id: newId(),
+        name: `${state.project.name} copy`.slice(0, 120),
+        revision: 0,
+      };
+      const saved = await saveVideoProject(state.folder, null, null, copy);
+      void queryClient.invalidateQueries({ queryKey: VIDEO_PROJECTS_QUERY_KEY });
+      await openDraft(saved.path);
+    } catch (caught) {
+      setMessage(formatApiError(caught));
+    }
+  }, [openDraft, queryClient, state]);
+
+  /** A stored version replaces the timeline as one undoable edit of this same draft. */
+  const restoreVersion = useCallback(
+    async (version: VideoProjectVersionSummary) => {
+      const stored = await readVideoProjectVersion(version.id, state.folder);
+      const current = state.project;
+      engine.pause();
+      state.commit({
+        ...stored.project,
+        id: current.id,
+        revision: current.revision,
+        created_at: current.created_at,
+        updated_at: current.updated_at,
+      });
+      const restored = new Set(stored.sources.map((status) => status.source_id));
+      state.setSources([
+        ...state.sources.filter((status) => !restored.has(status.source_id)),
+        ...stored.sources,
+      ]);
+      setSelection(new Set());
+      setTransitionId(null);
+      setRange(null);
+    },
+    [engine, setSelection, state],
+  );
+
   const usedIssues = state.sources.filter(
     (status) =>
       status.state !== "ok" && project.clips.some((clip) => clip.source_id === status.source_id),
@@ -761,6 +840,8 @@ function EditorSession({
             setBrowserTab("projects");
           }}
           onSettings={() => setSettingsOpen(true)}
+          onDuplicate={() => void duplicateProject()}
+          onVersions={() => setVersionsOpen(true)}
           onDelete={() => setDeleteOpen(true)}
           onExport={() => {
             setExportError(null);
@@ -824,6 +905,16 @@ function EditorSession({
             hasMissing={state.sources.some((status) => status.state === "missing")}
             guides={layout.guides}
             onGuides={() => setLayout((current) => ({ ...current, guides: !current.guides }))}
+            renderFrame={(time) => renderVideoProjectFrame(state.folder, project, time)}
+            notice={
+              <MediaProblems
+                project={project}
+                problems={mediaProblems}
+                converting={converting}
+                onRetry={(sourceId) => engine.retry(sourceId)}
+                onConvert={(sourceId) => void convertSource(sourceId)}
+              />
+            }
           />
 
           {layout.inspectorOpen && (
@@ -1000,6 +1091,13 @@ function EditorSession({
             await deleteVideoProject(path);
             onExit();
           }}
+        />
+      )}
+      {versionsOpen && (
+        <VersionsDialog
+          project={project}
+          onRestore={restoreVersion}
+          onClose={() => setVersionsOpen(false)}
         />
       )}
       {settingsOpen && (

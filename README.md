@@ -33,7 +33,7 @@ The app opens at `http://localhost:18081`. Try [`sample_media/`](sample_media/) 
 - **Auto-caption:** generate image and video captions with an OpenAI-compatible vision model, optionally including video audio.
 - **Review:** model checks, caption-rule linting, near-duplicate detection, and dataset statistics.
 - **Edit media:** crop, resize, color adjustment, Auto-adjust, video trim/speed/audio, and blur or blackout regions. Editor changes retain originals for reversion.
-- **Video editor:** cut videos, stills, sound, and titles together on a multi-track timeline with dissolves, fades, and per-clip color, then export an MP4. See the [User guide](docs/user-guide.md#video-editor).
+- **Video editor:** cut videos, stills, sound, and titles together on a multi-track timeline with dissolves, fades, and per-clip color, then export an MP4. See the [Video editor guide](docs/video-editor.md).
 - **Process:** run ComfyUI workflows and review results before accepting them individually or in bulk.
 - **Train:** start and monitor LoRA training on the current folder through AI-Toolkit.
 
@@ -59,6 +59,7 @@ Accepting a ComfyUI result replaces its source without a backup. Metadata stripp
 | ------------------------------------------ | -------------------------------------------------------------------------- |
 | [Getting started](docs/getting-started.md) | Install, run, update, and troubleshoot startup                             |
 | [User guide](docs/user-guide.md)           | Browse, caption, review, edit, and run jobs; formats, files, and shortcuts |
+| [Video editor](docs/video-editor.md)       | Edit timelines, manage projects, preview, export, and use editor shortcuts |
 | [Configuration](docs/configuration.md)     | Recommended models, Settings, input budgets, and environment variables     |
 | [ComfyUI](docs/comfyui.md)                 | Process media, review results, and create workflow presets                 |
 | [AI-Toolkit](docs/ai-toolkit.md)           | Choose a template, start training, and monitor LoRA runs                   |

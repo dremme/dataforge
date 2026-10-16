@@ -97,6 +97,7 @@ export function makeProject(patch: Partial<Project> = {}): Project {
       orientation: null,
       quality: "standard",
       copy_caption: false,
+      audio_level: "limit",
     },
     ...patch,
   };

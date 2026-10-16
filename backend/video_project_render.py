@@ -3,7 +3,8 @@
 Layers stack bottom up: the lowest video track first, and within a track later clips above
 earlier ones, which is what makes a dissolve's incoming clip fade in over the outgoing one.
 Every clip is offset onto the timeline with ``setpts`` and overlaid with ``eof_action=pass``, so
-gaps stay black. Audio clips are delayed to their place and mixed over silence of the full length.
+gaps stay black. Audio clips are delayed to their place and mixed over silence of the full length,
+then limited, and normalized first when asked, by the export's audio level setting.
 
 Titles and stills are drawn by Pillow into the render's workspace: the preview shows the same
 title image, and a still's EXIF orientation is applied the way the gallery shows it.
@@ -12,6 +13,7 @@ title image, and a still's EXIF orientation is applied the way the gallery shows
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,11 +22,17 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont
 
 from automation.watermark import resolve_watermark_font
 from color_adjust import adjust_lut, is_adjust_identity, is_global_identity, write_cube
-from constants import VIDEO_PROJECT_QUALITY_PRESETS
+from constants import (
+    VIDEO_PROJECT_LOUDNESS_TARGET_LUFS,
+    VIDEO_PROJECT_MIN_CLIP_SECONDS,
+    VIDEO_PROJECT_QUALITY_PRESETS,
+    VIDEO_PROJECT_TRUE_PEAK_CEILING_DB,
+)
 from image_io import displayed_image
 from schemas import (
     VideoEditSpec,
     VideoProject,
+    VideoProjectAudioLevel,
     VideoProjectClip,
     VideoProjectExportSettings,
     VideoProjectFont,
@@ -47,6 +55,8 @@ SIZE_PRESET_SHORT_SIDES = {"720p": 720, "1080p": 1080}
 WIDESCREEN = 16 / 9
 
 AUDIO_SAMPLE_RATE = 48000
+#: The limiter runs at four times the rate, so it also sees the peaks between samples.
+LIMITER_OVERSAMPLING = 4
 
 GRAPH_FILE_NAME = "graph.txt"
 
@@ -298,7 +308,9 @@ def _visual_chain(
     if fade_out > IDENTITY_EPSILON:
         start = max(0.0, clip.duration - fade_out)
         tail.append(f"fade=t=out:st={_seconds(start)}:d={_seconds(fade_out)}:alpha=1")
-    tail.append(f"setpts=PTS+{_seconds(clip.start)}/TB")
+    # The layer runs on the project's frame grid here, so the offset is a whole number of
+    # ticks; rounded, because setpts truncates and 26/24 s written to six places is 25.99999.
+    tail.append(f"setpts=PTS+round({_seconds(clip.start)}/TB)")
 
     links.append(f"[{input_label}]{','.join(head + tail)}[layer{index}]")
     return links
@@ -345,25 +357,18 @@ def _source_size(source: VideoProjectSource, project: VideoProject) -> tuple[int
     return project.width, project.height
 
 
-def build_render(
+def _picture_links(
     project: VideoProject,
     folder: Path,
-    output: Path,
+    inputs: RenderInputs,
     *,
-    settings: VideoProjectExportSettings,
-    executable: str,
+    duration: float,
     workspace: Path,
     probe_color: ColorProbe,
-) -> RenderPlan:
-    """Write the graph and every layer file into ``workspace``, where ffmpeg must run."""
-    duration = project_duration(project)
-    if duration <= 0:
-        raise ValueError("The timeline is empty, so there is nothing to export")
-
+) -> tuple[list[str], str]:
+    """The composited canvas at the project's size, and the label it ends on."""
     sources = {source.id: source for source in project.sources}
-    tracks = {track.id: track for track in project.tracks}
     overlaps = transition_overlaps(project)
-    inputs = RenderInputs(arguments=[])
     links: list[str] = []
     canvas = f"{project.width}x{project.height}"
     links.append(
@@ -417,20 +422,19 @@ def build_render(
             links.append(f"[{base}][layer{layer}]overlay=x={x}:y={y}:eof_action=pass[stack{layer}]")
             base = f"stack{layer}"
             layer += 1
+    return links, base
 
-    width, height = export_size(project, settings)
-    finish = ["setsar=1"]
-    if (width, height) != (project.width, project.height):
-        finish = [
-            f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos",
-            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black",
-            "setsar=1",
-        ]
-    links.append(f"[{base}]{','.join(finish)},format=yuv420p[vout]")
 
-    links.append(
+def _mix_links(
+    project: VideoProject, folder: Path, inputs: RenderInputs, *, duration: float
+) -> tuple[list[str], str]:
+    """Every audible clip summed as it is, over silence of the full length."""
+    sources = {source.id: source for source in project.sources}
+    tracks = {track.id: track for track in project.tracks}
+    overlaps = transition_overlaps(project)
+    links = [
         f"anullsrc=r={AUDIO_SAMPLE_RATE}:cl=stereo,atrim=duration={_seconds(duration)}[silence]"
-    )
+    ]
     mixed = ["silence"]
     audible = {track.id for track in audible_tracks(project)}
     for clip in project.clips:
@@ -444,13 +448,73 @@ def build_render(
         links.append(_audio_chain(clip, label, f"{index}:a", effective_fades(clip, overlaps)))
         mixed.append(f"aud{label}")
     if len(mixed) == 1:
-        links.append("[silence]anull[aout]")
+        links.append("[silence]anull[mix]")
     else:
         streams = "".join(f"[{name}]" for name in mixed)
         links.append(
             f"{streams}amix=inputs={len(mixed)}:duration=first:dropout_transition=0:normalize=0,"
-            f"atrim=duration={_seconds(duration)}[aout]"
+            f"atrim=duration={_seconds(duration)}[mix]"
         )
+    return links, "mix"
+
+
+def audio_level_filters(level: VideoProjectAudioLevel, measured_lufs: float | None) -> list[str]:
+    """Normalization is one linear gain to the target, so the mix keeps its own dynamics. The
+    limiter runs oversampled, so true peaks, not just samples, stay under the ceiling."""
+    if level == "unchanged":
+        return []
+    filters: list[str] = []
+    if level == "normalize" and measured_lufs is not None and math.isfinite(measured_lufs):
+        filters.append(f"volume={VIDEO_PROJECT_LOUDNESS_TARGET_LUFS - measured_lufs:.3f}dB")
+    ceiling = 10 ** (VIDEO_PROJECT_TRUE_PEAK_CEILING_DB / 20)
+    filters += [
+        f"aresample={AUDIO_SAMPLE_RATE * LIMITER_OVERSAMPLING}",
+        f"alimiter=limit={ceiling:.6f}:level=disabled:latency=1",
+        f"aresample={AUDIO_SAMPLE_RATE}",
+    ]
+    return filters
+
+
+def _checked_duration(project: VideoProject) -> float:
+    duration = project_duration(project)
+    if duration <= 0:
+        raise ValueError("The timeline is empty, so there is nothing to export")
+    return duration
+
+
+def build_render(
+    project: VideoProject,
+    folder: Path,
+    output: Path,
+    *,
+    settings: VideoProjectExportSettings,
+    executable: str,
+    workspace: Path,
+    probe_color: ColorProbe,
+    measured_lufs: float | None = None,
+) -> RenderPlan:
+    """Write the graph and every layer file into ``workspace``, where ffmpeg must run.
+    ``normalize`` needs ``measured_lufs``, the mix's loudness from ``build_mix_measure``."""
+    duration = _checked_duration(project)
+    inputs = RenderInputs(arguments=[])
+    links, base = _picture_links(
+        project, folder, inputs, duration=duration, workspace=workspace, probe_color=probe_color
+    )
+
+    width, height = export_size(project, settings)
+    finish = ["setsar=1"]
+    if (width, height) != (project.width, project.height):
+        finish = [
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos",
+            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black",
+            "setsar=1",
+        ]
+    links.append(f"[{base}]{','.join(finish)},format=yuv420p[vout]")
+
+    mix_links, mix = _mix_links(project, folder, inputs, duration=duration)
+    links += mix_links
+    level = audio_level_filters(settings.audio_level, measured_lufs)
+    links.append(f"[{mix}]{','.join([*level, f'atrim=duration={_seconds(duration)}'])}[aout]")
 
     (workspace / GRAPH_FILE_NAME).write_text(";\n".join(links), encoding="utf-8")
 
@@ -497,6 +561,124 @@ def build_render(
         str(output),
     ]
     return RenderPlan(command=command, duration=duration)
+
+
+def build_mix_measure(
+    project: VideoProject, folder: Path, *, executable: str, workspace: Path
+) -> list[str]:
+    """A sound-only pass that logs the unprocessed mix's loudness; see ``parse_loudness``."""
+    duration = _checked_duration(project)
+    inputs = RenderInputs(arguments=[])
+    links, mix = _mix_links(project, folder, inputs, duration=duration)
+    links.append(f"[{mix}]ebur128=peak=true:framelog=quiet[aout]")
+    (workspace / GRAPH_FILE_NAME).write_text(";\n".join(links), encoding="utf-8")
+    return [
+        *(executable, "-nostdin", "-hide_banner", "-nostats", "-loglevel", "info", "-y"),
+        *inputs.arguments,
+        *("-/filter_complex", GRAPH_FILE_NAME, "-map", "[aout]", "-f", "null", "-"),
+    ]
+
+
+def build_file_measure(executable: str, media: Path) -> list[str]:
+    """Logs a finished file's loudness; see ``parse_loudness``."""
+    return [
+        *(executable, "-nostdin", "-hide_banner", "-nostats", "-loglevel", "info"),
+        *("-i", str(media), "-map", "0:a:0", "-af", "ebur128=peak=true:framelog=quiet"),
+        *("-f", "null", "-"),
+    ]
+
+
+_INTEGRATED = re.compile(r"Integrated loudness:\s*I:\s*(-?[\d.]+|-inf) LUFS")
+_TRUE_PEAK = re.compile(r"True peak:\s*Peak:\s*(-?[\d.]+|-inf) dBFS")
+
+
+@dataclass(frozen=True, slots=True)
+class Loudness:
+    #: -inf for silence, which the measurement's gate leaves out entirely.
+    integrated_lufs: float
+    true_peak_db: float
+
+
+def parse_loudness(log: str) -> Loudness | None:
+    """The last ``ebur128`` summary in an ffmpeg log, or None when there is none."""
+    integrated = _INTEGRATED.findall(log)
+    peak = _TRUE_PEAK.findall(log)
+    if not integrated or not peak:
+        return None
+    return Loudness(float(integrated[-1]), float(peak[-1]))
+
+
+def frame_index(time: float, frame_rate: float) -> int:
+    """The frame showing at ``time``: frame ``k`` runs from ``k / rate`` up to the next one."""
+    return max(0, math.floor(time * frame_rate + 1e-6))
+
+
+def build_frame(
+    project: VideoProject,
+    folder: Path,
+    output: Path,
+    time: float,
+    *,
+    executable: str,
+    workspace: Path,
+    probe_color: ColorProbe,
+) -> list[str]:
+    """One PNG of the export's picture at ``time``, at the project's size.
+
+    Only clips around that frame are rendered, moved back by whole frames, so the frame grid
+    and each clip's own fades and offsets stay exactly as the export has them."""
+    duration = _checked_duration(project)
+    rate = project.frame_rate
+    index = min(frame_index(time, rate), max(0, math.ceil(duration * rate - 1e-6) - 1))
+    at = index / rate
+    near = [
+        clip
+        for clip in project.clips
+        if clip.kind != "audio" and clip.start <= at + 1 / rate and clip.end >= at - 1 / rate
+    ]
+    names = {source.id: source.name for source in project.sources}
+    for clip in near:
+        if clip.source_id is not None and not (folder / names[clip.source_id]).is_file():
+            raise ValueError(f"{names[clip.source_id]} is missing, so this frame cannot be drawn")
+    shift = frame_index(min((clip.start for clip in near), default=at), rate)
+    kept = {clip.id for clip in near}
+    part = project.model_copy(
+        update={
+            "clips": [clip.model_copy(update={"start": clip.start - shift / rate}) for clip in near]
+            or [_spacer(project, (index - shift + 1) / rate)],
+            "transitions": [
+                transition
+                for transition in project.transitions
+                if transition.from_clip_id in kept and transition.to_clip_id in kept
+            ],
+        }
+    )
+    length = max(project_duration(part), (index - shift + 1) / rate)
+    inputs = RenderInputs(arguments=[])
+    links, base = _picture_links(
+        part, folder, inputs, duration=length, workspace=workspace, probe_color=probe_color
+    )
+    links.append(f"[{base}]select='eq(n\\,{index - shift})',setsar=1,format=rgb24[vout]")
+    (workspace / GRAPH_FILE_NAME).write_text(";\n".join(links), encoding="utf-8")
+    return [
+        *(executable, "-nostdin", "-hide_banner", "-nostats", "-loglevel", "error", "-y"),
+        *inputs.arguments,
+        *("-/filter_complex", GRAPH_FILE_NAME, "-map", "[vout]", "-frames:v", "1"),
+        *("-update", "1", "-f", "image2", "-c:v", "png", str(output)),
+    ]
+
+
+def _spacer(project: VideoProject, duration: float) -> VideoProjectClip:
+    """An empty title, so a frame in a gap still has a canvas to draw."""
+    track = next(track.id for track in project.tracks if track.kind == "video")
+    return VideoProjectClip(
+        id="frame-spacer",
+        track_id=track,
+        kind="title",
+        start=0.0,
+        duration=max(duration, VIDEO_PROJECT_MIN_CLIP_SECONDS),
+        title=VideoProjectTitle(text=""),
+    )
 
 
 def _still_input(

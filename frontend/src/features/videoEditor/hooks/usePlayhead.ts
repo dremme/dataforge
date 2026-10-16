@@ -1,5 +1,9 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import type { PreviewEngine } from "@/features/videoEditor/lib/previewEngine";
+import type {
+  MediaProblem,
+  PreviewEngine,
+  PreviewFidelity,
+} from "@/features/videoEditor/lib/previewEngine";
 
 /** Readouts redraw a few times a second; the playhead line itself is moved without React. */
 const READOUT_INTERVAL_MS = 100;
@@ -37,4 +41,18 @@ export function useEnginePlaying(engine: PreviewEngine): { playing: boolean; wai
     () => engine.isWaiting,
   );
   return { playing, waiting };
+}
+
+export function useMediaProblems(engine: PreviewEngine): MediaProblem[] {
+  return useSyncExternalStore(
+    (listener) => engine.subscribeState(listener),
+    () => engine.mediaProblems,
+  );
+}
+
+export function usePreviewFidelity(engine: PreviewEngine): PreviewFidelity {
+  return useSyncExternalStore(
+    (listener) => engine.subscribeState(listener),
+    () => engine.previewFidelity,
+  );
 }

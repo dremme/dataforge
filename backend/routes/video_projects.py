@@ -1,5 +1,7 @@
 import io
 import json
+import logging
+import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Response
@@ -7,7 +9,7 @@ from pydantic import ValidationError
 
 from color_auto import image_analysis_pixels, suggest_adjust, video_analysis_pixels
 from ffmpeg_bin import ffmpeg_path
-from ffmpeg_run import FfmpegCancelled
+from ffmpeg_run import FfmpegCancelled, run_ffmpeg
 from filesystem import normalize_user_path
 from image_io import ImageReadError
 from media_file_response import MediaFileResponse
@@ -17,20 +19,27 @@ from schemas import (
     MIN_PROJECT_DIMENSION,
     AutoAdjustResponse,
     VideoProjectAutoAdjustRequest,
+    VideoProjectCompatibleCopyRequest,
     VideoProjectDocument,
     VideoProjectExportRequest,
     VideoProjectExportsResponse,
     VideoProjectExportState,
     VideoProjectFontFamily,
     VideoProjectFontsResponse,
+    VideoProjectFrameRequest,
     VideoProjectListResponse,
     VideoProjectSaveRequest,
     VideoProjectSaveResponse,
     VideoProjectSourceInfo,
     VideoProjectTitle,
+    VideoProjectVersionDocument,
+    VideoProjectVersionRequest,
+    VideoProjectVersionsResponse,
+    VideoProjectVersionSummary,
 )
 from system_fonts import installed_families
 from thumbnails import ThumbnailError
+from video_edit import probe_stream_color
 from video_project import (
     ProjectConflictError,
     delete_draft,
@@ -43,13 +52,28 @@ from video_project import (
     read_project_file,
     save_project,
     source_kind_for,
+    source_states,
     start_document,
 )
+from video_project_compat import make_compatible_copy
 from video_project_export import FFMPEG_MISSING_MESSAGE, export_manager
 from video_project_media import filmstrip, waveform
-from video_project_render import render_title_image
+from video_project_render import build_frame, render_title_image
+from video_project_versions import (
+    delete_project_versions,
+    delete_version,
+    list_versions,
+    read_version,
+    record_checkpoint,
+    save_named_version,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+#: One frame renders only the clips around it, so this is generous.
+FRAME_TIMEOUT_SECONDS = 120
 
 _TIMELINE_CACHE = "public, max-age=31536000, immutable"
 
@@ -129,6 +153,11 @@ def save_video_project(body: VideoProjectSaveRequest) -> VideoProjectSaveRespons
         raise HTTPException(
             status_code=500, detail=f"The project could not be saved: {exc}"
         ) from exc
+    try:
+        record_checkpoint(saved)
+    except Exception:
+        # The draft is saved; a missing checkpoint only shortens the version history.
+        logger.warning("Could not record a checkpoint of %s", saved_path.name, exc_info=True)
     return VideoProjectSaveResponse(
         path=str(saved_path), revision=saved.revision, updated_at=saved.updated_at
     )
@@ -140,11 +169,53 @@ def delete_video_project(
 ) -> Response:
     project_path = _project_file(path)
     try:
+        project_id = read_project_file(project_path).id
+    except (ValueError, OSError):
+        project_id = None
+    try:
         delete_draft(project_path.parent, project_path)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OSError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    if project_id is not None:
+        delete_project_versions(project_id)
+    return Response(status_code=204)
+
+
+@router.get("/video-projects/versions", response_model=VideoProjectVersionsResponse)
+def list_video_project_versions(
+    project_id: str = Query(..., min_length=1, description="The project's id"),
+) -> VideoProjectVersionsResponse:
+    """Named versions and automatic checkpoints, newest first."""
+    return VideoProjectVersionsResponse(versions=list_versions(project_id))
+
+
+@router.post("/video-projects/versions", response_model=VideoProjectVersionSummary)
+def save_video_project_version(body: VideoProjectVersionRequest) -> VideoProjectVersionSummary:
+    return save_named_version(body.project, body.label)
+
+
+@router.get("/video-projects/versions/{version_id}", response_model=VideoProjectVersionDocument)
+def read_video_project_version(
+    version_id: str,
+    folder: str = Query(..., description="The folder the version would be restored into"),
+) -> VideoProjectVersionDocument:
+    try:
+        project = read_version(version_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return VideoProjectVersionDocument(
+        project=project, sources=source_states(resolve_folder(folder), project)
+    )
+
+
+@router.delete("/video-projects/versions/{version_id}", status_code=204)
+def delete_video_project_version(version_id: str) -> Response:
+    if not delete_version(version_id):
+        raise HTTPException(status_code=404, detail="Version not found")
     return Response(status_code=204)
 
 
@@ -157,6 +228,56 @@ def probe_video_project_source(
         return probe_source_file(media)
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/video-projects/compatible-copy", response_model=VideoProjectSourceInfo)
+def make_video_project_compatible_copy(
+    body: VideoProjectCompatibleCopyRequest,
+) -> VideoProjectSourceInfo:
+    """An H.264 copy of a video the preview cannot decode, beside it; the original stays."""
+    media = _editor_source(body.path)
+    if source_kind_for(media) != "video":
+        raise HTTPException(status_code=400, detail="Only a video can be copied this way")
+    executable = ffmpeg_path()
+    if not executable:
+        raise HTTPException(status_code=503, detail="ffmpeg is required to convert a video")
+    try:
+        return probe_source_file(make_compatible_copy(executable, media))
+    except (ValueError, RuntimeError, OSError) as exc:
+        raise HTTPException(
+            status_code=422, detail=f"{media.name} could not be converted: {exc}"
+        ) from exc
+
+
+@router.post("/video-projects/frame")
+def render_video_project_frame(body: VideoProjectFrameRequest) -> Response:
+    """The frame at ``time`` drawn by the export's own renderer, at the project's full size,
+    so what the export will show can be checked against the browser's preview."""
+    folder = resolve_folder(body.folder)
+    executable = ffmpeg_path()
+    if not executable:
+        raise HTTPException(status_code=503, detail="ffmpeg is required to render a frame")
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as workspace:
+            output = Path(workspace) / "frame.png"
+            command = build_frame(
+                body.project,
+                folder,
+                output,
+                body.time,
+                executable=executable,
+                workspace=Path(workspace),
+                probe_color=lambda path: probe_stream_color(executable, path),
+            )
+            run_ffmpeg(command, timeout=FRAME_TIMEOUT_SECONDS, cwd=Path(workspace))
+            picture = output.read_bytes()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (RuntimeError, OSError) as exc:
+        raise HTTPException(
+            status_code=422, detail=f"The frame could not be rendered: {exc}"
+        ) from exc
+    return Response(content=picture, media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
 @router.get("/video-projects/fonts", response_model=VideoProjectFontsResponse)

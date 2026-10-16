@@ -1,4 +1,4 @@
-import { postJson, putJson, requestJson } from "@/shared/api/http";
+import { NetworkError, parseApiError, postJson, putJson, requestJson } from "@/shared/api/http";
 import type {
   AutoAdjustResponse,
   VideoProject,
@@ -11,6 +11,9 @@ import type {
   VideoProjectSaveResponse,
   VideoProjectSourceInfo,
   VideoProjectTitle,
+  VideoProjectVersionDocument,
+  VideoProjectVersionsResponse,
+  VideoProjectVersionSummary,
 } from "@/shared/types";
 
 const BASE = "/api/video-projects";
@@ -48,6 +51,57 @@ export async function deleteVideoProject(projectPath: string): Promise<void> {
 
 export function probeVideoProjectSource(path: string): Promise<VideoProjectSourceInfo> {
   return requestJson(`${BASE}/source?${new URLSearchParams({ path })}`);
+}
+
+/** Converts a video the preview cannot decode to H.264 beside it; the original stays. */
+export function makeCompatibleCopy(path: string): Promise<VideoProjectSourceInfo> {
+  return postJson(`${BASE}/compatible-copy`, { path });
+}
+
+/** The frame at ``time`` as the export's renderer draws it, at the project's full size. */
+export async function renderVideoProjectFrame(
+  folder: string,
+  project: VideoProject,
+  time: number,
+): Promise<Blob> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE}/frame`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder, project, time }),
+    });
+  } catch (error) {
+    throw new NetworkError({ cause: error });
+  }
+  if (!response.ok) throw await parseApiError(response);
+  return response.blob();
+}
+
+export function listVideoProjectVersions(projectId: string): Promise<VideoProjectVersionsResponse> {
+  return requestJson(`${BASE}/versions?${new URLSearchParams({ project_id: projectId })}`);
+}
+
+export function saveVideoProjectVersion(
+  project: VideoProject,
+  label: string,
+): Promise<VideoProjectVersionSummary> {
+  return postJson(`${BASE}/versions`, { project, label });
+}
+
+export function readVideoProjectVersion(
+  versionId: string,
+  folder: string,
+): Promise<VideoProjectVersionDocument> {
+  return requestJson(
+    `${BASE}/versions/${encodeURIComponent(versionId)}?${new URLSearchParams({ folder })}`,
+  );
+}
+
+export async function deleteVideoProjectVersion(versionId: string): Promise<void> {
+  await requestJson<unknown>(`${BASE}/versions/${encodeURIComponent(versionId)}`, {
+    method: "DELETE",
+  });
 }
 
 /** The wand's suggestion for the take and crop one clip shows of its source. */

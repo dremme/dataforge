@@ -5,10 +5,13 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type Ref,
 } from "react";
+import { formatApiError } from "@/shared/api/http";
 import {
   iconImage,
+  iconImageDown,
   iconLoader2,
   iconPause,
   iconPlay,
@@ -30,9 +33,13 @@ import type { GalleryItem } from "@/shared/types";
 import { AudioWaveform } from "@/features/gallery/components/AudioWaveform";
 import { galleryItemMediaUrl, galleryItemWaveformUrl } from "@/features/gallery/lib/thumbnail";
 import { isAudioName } from "@/features/gallery/lib/itemKind";
-import { useEnginePlaying, usePlayheadTime } from "@/features/videoEditor/hooks/usePlayhead";
+import {
+  useEnginePlaying,
+  usePlayheadTime,
+  usePreviewFidelity,
+} from "@/features/videoEditor/hooks/usePlayhead";
 import { placement } from "@/features/videoEditor/lib/composition";
-import type { PreviewEngine } from "@/features/videoEditor/lib/previewEngine";
+import { MAX_ADJUST_WIDTH, type PreviewEngine } from "@/features/videoEditor/lib/previewEngine";
 import { rangeFill } from "@/features/videoEditor/lib/rangeFill";
 import {
   formatTimecode,
@@ -41,6 +48,8 @@ import {
   type Clip,
   type Project,
 } from "@/features/videoEditor/lib/timeline";
+import { MixMeter } from "./MixMeter";
+import { RenderedFrame, type RenderedFrameState } from "./RenderedFrame";
 import { ToolButton } from "./ToolButton";
 
 export type PreviewMode = "timeline" | "source";
@@ -74,6 +83,10 @@ interface PreviewPanelProps {
   hasMissing: boolean;
   guides: boolean;
   onGuides: () => void;
+  /** The export renderer's picture of the frame at ``time``, at the project's full size. */
+  renderFrame: (time: number) => Promise<Blob>;
+  /** Shown above the timeline monitor, e.g. sources the browser cannot play. */
+  notice?: ReactNode;
 }
 
 export function PreviewPanel({
@@ -91,6 +104,8 @@ export function PreviewPanel({
   hasMissing,
   guides,
   onGuides,
+  renderFrame,
+  notice,
 }: PreviewPanelProps) {
   return (
     <section className="video-editor__preview video-editor__pane" aria-label="Preview">
@@ -126,6 +141,7 @@ export function PreviewPanel({
           />
         )}
       </div>
+      {mode === "timeline" && notice}
       {mode === "timeline" ? (
         <TimelinePreview
           engine={engine}
@@ -134,6 +150,7 @@ export function PreviewPanel({
           onTransform={onTransform}
           hasMissing={hasMissing}
           guides={guides}
+          renderFrame={renderFrame}
         />
       ) : sourceItem ? (
         <SourcePreview
@@ -157,6 +174,7 @@ function TimelinePreview({
   onTransform,
   hasMissing,
   guides,
+  renderFrame,
 }: {
   engine: PreviewEngine;
   project: Project;
@@ -164,12 +182,20 @@ function TimelinePreview({
   onTransform: (clip: Clip, next: Clip["transform"], final: boolean) => void;
   hasMissing: boolean;
   guides: boolean;
+  renderFrame: (time: number) => Promise<Blob>;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [box, setBox] = useState({ width: 0, height: 0 });
+  const [drawn, setDrawn] = useState({ width: 0, height: 0 });
   const time = usePlayheadTime(engine);
   const { playing, waiting } = useEnginePlaying(engine);
+  const fidelity = usePreviewFidelity(engine);
+  const [frame, setFrame] = useState<RenderedFrameState | null>(null);
+  const [frameState, setFrameState] = useState<{ busy: boolean; error: string | null }>({
+    busy: false,
+    error: null,
+  });
   const duration = projectDuration(project);
   const step = 1 / project.frame_rate;
   // The scrubber counts frames: a seconds range stepped by 1/fps stops on its last whole step,
@@ -206,10 +232,45 @@ function TimelinePreview({
     const width = Math.min(project.width, Math.round(box.width * density));
     canvas.width = Math.max(1, width);
     canvas.height = Math.max(1, Math.round((width * project.height) / project.width));
+    setDrawn({ width: canvas.width, height: canvas.height });
     engine.attach(canvas);
     return () => engine.attach(null);
   }, [engine, box.width, project.width, project.height]);
 
+  // A rendered frame answers for one moment of one edit; moving on puts the live preview back.
+  useEffect(() => setFrame(null), [time, project]);
+  useEffect(() => {
+    if (!frame) return;
+    return () => URL.revokeObjectURL(frame.url);
+  }, [frame]);
+
+  const showRenderedFrame = async () => {
+    engine.pause();
+    const at = engine.currentTime;
+    setFrameState({ busy: true, error: null });
+    try {
+      const blob = await renderFrame(at);
+      setFrame({
+        url: URL.createObjectURL(blob),
+        timecode: formatTimecode(at, project.frame_rate),
+        width: project.width,
+        height: project.height,
+      });
+      setFrameState({ busy: false, error: null });
+    } catch (error) {
+      setFrameState({ busy: false, error: formatApiError(error) });
+    }
+  };
+  const reduced = drawn.width > 0 && drawn.width < project.width;
+  const sizeNote = [
+    `The monitor draws ${drawn.width} × ${drawn.height} of the ${project.width} × ` +
+      `${project.height} canvas.`,
+    fidelity.adjustReduced &&
+      `Color-adjusted clips are drawn from a copy at most ${MAX_ADJUST_WIDTH} px wide.`,
+    "Show the export's frame to inspect it at full size.",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <>
       <div ref={stageRef} className="video-editor__stage">
@@ -235,18 +296,40 @@ function TimelinePreview({
               Add media to the timeline to see it here
             </span>
           )}
-          {waiting && (
+          {frame && <RenderedFrame frame={frame} onClose={() => setFrame(null)} />}
+          {waiting ? (
             <span className="video-editor__stage-note" role="status">
               <Icon icon={iconLoader2} spin /> Preparing media...
             </span>
-          )}
-          {hasMissing && !waiting && (
+          ) : frameState.busy ? (
+            <span className="video-editor__stage-note" role="status">
+              <Icon icon={iconLoader2} spin /> Rendering the export's frame...
+            </span>
+          ) : frameState.error ? (
+            <span
+              className="video-editor__stage-note video-editor__stage-note--warning"
+              role="alert"
+            >
+              <Icon icon={iconTriangleAlert} /> {frameState.error}
+            </span>
+          ) : hasMissing ? (
             <span
               className="video-editor__stage-note video-editor__stage-note--warning"
               role="status"
             >
               <Icon icon={iconTriangleAlert} /> Some media is missing; it shows as a marked box.
             </span>
+          ) : (
+            fidelity.adjustUnavailable &&
+            !frame && (
+              <span
+                className="video-editor__stage-note video-editor__stage-note--warning"
+                role="status"
+              >
+                <Icon icon={iconTriangleAlert} /> Color adjustments cannot be drawn here, so
+                adjusted clips show their original colors. The export applies them.
+              </span>
+            )
           )}
         </div>
       </div>
@@ -306,9 +389,31 @@ function TimelinePreview({
               onClick={() => engine.seek(duration)}
             />
           </div>
-          <span className="video-editor__timecode video-editor__timecode--total">
-            {formatTimecode(duration, project.frame_rate)}
-          </span>
+          <div className="video-editor__transport-end">
+            <MixMeter engine={engine} />
+            {drawn.width > 0 && (
+              <span
+                className={classNames(
+                  "video-editor__preview-size",
+                  (reduced || fidelity.adjustReduced) && "video-editor__preview-size--reduced",
+                )}
+                title={sizeNote}
+              >
+                {drawn.width} × {drawn.height}
+                {fidelity.adjustReduced && ` · color ${MAX_ADJUST_WIDTH} px`}
+              </span>
+            )}
+            <ToolButton
+              icon={iconImageDown}
+              label="Show the export's frame"
+              tooltip="Render this frame as the export will, at full size"
+              onClick={() => void showRenderedFrame()}
+              disabled={duration <= 0 || frameState.busy}
+            />
+            <span className="video-editor__timecode video-editor__timecode--total">
+              {formatTimecode(duration, project.frame_rate)}
+            </span>
+          </div>
         </div>
       </div>
     </>

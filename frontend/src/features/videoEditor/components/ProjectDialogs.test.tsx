@@ -88,6 +88,28 @@ describe("ExportDialog", () => {
     );
   });
 
+  it("limits the mix's peaks unless asked to normalize or leave it as mixed", async () => {
+    const user = userEvent.setup();
+    const onExport = vi.fn();
+    render(
+      <ExportDialog
+        project={project}
+        busy={false}
+        error={null}
+        blocked={null}
+        onExport={onExport}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("radio", { name: "Limit peaks" })).toBeChecked();
+
+    await user.click(screen.getByRole("radio", { name: "Normalize" }));
+    expect(screen.getByText(/Brings the whole mix to -14 LUFS/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Export" }));
+
+    expect(onExport).toHaveBeenCalledWith(expect.objectContaining({ audio_level: "normalize" }));
+  });
+
   it("says why an export cannot start and keeps the button off", () => {
     render(
       <ExportDialog

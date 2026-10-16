@@ -65,8 +65,9 @@ def run_ffmpeg(
     on_progress: ProgressCallback | None = None,
     timeout: float = FFMPEG_TIMEOUT_SECONDS,
     cwd: Path | None = None,
-) -> None:
-    """Raises on a non-zero exit, a timeout, or a cancel. ``on_progress`` requires ``-progress pipe:1``."""
+) -> str:
+    """Returns ffmpeg's log. Raises on a non-zero exit, a timeout, or a cancel.
+    ``on_progress`` requires ``-progress pipe:1``."""
     try:
         process = subprocess.Popen(
             command,
@@ -113,6 +114,7 @@ def run_ffmpeg(
             for reader in readers:
                 reader.join(timeout=FFMPEG_READER_JOIN_SECONDS)
 
+    log = b"".join(stderr_output).decode("utf-8", errors="replace").strip()
     if process.returncode != 0:
-        message = b"".join(stderr_output).decode("utf-8", errors="replace").strip()
-        raise RuntimeError(message or "ffmpeg failed")
+        raise RuntimeError(log or "ffmpeg failed")
+    return log

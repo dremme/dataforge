@@ -1,9 +1,15 @@
 import { useId, useState } from "react";
-import { VIDEO_PROJECT_EXPORT_EXTENSION, VIDEO_PROJECT_EXPORT_TAG } from "@/shared/constants";
+import {
+  VIDEO_PROJECT_EXPORT_EXTENSION,
+  VIDEO_PROJECT_EXPORT_TAG,
+  VIDEO_PROJECT_LOUDNESS_TARGET_LUFS,
+  VIDEO_PROJECT_TRUE_PEAK_CEILING_DB,
+} from "@/shared/constants";
 import { formatFileSize } from "@/shared/lib/format";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import { RadioTileGroup } from "@/shared/ui/RadioTileGroup";
 import type {
+  VideoProjectAudioLevel,
   VideoProjectExportSettings,
   VideoProjectOrientation,
   VideoProjectQuality,
@@ -31,6 +37,12 @@ interface ExportDialogProps {
   onCancel: () => void;
 }
 
+const AUDIO_LEVEL_HINTS: Record<VideoProjectAudioLevel, string> = {
+  limit: `Holds true peaks at ${VIDEO_PROJECT_TRUE_PEAK_CEILING_DB} dB, so loud clips summed together cannot clip.`,
+  normalize: `Brings the whole mix to ${VIDEO_PROJECT_LOUDNESS_TARGET_LUFS} LUFS with one gain, then limits peaks at ${VIDEO_PROJECT_TRUE_PEAK_CEILING_DB} dB.`,
+  unchanged: "Sums the clips exactly as set; a loud mix can clip.",
+};
+
 function defaultExportStem(project: Project): string {
   const initial = sourceById(project, project.initial_source_id);
   const stem = initial ? initial.name.replace(/\.[^.]+$/, "") : "video";
@@ -55,6 +67,7 @@ export function ExportDialog({
   );
   const [quality, setQuality] = useState<VideoProjectQuality>(saved.quality);
   const [copyCaption, setCopyCaption] = useState(saved.copy_caption);
+  const [audioLevel, setAudioLevel] = useState<VideoProjectAudioLevel>(saved.audio_level);
   const nameId = useId();
   const captionId = useId();
 
@@ -64,6 +77,7 @@ export function ExportDialog({
     orientation,
     quality,
     copy_caption: copyCaption,
+    audio_level: audioLevel,
   };
   const frame = exportSize(project, settings);
   const duration = projectDuration(project);
@@ -150,6 +164,22 @@ export function ExportDialog({
           { value: "small", title: "Smaller file" },
         ]}
       />
+      <RadioTileGroup
+        label="Sound"
+        name="video-export-audio-level"
+        groupLabel="Export sound level"
+        value={audioLevel}
+        disabled={busy}
+        onChange={setAudioLevel}
+        options={[
+          { value: "limit", title: "Limit peaks" },
+          { value: "normalize", title: "Normalize" },
+          { value: "unchanged", title: "As mixed" },
+        ]}
+      />
+      <p className="dialog__hint video-export-dialog__sound-hint">
+        {AUDIO_LEVEL_HINTS[audioLevel]}
+      </p>
       <div className="dialog__field">
         <label className="dialog__checkbox" htmlFor={captionId}>
           <input

@@ -3,8 +3,10 @@ import {
   iconArrowLeft,
   iconCircleCheck,
   iconClapperboard,
+  iconCopy,
   iconEllipsis,
   iconFolderOpen,
+  iconHistory,
   iconLoader2,
   iconPanelLeftClose,
   iconPanelLeftOpen,
@@ -39,6 +41,8 @@ interface EditorTopBarProps {
   onMenuOpenChange: (open: boolean) => void;
   onOpenProject: () => void;
   onSettings: () => void;
+  onDuplicate: () => void;
+  onVersions: () => void;
   onDelete: () => void;
   onExport: () => void;
   canExport: boolean;
@@ -60,6 +64,8 @@ export function EditorTopBar({
   onMenuOpenChange,
   onOpenProject,
   onSettings,
+  onDuplicate,
+  onVersions,
   onDelete,
   onExport,
   canExport,
@@ -137,6 +143,8 @@ export function EditorTopBar({
           saved={state.path !== null}
           onOpenProject={onOpenProject}
           onSettings={onSettings}
+          onDuplicate={onDuplicate}
+          onVersions={onVersions}
           onDelete={onDelete}
         />
         <button
@@ -263,6 +271,7 @@ function ExportStatus({
         <>
           <Icon icon={iconCircleCheck} />
           <span className="video-editor__export-text">Exported {state.output_name}</span>
+          <ExportLevel state={state} />
           <button type="button" className="video-editor__link-btn" onClick={onOpen}>
             Open in gallery
           </button>
@@ -293,6 +302,34 @@ function ExportStatus({
   );
 }
 
+/** What the finished file measures: integrated loudness and true peak. */
+function ExportLevel({ state }: { state: VideoProjectExportState }) {
+  const { loudness_lufs: lufs, true_peak_db: peak } = state;
+  if (lufs == null && peak == null) return null;
+  const clipped = peak != null && peak >= 0;
+  const parts = [
+    lufs != null && `${lufs.toFixed(1)} LUFS`,
+    peak != null && `peak ${peak.toFixed(1)} dBTP`,
+  ].filter(Boolean);
+  return (
+    <span
+      className={classNames(
+        "video-editor__export-level",
+        clipped && "video-editor__export-level--clipped",
+      )}
+      title={
+        clipped
+          ? "The sound reaches full scale and will distort on playback. Export again with " +
+            "Limit peaks or Normalize, or lower the loudest clips."
+          : "Integrated loudness and true peak, measured on the exported file."
+      }
+    >
+      {parts.join(" · ")}
+      {clipped && " · clipped"}
+    </span>
+  );
+}
+
 /** The project's less frequent actions, deletion among them, kept out of the way of Export. */
 function ProjectMenu({
   open,
@@ -300,6 +337,8 @@ function ProjectMenu({
   saved,
   onOpenProject,
   onSettings,
+  onDuplicate,
+  onVersions,
   onDelete,
 }: {
   open: boolean;
@@ -307,6 +346,8 @@ function ProjectMenu({
   saved: boolean;
   onOpenProject: () => void;
   onSettings: () => void;
+  onDuplicate: () => void;
+  onVersions: () => void;
   onDelete: () => void;
 }) {
   const { menuId, rootRef, panelRef, triggerProps, close } = usePopupMenu({ open, onOpenChange });
@@ -352,6 +393,31 @@ function ProjectMenu({
         >
           <Icon icon={iconSettings} />
           <span>Project settings...</span>
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="video-editor__menu-item"
+          onClick={pick(onDuplicate)}
+        >
+          <Icon icon={iconCopy} />
+          <span className="video-editor__menu-text">
+            <span>Duplicate project</span>
+            <span className="video-editor__menu-hint">Keeps this one and continues in a copy</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="video-editor__menu-item"
+          onClick={pick(onVersions)}
+          disabled={!saved}
+        >
+          <Icon icon={iconHistory} />
+          <span className="video-editor__menu-text">
+            <span>Versions...</span>
+            {!saved && <span className="video-editor__menu-hint">Not saved yet</span>}
+          </span>
         </button>
         <span className="video-editor__menu-divider" role="separator" />
         <button

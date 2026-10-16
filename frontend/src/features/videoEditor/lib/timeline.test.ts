@@ -131,6 +131,7 @@ function project(clips: Clip[]): Project {
       orientation: null,
       quality: "standard",
       copy_caption: false,
+      audio_level: "limit",
     },
   };
 }

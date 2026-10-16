@@ -9,6 +9,7 @@ The snapshot and caption are written before the video appears, and removed again
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 import tempfile
@@ -49,7 +50,12 @@ from video_project import (
     source_states,
     used_source_ids,
 )
-from video_project_render import build_render
+from video_project_render import (
+    build_file_measure,
+    build_mix_measure,
+    build_render,
+    parse_loudness,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +270,28 @@ class ExportManager:
             with suppress(Exception):
                 notifications.record_notification(*outcome, source="job")
 
+    def _measure(self, record: _Export, executable: str, media: Path) -> None:
+        """What the delivered file measures, not what the settings meant it to; a file that
+        cannot be measured is still a finished export."""
+        try:
+            loudness = parse_loudness(
+                run_ffmpeg(
+                    build_file_measure(executable, media),
+                    should_cancel=record.cancel.is_set,
+                    timeout=EXPORT_TIMEOUT_SECONDS,
+                )
+            )
+        except FfmpegCancelled:
+            raise
+        except Exception:
+            logger.warning("Could not measure the loudness of %s", media.name, exc_info=True)
+            return
+        if loudness is None:
+            return
+        with self._lock:
+            record.state.loudness_lufs = _finite(loudness.integrated_lufs)
+            record.state.true_peak_db = _finite(loudness.true_peak_db)
+
     def _run(self, record: _Export, folder: Path, project: VideoProject, executable: str) -> None:
         output = Path(record.state.output_path)
         temp_path = output.with_name(f"{output.name}{VIDEO_PROJECT_EXPORT_TEMP_SUFFIX}")
@@ -276,6 +304,20 @@ class ExportManager:
         plan_duration = [0.0]
         try:
             with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as workspace:
+                measured = None
+                if project.export.audio_level == "normalize":
+                    log = run_ffmpeg(
+                        build_mix_measure(
+                            project, folder, executable=executable, workspace=Path(workspace)
+                        ),
+                        should_cancel=record.cancel.is_set,
+                        timeout=EXPORT_TIMEOUT_SECONDS,
+                        cwd=Path(workspace),
+                    )
+                    loudness = parse_loudness(log)
+                    if loudness is None:
+                        raise RuntimeError("The mix's loudness could not be measured")
+                    measured = loudness.integrated_lufs
                 plan = build_render(
                     project,
                     folder,
@@ -284,6 +326,7 @@ class ExportManager:
                     executable=executable,
                     workspace=Path(workspace),
                     probe_color=lambda path: probe_stream_color(executable, path),
+                    measured_lufs=measured,
                 )
                 plan_duration[0] = plan.duration
                 run_ffmpeg(
@@ -295,6 +338,7 @@ class ExportManager:
                 )
             if record.cancel.is_set():
                 raise FfmpegCancelled
+            self._measure(record, executable, temp_path)
             publish_export(folder, project, temp_path, output)
         except FfmpegCancelled:
             self._finish(record, "cancelled")
@@ -306,6 +350,11 @@ class ExportManager:
         finally:
             with suppress(OSError):
                 temp_path.unlink(missing_ok=True)
+
+
+def _finite(value: float) -> float | None:
+    """Silence measures -inf, which JSON cannot carry; it reads as no measurement."""
+    return value if math.isfinite(value) else None
 
 
 def publish_export(folder: Path, project: VideoProject, temp_path: Path, output: Path) -> None:
