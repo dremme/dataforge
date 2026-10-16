@@ -525,16 +525,21 @@ def _split_by_pass(
 
 
 _MODEL_FILE_KEYS = ("ckpt_name", "unet_name")
+#: CLIPLoader's `clip_name`, and the numbered inputs of the dual, triple and quad loaders.
+_CLIP_FILE_KEY = re.compile(r"clip_name\d*")
+#: Kinds whose boxes name one loaded file: several loaders of the same file are one box.
+_TWIN_KINDS: frozenset[ComfyMapNodeKind] = frozenset({"model", "clip", "vae"})
 _INPUT_MEDIA_KEYS: tuple[ComfyMediaKind, ...] = ("image", "video", "audio")
 #: Within a row of the map, sources read left to right in this order.
 _MAP_KIND_ORDER: dict[ComfyMapNodeKind, int] = {
     "model": 0,
     "loras": 1,
-    "vae": 2,
-    "input": 3,
-    "prompt": 4,
-    "pass": 5,
-    "output": 6,
+    "clip": 2,
+    "vae": 3,
+    "input": 4,
+    "prompt": 5,
+    "pass": 6,
+    "output": 7,
 }
 
 
@@ -559,6 +564,15 @@ def _map_box(
     vae = _scalar_at(graph, inputs.get("vae_name"))
     if isinstance(vae, str) and vae.strip():
         return "vae", _short_name(vae), [vae.strip()]
+    clips = [
+        clip.strip()
+        for key in sorted(inputs)
+        if _CLIP_FILE_KEY.fullmatch(key)
+        and isinstance(clip := _scalar_at(graph, inputs[key]), str)
+        and clip.strip()
+    ]
+    if clips:
+        return "clip", " + ".join(_short_name(clip) for clip in clips), clips
     _, loras = _collect_parameters(graph, [node_id])
     if loras:
         return "loras", "", loras
@@ -651,12 +665,13 @@ def _branch_map(
     stages: tuple[set[str], set[str], set[str]],
     subgraph_labels: dict[str, str],
 ) -> list[MapNode]:
-    """The output's passes and what feeds them: models, LoRAs, VAEs, input media and prompts.
+    """The output's passes and what feeds them: models, LoRAs, CLIPs, VAEs, media and prompts.
 
     Each box links to the nearest boxes downstream. A prompt never blocks the walk, since its
     text often sits on a node that also takes the image or the model. A chain of LoRA loaders
-    is one box. An earlier stage's result, such as a generated reference image, is an input
-    box named by that stage's prompt. Empty when nothing on the branch samples.
+    is one box, and so are twin loaders of one file, such as one per subgraph. An earlier
+    stage's result, such as a generated reference image, is an input box named by that stage's
+    prompt. Empty when nothing on the branch samples.
     """
     boxes = {step: box for step in members if step != root and (box := _map_box(graph, step))}
     if not any(kind == "pass" for kind, _, _ in boxes.values()):
@@ -697,6 +712,15 @@ def _branch_map(
 
     def status(step: str) -> ComfyPassStatus:
         return _pass_status(step, live, bypassed)
+
+    # Twins become the box of the one nearest the output; loaders are sources, never targets.
+    first: dict[tuple[str, ...], str] = {}
+    twin = {
+        step: first.setdefault((kind, status(step), *detail), step)
+        for step, (kind, _, detail) in boxes.items()
+        if kind in _TWIN_KINDS
+    }
+    edges = {(twin.get(source, source), target) for source, target in edges}
 
     # LoRA loaders chained to each other become the box of the one nearest the output.
     group = {step: step for step, box in boxes.items() if box[0] == "loras"}

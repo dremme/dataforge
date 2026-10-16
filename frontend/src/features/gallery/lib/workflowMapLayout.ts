@@ -23,12 +23,13 @@ const CROSSING_COST = 10_000;
 const KIND_RANK = {
   model: 0,
   loras: 1,
-  vae: 2,
-  input: 3,
-  positive: 4,
-  negative: 5,
-  pass: 6,
-  output: 7,
+  clip: 2,
+  vae: 3,
+  input: 4,
+  positive: 5,
+  negative: 6,
+  pass: 7,
+  output: 8,
 } as const;
 
 export interface PlacedMapNode {

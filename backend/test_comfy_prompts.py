@@ -1311,6 +1311,60 @@ class SamplingPassTests(unittest.TestCase):
         )
         self.assertLessEqual({("11", "7"), ("11", "10")}, _map_edges(branch))
 
+    def test_a_loaded_clip_is_a_box_naming_each_of_its_files(self) -> None:
+        graph = _two_pass_graph(True)
+        graph["11"] = {
+            "class_type": "DualCLIPLoader",
+            "inputs": {"clip_name2": "t5/t5xxl.safetensors", "clip_name1": "clip_l.safetensors"},
+        }
+        graph["2"]["inputs"]["clip"] = ["11", 0]
+        graph["3"]["inputs"]["clip"] = ["11", 0]
+
+        branch = self._branch(graph)
+
+        clip = next(node for node in branch.map if node.id == "11")
+        self.assertEqual(
+            (clip.kind, clip.label, clip.detail),
+            ("clip", "clip_l + t5xxl", ["clip_l.safetensors", "t5/t5xxl.safetensors"]),
+        )
+        self.assertLessEqual({("11", "4"), ("11", "7")}, _map_edges(branch))
+
+    def test_twin_loaders_of_one_file_in_subgraphs_are_one_box(self) -> None:
+        def unet(name: str) -> dict:
+            return {"class_type": "UNETLoader", "inputs": {"unet_name": name}}
+
+        def clip(name: str) -> dict:
+            return {"class_type": "CLIPLoader", "inputs": {"clip_name": name}}
+
+        for second, merged in (("wan.safetensors", True), ("wan_low.safetensors", False)):
+            with self.subTest(second=second):
+                graph = _two_pass_graph(True)
+                graph.update(
+                    {
+                        "20:1": unet("wan.safetensors"),
+                        "21:1": unet(second),
+                        "20:2": clip("umt5.safetensors"),
+                        "21:2": clip("umt5.safetensors"),
+                    }
+                )
+                graph["4"]["inputs"]["model"] = ["20:1", 0]
+                graph["6"]["inputs"]["model"] = ["21:1", 0]
+                graph["2"]["inputs"]["clip"] = ["20:2", 0]
+                graph["3"]["inputs"]["clip"] = ["21:2", 0]
+
+                branch = self._branch(graph)
+
+                ids = {node.id for node in branch.map}
+                clips = [node.id for node in branch.map if node.kind == "clip"]
+                self.assertEqual(len(clips), 1)
+                self.assertLessEqual({(clips[0], "4"), (clips[0], "7")}, _map_edges(branch))
+                models = [node.id for node in branch.map if node.kind == "model"]
+                self.assertEqual(len(models), 1 if merged else 2)
+                self.assertIn("20:1", ids)
+                self.assertEqual("21:1" in ids, not merged)
+                twin_edges = {("20:1", "4"), ("20:1", "6")} if merged else {("21:1", "6")}
+                self.assertLessEqual(twin_edges, _map_edges(branch))
+
     def test_the_output_box_carries_the_media_its_node_writes(self) -> None:
         cases = {
             "SaveImage": ({"images": ["9", 0]}, "image"),

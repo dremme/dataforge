@@ -172,6 +172,36 @@ describe("ComfyWorkflowMap", () => {
     expect(tip).toHaveTextContent("vae/sharp.safetensors");
   });
 
+  it("shows each of a CLIP loader's files in its tooltip", async () => {
+    const user = userEvent.setup();
+    render(
+      <ComfyWorkflowMap
+        map={[
+          {
+            id: "9",
+            kind: "clip",
+            label: "clip_l + t5xxl",
+            detail: ["clip_l.safetensors", "t5/t5xxl.safetensors"],
+            status: "ran",
+            feeds: ["2"],
+          },
+          { id: "2", kind: "pass", label: "KSampler", detail: [], status: "ran", feeds: ["3"] },
+          { id: "3", kind: "output", label: "Output", detail: [], status: "ran", feeds: [] },
+        ]}
+        passNumbers={new Map([["2", 1]])}
+        passSettings={new Map()}
+        output="Text to Image"
+      />,
+    );
+
+    // A file name is cut in the middle, so its end is a span of its own.
+    await user.hover(box("t5xxl"));
+    const tip = await screen.findByRole("tooltip");
+    expect(tip).toHaveTextContent("CLIP");
+    expect(tip).toHaveTextContent("clip_l.safetensors");
+    expect(tip).toHaveTextContent("t5/t5xxl.safetensors");
+  });
+
   it("lays the map out at the width of its column", () => {
     // The test setup gives every div a 1000px client width.
     renderMap();

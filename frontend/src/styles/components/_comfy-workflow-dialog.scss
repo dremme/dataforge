@@ -639,6 +639,7 @@ $map-tones: (
   accent: var(--accent),
   model: var(--map-model),
   loras: var(--map-model),
+  clip: var(--map-clip),
   vae: var(--map-vae),
   input: var(--map-input),
   prompt: var(--map-prompt),

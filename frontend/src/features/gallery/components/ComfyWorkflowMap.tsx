@@ -3,6 +3,7 @@ import { PASS_NOT_RUN, splitLora, splitPath } from "@/features/gallery/lib/comfy
 import { layoutWorkflowMap, splitLabel } from "@/features/gallery/lib/workflowMapLayout";
 import {
   iconBrain,
+  iconCaseSensitive,
   iconImage,
   iconLayers,
   iconQuote,
@@ -25,6 +26,7 @@ const KIND_NAMES: Record<ComfyMapNodeKind, string> = {
   pass: "Pass",
   model: "Model",
   loras: "LoRAs",
+  clip: "CLIP",
   vae: "VAE",
   prompt: "Prompt",
   input: "Input",
@@ -35,6 +37,7 @@ const KIND_NAMES: Record<ComfyMapNodeKind, string> = {
 const ICONS: Record<Exclude<ComfyMapNodeKind, "pass">, AppIcon> = {
   model: iconBrain,
   loras: iconLayers,
+  clip: iconCaseSensitive,
   vae: iconVae,
   input: iconImage,
   prompt: iconQuote,
@@ -47,7 +50,7 @@ const MEDIA_ICONS: Record<ComfyMediaKind, AppIcon> = {
   audio: iconVolume2,
 };
 
-const TONES = ["accent", "model", "loras", "vae", "input", "prompt", "negative"] as const;
+const TONES = ["accent", "model", "loras", "clip", "vae", "input", "prompt", "negative"] as const;
 
 /** The settings a pass's tooltip leads with, in this order; the rest are in its section. */
 const PASS_TIP_SETTINGS = ["Steps", "CFG", "Denoise", "Sampler", "Scheduler", "Seed"];
@@ -68,7 +71,8 @@ function glyph(node: ComfyMapNode): AppIcon | null {
 
 /** Whether a label is a file name, whose end tells it apart, so it is cut in the middle. */
 function isFileName(node: ComfyMapNode): boolean {
-  return node.kind === "model" || node.kind === "vae" || (node.kind === "input" && !node.source);
+  if (node.kind === "input") return !node.source;
+  return node.kind === "model" || node.kind === "clip" || node.kind === "vae";
 }
 
 function kindName(node: ComfyMapNode, passNumber: number | undefined): string {
@@ -182,9 +186,9 @@ function MapLabel({ node }: { node: ComfyMapNode }) {
 }
 
 /**
- * A small diagram of the output's passes and what feeds them: models, LoRAs, VAEs, input media
- * and prompts. Lines are drawn in an SVG; the boxes are HTML over it, so they can carry tooltips.
- * A pass with its own section opens it.
+ * A small diagram of the output's passes and what feeds them: models, LoRAs, CLIPs, VAEs, input
+ * media and prompts. Lines are drawn in an SVG; the boxes are HTML over it, so they can carry
+ * tooltips. A pass with its own section opens it.
  */
 export function ComfyWorkflowMap({
   map,
