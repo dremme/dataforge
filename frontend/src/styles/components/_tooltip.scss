@@ -23,6 +23,8 @@
     line-height: var(--leading-snug);
     text-align: center;
     white-space: normal;
+    // File names joined by `_` hold no break opportunity and would run past the bubble.
+    overflow-wrap: anywhere;
     pointer-events: none;
     // Animation, not transition: the bubble mounts on show, so there is no earlier value to transition from. No fill mode on the way in: a tab that never runs the animation must still show the tooltip rather than holding the transparent first keyframe.
     animation: tooltip-in 0.15s ease;

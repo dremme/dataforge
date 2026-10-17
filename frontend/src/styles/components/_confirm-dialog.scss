@@ -86,6 +86,8 @@
     font-size: var(--text-sm);
     line-height: var(--leading-relaxed);
     color: var(--text-muted);
+    // File names joined by `_` hold no break opportunity and would run past the panel.
+    overflow-wrap: anywhere;
   }
 
   .dialog-scope {
