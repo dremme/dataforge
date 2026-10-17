@@ -28,6 +28,7 @@ import type {
   GalleryItem,
   VideoProjectDocument,
   VideoProjectExportSettings,
+  VideoProjectExportSpan,
   VideoProjectSource,
   VideoProjectSourceInfo,
   VideoProjectSourceStatus,
@@ -77,6 +78,8 @@ import {
 } from "@/features/videoEditor/lib/clipboard";
 import { setEditorClipboard, useEditorClipboard } from "@/features/videoEditor/lib/clipboardStore";
 import { editorMediaKind } from "@/features/videoEditor/lib/mediaKinds";
+import { addMarker, markerBeside } from "@/features/videoEditor/lib/markers";
+import { rippleTrimToPlayhead } from "@/features/videoEditor/lib/trimming";
 import { transformPatchAt } from "@/features/videoEditor/lib/keyframes";
 import { PreviewEngine, type SourceLocation } from "@/features/videoEditor/lib/previewEngine";
 import {
@@ -85,6 +88,7 @@ import {
   addTrack,
   clipEnd,
   clipLabel,
+  clipsFrom,
   deleteClips,
   duplicateClips,
   linkClips,
@@ -469,9 +473,9 @@ function EditorSession({
   );
 
   const trimEdge = useCallback(
-    (edge: "start" | "end") =>
+    (edge: "start" | "end", ripple = false) =>
       apply(
-        trimToPlayhead(
+        (ripple ? rippleTrimToPlayhead : trimToPlayhead)(
           project,
           selection,
           snapToFrame(engine.currentTime, project.frame_rate),
@@ -479,6 +483,26 @@ function EditorSession({
         ),
       ),
     [apply, engine, project, selection],
+  );
+
+  /** Every clip from the playhead on; ``ownTracks`` keeps to the selected clips' tracks. */
+  const selectForward = useCallback(
+    (ownTracks: boolean) => {
+      const tracks = ownTracks ? new Set(selectedClips.map((clip) => clip.track_id)) : undefined;
+      if (ownTracks && selectedClips.length === 0) {
+        setMessage("Select a clip on each track to select forward on.");
+        return;
+      }
+      const ids = clipsFrom(project, engine.currentTime - 1e-6, tracks);
+      if (ids.size === 0) setMessage("No clip starts at or after the playhead.");
+      setSelection(ids);
+    },
+    [engine, project, selectedClips, setSelection],
+  );
+
+  const markAtPlayhead = useCallback(
+    () => apply(addMarker(project, snapToFrame(engine.currentTime, project.frame_rate))),
+    [apply, engine, project],
   );
 
   const copySelection = useCallback(
@@ -831,12 +855,19 @@ function EditorSession({
       : null;
 
   const startExport = useCallback(
-    async (settings: VideoProjectExportSettings) => {
-      const next = state.amend((current) => ({ ...current, export: settings }));
+    async (settings: VideoProjectExportSettings, span: VideoProjectExportSpan | null) => {
+      // A part's own name is not kept as the project's export name.
+      const kept = span ? { ...settings, filename: state.project.export.filename } : settings;
+      const next = state.amend((current) => ({ ...current, export: kept }));
       setExportBusy(true);
       setExportError(null);
       try {
-        const started = await startVideoProjectExport(state.folder, state.path, next);
+        const started = await startVideoProjectExport(
+          state.folder,
+          state.path,
+          { ...next, export: settings },
+          span,
+        );
         track(started);
         setExportIds((current) => [started.id, ...current]);
         setExportOpen(false);
@@ -887,6 +918,10 @@ function EditorSession({
           : [...points].reverse().find((point) => point < now - 1e-4);
       if (target !== undefined) seekTimeline(target);
     };
+    const jumpMarker = (direction: -1 | 1) => {
+      const marker = markerBeside(project, engine.currentTime, direction);
+      if (marker) seekTimeline(marker.time);
+    };
     const step = (frames: -1 | 1) =>
       source
         ? source.step(frames)
@@ -901,6 +936,9 @@ function EditorSession({
       run(() => (source ? source.seekToEdge("end") : engine.seek(duration)));
     else if (matchesShortcut(event, SHORTCUTS.editorPreviousEdit)) run(() => jump(-1));
     else if (matchesShortcut(event, SHORTCUTS.editorNextEdit)) run(() => jump(1));
+    else if (matchesShortcut(event, SHORTCUTS.editorPreviousMarker)) run(() => jumpMarker(-1));
+    else if (matchesShortcut(event, SHORTCUTS.editorNextMarker)) run(() => jumpMarker(1));
+    else if (matchesShortcut(event, SHORTCUTS.editorAddMarker) && !source) run(markAtPlayhead);
     else if (matchesShortcut(event, SHORTCUTS.editorMarkIn))
       run(() => (source ? source.markIn() : markTimeline("in")));
     else if (matchesShortcut(event, SHORTCUTS.editorMarkOut))
@@ -918,6 +956,13 @@ function EditorSession({
     } else if (matchesShortcut(event, SHORTCUTS.editorSelectTool)) run(() => setTool("select"));
     else if (matchesShortcut(event, SHORTCUTS.editorBladeTool)) run(() => setTool("blade"));
     else if (matchesShortcut(event, SHORTCUTS.editorRangeTool)) run(() => setTool("range"));
+    else if (matchesShortcut(event, SHORTCUTS.editorRippleTool)) run(() => setTool("ripple"));
+    else if (matchesShortcut(event, SHORTCUTS.editorRollTool)) run(() => setTool("roll"));
+    else if (matchesShortcut(event, SHORTCUTS.editorSelectAll))
+      run(() => setSelection(new Set(project.clips.map((clip) => clip.id))));
+    else if (matchesShortcut(event, SHORTCUTS.editorSelectForward)) run(() => selectForward(false));
+    else if (matchesShortcut(event, SHORTCUTS.editorSelectForwardOnTracks))
+      run(() => selectForward(true));
     else if (matchesShortcut(event, SHORTCUTS.editorSnapping)) run(() => setSnapping((on) => !on));
     else if (matchesShortcut(event, SHORTCUTS.editorZoomIn))
       run(() => zoom(pxPerSecond * ZOOM_STEP));
@@ -932,6 +977,10 @@ function EditorSession({
     else if (matchesShortcut(event, SHORTCUTS.editorNudgeForward)) run(() => nudge(1));
     else if (matchesShortcut(event, SHORTCUTS.editorTrimStart)) run(() => trimEdge("start"));
     else if (matchesShortcut(event, SHORTCUTS.editorTrimEnd)) run(() => trimEdge("end"));
+    else if (matchesShortcut(event, SHORTCUTS.editorRippleTrimStart))
+      run(() => trimEdge("start", true));
+    else if (matchesShortcut(event, SHORTCUTS.editorRippleTrimEnd))
+      run(() => trimEdge("end", true));
     // Copy and cut leave the browser's own text copy alone while no clip is chosen.
     else if (matchesShortcut(event, SHORTCUTS.editorCopy) && selection.size > 0)
       run(() => copySelection(false));
@@ -1119,6 +1168,7 @@ function EditorSession({
                     onTrackEdit={(trackId, patch, final) =>
                       applyTransient(updateTrack(project, trackId, patch), final)
                     }
+                    onMarkersEdit={apply}
                     onMixEdit={(patch, final) =>
                       applyTransient(
                         { project: { ...project, mix: { ...project.mix, ...patch } } },
@@ -1268,10 +1318,19 @@ function EditorSession({
       {exportOpen && (
         <ExportDialog
           project={project}
+          range={range}
+          selectionSpan={
+            selectedClips.length > 0
+              ? {
+                  start: Math.min(...selectedClips.map((clip) => clip.start)),
+                  end: Math.max(...selectedClips.map(clipEnd)),
+                }
+              : null
+          }
           busy={exportBusy}
           error={exportError}
           blocked={exportBlocked}
-          onExport={(settings) => void startExport(settings)}
+          onExport={(settings, span) => void startExport(settings, span)}
           onCancel={() => setExportOpen(false)}
         />
       )}

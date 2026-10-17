@@ -15,7 +15,7 @@ from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled
 from media_delete import delete_media_with_sidecars
 from media_transfer import transfer_media_batch
-from schemas import VideoProject, VideoProjectExportState
+from schemas import VideoProject, VideoProjectExportSpan, VideoProjectExportState
 from testing_fixtures import TempMediaFolder, playable_video_bytes, write_image
 from video_project import new_project_for_video, snapshot_path_for
 from video_project_export import (
@@ -122,6 +122,20 @@ class ExportTests(unittest.TestCase):
 
             self.assertEqual(state.status, "completed", state.error)
             self.assertEqual((root / "clip-edited.txt").read_text(encoding="utf-8"), "A caption.")
+
+    def test_a_range_export_gets_its_own_name_and_no_snapshot_or_caption(self) -> None:
+        with TempMediaFolder() as root:
+            _, project = self.project(root, copy_caption=True)
+            (root / "clip.txt").write_text("A caption.", encoding="utf-8")
+            span = VideoProjectExportSpan(start=0.2, end=0.7)
+
+            state = wait_for(self.manager, self.manager.start(root, project, None, span).id)
+
+            self.assertEqual(state.status, "completed", state.error)
+            output = root / "clip-edited-range.mp4"
+            self.assertTrue(output.stat().st_size > 0)
+            self.assertFalse(snapshot_path_for(output).exists())
+            self.assertFalse((root / "clip-edited-range.txt").exists())
 
     def test_repeated_exports_get_distinct_names_and_snapshots(self) -> None:
         with TempMediaFolder() as root:

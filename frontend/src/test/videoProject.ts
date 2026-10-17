@@ -16,6 +16,7 @@ export function makeTrack(
     solo: false,
     gain: 1,
     speech: false,
+    sync_lock: true,
     ...patch,
   };
 }
@@ -96,6 +97,7 @@ export function makeProject(patch: Partial<Project> = {}): Project {
     clips: [makeClip("first", "v1", 0, 2), makeClip("second", "v1", 3, 2)],
     transitions: [],
     mix: { master_gain: 1, duck_gain: 0.25 },
+    markers: [],
     export: {
       filename: "",
       size: "source",

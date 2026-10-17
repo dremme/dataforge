@@ -11,6 +11,7 @@ import { RadioTileGroup } from "@/shared/ui/RadioTileGroup";
 import type {
   VideoProjectAudioLevel,
   VideoProjectExportSettings,
+  VideoProjectExportSpan,
   VideoProjectOrientation,
   VideoProjectQuality,
   VideoProjectSizePreset,
@@ -25,17 +26,28 @@ import {
   projectDuration,
   sourceById,
   type Project,
+  type TimeRange,
 } from "@/features/videoEditor/lib/timeline";
+
+/** What part of the timeline to render: all of it, the marked range, or the selected clips. */
+type ExportExtent = "whole" | "range" | "selection";
 
 interface ExportDialogProps {
   project: Project;
+  /** The range marked on the timeline, offered as a part to export. */
+  range: TimeRange | null;
+  /** From the start of the earliest selected clip to the end of the latest one. */
+  selectionSpan: TimeRange | null;
   busy: boolean;
   error: string | null;
   /** Why the export cannot start, e.g. a missing source; null when it can. */
   blocked: string | null;
-  onExport: (settings: VideoProjectExportSettings) => void;
+  /** ``span`` is null for the whole timeline. */
+  onExport: (settings: VideoProjectExportSettings, span: VideoProjectExportSpan | null) => void;
   onCancel: () => void;
 }
+
+const RANGE_EXPORT_TAG = "-range";
 
 const AUDIO_LEVEL_HINTS: Record<VideoProjectAudioLevel, string> = {
   limit: `Holds true peaks at ${VIDEO_PROJECT_TRUE_PEAK_CEILING_DB} dB, so loud clips summed together cannot clip.`,
@@ -51,6 +63,8 @@ function defaultExportStem(project: Project): string {
 
 export function ExportDialog({
   project,
+  range,
+  selectionSpan,
   busy,
   error,
   blocked,
@@ -58,9 +72,22 @@ export function ExportDialog({
   onCancel,
 }: ExportDialogProps) {
   const saved = project.export;
-  const [filename, setFilename] = useState(
-    (saved.filename || defaultExportStem(project)).replace(/\.mp4$/i, ""),
-  );
+  const wholeName = (saved.filename || defaultExportStem(project)).replace(/\.mp4$/i, "");
+  const partName = `${defaultExportStem(project)}${RANGE_EXPORT_TAG}`;
+  const [filename, setFilename] = useState(wholeName);
+  const marked = range && range.end - range.start > 0 ? range : null;
+  const spans: Record<ExportExtent, TimeRange | null> = {
+    whole: null,
+    range: marked,
+    selection: selectionSpan,
+  };
+  const [extent, setExtent] = useState<ExportExtent>("whole");
+  const chooseExtent = (next: ExportExtent) => {
+    setExtent(next);
+    // The suggested name follows the choice until it is typed over.
+    const part = next !== "whole";
+    if (filename === (part ? wholeName : partName)) setFilename(part ? partName : wholeName);
+  };
   const [size, setSize] = useState<VideoProjectSizePreset>(saved.size);
   const [orientation, setOrientation] = useState<VideoProjectOrientation>(
     saved.orientation ?? projectOrientation(project.width, project.height),
@@ -80,11 +107,15 @@ export function ExportDialog({
     audio_level: audioLevel,
   };
   const frame = exportSize(project, settings);
-  const duration = projectDuration(project);
+  const total = projectDuration(project);
+  const span = spans[extent];
+  const duration = span ? Math.max(0, Math.min(span.end, total) - span.start) : total;
   const canExport = !busy && !blocked && duration > 0;
   const submit = () => {
-    if (canExport) onExport(settings);
+    if (canExport) onExport(settings, span && { start: span.start, end: span.end });
   };
+  const extentTitle = (part: TimeRange) =>
+    `${formatTimecode(part.start, project.frame_rate)} – ${formatTimecode(part.end, project.frame_rate)}`;
 
   return (
     <Dialog
@@ -125,6 +156,37 @@ export function ExportDialog({
         </p>
       </div>
       <div className="video-export-dialog__choices">
+        {(marked || selectionSpan) && (
+          <RadioTileGroup
+            label="Part"
+            name="video-export-extent"
+            groupLabel="Part of the timeline to export"
+            value={extent}
+            disabled={busy}
+            onChange={chooseExtent}
+            options={[
+              { value: "whole", title: "Whole timeline" },
+              ...(marked
+                ? [
+                    {
+                      value: "range" as const,
+                      title: "Marked range",
+                      description: extentTitle(marked),
+                    },
+                  ]
+                : []),
+              ...(selectionSpan
+                ? [
+                    {
+                      value: "selection" as const,
+                      title: "Selected clips",
+                      description: extentTitle(selectionSpan),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        )}
         <RadioTileGroup
           label="Size"
           name="video-export-size"
@@ -180,6 +242,11 @@ export function ExportDialog({
         <p className="dialog__hint video-export-dialog__sound-hint">
           {AUDIO_LEVEL_HINTS[audioLevel]}
         </p>
+        {span && (
+          <p className="dialog__hint video-export-dialog__sound-hint">
+            A part is for checking a passage: it is saved without the project snapshot or a caption.
+          </p>
+        )}
       </div>
       <div className="dialog__field">
         <label className="dialog__checkbox" htmlFor={captionId}>
@@ -189,7 +256,7 @@ export function ExportDialog({
             className="dialog__checkbox-input"
             checked={copyCaption}
             onChange={(event) => setCopyCaption(event.target.checked)}
-            disabled={busy}
+            disabled={busy || span !== null}
           />
           <span className="dialog__checkbox-box" aria-hidden="true" />
           <span className="dialog__checkbox-label">Copy initial video's caption</span>
@@ -201,7 +268,9 @@ export function ExportDialog({
         {formatTimecode(duration, project.frame_rate)}
         {(frame.width !== project.width || frame.height !== project.height) &&
           " · fitted without stretching"}
-        {duration > 0 && ` · about ${formatFileSize(estimateExportBytes(project, settings))}`}
+        {duration > 0 &&
+          total > 0 &&
+          ` · about ${formatFileSize((estimateExportBytes(project, settings) * duration) / total)}`}
       </p>
       {blocked && <p className="dialog__error">{blocked}</p>}
       {error && <p className="dialog__error">{error}</p>}

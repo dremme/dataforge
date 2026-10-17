@@ -65,6 +65,7 @@ const track = (id: string, kind: "video" | "audio", name: string) => ({
   solo: false,
   gain: 1,
   speech: false,
+  sync_lock: true,
 });
 
 function startingDocument(): VideoProjectDocument {
@@ -106,6 +107,7 @@ function startingDocument(): VideoProjectDocument {
       clips: [clip("video", "v1", "video"), clip("sound", "a1", "audio")],
       transitions: [],
       mix: { master_gain: 1, duck_gain: 0.25 },
+      markers: [],
       export: {
         filename: "",
         size: "source",
@@ -347,6 +349,39 @@ describe("VideoEditorWorkspace", () => {
     expect(screen.getByRole("button", { name: "Select" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("adds markers with M, steps between them and lists them in the inspector", async () => {
+    renderEditor();
+    await seekTo(30, "00:00:01:00");
+    fireEvent.keyDown(document.body, { key: "m" });
+    const playhead = await seekTo(60, "00:00:02:00");
+    fireEvent.keyDown(document.body, { key: "m" });
+
+    expect(await screen.findByRole("textbox", { name: "Name of Marker 2" })).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "ArrowUp", shiftKey: true });
+    await waitFor(() => expect(playhead).toHaveAttribute("aria-valuetext", "00:00:01:00"));
+    fireEvent.keyDown(document.body, { key: "ArrowDown", shiftKey: true });
+    await waitFor(() => expect(playhead).toHaveAttribute("aria-valuetext", "00:00:02:00"));
+  });
+
+  it("ripple trims the clip under the playhead with Shift+W and selects all with Ctrl+A", async () => {
+    renderEditor();
+    await seekTo(60, "00:00:02:00");
+
+    fireEvent.keyDown(document.body, { key: "W", shiftKey: true });
+    expect(
+      await screen.findAllByRole("button", { name: /^clip\.mp4, 00:00 to 00:02/ }),
+    ).toHaveLength(2);
+
+    fireEvent.keyDown(document.body, { key: "a", ctrlKey: true });
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("button", { name: /^clip\.mp4, / })
+          .every((item) => item.getAttribute("aria-pressed") === "true"),
+      ).toBe(true),
+    );
+  });
+
   it("jumps the playhead to the next and previous clip edge", async () => {
     renderEditor();
     const playhead = await seekTo(30, "00:00:01:00");
@@ -483,6 +518,7 @@ describe("VideoEditorWorkspace", () => {
       "C:\\media",
       null,
       expect.objectContaining({ export: expect.objectContaining({ filename: "clip-edited" }) }),
+      null,
     );
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(cancel).toHaveBeenCalledWith("job");

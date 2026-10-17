@@ -163,6 +163,8 @@ export const SHORTCUTS = {
   editorSelectTool: { group: "videoEditor", label: "Select tool", chords: [{ key: "v" }] },
   editorBladeTool: { group: "videoEditor", label: "Blade tool", chords: [{ key: "b" }] },
   editorRangeTool: { group: "videoEditor", label: "Range tool", chords: [{ key: "r" }] },
+  editorRippleTool: { group: "videoEditor", label: "Ripple trim tool", chords: [{ key: "t" }] },
+  editorRollTool: { group: "videoEditor", label: "Roll trim tool", chords: [{ key: "n" }] },
   editorSnapping: { group: "videoEditor", label: "Toggle snapping", chords: [{ key: "s" }] },
   editorZoomIn: {
     group: "videoEditor",
@@ -217,6 +219,46 @@ export const SHORTCUTS = {
     group: "videoEditor",
     label: "Trim the clip's end to the playhead",
     chords: [{ key: "w" }],
+  },
+  editorRippleTrimStart: {
+    group: "videoEditor",
+    label: "Ripple trim the clip's start to the playhead",
+    chords: [{ key: "q", shift: true }],
+  },
+  editorRippleTrimEnd: {
+    group: "videoEditor",
+    label: "Ripple trim the clip's end to the playhead",
+    chords: [{ key: "w", shift: true }],
+  },
+  editorSelectAll: {
+    group: "videoEditor",
+    label: "Select every clip",
+    chords: [{ key: "a", mod: true }],
+  },
+  editorSelectForward: {
+    group: "videoEditor",
+    label: "Select the clips from the playhead on",
+    chords: [{ key: "a" }],
+  },
+  editorSelectForwardOnTracks: {
+    group: "videoEditor",
+    label: "Select the clips from the playhead on, on the selected clips' tracks",
+    chords: [{ key: "a", shift: true }],
+  },
+  editorAddMarker: {
+    group: "videoEditor",
+    label: "Add a marker at the playhead",
+    chords: [{ key: "m" }],
+  },
+  editorPreviousMarker: {
+    group: "videoEditor",
+    label: "Jump to the previous marker",
+    chords: [{ key: "ArrowUp", shift: true }],
+  },
+  editorNextMarker: {
+    group: "videoEditor",
+    label: "Jump to the next marker",
+    chords: [{ key: "ArrowDown", shift: true }],
   },
   editorCopy: {
     group: "videoEditor",

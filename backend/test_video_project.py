@@ -128,6 +128,19 @@ class ProjectStructureTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "overlap the end"):
             VideoProject.model_validate(self.base([first, second], [dissolve]))
 
+    def test_markers_are_kept_in_time_order_with_ids_of_their_own(self) -> None:
+        data = self.base([])
+        data["markers"] = [{"id": "m1", "time": 2.0, "name": "Drop"}, {"id": "m2", "time": 1.0}]
+        with self.assertRaisesRegex(ValidationError, "time order"):
+            VideoProject.model_validate(data)
+
+        data["markers"] = [{"id": "m", "time": 1.0}, {"id": "m", "time": 2.0}]
+        with self.assertRaisesRegex(ValidationError, "Two markers share an id"):
+            VideoProject.model_validate(data)
+
+        data["markers"] = [{"id": "m1", "time": 1.0}, {"id": "m2", "time": 2.0, "note": "Cut"}]
+        self.assertEqual(VideoProject.model_validate(data).markers[1].note, "Cut")
+
     def test_a_title_cannot_sit_on_an_audio_track(self) -> None:
         with self.assertRaisesRegex(ValidationError, "title clip cannot sit on a audio track"):
             VideoProject.model_validate(self.base([title_clip("a1", 0, 1)]))

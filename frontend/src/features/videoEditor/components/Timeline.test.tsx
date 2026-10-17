@@ -1,11 +1,22 @@
-import { createEvent, fireEvent, render, screen, within } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { VideoProjectClip } from "@/shared/types";
-import { makeClip as clip, makeProject as project, makeTrack as track } from "@/test/videoProject";
+import {
+  makeClip as clip,
+  makeProject as project,
+  makeSource,
+  makeTrack as track,
+} from "@/test/videoProject";
 import { PreviewEngine, type SourceLocation } from "@/features/videoEditor/lib/previewEngine";
 import type { Project } from "@/features/videoEditor/lib/timeline";
-import { SOURCE_DRAG_TYPE, Timeline, TIMELINE_ORIGIN_PX, type TimelineTool } from "./Timeline";
+import {
+  SOURCE_DRAG_TYPE,
+  Timeline,
+  TIMELINE_ORIGIN_PX,
+  TRACK_HEADER_PX,
+  type TimelineTool,
+} from "./Timeline";
 
 // 100 px per second: a pointer at ORIGIN + 100 * t is at t seconds, since jsdom lays nothing out.
 const PPS = 100;
@@ -15,6 +26,7 @@ const V1_Y = 90;
 
 const SOURCES = new Map<string, SourceLocation>([
   ["still", { path: "/media/still.png", version: "1-1", missing: false }],
+  ["film", { path: "/media/film.mp4", version: "1-1", missing: false }],
 ]);
 
 function renderTimeline(
@@ -157,6 +169,67 @@ describe("Timeline", () => {
 
     expect(placed(onPreview, "first")?.duration).toBeCloseTo(1.5);
     expect(placed(onCommit, "first")?.duration).toBeCloseTo(1.5);
+  });
+
+  it("ripples the rest of the track along with the Ripple trim tool", () => {
+    const { onCommit, scroller, view } = renderTimeline({ tool: "ripple" });
+    const handle = view.container.querySelector(
+      '[data-clip="first"] .video-timeline__trim--end',
+    ) as HTMLElement;
+
+    fireEvent.pointerDown(handle, { button: 0, clientX: at(2), clientY: V1_Y });
+    fireEvent.pointerMove(scroller, { clientX: at(1.5), clientY: V1_Y });
+    fireEvent.pointerUp(scroller);
+
+    expect(placed(onCommit, "first")?.duration).toBeCloseTo(1.5);
+    expect(placed(onCommit, "second")?.start).toBeCloseTo(2.5);
+  });
+
+  it("selects the clips a marquee drawn over empty lane space touches", () => {
+    const { onSelect, lanes, scroller } = renderTimeline({ selection: [] });
+
+    fireEvent.pointerDown(lanes, { button: 0, clientX: at(2.5), clientY: 30 });
+    fireEvent.pointerMove(scroller, { clientX: at(2.52), clientY: 31 });
+    expect(onSelect).toHaveBeenLastCalledWith(new Set(), null);
+    // From V2 down into V1, across the second clip only.
+    fireEvent.pointerMove(scroller, { clientX: at(3.5), clientY: V1_Y });
+    expect(onSelect).toHaveBeenLastCalledWith(new Set(["second"]), null);
+    fireEvent.pointerUp(scroller);
+  });
+
+  it("seeks to a marker from its flag and turns sync lock off from a track header", async () => {
+    const user = userEvent.setup();
+    const doc = project({ markers: [{ id: "m", time: 1.5, name: "Drop", note: "" }] });
+    const { onSeek, onTracks } = renderTimeline({ project: doc });
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Drop, 00:00:01:15" }));
+    expect(onSeek).toHaveBeenLastCalledWith(1.5);
+
+    await user.click(screen.getByRole("button", { name: "Turn off sync lock on A1" }));
+    const tracks = (onTracks.mock.lastCall?.[0] as Project).tracks;
+    expect(tracks.find((item) => item.id === "a1")?.sync_lock).toBe(false);
+  });
+
+  it("fetches only the filmstrip tiles in view, and the ones it scrolls to", async () => {
+    const doc = project({
+      sources: [makeSource("film", "film.mp4", "video", { duration: 60 })],
+      clips: [clip("long", "v1", 0, 60, { kind: "video", source_id: "film" })],
+    });
+    const { view, scroller } = renderTimeline({ project: doc });
+    const starts = () =>
+      [...view.container.querySelectorAll<HTMLElement>(".video-timeline__filmstrip")].map(
+        (tile) => /start=([\d.]+)/.exec(tile.style.backgroundImage)?.[1],
+      );
+    // The test layout is 1000 px wide: 8.16 s of lanes beside the headers, and a view more is
+    // fetched either side. The tiles are eight seconds long at this zoom.
+    const lanes = (1000 - TRACK_HEADER_PX) / PPS;
+    expect(lanes).toBeCloseTo(8.16);
+
+    await waitFor(() => expect(starts()).toEqual(["0.00", "8.00", "16.00"]));
+
+    scroller.scrollLeft = TIMELINE_ORIGIN_PX + 30 * PPS;
+    fireEvent.scroll(scroller);
+    await waitFor(() => expect(starts()).toEqual(["16.00", "24.00", "32.00", "40.00"]));
   });
 
   it("cuts a clip where the blade is clicked and draws the cut line while hovering", () => {

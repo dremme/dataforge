@@ -1286,6 +1286,124 @@ $lane-inset: 4px;
     }
   }
 
+  // Scopes sit in the monitor's top-left corner, over the picture they read.
+  &__scopes {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 2;
+    display: flex;
+    gap: 0.375rem;
+    padding: 0.375rem;
+    border: 1px solid var(--media-scrim-border);
+    border-radius: 0.375rem;
+    background: var(--media-scrim);
+    pointer-events: none;
+  }
+
+  &__scope {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0;
+
+    canvas {
+      display: block;
+      width: 8rem;
+      height: 4rem;
+      border: 1px solid var(--media-guide);
+      image-rendering: pixelated;
+    }
+
+    figcaption {
+      color: var(--media-text);
+      font-size: 0.625rem;
+      white-space: nowrap;
+      @include tabular-nums;
+    }
+  }
+
+  &__scope + &__scope canvas {
+    width: 6rem;
+  }
+
+  &__scopes-note {
+    margin: 0;
+    color: var(--media-warning);
+    font-size: var(--text-xs);
+  }
+
+  &__reference {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  &__reference-picture {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    user-select: none;
+  }
+
+  &__reference-divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 0.75rem;
+    margin-left: -0.375rem;
+    cursor: ew-resize;
+    pointer-events: auto;
+    touch-action: none;
+    @include focus-ring;
+
+    &::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: calc(50% - 1px);
+      width: 2px;
+      background: var(--media-outline);
+      box-shadow: 0 0 0 1px var(--media-scrim);
+    }
+  }
+
+  &__reference-tag {
+    position: absolute;
+    bottom: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--media-scrim);
+    color: var(--media-text);
+    font-size: 0.625rem;
+    pointer-events: auto;
+    @include tabular-nums;
+    @include icon-scope-sm;
+
+    &--held {
+      left: 0.5rem;
+    }
+
+    &--live {
+      right: 0.5rem;
+    }
+
+    button {
+      display: inline-flex;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+    }
+  }
+
   &__handles {
     position: absolute;
     border: 1px solid var(--media-outline);
@@ -2348,6 +2466,40 @@ $lane-inset: 4px;
     }
   }
 
+  // A marker is a flag hanging from the ruler's top, with a line down through the lanes.
+  &__marker {
+    position: absolute;
+    top: 0;
+    z-index: 1;
+    width: 0.625rem;
+    height: 0.75rem;
+    margin-left: -0.3125rem;
+    padding: 0;
+    border: 0;
+    background: var(--marker);
+    clip-path: polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%);
+    cursor: pointer;
+  }
+
+  &__marker-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 2;
+    width: 0;
+    border-left: 1px dashed color-mix(in srgb, var(--marker) 70%, transparent);
+    pointer-events: none;
+  }
+
+  &__marquee {
+    position: absolute;
+    z-index: 5;
+    border: 1px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    pointer-events: none;
+  }
+
   &__playhead-head {
     position: absolute;
     top: 0;
@@ -2505,6 +2657,16 @@ $lane-inset: 4px;
     @include fade-bg(var(--warning-border));
   }
 
+  // Sync lock is on by default, so it stays quiet when on and speaks up once turned off.
+  &__toggle--sync.video-editor__tool--pressed {
+    color: var(--text-subtle);
+    @include fade-bg(transparent);
+  }
+
+  &__toggle--sync:not(.video-editor__tool--pressed) {
+    color: var(--warning);
+  }
+
   &__lanes {
     position: relative;
     touch-action: none;
@@ -2529,6 +2691,15 @@ $lane-inset: 4px;
     &--range .video-timeline__trim {
       display: none;
     }
+
+    // An edge shows which trim the tool will make.
+    &--ripple .video-timeline__trim::after {
+      background: var(--accent);
+    }
+
+    &--roll .video-timeline__trim::after {
+      background: var(--snap-line);
+    }
   }
 
   &__lane {
@@ -2543,8 +2714,17 @@ $lane-inset: 4px;
       border-top: 2px solid color-mix(in srgb, var(--text) 12%, transparent);
     }
 
+    // A 12 px tile repeated, not one gradient across the lane: at full zoom a lane is tens of
+    // thousands of pixels wide, and Chrome draws a gradient that large blurred and stepped.
     &--locked {
-      background-image: repeating-linear-gradient(-45deg, var(--border) 0 2px, transparent 2px 9px);
+      background-image: linear-gradient(
+        -45deg,
+        var(--border) 0 12%,
+        transparent 12% 50%,
+        var(--border) 50% 62%,
+        transparent 62%
+      );
+      background-size: 12px 12px;
 
       .video-timeline__clip {
         cursor: not-allowed;
@@ -2632,7 +2812,15 @@ $lane-inset: 4px;
     &--missing {
       --clip-color: var(--danger);
       border-style: dashed;
-      background: repeating-linear-gradient(-45deg, var(--danger-soft) 0 6px, transparent 6px 12px);
+      // Tiled like a locked lane's stripes, so a long clip stays sharp at full zoom.
+      background: linear-gradient(
+          -45deg,
+          var(--danger-soft) 0 25%,
+          transparent 25% 50%,
+          var(--danger-soft) 50% 75%,
+          transparent 75%
+        )
+        0 0 / 16px 16px;
     }
 
     &--narrow .video-timeline__clip-head {
@@ -3446,4 +3634,88 @@ $lane-inset: 4px;
 .tooltip__bubble.video-editor__source-tip {
   max-width: 18rem;
   text-align: left;
+}
+
+// Markers listed in the inspector: a dot to jump, the time, the name, and a note below.
+.video-editor__markers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video-editor__marker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.video-editor__marker-head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  .video-editor__timecode-field {
+    flex: none;
+    width: 6.75rem;
+  }
+}
+
+.video-editor__marker-go {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: var(--marker);
+  clip-path: polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%);
+  cursor: pointer;
+  @include focus-ring;
+}
+
+.video-editor__marker--current .video-editor__marker-go {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.video-editor__marker-name,
+.video-editor__marker-note,
+.video-editor__marker-filter input {
+  min-width: 0;
+  height: var(--control-height-xs);
+  padding: 0 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-xs);
+
+  &:focus-visible {
+    border-color: var(--accent-border);
+    outline: none;
+  }
+}
+
+.video-editor__marker-name {
+  flex: 1;
+}
+
+.video-editor__marker-note {
+  margin-left: 1rem;
+  color: var(--text-muted);
+}
+
+.video-editor__marker-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-subtle);
+  @include icon-scope-sm;
+
+  input {
+    flex: 1;
+  }
 }

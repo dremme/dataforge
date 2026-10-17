@@ -51,6 +51,10 @@
   --media-text: #f3f4f6;
   --media-warning: #fbbf24;
   --media-warning-deep: #cf9604;
+  --scope-trace: #8cf5b0;
+  --scope-red: #ff4d4d;
+  --scope-green: #3ddc6a;
+  --scope-blue: #4d7bff;
 
   // Video editor: one hue per clip kind, the playhead, and the line a snapped edge lands on.
   --clip-video: #6f8cff;
@@ -59,6 +63,7 @@
   --clip-title: #b28cf5;
   --playhead: #ff5c63;
   --snap-line: #ffd166;
+  --marker: #ff9f43;
 
   // Miniature windows in the theme picker show each scheme whatever the active one is.
   --sketch-light-canvas: #e6e9ef;

@@ -15,6 +15,7 @@ from schemas import (
     VideoProject,
     VideoProjectClip,
     VideoProjectExportSettings,
+    VideoProjectExportSpan,
     VideoProjectFont,
     VideoProjectTitle,
     VideoProjectTrack,
@@ -30,6 +31,7 @@ from video_project_render import (
     build_render,
     export_size,
     render_title_image,
+    render_window,
 )
 
 RED = (220, 30, 30)
@@ -89,7 +91,9 @@ def spacer(duration: float) -> VideoProjectClip:
     )
 
 
-def render(root: Path, project: VideoProject, **settings) -> Path:
+def render(
+    root: Path, project: VideoProject, span: VideoProjectExportSpan | None = None, **settings
+) -> Path:
     executable = ffmpeg_path()
     assert executable
     output = root / "out.mp4"
@@ -102,6 +106,7 @@ def render(root: Path, project: VideoProject, **settings) -> Path:
             executable=executable,
             workspace=Path(workspace),
             probe_color=lambda _path: StreamColor(),
+            span=span,
         )
         run_ffmpeg(plan.command, cwd=Path(workspace))
     return output
@@ -333,6 +338,53 @@ class CompositeTests(unittest.TestCase):
                 update={"tracks": [t.model_copy(update={"muted": True}) for t in project.tracks]}
             )
             self.assertLess(loudness(render(root, muted), 1.2, 0.6), -60)
+
+    def test_a_span_renders_only_that_part_of_the_edit_from_its_start(self) -> None:
+        with TempMediaFolder() as root:
+            write_image(root, "red.png", color=RED)
+            write_image(root, "blue.png", color=BLUE)
+            write_wav(root, "tone.wav", seconds=2)
+            sound = VideoProjectClip(
+                id=new_id(), track_id="a1", kind="audio", source_id="tone.wav", start=3.0,
+                duration=1.0,
+            )  # fmt: skip
+            clips = [still("red.png", "v1", 0, 2), still("blue.png", "v1", 2, 3), sound]
+            project = project_with(root, clips, sources=["red.png", "blue.png", "tone.wav"])
+
+            video = render(root, project, VideoProjectExportSpan(start=1.5, end=3.5))
+
+            probe = subprocess.run(
+                [ffmpeg_path() or "", "-i", str(video)], capture_output=True, text=True
+            ).stderr
+            self.assertIn("Duration: 00:00:02.0", probe)
+            self.assertTrue(close(pixel(video, 0.2), RED))
+            self.assertTrue(close(pixel(video, 1.0), BLUE))
+            self.assertLess(loudness(video, 0.1, 1.2), -60)
+            self.assertGreater(loudness(video, 1.6, 0.3), -20)
+
+
+class RenderWindowTests(unittest.TestCase):
+    def test_clips_far_from_the_span_are_left_out_and_the_rest_move_by_whole_frames(self) -> None:
+        with TempMediaFolder() as root:
+            write_image(root, "red.png", color=RED)
+            early = still("red.png", "v1", 0, 1)
+            crossing = still("red.png", "v1", 4.05, 2)
+            project = project_with(root, [early, crossing], sources=["red.png"])
+
+            window = render_window(project, VideoProjectExportSpan(start=5, end=5.5))
+
+            self.assertEqual([clip.id for clip in window.project.clips], [crossing.id])
+            self.assertAlmostEqual(window.project.clips[0].start, 0.05)
+            self.assertAlmostEqual(window.head, 1.0)
+            self.assertAlmostEqual(window.length, 0.5)
+
+    def test_a_span_past_the_end_of_the_edit_is_refused(self) -> None:
+        with TempMediaFolder() as root:
+            write_image(root, "red.png", color=RED)
+            project = project_with(root, [still("red.png", "v1", 0, 1)], sources=["red.png"])
+
+            with self.assertRaisesRegex(ValueError, "past the end"):
+                render_window(project, VideoProjectExportSpan(start=2, end=3))
 
 
 if __name__ == "__main__":

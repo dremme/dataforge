@@ -301,6 +301,42 @@ function shiftClips(project: Project, request: MoveRequest): EditResult {
 
 export type TrimEdge = "start" | "end";
 
+export function isTimedClip(clip: Clip): boolean {
+  return clip.kind === "video" || clip.kind === "audio";
+}
+
+/**
+ * How far one edge of every clip in ``ids`` can travel, later being positive, while each keeps
+ * a frame and shows only its source. The tightest clip decides, so linked clips stay in sync.
+ * A start edge may also be held at 00:00 by ``floor``, as a trim that moves it is.
+ */
+export function edgeTravel(
+  project: Project,
+  ids: Set<string>,
+  edge: TrimEdge,
+  floor = true,
+): { min: number; max: number } {
+  let min = -Infinity;
+  let max = Infinity;
+  for (const clip of project.clips) {
+    if (!ids.has(clip.id)) continue;
+    if (edge === "start") {
+      if (isTimedClip(clip)) min = Math.max(min, -clip.source_in / clip.speed);
+      if (floor) min = Math.max(min, -clip.start);
+      max = Math.min(max, clip.duration - MIN_CLIP_SECONDS);
+    } else {
+      const limit = sourceSpanLimit(project, clip);
+      min = Math.max(min, MIN_CLIP_SECONDS - clip.duration);
+      max = Math.min(max, (limit - clip.source_in) / clip.speed - clip.duration);
+    }
+  }
+  return { min, max };
+}
+
+export function clampTravel(travel: number, bounds: { min: number; max: number }): number {
+  return Math.min(Math.max(travel, bounds.min), Math.max(bounds.min, bounds.max));
+}
+
 /** Moves one edge of the clip and every clip linked to it to ``time``, inside the source. */
 export function trimClip(project: Project, id: string, edge: TrimEdge, time: number): EditResult {
   const ids = withLinked(project, [id]);
@@ -309,22 +345,8 @@ export function trimClip(project: Project, id: string, edge: TrimEdge, time: num
   const anchor = project.clips.find((clip) => clip.id === id);
   if (!anchor) return { error: "That clip is gone." };
 
-  let target = time;
-  // The tightest linked clip decides how far the edge can travel, so sync never breaks.
-  for (const clip of project.clips) {
-    if (!ids.has(clip.id)) continue;
-    if (edge === "start") {
-      const timed = clip.kind === "video" || clip.kind === "audio";
-      const earliest = timed ? Math.max(0, clip.start - clip.source_in / clip.speed) : 0;
-      target = Math.min(Math.max(target, earliest), clipEnd(clip) - MIN_CLIP_SECONDS);
-    } else {
-      const limit = sourceSpanLimit(project, clip);
-      const latest = clip.start + (limit - clip.source_in) / clip.speed;
-      target = Math.max(Math.min(target, latest), clip.start + MIN_CLIP_SECONDS);
-    }
-  }
-
-  const delta = edge === "start" ? target - anchor.start : target - clipEnd(anchor);
+  const from = edge === "start" ? anchor.start : clipEnd(anchor);
+  const delta = clampTravel(time - from, edgeTravel(project, ids, edge));
   if (Math.abs(delta) < 1e-9) return { project };
   const changed = new Map<string, Clip>();
   for (const clip of project.clips) {
@@ -509,17 +531,36 @@ export interface TimeRange {
   end: number;
 }
 
-/** Tracks a ripple over ``range`` would change: anything ending after its start. */
+/**
+ * The clips a ripple edit may move: those on tracks with sync lock on or among ``tracks``, the
+ * tracks being edited, and whatever is linked to them, so a picture never leaves its sound.
+ */
+export function rippleScope(project: Project, tracks: Iterable<string> = []): Set<string> {
+  const edited = new Set(tracks);
+  const synced = new Set(
+    project.tracks.filter((track) => track.sync_lock || edited.has(track.id)).map((t) => t.id),
+  );
+  return withLinked(
+    project,
+    project.clips.filter((clip) => synced.has(clip.track_id)).map((clip) => clip.id),
+  );
+}
+
+/** Tracks a ripple over ``range`` would change: any clip in its scope ending after its start. */
 export function rippleTouchedTracks(project: Project, range: TimeRange): Track[] {
+  const scope = rippleScope(project);
   const touched = new Set(
-    project.clips.filter((clip) => clipEnd(clip) > range.start + EPSILON).map((c) => c.track_id),
+    project.clips
+      .filter((clip) => scope.has(clip.id) && clipEnd(clip) > range.start + EPSILON)
+      .map((c) => c.track_id),
   );
   return project.tracks.filter((track) => touched.has(track.id));
 }
 
 /**
- * Removes ``range`` from every track and closes the gap. A clip crossing an edge keeps the part
- * outside; a clip spanning the whole range is cut in two, and the halves meet at its start.
+ * Removes ``range`` from every track with sync lock on and closes the gap. A clip crossing an
+ * edge keeps the part outside; a clip spanning the whole range is cut in two, and the halves meet
+ * at its start. Tracks with sync lock off keep their clips where they are.
  */
 export function rippleDelete(project: Project, range: TimeRange): EditResult {
   const start = Math.max(0, Math.min(range.start, range.end));
@@ -533,6 +574,7 @@ export function rippleDelete(project: Project, range: TimeRange): EditResult {
     };
   }
 
+  const scope = rippleScope(project);
   const rightLinks = new Map<string, string>();
   const clips: Clip[] = [];
   const shiftSource = (clip: Clip, by: number) =>
@@ -543,7 +585,7 @@ export function rippleDelete(project: Project, range: TimeRange): EditResult {
   for (const clip of project.clips) {
     const clipStart = clip.start;
     const clipStop = clipEnd(clip);
-    if (clipStop <= start + EPSILON) {
+    if (!scope.has(clip.id) || clipStop <= start + EPSILON) {
       clips.push(clip);
     } else if (clipStart >= end - EPSILON) {
       clips.push({ ...clip, start: clipStart - gap });
@@ -1019,6 +1061,7 @@ export function addTrack(project: Project, kind: VideoProjectTrackKind): EditRes
     solo: false,
     gain: 1,
     speech: false,
+    sync_lock: true,
   };
   const tracks = kind === "video" ? [track, ...project.tracks] : [...project.tracks, track];
   return { project: { ...project, tracks } };
@@ -1062,9 +1105,21 @@ export function updateTrack(project: Project, trackId: string, patch: Partial<Tr
   };
 }
 
-/** Clip edges and the playhead a dragged time snaps to, excluding the clips being moved. */
+/**
+ * Every clip that starts at or after ``time``, on ``trackIds`` when given: what to select to move
+ * the rest of the edit along.
+ */
+export function clipsFrom(project: Project, time: number, trackIds?: Set<string>): Set<string> {
+  return new Set(
+    project.clips
+      .filter((clip) => clip.start >= time - EPSILON && (!trackIds || trackIds.has(clip.track_id)))
+      .map((clip) => clip.id),
+  );
+}
+
+/** Clip edges, markers and the playhead a dragged time snaps to, except the moved clips' own. */
 export function snapTargets(project: Project, playhead: number, excluding: Set<string>): number[] {
-  const targets = [0, playhead];
+  const targets = [0, playhead, ...project.markers.map((marker) => marker.time)];
   for (const clip of project.clips) {
     if (excluding.has(clip.id)) continue;
     targets.push(clip.start, clipEnd(clip));

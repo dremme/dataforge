@@ -4,6 +4,8 @@ starting a caption job does not stop them. Every change is broadcast to all tabs
 An export never replaces anything. Its name is checked against the folder's files and every
 sidecar a media file of that name would claim, and a numbered name is taken on any collision.
 The snapshot and caption are written before the video appears, and removed again if it cannot.
+An export of a span writes neither: it is a check of a passage, and its snapshot would not be the
+edit it shows.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ from schemas import (
     NotificationVariant,
     VideoProject,
     VideoProjectExportEvent,
+    VideoProjectExportSpan,
     VideoProjectExportState,
     VideoProjectExportStatus,
 )
@@ -64,6 +67,8 @@ EXPORT_TIMEOUT_SECONDS = 6 * 3600
 EVENT_MIN_INTERVAL_SECONDS = 0.25
 #: Finished exports kept for a tab that comes back to ask how they went.
 MAX_FINISHED_EXPORTS = 20
+#: Added to the default name of an export of a span, so it is not taken for the whole edit.
+RANGE_EXPORT_TAG = "-range"
 
 _UNSAFE_NAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -160,7 +165,11 @@ class ExportManager:
         self._lock = threading.Lock()
 
     def start(
-        self, folder: Path, project: VideoProject, project_path: Path | None
+        self,
+        folder: Path,
+        project: VideoProject,
+        project_path: Path | None,
+        span: VideoProjectExportSpan | None = None,
     ) -> VideoProjectExportState:
         executable = ffmpeg_path()
         if not executable:
@@ -169,7 +178,8 @@ class ExportManager:
             raise ValueError("The timeline is empty, so there is nothing to export")
         check_sources(folder, project)
 
-        stem = sanitize_output_stem(project.export.filename, default_output_stem(project))
+        fallback = default_output_stem(project) + (RANGE_EXPORT_TAG if span else "")
+        stem = sanitize_output_stem(project.export.filename, fallback)
         with self._lock:
             sweep_export_leftovers(folder, self._running_outputs())
             reserved = {
@@ -198,7 +208,7 @@ class ExportManager:
         self._publish(record, force=True)
         threading.Thread(
             target=self._run,
-            args=(record, folder, frozen, executable),
+            args=(record, folder, frozen, executable, span),
             name=f"video-export-{state.id[:8]}",
             daemon=True,
         ).start()
@@ -292,7 +302,14 @@ class ExportManager:
             record.state.loudness_lufs = _finite(loudness.integrated_lufs)
             record.state.true_peak_db = _finite(loudness.true_peak_db)
 
-    def _run(self, record: _Export, folder: Path, project: VideoProject, executable: str) -> None:
+    def _run(
+        self,
+        record: _Export,
+        folder: Path,
+        project: VideoProject,
+        executable: str,
+        span: VideoProjectExportSpan | None,
+    ) -> None:
         output = Path(record.state.output_path)
         temp_path = output.with_name(f"{output.name}{VIDEO_PROJECT_EXPORT_TEMP_SUFFIX}")
 
@@ -308,7 +325,11 @@ class ExportManager:
                 if project.export.audio_level == "normalize":
                     log = run_ffmpeg(
                         build_mix_measure(
-                            project, folder, executable=executable, workspace=Path(workspace)
+                            project,
+                            folder,
+                            executable=executable,
+                            workspace=Path(workspace),
+                            span=span,
                         ),
                         should_cancel=record.cancel.is_set,
                         timeout=EXPORT_TIMEOUT_SECONDS,
@@ -327,6 +348,7 @@ class ExportManager:
                     workspace=Path(workspace),
                     probe_color=lambda path: probe_stream_color(executable, path),
                     measured_lufs=measured,
+                    span=span,
                 )
                 plan_duration[0] = plan.duration
                 run_ffmpeg(
@@ -339,7 +361,10 @@ class ExportManager:
             if record.cancel.is_set():
                 raise FfmpegCancelled
             self._measure(record, executable, temp_path)
-            publish_export(folder, project, temp_path, output)
+            if span is None:
+                publish_export(folder, project, temp_path, output)
+            else:
+                publish_new_file(temp_path, output)
         except FfmpegCancelled:
             self._finish(record, "cancelled")
         except Exception as exc:

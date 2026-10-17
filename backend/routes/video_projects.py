@@ -389,13 +389,19 @@ def video_project_filmstrip(
 @router.get("/video-projects/waveform")
 def video_project_waveform(
     path: str = Query(..., description="Absolute path to a video or audio file"),
-    width: int = Query(1600, ge=1),
+    start: float = Query(0.0, ge=0.0, description="Source seconds the stretch starts at"),
+    duration: float = Query(..., gt=0.0, description="Seconds the stretch lasts"),
+    width: int = Query(512, ge=1),
+    height: int = Query(96, ge=1),
     v: str | None = Query(None, description="Client cache-busting token"),
 ) -> Response:
+    """The sound of one stretch of a file, one lane per channel, at the pixel size drawn."""
     media = _editor_source(path)
     if source_kind_for(media) == "image":
         raise HTTPException(status_code=400, detail="An image has no sound")
-    return _timeline_picture(lambda executable: waveform(executable, media, width))
+    return _timeline_picture(
+        lambda executable: waveform(executable, media, start, duration, width, height)
+    )
 
 
 @router.post("/video-projects/exports", response_model=VideoProjectExportState)
@@ -403,7 +409,7 @@ def start_video_project_export(body: VideoProjectExportRequest) -> VideoProjectE
     folder = resolve_folder(body.folder)
     project_path = normalize_user_path(body.project_path) if body.project_path else None
     try:
-        return export_manager.start(folder, body.project, project_path)
+        return export_manager.start(folder, body.project, project_path, body.span)
     except RuntimeError as exc:
         status = 503 if str(exc) == FFMPEG_MISSING_MESSAGE else 500
         raise HTTPException(status_code=status, detail=str(exc)) from exc

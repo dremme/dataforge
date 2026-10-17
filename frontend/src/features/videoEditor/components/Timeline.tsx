@@ -15,6 +15,8 @@ import {
   iconEyeOff,
   iconHeadphones,
   iconLink,
+  iconLink2,
+  iconLink2Off,
   iconLock,
   iconLockOpen,
   iconTrash2,
@@ -50,6 +52,7 @@ import {
   snapToFrame,
   sourceById,
   splitClips,
+  trackById,
   tracksOfKind,
   transitionOverlap,
   trimClipFlush,
@@ -62,10 +65,21 @@ import {
   type Track,
   type TrimEdge,
 } from "@/features/videoEditor/lib/timeline";
+import { markerLabel } from "@/features/videoEditor/lib/markers";
+import {
+  clipTiles,
+  tileSeconds,
+  type MediaTile,
+  type TileLevel,
+} from "@/features/videoEditor/lib/mediaTiles";
+import { rippleTrim, rollTrim } from "@/features/videoEditor/lib/trimming";
 import { thumbnailUrl } from "@/features/gallery/api/media";
 import { ToolButton } from "./ToolButton";
 
-export type TimelineTool = "select" | "blade" | "range";
+export type TimelineTool = "select" | "blade" | "range" | "ripple" | "roll";
+
+/** Tools whose clips select and move as with Select; they differ only in what an edge does. */
+const EDGE_TOOLS: ReadonlySet<TimelineTool> = new Set(["select", "ripple", "roll"]);
 
 /** Drag-and-drop payload type of a media browser row. */
 export const SOURCE_DRAG_TYPE = "application/x-dataforge-editor-source";
@@ -81,10 +95,15 @@ const SNAP_PX = 8;
 const TAIL_SECONDS = 10;
 const FILMSTRIP_FRAME_PX = 72;
 const FILMSTRIP_HEIGHT = 48;
+/** How long the zoom and the scroll position rest before the clips' pictures follow them. */
+const LEVEL_SETTLE_MS = 300;
+const SCROLL_SETTLE_MS = 120;
 /** How far ahead of the right edge the view pages forward while playing. */
 const FOLLOW_MARGIN_PX = 32;
 /** Frames get their own ruler ticks once one is this wide. */
 const FRAME_TICK_PX = 6;
+/** A press on empty lane space becomes a marquee once the pointer travels this far. */
+const MARQUEE_PX = 4;
 
 interface TimelineProps {
   project: Project;
@@ -121,6 +140,7 @@ type Drag =
     }
   | {
       kind: "trim";
+      tool: TimelineTool;
       base: Project;
       clipId: string;
       edge: TrimEdge;
@@ -128,7 +148,23 @@ type Drag =
       error?: string;
     }
   | { kind: "range"; anchor: number }
-  | { kind: "scrub" };
+  | { kind: "scrub" }
+  | {
+      kind: "marquee";
+      /** Where the press began, in the lanes' own pixels. */
+      x: number;
+      y: number;
+      /** Kept when Shift or Ctrl was held, so the marquee adds to it. */
+      kept: Set<string>;
+      active: boolean;
+    };
+
+interface Box {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
 
 function laneHeight(track: Track): number {
   return track.kind === "video" ? VIDEO_LANE_PX : AUDIO_LANE_PX;
@@ -166,6 +202,7 @@ export function Timeline({
   const [snapAt, setSnapAt] = useState<number | null>(null);
   const [drop, setDrop] = useState<{ trackId: string; time: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [marquee, setMarquee] = useState<Box | null>(null);
 
   const duration = projectDuration(project);
   const [viewWidth, setViewWidth] = useState(0);
@@ -175,6 +212,18 @@ export function Timeline({
     viewWidth - TRACK_HEADER_PX,
   );
   const at = (time: number) => TIMELINE_ORIGIN_PX + time * pxPerSecond;
+  // Pictures follow the zoom once it settles, and the scroll position a moment after it stops.
+  const levelPx = useDebouncedValue(pxPerSecond, LEVEL_SETTLE_MS);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const settledScroll = useDebouncedValue(scrollLeft, SCROLL_SETTLE_MS);
+  const view = useMemo<TimeRange>(() => {
+    const lanes = viewWidth - TRACK_HEADER_PX;
+    // Before the timeline is measured, everything counts as in view.
+    if (lanes <= 0) return { start: 0, end: Infinity };
+    const start = (settledScroll - TIMELINE_ORIGIN_PX) / pxPerSecond;
+    const seconds = lanes / pxPerSecond;
+    return { start: start - seconds, end: start + 2 * seconds };
+  }, [settledScroll, viewWidth, pxPerSecond]);
 
   useEffect(() => {
     const scroller = scrollRef.current;
@@ -183,7 +232,12 @@ export function Timeline({
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(scroller);
-    return () => observer.disconnect();
+    const scrolled = () => setScrollLeft(scroller.scrollLeft);
+    scroller.addEventListener("scroll", scrolled, { passive: true });
+    return () => {
+      observer.disconnect();
+      scroller.removeEventListener("scroll", scrolled);
+    };
   }, []);
 
   // The line follows the clock without React; while playing, the view pages along with it.
@@ -290,6 +344,31 @@ export function Timeline({
     hideBlade();
   }
 
+  /** A point in the lanes' own pixels. */
+  function lanePoint(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = lanesRef.current?.getBoundingClientRect();
+    return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
+  }
+
+  /** Every clip whose block on the timeline meets ``box``. */
+  function clipsIn(box: Box): Set<string> {
+    const ids = new Set<string>();
+    for (const clip of project.clips) {
+      const track = trackById(project, clip.track_id);
+      if (!track) continue;
+      const top = laneTop(track.id);
+      if (
+        at(clipEnd(clip)) > box.left &&
+        at(clip.start) < box.left + box.width &&
+        top + laneHeight(track) > box.top &&
+        top < box.top + box.height
+      ) {
+        ids.add(clip.id);
+      }
+    }
+    return ids;
+  }
+
   function handleClipPointerDown(event: ReactPointerEvent, clip: Clip) {
     if (event.button !== 0) return;
     event.stopPropagation();
@@ -329,10 +408,10 @@ export function Timeline({
   }
 
   function handleTrimPointerDown(event: ReactPointerEvent, clip: Clip, edge: TrimEdge) {
-    if (event.button !== 0 || tool !== "select") return;
+    if (event.button !== 0 || !EDGE_TOOLS.has(tool)) return;
     event.stopPropagation();
     if (!selection.has(clip.id)) onSelect(new Set([clip.id]), null);
-    startDrag(event, { kind: "trim", base: project, clipId: clip.id, edge, result: null });
+    startDrag(event, { kind: "trim", tool, base: project, clipId: clip.id, edge, result: null });
   }
 
   function handleLanePointerDown(event: ReactPointerEvent) {
@@ -343,8 +422,17 @@ export function Timeline({
       onRange({ start: time, end: time });
       return;
     }
-    onSelect(new Set(), null);
+    const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+    if (!additive) onSelect(new Set(), null);
     onSeek(time);
+    if (EDGE_TOOLS.has(tool)) {
+      startDrag(event, {
+        kind: "marquee",
+        ...lanePoint(event.clientX, event.clientY),
+        kept: additive ? new Set(selection) : new Set(),
+        active: false,
+      });
+    }
   }
 
   function handleRulerPointerDown(event: ReactPointerEvent) {
@@ -390,6 +478,22 @@ export function Timeline({
       onRange({ start: Math.min(drag.anchor, end), end: Math.max(drag.anchor, end) });
       return;
     }
+    if (drag.kind === "marquee") {
+      const point = lanePoint(event.clientX, event.clientY);
+      const width = Math.abs(point.x - drag.x);
+      const height = Math.abs(point.y - drag.y);
+      if (!drag.active && Math.max(width, height) < MARQUEE_PX) return;
+      drag.active = true;
+      const box = {
+        left: Math.min(point.x, drag.x),
+        top: Math.min(point.y, drag.y),
+        width,
+        height,
+      };
+      setMarquee(box);
+      onSelect(new Set([...drag.kept, ...clipsIn(box)]), null);
+      return;
+    }
     if (drag.kind === "trim") {
       let target = frame(time);
       let snapped: number | null = null;
@@ -399,7 +503,9 @@ export function Timeline({
         target = snapped ?? target;
       }
       setSnapAt(snapped);
-      followDrag(drag, trimClipFlush(drag.base, drag.clipId, drag.edge, target));
+      const trim =
+        drag.tool === "ripple" ? rippleTrim : drag.tool === "roll" ? rollTrim : trimClipFlush;
+      followDrag(drag, trim(drag.base, drag.clipId, drag.edge, target));
       return;
     }
     const moving = withLinked(drag.base, drag.ids);
@@ -451,7 +557,8 @@ export function Timeline({
     const drag = dragRef.current;
     dragRef.current = null;
     setSnapAt(null);
-    if (!drag || drag.kind === "scrub" || drag.kind === "range") return;
+    setMarquee(null);
+    if (!drag || drag.kind === "scrub" || drag.kind === "range" || drag.kind === "marquee") return;
     if (drag.result?.project) onCommit(drag.result.project);
     else if (drag.error) onError(drag.error);
     setDragError(null);
@@ -542,6 +649,21 @@ export function Timeline({
                 {rulerLabel(tick)}
               </span>
             ))}
+            {project.markers.map((marker) => (
+              <button
+                key={marker.id}
+                type="button"
+                className="video-timeline__marker"
+                style={{ left: at(marker.time) }}
+                title={[markerLabel(project, marker), marker.note].filter(Boolean).join("\n")}
+                aria-label={`${markerLabel(project, marker)}, ${formatTimecode(marker.time, project.frame_rate)}`}
+                tabIndex={-1}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  onSeek(marker.time);
+                }}
+              />
+            ))}
             {range && (
               <span
                 className={classNames(
@@ -613,6 +735,8 @@ export function Timeline({
                       project={project}
                       location={clip.source_id ? sources.get(clip.source_id) : undefined}
                       pxPerSecond={pxPerSecond}
+                      levelPx={levelPx}
+                      view={view}
                       selected={selection.has(clip.id)}
                       invalid={Boolean(dragError) && selection.has(clip.id)}
                       onPointerDown={(event) => handleClipPointerDown(event, clip)}
@@ -691,6 +815,17 @@ export function Timeline({
                 }}
                 aria-hidden="true"
               />
+            )}
+            {project.markers.map((marker) => (
+              <div
+                key={marker.id}
+                className="video-timeline__marker-line"
+                style={{ transform: `translateX(${at(marker.time)}px)` }}
+                aria-hidden="true"
+              />
+            ))}
+            {marquee && (
+              <div className="video-timeline__marquee" style={marquee} aria-hidden="true" />
             )}
             {snapAt !== null && (
               <div
@@ -874,6 +1009,22 @@ function TrackHeader({
           </>
         )}
         <ToolButton
+          icon={track.sync_lock ? iconLink2 : iconLink2Off}
+          label={
+            track.sync_lock
+              ? `Turn off sync lock on ${track.name}`
+              : `Turn on sync lock on ${track.name}`
+          }
+          tooltip={
+            track.sync_lock
+              ? `Sync lock on: ripple delete, insert and ripple trims move ${track.name} too`
+              : `Sync lock off: ripple edits elsewhere leave ${track.name} alone`
+          }
+          pressed={track.sync_lock}
+          className="video-timeline__toggle video-timeline__toggle--sync"
+          onClick={() => update({ sync_lock: !track.sync_lock })}
+        />
+        <ToolButton
           icon={track.locked ? iconLock : iconLockOpen}
           label={track.locked ? `Unlock ${track.name}` : `Lock ${track.name}`}
           pressed={track.locked}
@@ -890,6 +1041,10 @@ interface TimelineClipProps {
   project: Project;
   location: SourceLocation | undefined;
   pxPerSecond: number;
+  /** The zoom the pictures' level of detail follows, settled after a zoom. */
+  levelPx: number;
+  /** Timeline seconds in view, and a margin either side; pictures are fetched for these. */
+  view: TimeRange;
   selected: boolean;
   invalid: boolean;
   onPointerDown: (event: ReactPointerEvent) => void;
@@ -903,6 +1058,8 @@ function TimelineClip({
   project,
   location,
   pxPerSecond,
+  levelPx,
+  view,
   selected,
   invalid,
   onPointerDown,
@@ -948,7 +1105,9 @@ function TimelineClip({
           <ClipPicture
             clip={clip}
             location={location}
-            width={width}
+            pxPerSecond={pxPerSecond}
+            levelPx={levelPx}
+            view={view}
             sourceDuration={source?.duration ?? null}
           />
         )}
@@ -1020,40 +1179,64 @@ function GainEnvelope({ clip, width }: { clip: Clip; width: number }) {
   );
 }
 
+/** A video tile holds this many frames, each about one filmstrip frame wide. */
+const FRAMES_PER_TILE = 8;
+const FILMSTRIP_LEVEL: TileLevel = {
+  tilePx: FRAMES_PER_TILE * FILMSTRIP_FRAME_PX,
+  // A frame every 1/32 s at the finest; a closer zoom stretches them.
+  minSeconds: FRAMES_PER_TILE / 32,
+};
+const WAVEFORM_TILE_PX = 512;
+const WAVEFORM_LEVEL: TileLevel = { tilePx: WAVEFORM_TILE_PX, minSeconds: 1 / 32 };
+
+/**
+ * The take's frames or sound, as tiles of the source in view: a closer zoom asks for finer
+ * tiles, so it shows the frames and transients of the stretch it looks at, and the waveform
+ * draws a lane per channel.
+ */
 function ClipPicture({
   clip,
   location,
-  width,
+  pxPerSecond,
+  levelPx,
+  view,
   sourceDuration,
 }: {
   clip: Clip;
   location: SourceLocation;
-  width: number;
+  pxPerSecond: number;
+  levelPx: number;
+  view: TimeRange;
   sourceDuration: number | null;
 }) {
-  const span = clip.duration * clip.speed;
-  // Only a settled take is fetched, not every frame of a trim drag.
-  const settled = useDebouncedValue(
-    `${clip.source_in.toFixed(2)}|${span.toFixed(2)}|${Math.max(1, Math.min(16, Math.round(width / FILMSTRIP_FRAME_PX)))}`,
-    300,
-  );
   if (clip.kind === "video") {
-    const [start, length, count] = settled.split("|").map(Number);
-    const url = filmstripUrl(
-      location.path,
-      start,
-      start + length,
-      count,
-      FILMSTRIP_HEIGHT,
-      location.version,
-    );
-    return (
-      <span
-        className="video-timeline__filmstrip"
-        style={{ backgroundImage: `url("${url}")`, backgroundSize: `${100}% 100%` }}
-        aria-hidden="true"
-      />
-    );
+    const tiles = clipTiles(clip, view, pxPerSecond, levelPx, FILMSTRIP_LEVEL, sourceDuration);
+    const span = tileSeconds(levelPx, clip.speed, FILMSTRIP_LEVEL);
+    return tiles.map((tile) => {
+      // The file's last tile is shorter, and holds as many frames as fit its share.
+      const count = Math.max(1, Math.round((FRAMES_PER_TILE * (tile.end - tile.start)) / span));
+      const url = filmstripUrl(
+        location.path,
+        tile.start,
+        tile.end,
+        count,
+        FILMSTRIP_HEIGHT,
+        location.version,
+      );
+      return (
+        <span
+          key={tile.start}
+          className="video-timeline__filmstrip"
+          style={{
+            left: tile.left,
+            width: tile.width,
+            backgroundImage: `url("${url}")`,
+            backgroundSize: "100% 100%",
+          }}
+          aria-hidden="true"
+        />
+      );
+    });
   }
   if (clip.kind === "image") {
     return (
@@ -1064,25 +1247,76 @@ function ClipPicture({
       />
     );
   }
-  if (clip.kind === "audio" && sourceDuration) {
-    const perSecond = width / Math.max(span, 1e-6);
-    const url = waveformUrl(location.path, 2000, location.version);
+  if (clip.kind === "audio") {
     return (
-      <span
-        className="video-timeline__waveform"
-        style={{
-          maskImage: `url("${url}")`,
-          WebkitMaskImage: `url("${url}")`,
-          maskSize: `${sourceDuration * perSecond}px 100%`,
-          WebkitMaskSize: `${sourceDuration * perSecond}px 100%`,
-          maskPosition: `${-clip.source_in * perSecond}px 0`,
-          WebkitMaskPosition: `${-clip.source_in * perSecond}px 0`,
-        }}
-        aria-hidden="true"
+      <WaveformTiles
+        clip={clip}
+        location={location}
+        tiles={clipTiles(clip, view, pxPerSecond, levelPx, WAVEFORM_LEVEL, sourceDuration)}
+        span={tileSeconds(levelPx, clip.speed, WAVEFORM_LEVEL)}
       />
     );
   }
   return null;
+}
+
+/**
+ * The sound's tiles, each fetched at the device pixels it is drawn at, or a little more, so the
+ * browser only ever shrinks the mask: a stretched one blurs the line. A tile is drawn up to √2 of
+ * its level's width before the next level takes over, so that is the width asked for.
+ */
+function WaveformTiles({
+  clip,
+  location,
+  tiles,
+  span,
+}: {
+  clip: Clip;
+  location: SourceLocation;
+  tiles: MediaTile[];
+  span: number;
+}) {
+  const [drawnPx, setDrawnPx] = useState(0);
+  const measure = (element: HTMLSpanElement | null) => {
+    const height = element?.clientHeight ?? 0;
+    if (height > 0 && height !== drawnPx) setDrawnPx(height);
+  };
+  const density = Math.min(3, window.devicePixelRatio || 1);
+  const height = Math.round(drawnPx * density);
+  const fullWidth = Math.ceil(WAVEFORM_TILE_PX * Math.SQRT2 * density);
+  return tiles.map((tile, index) => {
+    // The file's last tile is shorter, and its picture as much narrower.
+    const width = Math.max(1, Math.round((fullWidth * (tile.end - tile.start)) / span));
+    const url = waveformUrl(
+      location.path,
+      tile.start,
+      tile.end - tile.start,
+      width,
+      height,
+      location.version,
+    );
+    return (
+      <span
+        key={`${clip.id}-${tile.start}`}
+        ref={index === 0 ? measure : undefined}
+        className="video-timeline__waveform"
+        style={{
+          left: tile.left,
+          width: tile.width,
+          // Unmeasured, a mask of a guessed height would be fetched and then thrown away.
+          ...(drawnPx > 0
+            ? {
+                maskImage: `url("${url}")`,
+                WebkitMaskImage: `url("${url}")`,
+                maskSize: "100% 100%",
+                WebkitMaskSize: "100% 100%",
+              }
+            : {}),
+        }}
+        aria-hidden="true"
+      />
+    );
+  });
 }
 
 /** Where sound on an audio track overlaps the next clip, and so cross-fades into it. */

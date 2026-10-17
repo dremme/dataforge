@@ -34,6 +34,7 @@ function project(duration: number): Project {
         solo: false,
         gain: 1,
         speech: false,
+        sync_lock: true,
       },
     ],
     clips: [
@@ -61,6 +62,7 @@ function project(duration: number): Project {
     ],
     transitions: [],
     mix: { master_gain: 1, duck_gain: 0.25 },
+    markers: [],
     export: {
       filename: "",
       size: "source",

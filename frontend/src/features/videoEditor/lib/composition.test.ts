@@ -88,12 +88,14 @@ function project(clips: Clip[], tracks: Partial<Project["tracks"][number]>[] = [
       solo: false,
       gain: 1,
       speech: false,
+      sync_lock: true,
       ...track,
       ...tracks.find((patch) => patch.id === track.id),
     })),
     clips,
     transitions: [],
     mix: { master_gain: 1, duck_gain: 0.25 },
+    markers: [],
     export: settings,
   };
 }
@@ -215,6 +217,7 @@ describe("audio", () => {
         ],
       ),
       mix: { master_gain: 2, duck_gain: 0.25 },
+      markers: [],
     };
     const gainOf = (time: number) =>
       voicesAt(p, time).find((voice) => voice.clip.id === "music")?.gain;

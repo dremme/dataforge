@@ -62,6 +62,8 @@ describe("ExportDialog", () => {
     render(
       <ExportDialog
         project={project}
+        range={null}
+        selectionSpan={null}
         busy={false}
         error={null}
         blocked={null}
@@ -85,6 +87,7 @@ describe("ExportDialog", () => {
 
     expect(onExport).toHaveBeenCalledWith(
       expect.objectContaining({ filename: "trip-edited", size: "1080p", orientation: "portrait" }),
+      null,
     );
   });
 
@@ -94,6 +97,8 @@ describe("ExportDialog", () => {
     render(
       <ExportDialog
         project={project}
+        range={null}
+        selectionSpan={null}
         busy={false}
         error={null}
         blocked={null}
@@ -107,13 +112,47 @@ describe("ExportDialog", () => {
     expect(screen.getByText(/Brings the whole mix to -14 LUFS/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Export" }));
 
-    expect(onExport).toHaveBeenCalledWith(expect.objectContaining({ audio_level: "normalize" }));
+    expect(onExport).toHaveBeenCalledWith(
+      expect.objectContaining({ audio_level: "normalize" }),
+      null,
+    );
+  });
+
+  it("exports the marked range under its own name and leaves the caption out", async () => {
+    const user = userEvent.setup();
+    const onExport = vi.fn();
+    render(
+      <ExportDialog
+        project={project}
+        range={{ start: 0.5, end: 1.5 }}
+        selectionSpan={null}
+        busy={false}
+        error={null}
+        blocked={null}
+        onExport={onExport}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("radio", { name: /Selected clips/ })).toBeNull();
+
+    await user.click(screen.getByRole("radio", { name: /Marked range/ }));
+    expect(screen.getByRole("textbox", { name: "File name" })).toHaveValue("trip-edited-range");
+    expect(screen.getByRole("checkbox", { name: /caption/ })).toBeDisabled();
+    expect(screen.getByText(/1280 × 720|640 × 360/).textContent).toContain("00:00:01:00");
+    await user.click(screen.getByRole("button", { name: "Export" }));
+
+    expect(onExport).toHaveBeenCalledWith(
+      expect.objectContaining({ filename: "trip-edited-range" }),
+      { start: 0.5, end: 1.5 },
+    );
   });
 
   it("says why an export cannot start and keeps the button off", () => {
     render(
       <ExportDialog
         project={project}
+        range={null}
+        selectionSpan={null}
         busy={false}
         error="Disk full"
         blocked="The timeline is empty."

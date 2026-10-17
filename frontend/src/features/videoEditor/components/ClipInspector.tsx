@@ -38,8 +38,10 @@ import {
   sourceById,
   transitionOverlap,
   type Clip,
+  type EditResult,
   type Project,
 } from "@/features/videoEditor/lib/timeline";
+
 import { TRANSFORM_PROPERTIES } from "@/features/videoEditor/lib/keyframes";
 import { FontPicker } from "./FontPicker";
 import { GradePresets } from "./GradePresets";
@@ -52,6 +54,7 @@ import {
   type ClipEdit,
 } from "./InspectorParts";
 import { KeyedSlider, KeyframeBar } from "./KeyframeControls";
+import { MarkersPanel } from "./MarkersPanel";
 import { MixPanel, type MixEdit, type TrackEdit } from "./MixPanel";
 import { MultiClipInspector, type BatchEdit } from "./MultiClipInspector";
 import { TimecodeField } from "./TimecodeField";
@@ -105,6 +108,11 @@ const QUICK_KEYS: { label: string; shortcuts: ShortcutDefinition[] }[] = [
     label: "Select, Blade, Range",
     shortcuts: [SHORTCUTS.editorSelectTool, SHORTCUTS.editorBladeTool, SHORTCUTS.editorRangeTool],
   },
+  {
+    label: "Ripple, roll trim tool",
+    shortcuts: [SHORTCUTS.editorRippleTool, SHORTCUTS.editorRollTool],
+  },
+  { label: "Add a marker", shortcuts: [SHORTCUTS.editorAddMarker] },
   { label: "Mark in, out", shortcuts: [SHORTCUTS.editorMarkIn, SHORTCUTS.editorMarkOut] },
   { label: "Ripple delete the range", shortcuts: [SHORTCUTS.editorRippleDelete] },
   { label: "Copy, paste", shortcuts: [SHORTCUTS.editorCopy, SHORTCUTS.editorPaste] },
@@ -116,6 +124,12 @@ const QUICK_KEYS: { label: string; shortcuts: ShortcutDefinition[] }[] = [
     label: "Trim start, end to the playhead",
     shortcuts: [SHORTCUTS.editorTrimStart, SHORTCUTS.editorTrimEnd],
   },
+  {
+    label: "Ripple trim start, end",
+    shortcuts: [SHORTCUTS.editorRippleTrimStart, SHORTCUTS.editorRippleTrimEnd],
+  },
+  { label: "Select from the playhead on", shortcuts: [SHORTCUTS.editorSelectForward] },
+
   {
     label: "Previous, next edit",
     shortcuts: [SHORTCUTS.editorPreviousEdit, SHORTCUTS.editorNextEdit],
@@ -138,6 +152,8 @@ interface ClipInspectorProps {
   onEdit: ClipEdit;
   onTrackEdit: TrackEdit;
   onMixEdit: MixEdit;
+  /** Adding, changing or removing a marker. */
+  onMarkersEdit: (result: EditResult) => void;
   onSpeed: (speed: number) => void;
   /** Exact timing of the one selected clip: where it starts, its in point, and its length. */
   onStart: (seconds: number) => void;
@@ -177,6 +193,7 @@ function InspectorContent({
   onEdit,
   onTrackEdit,
   onMixEdit,
+  onMarkersEdit,
   onSpeed,
   onStart,
   onSourceIn,
@@ -265,6 +282,7 @@ function InspectorContent({
         <p className="video-editor__inspector-empty">
           Select a clip on the timeline to adjust it, or drag files from Media onto a track.
         </p>
+        <MarkersPanel project={project} time={time} onSeek={onSeek} onEdit={onMarkersEdit} />
         <MixPanel project={project} onTrackEdit={onTrackEdit} onMixEdit={onMixEdit} />
         <Panel title="Keys">
           <ul className="video-editor__quick-keys">

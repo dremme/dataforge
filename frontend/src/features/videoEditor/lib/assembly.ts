@@ -19,6 +19,7 @@ import {
   newId,
   placeSource,
   pruneTransitions,
+  rippleScope,
   sourceById,
   sourceEntry,
   splitClips,
@@ -175,8 +176,9 @@ export function replaceClip(
 }
 
 /**
- * Opens room at ``time`` on every track and places the file there, so everything after it moves
- * later together. Clips crossing ``time`` are cut, as a split there would cut them.
+ * Opens room at ``time`` on every track with sync lock on and places the file there, so
+ * everything after it moves later together. Clips crossing ``time`` are cut, as a split there
+ * would cut them.
  */
 export function insertSource(
   project: Project,
@@ -190,9 +192,15 @@ export function insertSource(
   return placeSource(opened.project, { ...request, start: time });
 }
 
-/** Moves every clip from ``time`` on later by ``length``; refused if a locked track would move. */
+/**
+ * Moves every clip in the ripple scope from ``time`` on later by ``length``; refused if a locked
+ * track would move.
+ */
 export function openGap(project: Project, time: number, length: number): EditResult {
-  const moving = project.clips.filter((clip) => clipEnd(clip) > time + EPSILON);
+  const scope = rippleScope(project);
+  const moving = project.clips.filter(
+    (clip) => scope.has(clip.id) && clipEnd(clip) > time + EPSILON,
+  );
   const locked = moving
     .map((clip) => trackById(project, clip.track_id))
     .find((track) => track?.locked);
@@ -202,9 +210,7 @@ export function openGap(project: Project, time: number, length: number): EditRes
     };
   }
   let current = project;
-  const crossing = project.clips.filter(
-    (clip) => clip.start < time - EPSILON && clipEnd(clip) > time + EPSILON,
-  );
+  const crossing = moving.filter((clip) => clip.start < time - EPSILON);
   if (crossing.length > 0) {
     const cut = splitClips(
       project,
@@ -214,11 +220,15 @@ export function openGap(project: Project, time: number, length: number): EditRes
     if (!cut.project) return cut;
     current = cut.project;
   }
+  // The cut's right halves have new ids, so the scope is read again after it.
+  const shifted = rippleScope(current);
   return {
     project: {
       ...current,
       clips: current.clips.map((clip) =>
-        clip.start >= time - EPSILON ? { ...clip, start: clip.start + length } : clip,
+        clip.start >= time - EPSILON && shifted.has(clip.id)
+          ? { ...clip, start: clip.start + length }
+          : clip,
       ),
     },
   };

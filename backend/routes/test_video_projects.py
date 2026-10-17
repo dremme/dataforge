@@ -104,7 +104,9 @@ class ProjectEndpointTests(unittest.TestCase):
             query = f"path={quote(str(media))}"
 
             strip = client.get(f"/api/video-projects/filmstrip?{query}&end=1&count=3&height=32")
-            wave = client.get(f"/api/video-projects/waveform?{query}&width=400")
+            wave = client.get(
+                f"/api/video-projects/waveform?{query}&start=0.5&duration=1&width=400"
+            )
 
             self.assertEqual(strip.status_code, 200, strip.text)
             self.assertEqual(strip.headers["content-type"], "image/webp")

@@ -30,6 +30,7 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont
 from automation.watermark import resolve_watermark_font
 from color_adjust import adjust_lut, is_adjust_identity, is_global_identity, write_cube
 from constants import (
+    VIDEO_PROJECT_DUCK_RAMP_SECONDS,
     VIDEO_PROJECT_LOUDNESS_TARGET_LUFS,
     VIDEO_PROJECT_MIN_CLIP_SECONDS,
     VIDEO_PROJECT_QUALITY_PRESETS,
@@ -43,6 +44,7 @@ from schemas import (
     VideoProjectAudioLevel,
     VideoProjectClip,
     VideoProjectExportSettings,
+    VideoProjectExportSpan,
     VideoProjectFont,
     VideoProjectKeyframe,
     VideoProjectSource,
@@ -264,7 +266,56 @@ ColorProbe = Callable[[Path], StreamColor]
 @dataclass(frozen=True, slots=True)
 class RenderPlan:
     command: list[str]
+    #: Seconds of output, for progress.
     duration: float
+
+
+@dataclass(frozen=True, slots=True)
+class RenderWindow:
+    """What a render composes and which part of it it keeps: ``project`` is drawn for
+    ``head + length`` seconds and the output starts ``head`` seconds in, a whole frame count."""
+
+    project: VideoProject
+    head: float
+    length: float
+
+    @property
+    def composed(self) -> float:
+        return self.head + self.length
+
+
+def render_window(project: VideoProject, span: VideoProjectExportSpan | None) -> RenderWindow:
+    """The whole project, or the clips around ``span`` moved back by whole frames, so the frame
+    grid, fades, keyframes and offsets inside the span stay exactly as the full export has them.
+    Clips just outside it are kept as well, for ducking that ramps in before speech."""
+    duration = _checked_duration(project)
+    if span is None:
+        return RenderWindow(project, 0.0, duration)
+    rate = project.frame_rate
+    start = frame_index(span.start, rate) / rate
+    end = min(span.end, duration)
+    if end - start < VIDEO_PROJECT_MIN_CLIP_SECONDS:
+        raise ValueError("The range to export lies past the end of the timeline")
+    margin = VIDEO_PROJECT_DUCK_RAMP_SECONDS + 1 / rate
+    near = [
+        clip for clip in project.clips if clip.end > start - margin and clip.start < end + margin
+    ]
+    earliest = min((clip.start for clip in near), default=start)
+    shift = min(frame_index(earliest, rate), round(start * rate))
+    kept = {clip.id for clip in near}
+    head = start - shift / rate
+    part = project.model_copy(
+        update={
+            "clips": [clip.model_copy(update={"start": clip.start - shift / rate}) for clip in near]
+            or [_spacer(project, head + end - start)],
+            "transitions": [
+                transition
+                for transition in project.transitions
+                if transition.from_clip_id in kept and transition.to_clip_id in kept
+            ],
+        }
+    )
+    return RenderWindow(part, head, end - start)
 
 
 def _visual_chain(
@@ -609,13 +660,16 @@ def build_render(
     workspace: Path,
     probe_color: ColorProbe,
     measured_lufs: float | None = None,
+    span: VideoProjectExportSpan | None = None,
 ) -> RenderPlan:
     """Write the graph and every layer file into ``workspace``, where ffmpeg must run.
-    ``normalize`` needs ``measured_lufs``, the mix's loudness from ``build_mix_measure``."""
-    duration = _checked_duration(project)
+    ``normalize`` needs ``measured_lufs``, the mix's loudness from ``build_mix_measure`` over the
+    same ``span``."""
+    window = render_window(project, span)
+    part, duration = window.project, window.length
     inputs = RenderInputs(arguments=[])
     links, base = _picture_links(
-        project, folder, inputs, duration=duration, workspace=workspace, probe_color=probe_color
+        part, folder, inputs, duration=window.composed, workspace=workspace, probe_color=probe_color
     )
 
     width, height = export_size(project, settings)
@@ -626,12 +680,16 @@ def build_render(
             f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black",
             "setsar=1",
         ]
+    if window.head > 0:
+        start_frame = round(window.head * project.frame_rate)
+        finish = [f"trim=start_frame={start_frame}", "setpts=PTS-STARTPTS", *finish]
     links.append(f"[{base}]{','.join(finish)},format=yuv420p[vout]")
 
-    mix_links, mix = _mix_links(project, folder, inputs, duration=duration)
+    mix_links, mix = _mix_links(part, folder, inputs, duration=window.composed)
     links += mix_links
     level = audio_level_filters(settings.audio_level, measured_lufs)
-    links.append(f"[{mix}]{','.join([*level, f'atrim=duration={_seconds(duration)}'])}[aout]")
+    stages = [*_span_audio(window), *level, f"atrim=duration={_seconds(duration)}"]
+    links.append(f"[{mix}]{','.join(stages)}[aout]")
 
     (workspace / GRAPH_FILE_NAME).write_text(";\n".join(links), encoding="utf-8")
 
@@ -680,14 +738,26 @@ def build_render(
     return RenderPlan(command=command, duration=duration)
 
 
+def _span_audio(window: RenderWindow) -> list[str]:
+    if window.head <= 0:
+        return []
+    return [f"atrim=start={_seconds(window.head)}", "asetpts=PTS-STARTPTS"]
+
+
 def build_mix_measure(
-    project: VideoProject, folder: Path, *, executable: str, workspace: Path
+    project: VideoProject,
+    folder: Path,
+    *,
+    executable: str,
+    workspace: Path,
+    span: VideoProjectExportSpan | None = None,
 ) -> list[str]:
     """A sound-only pass that logs the unprocessed mix's loudness; see ``parse_loudness``."""
-    duration = _checked_duration(project)
+    window = render_window(project, span)
     inputs = RenderInputs(arguments=[])
-    links, mix = _mix_links(project, folder, inputs, duration=duration)
-    links.append(f"[{mix}]ebur128=peak=true:framelog=quiet[aout]")
+    links, mix = _mix_links(window.project, folder, inputs, duration=window.composed)
+    stages = [*_span_audio(window), "ebur128=peak=true:framelog=quiet"]
+    links.append(f"[{mix}]{','.join(stages)}[aout]")
     (workspace / GRAPH_FILE_NAME).write_text(";\n".join(links), encoding="utf-8")
     return [
         *(executable, "-nostdin", "-hide_banner", "-nostats", "-loglevel", "info", "-y"),

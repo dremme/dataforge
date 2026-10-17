@@ -10,6 +10,7 @@ import {
 } from "react";
 import { formatApiError } from "@/shared/api/http";
 import {
+  iconActivity,
   iconImage,
   iconImageDown,
   iconInsert,
@@ -21,6 +22,7 @@ import {
   iconScanSquare,
   iconSkipBack,
   iconSkipForward,
+  iconSquareSplitHorizontal,
   iconStepBack,
   iconStepForward,
   iconTriangleAlert,
@@ -53,6 +55,8 @@ import {
 } from "@/features/videoEditor/lib/timeline";
 import type { ReplacePolicy } from "@/features/videoEditor/lib/assembly";
 import { MixMeter } from "./MixMeter";
+import { PreviewScopes } from "./PreviewScopes";
+import { ReferenceWipe, type ReferenceFrame } from "./ReferenceWipe";
 import { RenderedFrame, type RenderedFrameState } from "./RenderedFrame";
 import { TimecodeField } from "./TimecodeField";
 import { ToolButton } from "./ToolButton";
@@ -209,6 +213,8 @@ function TimelinePreview({
   const { playing, waiting } = useEnginePlaying(engine);
   const fidelity = usePreviewFidelity(engine);
   const [frame, setFrame] = useState<RenderedFrameState | null>(null);
+  const [scopes, setScopes] = useState(false);
+  const [reference, setReference] = useState<ReferenceFrame | null>(null);
   const [frameState, setFrameState] = useState<{ busy: boolean; error: string | null }>({
     busy: false,
     error: null,
@@ -278,6 +284,19 @@ function TimelinePreview({
       setFrameState({ busy: false, error: formatApiError(error) });
     }
   };
+  /** Holds the monitor's picture as it is now, to compare what comes later against it. */
+  const holdReference = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      setReference({
+        url: canvas.toDataURL("image/png"),
+        timecode: formatTimecode(engine.currentTime, project.frame_rate),
+      });
+    } catch {
+      setFrameState({ busy: false, error: "This picture cannot be held as a reference." });
+    }
+  };
   const reduced = drawn.width > 0 && drawn.width < project.width;
   const sizeNote = [
     `The monitor draws ${drawn.width} × ${drawn.height} of the ${project.width} × ` +
@@ -300,6 +319,8 @@ function TimelinePreview({
               <span className="video-editor__guide-cross" />
             </span>
           )}
+          {reference && <ReferenceWipe reference={reference} onClear={() => setReference(null)} />}
+          {scopes && duration > 0 && <PreviewScopes source={canvasRef} />}
           {selectedClip && selectedClip.kind !== "audio" && (
             <TransformHandles
               clip={selectedClip}
@@ -426,8 +447,29 @@ function TimelinePreview({
               </span>
             )}
             <ToolButton
+              icon={iconActivity}
+              label="Scopes"
+              tooltip={scopes ? "Hide the waveform and histogram" : "Show a waveform and histogram"}
+              pressed={scopes}
+              onClick={() => setScopes((on) => !on)}
+              disabled={duration <= 0}
+            />
+            <ToolButton
+              icon={iconSquareSplitHorizontal}
+              label={reference ? "Stop comparing" : "Compare with this frame"}
+              tooltip={
+                reference
+                  ? "Let go of the held reference frame"
+                  : "Hold this frame and wipe between it and the live picture"
+              }
+              pressed={reference !== null}
+              onClick={() => (reference ? setReference(null) : holdReference())}
+              disabled={duration <= 0}
+            />
+            <ToolButton
               icon={iconImageDown}
               label="Show the export's frame"
+
               tooltip="Render this frame as the export will, at full size"
               onClick={() => void showRenderedFrame()}
               disabled={duration <= 0 || frameState.busy}

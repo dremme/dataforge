@@ -30,7 +30,9 @@ function renderInspector(overrides: Partial<ComponentProps<typeof ClipInspector>
     onEdit: vi.fn(),
     onTrackEdit: vi.fn(),
     onMixEdit: vi.fn(),
+    onMarkersEdit: vi.fn(),
     onSpeed: vi.fn(),
+
     onStart: vi.fn(),
     onSourceIn: vi.fn(),
     onDuration: vi.fn(),

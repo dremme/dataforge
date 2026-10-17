@@ -1,4 +1,6 @@
 import {
+  iconArrowLeftRight,
+  iconArrowRightFromLine,
   iconCopy,
   iconFilm,
   iconMagnet,
@@ -85,6 +87,20 @@ const TOOLS: {
     tooltip: "Range: drag across the timeline to mark time for ripple delete",
     shortcut: SHORTCUTS.editorRangeTool,
   },
+  {
+    id: "ripple",
+    icon: iconArrowRightFromLine,
+    label: "Ripple trim",
+    tooltip: "Ripple trim: drag an edge and everything after the clip follows",
+    shortcut: SHORTCUTS.editorRippleTool,
+  },
+  {
+    id: "roll",
+    icon: iconArrowLeftRight,
+    label: "Roll trim",
+    tooltip: "Roll trim: drag a cut to move it between the two clips it joins",
+    shortcut: SHORTCUTS.editorRollTool,
+  },
 ];
 
 /** Tools on the left, edits in the middle, view controls on the right. */
@@ -170,7 +186,7 @@ export function TimelineToolbar({
           icon={iconRangeSelect}
           label="Ripple delete"
           showLabel
-          tooltip="Removes the marked range from every track and closes the gap"
+          tooltip="Removes the marked range from every track with sync lock on and closes the gap"
           shortcut={SHORTCUTS.editorRippleDelete}
           disabled={!ranged}
           onClick={onRipple}
@@ -246,7 +262,7 @@ function RangeChip({
       content={
         locked.length > 0
           ? `Unlock ${locked.map((track) => track.name).join(", ")} before a ripple delete.`
-          : "Ripple delete removes this range from every track and moves everything after it back."
+          : "Ripple delete removes this range from every track with sync lock on and moves everything after it back."
       }
       placement="top"
     >

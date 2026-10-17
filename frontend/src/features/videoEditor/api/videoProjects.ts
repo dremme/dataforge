@@ -5,6 +5,7 @@ import type {
   VideoProject,
   VideoProjectAutoAdjustRequest,
   VideoProjectDocument,
+  VideoProjectExportSpan,
   VideoProjectExportState,
   VideoProjectExportsResponse,
   VideoProjectFontsResponse,
@@ -134,12 +135,14 @@ export function listVideoProjectFonts(): Promise<VideoProjectFontsResponse> {
   return requestJson(`${BASE}/fonts`);
 }
 
+/** ``span`` renders only that part of the timeline; null renders all of it. */
 export function startVideoProjectExport(
   folder: string,
   projectPath: string | null,
   project: VideoProject,
+  span: VideoProjectExportSpan | null = null,
 ): Promise<VideoProjectExportState> {
-  return postJson(`${BASE}/exports`, { folder, project_path: projectPath, project });
+  return postJson(`${BASE}/exports`, { folder, project_path: projectPath, project, span });
 }
 
 export function listVideoProjectExports(): Promise<VideoProjectExportsResponse> {
@@ -183,6 +186,22 @@ export function filmstripUrl(
   return `${BASE}/filmstrip?${params}`;
 }
 
-export function waveformUrl(path: string, width: number, version: string): string {
-  return `${BASE}/waveform?${new URLSearchParams({ path, width: String(width), v: version })}`;
+/** The sound of ``duration`` seconds of the file from ``start``, one lane per channel. */
+export function waveformUrl(
+  path: string,
+  start: number,
+  duration: number,
+  width: number,
+  height: number,
+  version: string,
+): string {
+  const params = new URLSearchParams({
+    path,
+    start: String(start),
+    duration: String(duration),
+    width: String(width),
+    height: String(height),
+    v: version,
+  });
+  return `${BASE}/waveform?${params}`;
 }

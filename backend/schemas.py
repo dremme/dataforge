@@ -1562,6 +1562,7 @@ MAX_PROJECT_DIMENSION = 7680
 MIN_PROJECT_DIMENSION = 16
 MAX_PROJECT_FRAME_RATE = 120.0
 MAX_TITLE_LENGTH = 500
+MAX_PROJECT_MARKERS = 500
 
 type HexColor = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
 type ProjectId = Annotated[str, StringConstraints(min_length=1, max_length=64)]
@@ -1598,6 +1599,9 @@ class VideoProjectTrack(BaseModel):
     gain: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
     #: Audio tracks only: while one of its clips sounds, the other tracks are ducked.
     speech: bool = False
+    #: Ripple edits on other tracks (ripple delete, insert, ripple trim) move this one too.
+    #: Off, they leave it alone unless one of its clips is linked to a clip they move.
+    sync_lock: bool = True
 
 
 class VideoProjectTransform(BaseModel):
@@ -1750,6 +1754,15 @@ class VideoProjectTransition(BaseModel):
     to_clip_id: ProjectId
 
 
+class VideoProjectMarker(BaseModel):
+    """A named point on the timeline, such as a beat or a shot note. Edits never move it."""
+
+    id: ProjectId
+    time: float = Field(ge=0.0)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)] = ""
+    note: Annotated[str, StringConstraints(max_length=500)] = ""
+
+
 class VideoProjectExportSettings(BaseModel):
     #: Empty asks for the default, ``<initial source stem>-edited.mp4``.
     filename: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] = ""
@@ -1789,6 +1802,8 @@ class VideoProject(BaseModel):
     clips: list[VideoProjectClip] = Field(default_factory=list, max_length=MAX_PROJECT_CLIPS)
     transitions: list[VideoProjectTransition] = Field(default_factory=list)
     mix: VideoProjectMix = Field(default_factory=VideoProjectMix)
+    #: In time order.
+    markers: list[VideoProjectMarker] = Field(default_factory=list, max_length=MAX_PROJECT_MARKERS)
     export: VideoProjectExportSettings = Field(default_factory=VideoProjectExportSettings)
 
     @model_validator(mode="after")
@@ -1821,6 +1836,9 @@ def validate_project_structure(project: VideoProject) -> None:
     _unique([track.id for track in project.tracks], "tracks")
     _unique([clip.id for clip in project.clips], "clips")
     _unique([transition.id for transition in project.transitions], "transitions")
+    _unique([marker.id for marker in project.markers], "markers")
+    if any(b.time < a.time for a, b in pairwise(project.markers)):
+        raise ValueError("Markers must be in time order")
 
     sources = {source.id: source for source in project.sources}
     tracks = {track.id: track for track in project.tracks}
@@ -1975,12 +1993,27 @@ class VideoProjectSourceInfo(BaseModel):
     has_audio: bool = False
 
 
+class VideoProjectExportSpan(BaseModel):
+    """Timeline seconds; an export of a span renders only that part of the edit."""
+
+    start: float = Field(ge=0.0)
+    end: float = Field(gt=0.0)
+
+    @model_validator(mode="after")
+    def _check(self) -> "VideoProjectExportSpan":
+        if self.end - self.start < VIDEO_PROJECT_MIN_CLIP_SECONDS:
+            raise ValueError("The range to export is too short")
+        return self
+
+
 class VideoProjectExportRequest(BaseModel):
     folder: str
     #: The draft the export was started from, recorded for the outcome message only.
     project_path: str | None = None
     #: Frozen when the export starts: later draft edits never reach this render.
     project: VideoProject
+    #: None exports the whole timeline.
+    span: VideoProjectExportSpan | None = None
 
 
 class VideoProjectExportState(BaseModel):

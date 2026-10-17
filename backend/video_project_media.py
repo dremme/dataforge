@@ -1,5 +1,7 @@
-"""Timeline pictures: a strip of frames across a clip's take, and a whole-file waveform the
-timeline crops to each clip. Cached beside the gallery thumbnails, keyed by the file's stat."""
+"""Timeline pictures, drawn in tiles: a strip of frames across a stretch of a source, and the
+waveform of a stretch of its sound, one lane per channel. The timeline asks only for the tiles in
+view, at a level of detail that fits its zoom, so a close look shows the stretch it looks at.
+Cached beside the gallery thumbnails, keyed by the file's stat."""
 
 from __future__ import annotations
 
@@ -20,12 +22,17 @@ from thumbnails import (
 FILMSTRIP_MAX_FRAMES = 16
 FILMSTRIP_MIN_HEIGHT = 24
 FILMSTRIP_MAX_HEIGHT = 160
-WAVEFORM_MIN_WIDTH = 200
+WAVEFORM_MIN_WIDTH = 16
 WAVEFORM_MAX_WIDTH = 4000
+#: Shared by the lanes: two channels draw half each. The timeline asks for its own pixel height.
 WAVEFORM_HEIGHT = 96
+WAVEFORM_MIN_HEIGHT = 8
+WAVEFORM_MAX_HEIGHT = 400
+#: Shorter stretches have no sound worth drawing at any zoom the timeline offers.
+WAVEFORM_MIN_SECONDS = 0.01
 TIMELINE_MEDIA_TIMEOUT_SECONDS = 120
 #: Part of the cache key; bump it when either picture is drawn differently.
-TIMELINE_MEDIA_VERSION = 1
+TIMELINE_MEDIA_VERSION = 2
 
 _locks_guard = threading.Lock()
 _locks: dict[str, threading.Lock] = {}
@@ -125,12 +132,25 @@ def filmstrip(
     )
 
 
-def waveform_command(executable: str, source: Path, destination: Path, width: int) -> list[str]:
-    """White on clear, like the gallery's: the timeline uses it as a mask and colors it."""
+def waveform_command(
+    executable: str,
+    source: Path,
+    destination: Path,
+    start: float,
+    duration: float,
+    width: int,
+    height: int = WAVEFORM_HEIGHT,
+) -> list[str]:
+    """White on clear, like the gallery's: the timeline uses it as a mask and colors it. Mono
+    draws one lane and anything wider two, left above right. A stretch running past the end of
+    the file is padded with silence, so every tile keeps one scale of seconds to pixels."""
     graph = (
-        f"[0:a:0]aformat=channel_layouts=mono,"
-        f"showwavespic=s={width}x{WAVEFORM_HEIGHT}:colors=white:scale=sqrt,format=yuva420p[wave]"
+        "[0:a:0]aformat=channel_layouts=mono|stereo,"
+        f"atrim=duration={duration:.6f},apad=whole_dur={duration:.6f},"
+        f"showwavespic=s={width}x{height}:split_channels=1:colors=white:scale=sqrt,"
+        "format=yuva420p[wave]"
     )
+    seek = ["-ss", f"{start:.6f}"] if start > 0 else []
     return [
         executable,
         "-nostdin",
@@ -138,6 +158,7 @@ def waveform_command(executable: str, source: Path, destination: Path, width: in
         "-loglevel",
         "error",
         "-y",
+        *seek,
         "-i",
         str(source),
         "-filter_complex",
@@ -156,13 +177,22 @@ def waveform_command(executable: str, source: Path, destination: Path, width: in
     ]
 
 
-def waveform(executable: str, source: Path, width: int) -> Path:
+def waveform(
+    executable: str,
+    source: Path,
+    start: float,
+    duration: float,
+    width: int,
+    height: int = WAVEFORM_HEIGHT,
+) -> Path:
     width = max(WAVEFORM_MIN_WIDTH, min(WAVEFORM_MAX_WIDTH, width))
-    destination = _cache_path(source, "waveform", width)
+    height = max(WAVEFORM_MIN_HEIGHT, min(WAVEFORM_MAX_HEIGHT, height))
+    duration = max(WAVEFORM_MIN_SECONDS, duration)
+    destination = _cache_path(source, "waveform", f"{start:.6f}", f"{duration:.6f}", width, height)
     return _cached(
         destination,
         lambda partial: run_ffmpeg(
-            waveform_command(executable, source, partial, width),
+            waveform_command(executable, source, partial, start, duration, width, height),
             timeout=TIMELINE_MEDIA_TIMEOUT_SECONDS,
         ),
     )
