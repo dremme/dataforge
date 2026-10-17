@@ -10,6 +10,7 @@ import {
   touchRecentFolder,
 } from "@/features/folder/lib/folderPreferences";
 import { folderLeafName, folderPathsEqual } from "@/features/folder/lib/folderPath";
+import { FolderNoteDialog } from "@/features/folder/components/FolderNoteDialog";
 import { useTaggingFolder } from "@/features/tagging/hooks/useTaggingFolder";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
@@ -24,6 +25,9 @@ import {
   iconHeart,
   iconFolderPlus,
   iconFolderSearch,
+  iconFileCog,
+  iconStickyNote,
+  iconStickyNotePlus,
   iconChevronLeft,
   iconChevronRight,
   iconClapperboard,
@@ -38,6 +42,11 @@ import { SettingsButton } from "@/features/settings/components/SettingsButton";
 
 interface WorkspaceSidebarProps {
   currentFolder?: string;
+  /** The open folder's note; blank when it has none. */
+  note?: string;
+  /** Whether the open folder has its own system prompt or caption rules. */
+  hasInstructions?: boolean;
+  onEditInstructions: () => void;
   onNavigate: (path?: string) => void;
   onCreateFolder: () => void;
   onOpenSettings: () => void;
@@ -58,6 +67,9 @@ function readCollapsed(key: string, fallback: boolean): boolean {
 
 export function WorkspaceSidebar({
   currentFolder,
+  note = "",
+  hasInstructions = false,
+  onEditInstructions,
   onNavigate,
   onCreateFolder,
   onOpenSettings,
@@ -70,6 +82,7 @@ export function WorkspaceSidebar({
     readCollapsed(COLLAPSED_MEDIUM_KEY, true),
   );
   const [showNarrow, setShowNarrow] = useState(false);
+  const [editingNote, setEditingNote] = useState(false);
   const narrow = useMediaQuery("(max-width: 1199px)");
   const medium = useMediaQuery("(max-width: 1599px)");
   const collapsed = medium ? collapsedMedium : collapsedWide;
@@ -92,6 +105,8 @@ export function WorkspaceSidebar({
   );
   const toggleLabel = hidden ? "Expand folder sidebar" : "Collapse folder sidebar";
   const favoriteLabel = currentFavorite ? "Unfavorite folder" : "Favorite folder";
+  const noteLabel = note ? "Edit note" : "Add note";
+  const instructionsLabel = hasInstructions ? "Edit instructions" : "Create instructions";
   const toggle = () => {
     if (narrow) setShowNarrow(!showNarrow);
     else if (medium) {
@@ -321,8 +336,53 @@ export function WorkspaceSidebar({
               {!hidden && favoriteLabel}
             </button>
           </Tooltip>
+          <Tooltip content="Show a note above this folder's gallery" placement="right">
+            <button
+              type="button"
+              className="workspace-button"
+              disabled={!currentFolder}
+              aria-label={noteLabel}
+              onClick={() => {
+                setEditingNote(true);
+                setShowNarrow(false);
+              }}
+            >
+              <Icon icon={note ? iconStickyNote : iconStickyNotePlus} />
+              {!hidden && noteLabel}
+            </button>
+          </Tooltip>
+          <Tooltip
+            content={
+              hasInstructions
+                ? "Edit the system prompt and caption rules for this folder"
+                : "Create a system prompt or caption rules for this folder"
+            }
+            placement="right"
+          >
+            <button
+              type="button"
+              className="workspace-button"
+              disabled={!currentFolder}
+              aria-label={instructionsLabel}
+              onClick={() => {
+                onEditInstructions();
+                setShowNarrow(false);
+              }}
+            >
+              <Icon icon={iconFileCog} />
+              {!hidden && instructionsLabel}
+            </button>
+          </Tooltip>
         </div>
       </div>
+      {editingNote && currentFolder && (
+        <FolderNoteDialog
+          key={currentFolder}
+          folderPath={currentFolder}
+          initialText={note}
+          onClose={() => setEditingNote(false)}
+        />
+      )}
     </aside>
   );
 }

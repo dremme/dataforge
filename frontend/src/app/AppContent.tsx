@@ -8,6 +8,7 @@ import { useAppWorkspace } from "@/app/hooks/useAppWorkspace";
 import { GallerySelectionProvider } from "@/features/gallery/context/GallerySelectionContext";
 import { WorkspaceSidebar } from "@/app/components/WorkspaceSidebar";
 import { ActiveFilters } from "@/features/gallery/components/ActiveFilters";
+import { FolderNoteBanner } from "@/features/folder/components/FolderNoteBanner";
 import { folderPathsEqual, parentFolderPath } from "@/features/folder/lib/folderPath";
 import { useTaggingFolder } from "@/features/tagging/hooks/useTaggingFolder";
 import { WorkspaceActions, WorkspaceActivity } from "@/app/components/WorkspaceActions";
@@ -141,6 +142,9 @@ export function AppContent() {
         <div className="app">
           <WorkspaceSidebar
             currentFolder={folder?.path}
+            note={folder?.note}
+            hasInstructions={Boolean(folder?.has_sysprompt || folder?.has_caption_rules)}
+            onEditInstructions={gallery.openSysPrompt}
             onNavigate={navigateTo}
             onCreateFolder={createFolder.openDialog}
             onOpenSettings={settings.openSettings}
@@ -155,6 +159,11 @@ export function AppContent() {
               refreshing={refreshing}
               tagging={taggingFolder !== null && folderPathsEqual(folder.path, taggingFolder)}
               onNavigate={navigateTo}
+              note={
+                folder.note && !folderNotFound ? (
+                  <FolderNoteBanner folderPath={folder.path} note={folder.note} />
+                ) : undefined
+              }
               activity={<WorkspaceActivity panel={automation.actions} />}
               toolbarProps={{
                 actions: <WorkspaceActions panel={automation.actions} />,

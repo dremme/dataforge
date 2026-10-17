@@ -1,0 +1,60 @@
+.folder-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.375rem 0.375rem 0.375rem 0.625rem;
+  border: 1px solid var(--note-border);
+  border-radius: var(--radius-sm);
+  background: var(--note-soft);
+  color: var(--text);
+  font-size: var(--text-xs);
+
+  &__icon {
+    flex: none;
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-top: 0.125rem;
+    color: var(--note);
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  // Quiet until hovered: the note is the content, deleting it is the rare case.
+  &__delete {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-subtle);
+    cursor: pointer;
+
+    svg {
+      width: 0.875rem;
+      height: 0.875rem;
+    }
+
+    &:hover,
+    &:focus-visible {
+      color: var(--danger);
+    }
+  }
+
+  // Touch screens cannot hover, so they keep the button; focus still reveals it for keyboards.
+  @media (hover: hover) {
+    &:not(:hover, :focus-within) &__delete {
+      opacity: 0;
+    }
+  }
+}

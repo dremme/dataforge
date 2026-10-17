@@ -196,6 +196,9 @@ SYSPROMPT_FILENAME = ".sysprompt"
 
 CAPTION_RULES_FILENAME = ".captionrules"
 
+#: A free-text note shown above the folder's gallery; unlike instructions, it is never inherited.
+NOTE_FILENAME = ".note"
+
 CAPTION_EDIT_PREVIEW_LIMIT = 3
 
 #: User-facing job names, shared so the UI and job notifications cannot drift apart.

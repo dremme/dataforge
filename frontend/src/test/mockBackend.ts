@@ -679,6 +679,16 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return saveInstructionFile("caption_rules", url, init);
     }
 
+    if (url.pathname === "/api/folder-note" && method === "PUT") {
+      const pathKey = normalizeFolderKey(url.searchParams.get("path"));
+      const body = init?.body ? JSON.parse(init.body as string) : { text: "" };
+      const text = typeof body.text === "string" ? body.text.trim() : "";
+      for (const folder of Object.values(folderResponses)) {
+        if (folder && normalizeFolderKey(folder.path) === pathKey) folder.note = text;
+      }
+      return jsonResponse({ text });
+    }
+
     if (url.pathname === "/api/caption/backup" && method === "GET") {
       const path = url.searchParams.get("path") ?? "";
       const backup = options.captionBackups?.[path];

@@ -258,6 +258,8 @@ class FolderResponse(BaseModel):
     has_caption_backup: bool = False
     #: The folder's own .captionrules; a parent's file does not count.
     has_caption_rules: bool = False
+    #: The folder's own .note text; blank when there is none.
+    note: str = ""
     item_count: int
     subfolder_count: int
     fingerprint: str = ""
@@ -631,6 +633,15 @@ class FolderInstructionsResponse(BaseModel):
 
 
 class InstructionFileUpdate(BaseModel):
+    text: str
+
+
+class FolderNoteUpdate(BaseModel):
+    text: str
+
+
+class FolderNoteResponse(BaseModel):
+    #: Blank once the note is deleted.
     text: str
 
 

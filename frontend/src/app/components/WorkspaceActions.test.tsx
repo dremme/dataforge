@@ -39,8 +39,6 @@ function renderActions(
       availability: { hasCaptionBackup: true, ostrisAvailable: true, comfyPresetsAvailable: true },
       ...context,
     },
-    hasSyspromptFile: true,
-    hasCaptionRulesFile: true,
     onEditSysprompt: vi.fn<() => void>(),
     onRequestStart,
     onCancelJob: vi.fn<() => void>(),
@@ -60,7 +58,7 @@ describe("Workspace tools", () => {
     const user = userEvent.setup();
     renderActions({}, {}, true);
 
-    for (const name of ["Edit instructions", jobMenuLabelFor(PRIMARY_JOB_TYPE), "Tools"]) {
+    for (const name of [jobMenuLabelFor(PRIMARY_JOB_TYPE), "Tools"]) {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
     }
     await user.hover(screen.getByRole("button", { name: "Tools" }));

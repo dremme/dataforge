@@ -20,6 +20,7 @@ from folder_fingerprint import (
     recall_folder_signature,
     remember_folder_signature,
 )
+from folder_note import read_folder_note
 from folder_scan import scan_folder
 from media_listing import list_media_from_scan, media_items_named
 from schemas import (
@@ -77,6 +78,7 @@ def build_folder_response(folder: Path, *, remember_last: bool = True) -> Folder
         sysprompt_applies=signature.flags.sysprompt_applies,
         has_caption_backup=signature.flags.has_caption_backup,
         has_caption_rules=scan.caption_rules is not None,
+        note=read_folder_note(scan.note.path) if scan.note is not None else "",
         item_count=len(items),
         subfolder_count=len(subfolders),
         fingerprint=signature.fingerprint,

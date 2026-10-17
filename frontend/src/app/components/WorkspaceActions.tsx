@@ -31,8 +31,6 @@ import {
   iconHammer,
   iconMessageWarning,
   iconCpu,
-  iconFilePen,
-  iconFilePlus,
   iconFiles,
   iconScanSquare,
   iconChevronDown,
@@ -224,7 +222,6 @@ export function WorkspaceActions({ panel }: ToolsMenuProps) {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const job = panel.job;
   const active = Boolean(job && isActiveJobStatus(job.status));
-  const hasInstructions = panel.hasSyspromptFile || panel.hasCaptionRulesFile;
   const startingPrimary = panel.startingJobType === PRIMARY_JOB_TYPE;
   const autoCaption = jobStartBlock(PRIMARY_JOB_TYPE, panel.startContext);
   const autoCaptionTooltip = startingPrimary
@@ -235,24 +232,6 @@ export function WorkspaceActions({ panel }: ToolsMenuProps) {
 
   return (
     <div className="workspace-actions">
-      <Tooltip
-        content={
-          hasInstructions
-            ? "Edit the system prompt and caption rules for this folder"
-            : "Create a system prompt or caption rules for this folder"
-        }
-      >
-        <button
-          type="button"
-          className={classNames("workspace-button", ROUND_WHEN_COMPACT_CLASS)}
-          onClick={panel.onEditSysprompt}
-        >
-          <Icon icon={hasInstructions ? iconFilePen : iconFilePlus} />
-          <span className={COLLAPSIBLE_LABEL_CLASS}>
-            {hasInstructions ? "Edit instructions" : "Create instructions"}
-          </span>
-        </button>
-      </Tooltip>
       {active ? (
         <button
           type="button"

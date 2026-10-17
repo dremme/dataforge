@@ -212,6 +212,9 @@ def folder_signature_from_scan(scan: FolderScan) -> FolderSignature:
     if scan.caption_rules is not None:
         rules = scan.caption_rules
         shell.append(("caption_rules", rules.name, rules.mtime_ns, rules.size))
+    if scan.note is not None:
+        note = scan.note
+        shell.append(("note", note.name, note.mtime_ns, note.size))
 
     return FolderSignature(
         fingerprint=fingerprint_from_scan(scan, flags, tag_revisions),

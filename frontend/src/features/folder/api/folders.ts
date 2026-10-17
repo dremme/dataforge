@@ -5,6 +5,8 @@ import type {
   FolderDeleteResponse,
   FolderFavoritesOrderRequest,
   FolderFavoritesResponse,
+  FolderNoteResponse,
+  FolderNoteUpdate,
   FolderOpenResponse,
   FolderReviewCountsResponse,
   FolderRootsResponse,
@@ -88,4 +90,14 @@ export async function renameFolder(folderPath: string, name: string): Promise<Re
   return requestJson<RenameResponse>(`/api/folders/rename?${params}`, {
     method: "POST",
   });
+}
+
+/** Blank text deletes the folder's note. */
+export async function saveFolderNote(
+  folderPath: string,
+  text: string,
+): Promise<FolderNoteResponse> {
+  const params = new URLSearchParams({ path: folderPath });
+  const body: FolderNoteUpdate = { text };
+  return putJson<FolderNoteResponse>(`/api/folder-note?${params}`, body);
 }

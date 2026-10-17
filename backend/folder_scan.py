@@ -11,6 +11,7 @@ from constants import (
     CAPTION_RULES_FILENAME,
     GIF_EXTENSION,
     IMAGE_EXTENSIONS,
+    NOTE_FILENAME,
     SKIP_DIR_NAMES,
     STAGING_DIR_NAME,
     SYSPROMPT_FILENAME,
@@ -39,6 +40,7 @@ class FolderScan:
     candidates: dict[str, ScannedEntry]
     sysprompt: ScannedEntry | None
     caption_rules: ScannedEntry | None
+    note: ScannedEntry | None
 
     def sidecar(self, prefix: str, extension: str) -> ScannedEntry | None:
         """Captions hang off the stem; findings hang off the whole filename so ``clip.mp4`` and ``clip.png`` cannot share one."""
@@ -115,6 +117,7 @@ def scan_folder(folder: Path) -> FolderScan | None:
     media: list[ScannedEntry] = []
     sysprompt: ScannedEntry | None = None
     caption_rules: ScannedEntry | None = None
+    note: ScannedEntry | None = None
     saw_staging = False
 
     try:
@@ -151,6 +154,8 @@ def scan_folder(folder: Path) -> FolderScan | None:
                     sysprompt = scanned
                 elif scanned.name == CAPTION_RULES_FILENAME:
                     caption_rules = scanned
+                elif scanned.name == NOTE_FILENAME:
+                    note = scanned
                 elif get_media_type(scanned.path) is not None:
                     media.append(scanned)
     except OSError:
@@ -167,6 +172,7 @@ def scan_folder(folder: Path) -> FolderScan | None:
         candidates=_scan_staging_files(folder) if saw_staging else {},
         sysprompt=sysprompt,
         caption_rules=caption_rules,
+        note=note,
     )
 
 
@@ -178,6 +184,8 @@ def folder_entries_in_order(scan: FolderScan) -> list[tuple[str, ScannedEntry]]:
         tagged.append(("sysprompt", scan.sysprompt))
     if scan.caption_rules is not None:
         tagged.append(("caption_rules", scan.caption_rules))
+    if scan.note is not None:
+        tagged.append(("note", scan.note))
 
     tagged.sort(key=lambda pair: _sort_key(pair[1]))
     return tagged

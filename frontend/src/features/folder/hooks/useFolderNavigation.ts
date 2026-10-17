@@ -60,6 +60,7 @@ function createFailedFolderShell(
     sysprompt_applies: false,
     has_caption_backup: false,
     has_caption_rules: false,
+    note: "",
     item_count: 0,
     subfolder_count: 0,
     fingerprint: "",

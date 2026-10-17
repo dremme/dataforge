@@ -34,6 +34,7 @@ function folder(items: GalleryItem[]): FolderResponse {
     sysprompt_applies: false,
     has_caption_backup: false,
     has_caption_rules: false,
+    note: "",
     item_count: items.length,
     subfolder_count: 0,
     fingerprint: "before",

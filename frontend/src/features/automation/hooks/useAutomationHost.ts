@@ -22,9 +22,7 @@ type UseAutomationHostOptions = {
   folder: string | undefined;
   breadcrumbs: Breadcrumb[];
   items: GalleryItem[];
-  hasSysprompt: boolean;
   syspromptApplies: boolean;
-  hasCaptionRules: boolean;
   hasCaptionBackup: boolean;
   ostrisAvailable: boolean;
   comfyPresetsAvailable: boolean;
@@ -47,9 +45,7 @@ export function useAutomationHost({
   folder,
   breadcrumbs,
   items,
-  hasSysprompt,
   syspromptApplies,
-  hasCaptionRules,
   hasCaptionBackup,
   ostrisAvailable,
   comfyPresetsAvailable,
@@ -165,8 +161,6 @@ export function useAutomationHost({
       job: automation.folderJob,
       startingJobType: automation.startingJobType,
       startContext,
-      hasSyspromptFile: hasSysprompt,
-      hasCaptionRulesFile: hasCaptionRules,
       onEditSysprompt,
       onRequestStart: requestStart,
       cancellingJob: automation.cancellingJob,
@@ -186,7 +180,6 @@ export function useAutomationHost({
       automation.folderJob,
       automation.startingJobType,
       startContext,
-      hasCaptionRules,
       issueCount,
       duplicateGroupCount,
       candidateCount,
@@ -197,7 +190,6 @@ export function useAutomationHost({
       onOpenItem,
       onRetryFailed,
       requestStart,
-      hasSysprompt,
     ],
   );
 

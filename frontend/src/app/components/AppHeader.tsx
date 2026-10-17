@@ -11,6 +11,8 @@ type AppHeaderProps = {
   tagging?: boolean;
   onNavigate: (path?: string) => void;
   toolbarProps: ComponentProps<typeof Toolbar>;
+  /** The folder's note, kept in view under the toolbar. */
+  note?: ReactNode;
   activity?: ReactNode;
 };
 
@@ -21,6 +23,7 @@ export function AppHeader({
   tagging = false,
   onNavigate,
   toolbarProps,
+  note,
   activity,
 }: AppHeaderProps) {
   return (
@@ -34,6 +37,7 @@ export function AppHeader({
           onNavigate={onNavigate}
         />
         <Toolbar {...toolbarProps} />
+        {note}
         {activity}
       </div>
       <FolderActivitySweep refreshing={refreshing} tagging={tagging} />

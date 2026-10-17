@@ -7,9 +7,6 @@ export interface AutomationActions {
   startingJobType: JobType | null;
   /** Everything that decides whether a job can start; read through `jobStartBlock`. */
   startContext: JobStartContext;
-  hasSyspromptFile: boolean;
-  /** The folder's own .captionrules; a parent's file does not count. */
-  hasCaptionRulesFile: boolean;
   onEditSysprompt: () => void;
   onRequestStart: (jobType: JobType) => void;
   onOpenItem?: (path: string) => void;

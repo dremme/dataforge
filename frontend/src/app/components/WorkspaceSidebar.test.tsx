@@ -26,6 +26,7 @@ function renderSidebar(options: Parameters<typeof installMockBackend>[0] = {}) {
     <NotificationsProvider>
       <WorkspaceSidebar
         currentFolder={HOME_PATH}
+        onEditInstructions={vi.fn<() => void>()}
         onNavigate={onNavigate}
         onCreateFolder={vi.fn<() => void>()}
         onOpenSettings={vi.fn<() => void>()}

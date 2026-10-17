@@ -26,7 +26,8 @@ test("search expands on focus, retains a query on blur, and collapses when clear
 test("a crowded toolbar keeps one row by showing the folder actions as icons", async ({
   page,
 }, testInfo) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
+  // Narrow enough that the stats sit on their own row and the actions still crowd the rest.
+  await page.setViewportSize({ width: 900, height: 800 });
   await openWorkspace(page);
   const toolbar = page.locator(".toolbar");
   const tools = page.getByRole("button", { name: "Tools", exact: true });
@@ -51,10 +52,10 @@ test("a crowded toolbar keeps one row by showing the folder actions as icons", a
   await expect(toolbar).toHaveClass(/toolbar--compact/);
   await expect(label).toHaveCSS("position", "absolute");
   await expect.poll(rowTops).toEqual([actionsTop, actionsTop]);
-  for (const name of ["Edit instructions", "Auto-caption"]) {
-    const box = (await page.getByRole("button", { name, exact: true }).boundingBox())!;
-    expect(Math.round(box.width)).toBe(Math.round(box.height));
-  }
+  const box = (await page
+    .getByRole("button", { name: "Auto-caption", exact: true })
+    .boundingBox())!;
+  expect(Math.round(box.width)).toBe(Math.round(box.height));
   await page.screenshot({ path: testInfo.outputPath("toolbar-compact.png") });
 
   await page.getByRole("button", { name: "Clear search" }).click();
@@ -67,8 +68,8 @@ test("a crowded toolbar keeps one row by showing the folder actions as icons", a
 test("a narrowing toolbar switches to icons once, without flickering at the threshold", async ({
   page,
 }) => {
-  // Between the sidebar (1600px) and stats (1200px) breakpoints the row only ever narrows.
-  await page.setViewportSize({ width: 1590, height: 800 });
+  // Below the stats breakpoint (1200px) the stats keep their own row, so the row only narrows.
+  await page.setViewportSize({ width: 1190, height: 800 });
   await openWorkspace(page);
   await page
     .getByRole("searchbox", { name: "Search files and folders by name, caption or tag" })
@@ -87,7 +88,7 @@ test("a narrowing toolbar switches to icons once, without flickering at the thre
   });
 
   // A mode judged on the wrong widths flips back and forth inside a band a few pixels wide.
-  for (let width = 1590; width >= 1210; width -= 4) {
+  for (let width = 1190; width >= 880; width -= 4) {
     await page.setViewportSize({ width, height: 800 });
     await page.evaluate(
       () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
