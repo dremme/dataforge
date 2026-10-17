@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { stubDialogClock } from "@/test/dialogClock";
 import { RenameDialog } from "./RenameDialog";
 
 function renderDialog(props: Partial<Parameters<typeof RenameDialog>[0]> = {}) {
@@ -75,8 +76,10 @@ describe("RenameDialog", () => {
   });
 
   it("submits on Enter from the field, but not while the name is unchanged", async () => {
+    const { passOpenGrace } = stubDialogClock();
     const user = userEvent.setup();
     const { input, onConfirm } = renderDialog();
+    passOpenGrace();
 
     await user.type(input, "{Enter}");
     expect(onConfirm).not.toHaveBeenCalled();

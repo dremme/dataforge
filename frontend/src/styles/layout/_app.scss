@@ -1,13 +1,14 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// Sidebar | header over gallery and inspector. The header spans the full width so opening the
-// inspector never reflows it; the inspector takes the gallery's row and height.
+// Sidebar | header over note, gallery and inspector. The header spans the full width so opening
+// the inspector never reflows it; the inspector takes the note's and gallery's rows. The note row
+// collapses to nothing when the folder has no note.
 .app {
   display: grid;
   flex: 1;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 0;
   width: 100%;
   overflow: hidden;
@@ -23,6 +24,7 @@
   background: var(--bg-elevated);
   // Path, stats and controls are chrome throughout; the search field opts back in.
   user-select: none;
+  box-shadow: var(--shadow-app-bar);
 
   &__inner {
     display: flex;
@@ -55,9 +57,15 @@
   }
 }
 
-.main {
+// Fixed above the gallery's scroller, so the note stays in view and never meets its sticky headers.
+.main-note {
   grid-column: 2;
   grid-row: 2;
+}
+
+.main {
+  grid-column: 2;
+  grid-row: 3;
   min-height: 0;
   overflow-y: auto;
   padding: 1rem 0 2rem;
@@ -71,6 +79,10 @@
 
 @media (max-width: 799px) {
   .app-nav {
+    padding: 0.625rem;
+  }
+
+  .main-note {
     padding: 0.625rem;
   }
 

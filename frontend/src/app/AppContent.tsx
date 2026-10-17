@@ -159,11 +159,6 @@ export function AppContent() {
               refreshing={refreshing}
               tagging={taggingFolder !== null && folderPathsEqual(folder.path, taggingFolder)}
               onNavigate={navigateTo}
-              note={
-                folder.note && !folderNotFound ? (
-                  <FolderNoteBanner folderPath={folder.path} note={folder.note} />
-                ) : undefined
-              }
               activity={<WorkspaceActivity panel={automation.actions} />}
               toolbarProps={{
                 actions: <WorkspaceActions panel={automation.actions} />,
@@ -196,6 +191,12 @@ export function AppContent() {
                 onFileFilterChange: query.setFileFilter,
               }}
             />
+          )}
+
+          {folder?.note && !folderNotFound && (
+            <div className="main-note">
+              <FolderNoteBanner folderPath={folder.path} note={folder.note} />
+            </div>
           )}
 
           <main ref={mainRef} className="main">
