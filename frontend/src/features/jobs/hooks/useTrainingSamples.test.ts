@@ -11,11 +11,11 @@ import {
 } from "./useTrainingSamples";
 
 vi.mock("@/features/jobs/api/externalJobs", () => ({
-  fetchOstrisTrainingSamples: vi.fn(),
+  fetchOstrisTrainingSamples: vi.fn<typeof fetchOstrisTrainingSamples>(),
 }));
 
 vi.mock("@/features/jobs/api/jobs", () => ({
-  fetchJobResults: vi.fn(),
+  fetchJobResults: vi.fn<typeof fetchJobResults>(),
 }));
 
 const fetchSamples = vi.mocked(fetchOstrisTrainingSamples);

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { requestJsonMock } = vi.hoisted(() => ({
-  requestJsonMock: vi.fn(),
+  requestJsonMock: vi.fn<typeof requestJson>(),
 }));
 
 vi.mock("@/shared/api/http", () => ({
@@ -10,6 +10,7 @@ vi.mock("@/shared/api/http", () => ({
 
 import { serverEventsTabId } from "@/shared/api/eventStream";
 import { fetchFolder, fetchSubfolderStats } from "./folderContents";
+import type { requestJson } from "@/shared/api/http";
 
 /** Every folder request carries it: that is what registers this tab's interest. */
 const tab = () => `tab=${serverEventsTabId()}`;

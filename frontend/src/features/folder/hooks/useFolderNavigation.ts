@@ -32,6 +32,7 @@ import {
 import { resolveFolderError, type FolderError } from "@/shared/api/http";
 import { getAppScrollElement } from "@/shared/lib/appScroll";
 import type { FolderResponse } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 function applyOptimisticFolder(folder: FolderResponse, folderPath: string): FolderResponse {
   return {
@@ -79,13 +80,11 @@ export function useFolderNavigation(
   const queryClient = useQueryClient();
   const router = useRouter();
   const [requestedPath, setRequestedPath] = useState(() => folderOfLocation(router));
-  const requestedPathRef = useRef(requestedPath);
-  requestedPathRef.current = requestedPath;
+  const requestedPathRef = useLatestRef(requestedPath);
   const [scrollIntent, setScrollIntent] = useState<FolderScrollIntent | null>(null);
   const scrollIntentIdRef = useRef(0);
   const currentEntryKeyRef = useRef(entryKeyOf(router.history.location));
   const initialHistorySyncedRef = useRef(false);
-  const lastFolderRef = useRef<FolderResponse | null>(null);
 
   // Live updates (pushes, polling, focus) belong to useFolderChangeDetection.
   const query = useQuery({
@@ -96,6 +95,9 @@ export function useFolderNavigation(
   });
 
   const { data, error: queryError, isPlaceholderData, isFetching } = query;
+  // The last settled listing, kept for the shell shown when the folder then goes missing.
+  const [lastFolder, setLastFolder] = useState<FolderResponse | null>(null);
+  if (data && !isPlaceholderData && data !== lastFolder) setLastFolder(data);
   const error: FolderError | null = query.isError ? resolveFolderError(queryError) : null;
 
   // The server answers with its own spelling of the path, or names the default folder:
@@ -107,6 +109,8 @@ export function useFolderNavigation(
     const canonical = requestedPath === undefined || !foldersMatch(settledPath, requestedPath);
     if (canonical) {
       queryClient.setQueryData(folderKeys.folder(settledPath), data);
+      // The cache write above must land first, or the canonical key reads empty.
+      // oxlint-disable-next-line react-hooks/set-state-in-effect -- after the cache write
       setRequestedPath(settledPath);
     }
     if (canonical || !initialHistorySyncedRef.current) {
@@ -122,17 +126,13 @@ export function useFolderNavigation(
 
   const folder = useMemo((): FolderResponse | null => {
     if (error?.kind === "folder-not-found") {
-      const path = requestedPath ?? lastFolderRef.current?.path ?? getCachedLastFolder();
-      return path ? createFailedFolderShell(path, lastFolderRef.current) : null;
+      const path = requestedPath ?? lastFolder?.path ?? getCachedLastFolder();
+      return path ? createFailedFolderShell(path, lastFolder) : null;
     }
     if (data) return data;
     if (query.isError) return null;
     return requestedPath ? createFailedFolderShell(requestedPath, null) : null;
-  }, [data, error?.kind, query.isError, requestedPath]);
-
-  useEffect(() => {
-    if (data && !isPlaceholderData) lastFolderRef.current = data;
-  }, [data, isPlaceholderData]);
+  }, [data, error?.kind, lastFolder, query.isError, requestedPath]);
 
   const loading = !query.isError && (!data || isPlaceholderData);
   const refreshing = isFetching && !loading;
@@ -207,7 +207,7 @@ export function useFolderNavigation(
         if (requestTransition) void requestTransition(open);
         else void open();
       }),
-    [onFolderChange, openFolder, requestTransition, router, saveOutgoingScroll],
+    [onFolderChange, openFolder, requestedPathRef, requestTransition, router, saveOutgoingScroll],
   );
 
   /** Re-reads in place: the listing stays on screen while the changes are fetched. */

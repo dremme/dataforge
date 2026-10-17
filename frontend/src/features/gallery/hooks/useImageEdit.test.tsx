@@ -15,10 +15,10 @@ import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 
 vi.mock("@/features/gallery/api/imageEdit", () => ({
   imageOriginalUrl: (path: string) => `/api/media?path=${path}&original=1`,
-  fetchImageEditState: vi.fn(),
-  fetchImageAutoAdjust: vi.fn(),
-  applyImageEdit: vi.fn(),
-  revertImageEdit: vi.fn(),
+  fetchImageEditState: vi.fn<typeof fetchImageEditState>(),
+  fetchImageAutoAdjust: vi.fn<typeof fetchImageAutoAdjust>(),
+  applyImageEdit: vi.fn<typeof applyImageEdit>(),
+  revertImageEdit: vi.fn<typeof revertImageEdit>(),
 }));
 
 const fetchStateMock = vi.mocked(fetchImageEditState);
@@ -61,8 +61,8 @@ function decoded(width = 1920, height = 1080) {
 }
 
 function renderEdit(overrides: Partial<UseImageEditOptions> = {}) {
-  const setEditMode = vi.fn();
-  const onEdited = vi.fn();
+  const setEditMode = vi.fn<(editMode: boolean) => void>();
+  const onEdited = vi.fn<() => void | Promise<void>>();
   const initial: UseImageEditOptions = {
     item: makeItem("sunset.png"),
     onEdited,
@@ -556,7 +556,7 @@ describe("useImageEdit", () => {
         order.push("api");
         return EDITED;
       });
-      const onEdited = vi.fn(async () => {
+      const onEdited = vi.fn<() => Promise<void>>(async () => {
         order.push("reloaded");
       });
       const { result } = await renderReady({ onEdited });

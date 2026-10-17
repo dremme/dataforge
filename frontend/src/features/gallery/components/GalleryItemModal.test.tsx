@@ -11,6 +11,14 @@ import * as captionsApi from "@/features/gallery/api/captions";
 import * as mediaApi from "@/features/gallery/api/media";
 import { VideoEditorContext } from "@/features/videoEditor/context/VideoEditorContext";
 import { GalleryItemModal } from "./GalleryItemModal";
+import type {
+  deleteMedia,
+  previewMediaTransfer,
+  transferSelectedMedia,
+} from "@/features/gallery/api/media";
+import type { encodeVideoFrame, seekVideoTo } from "@/features/gallery/lib/videoFrameEncode";
+import type { importFiles, previewFileImport } from "@/features/folder/api/files";
+import type { CaptionSaveResponse } from "@/shared/types";
 
 vi.mock("@/shared/lib/defer", () => ({
   deferNonCriticalWork: (callback: () => void) => {
@@ -23,22 +31,22 @@ vi.mock("@/features/gallery/api/media", async (importOriginal) => {
   const actual = await importOriginal<typeof mediaApi>();
   return {
     ...actual,
-    deleteMedia: vi.fn(actual.deleteMedia),
-    previewMediaTransfer: vi.fn(),
-    transferSelectedMedia: vi.fn(),
+    deleteMedia: vi.fn<typeof deleteMedia>(actual.deleteMedia),
+    previewMediaTransfer: vi.fn<typeof previewMediaTransfer>(),
+    transferSelectedMedia: vi.fn<typeof transferSelectedMedia>(),
   };
 });
 
 // jsdom has neither a video decoder nor a 2D canvas context, which is exactly why
 // these two live in their own module: the flow around them stays testable.
 vi.mock("@/features/gallery/lib/videoFrameEncode", () => ({
-  seekVideoTo: vi.fn(),
-  encodeVideoFrame: vi.fn(),
+  seekVideoTo: vi.fn<typeof seekVideoTo>(),
+  encodeVideoFrame: vi.fn<typeof encodeVideoFrame>(),
 }));
 
 vi.mock("@/features/folder/api/files", () => ({
-  importFiles: vi.fn(),
-  previewFileImport: vi.fn(),
+  importFiles: vi.fn<typeof importFiles>(),
+  previewFileImport: vi.fn<typeof previewFileImport>(),
 }));
 
 const deleteMediaMock = vi.mocked(mediaApi.deleteMedia);
@@ -58,10 +66,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("clip.mp4", { media_type: "video" })]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -73,10 +81,10 @@ describe("GalleryItemModal", () => {
   it("lists every tag with its confidence, and says why a file has none", async () => {
     const props = {
       index: 0,
-      onClose: vi.fn(),
-      onPrevious: vi.fn(),
-      onNext: vi.fn(),
-      onCaptionSaved: vi.fn(),
+      onClose: vi.fn<() => void>(),
+      onPrevious: vi.fn<() => void>(),
+      onNext: vi.fn<() => void>(),
+      onCaptionSaved: vi.fn<(path: string, update: CaptionSaveResponse) => void>(),
     };
     const tagged = makeItem("photo.png", {
       tags: [
@@ -137,10 +145,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -159,10 +167,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -178,10 +186,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("sunset.png", { size: 2.5 * 1024 * 1024 })]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -197,10 +205,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -217,10 +225,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -243,8 +251,10 @@ describe("GalleryItemModal", () => {
 
   it("copies the caption without re-fetch loops", async () => {
     const user = userEvent.setup();
-    const onCaptionSaved = vi.fn();
-    const copyText = vi.fn().mockResolvedValue(true);
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
+    const copyText = vi
+      .fn<(text: string | Promise<string>) => Promise<boolean>>()
+      .mockResolvedValue(true);
 
     vi.spyOn(useCopyFeedbackModule, "useCopyFeedback").mockReturnValue({
       copyState: "idle",
@@ -256,9 +266,9 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
         onCaptionSaved={onCaptionSaved}
       />,
     );
@@ -279,7 +289,7 @@ describe("GalleryItemModal", () => {
   });
 
   it("reflects background caption updates while the modal stays open", async () => {
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
     const initialItem = makeItem("sunset.png");
     const updatedItem = {
       ...initialItem,
@@ -290,9 +300,9 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[initialItem]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
         onCaptionSaved={onCaptionSaved}
       />,
     );
@@ -308,9 +318,9 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[updatedItem]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
         onCaptionSaved={onCaptionSaved}
       />,
     );
@@ -329,10 +339,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[item]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -342,7 +352,7 @@ describe("GalleryItemModal", () => {
 
   it("deletes the file after confirmation", async () => {
     const user = userEvent.setup();
-    const onDeleted = vi.fn();
+    const onDeleted = vi.fn<(path: string) => void>();
     const items = [
       makeItem("sunset.png"),
       makeItem("beach.jpg", { name: "beach.jpg", path: `${HOME_PATH}\\beach.jpg` }),
@@ -352,10 +362,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={items}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         onDeleted={onDeleted}
       />,
     );
@@ -373,17 +383,17 @@ describe("GalleryItemModal", () => {
 
   it("notifies when the file cannot be deleted", async () => {
     const user = userEvent.setup();
-    const onDeleted = vi.fn();
+    const onDeleted = vi.fn<(path: string) => void>();
     deleteMediaMock.mockRejectedValueOnce(new Error("Permission denied"));
 
     renderWithProviders(
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         onDeleted={onDeleted}
       />,
     );
@@ -408,10 +418,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -434,10 +444,10 @@ describe("GalleryItemModal", () => {
           }),
         ]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -452,10 +462,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("voice.wav", { media_type: "audio", width: null, height: null })]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         currentFolder={HOME_PATH}
       />,
     );
@@ -477,7 +487,7 @@ describe("GalleryItemModal", () => {
 
   it("navigates within the filtered item list only", async () => {
     const user = userEvent.setup();
-    const onNext = vi.fn();
+    const onNext = vi.fn<() => void>();
     const items = [
       makeItem("sunset.png"),
       makeItem("beach.jpg", {
@@ -492,10 +502,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={items}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
         onNext={onNext}
-        onCaptionSaved={vi.fn()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -508,16 +518,16 @@ describe("GalleryItemModal", () => {
 
   it("steps back with Previous item", async () => {
     const user = userEvent.setup();
-    const onPrevious = vi.fn();
+    const onPrevious = vi.fn<() => void>();
 
     renderWithProviders(
       <GalleryItemModal
         items={[makeItem("sunset.png"), makeItem("beach.jpg")]}
         index={1}
-        onClose={vi.fn()}
+        onClose={vi.fn<() => void>()}
         onPrevious={onPrevious}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -526,17 +536,17 @@ describe("GalleryItemModal", () => {
   });
 
   describe("docked beside the gallery", () => {
-    function renderDocked(onNext = vi.fn()) {
+    function renderDocked(onNext = vi.fn<() => void>()) {
       renderWithProviders(
         <GalleryItemModal
           items={[makeItem("sunset.png"), makeItem("beach.jpg")]}
           index={0}
-          onClose={vi.fn()}
-          onPrevious={vi.fn()}
+          onClose={vi.fn<() => void>()}
+          onPrevious={vi.fn<() => void>()}
           onNext={onNext}
-          onCaptionSaved={vi.fn()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
           focusView={false}
-          onFocusViewChange={vi.fn()}
+          onFocusViewChange={vi.fn<(focus: boolean) => void>()}
         />,
       );
       return onNext;
@@ -558,9 +568,9 @@ describe("GalleryItemModal", () => {
         new DOMRect(0, 0, 1200, 800),
       );
       // jsdom has no pointer capture; the handlers only need it to be reported.
-      edge.setPointerCapture = vi.fn();
+      edge.setPointerCapture = vi.fn<(pointerId: number) => void>();
       edge.hasPointerCapture = () => true;
-      edge.releasePointerCapture = vi.fn();
+      edge.releasePointerCapture = vi.fn<(pointerId: number) => void>();
 
       fireEvent.pointerDown(edge, { pointerId: 1 });
       fireEvent.pointerMove(edge, { pointerId: 1, clientX: 800 });
@@ -573,8 +583,8 @@ describe("GalleryItemModal", () => {
 
   it("does not navigate with arrow keys while a child overlay is open", async () => {
     const user = userEvent.setup();
-    const onNext = vi.fn();
-    const onPrevious = vi.fn();
+    const onNext = vi.fn<() => void>();
+    const onPrevious = vi.fn<() => void>();
     const items = [
       makeItem("sunset.png"),
       makeItem("beach.jpg", { name: "beach.jpg", path: `${HOME_PATH}\\beach.jpg` }),
@@ -584,10 +594,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={items}
         index={0}
-        onClose={vi.fn()}
+        onClose={vi.fn<() => void>()}
         onPrevious={onPrevious}
         onNext={onNext}
-        onCaptionSaved={vi.fn()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -612,12 +622,12 @@ describe("GalleryItemModal", () => {
       const props = {
         items: twoItems(),
         index: 0,
-        onClose: vi.fn(),
-        onPrevious: vi.fn(),
-        onNext: vi.fn(),
-        onGoTo: vi.fn(),
-        onCaptionSaved: vi.fn(),
-        onDeleted: vi.fn(),
+        onClose: vi.fn<() => void>(),
+        onPrevious: vi.fn<() => void>(),
+        onNext: vi.fn<() => void>(),
+        onGoTo: vi.fn<(index: number) => void>(),
+        onCaptionSaved: vi.fn<(path: string, update: CaptionSaveResponse) => void>(),
+        onDeleted: vi.fn<(path: string) => void>(),
         ...overrides,
       };
       renderWithProviders(<GalleryItemModal {...props} />);
@@ -625,7 +635,7 @@ describe("GalleryItemModal", () => {
     }
 
     describe("docked beside the gallery", () => {
-      const docked = { focusView: false, onFocusViewChange: vi.fn() };
+      const docked = { focusView: false, onFocusViewChange: vi.fn<(focus: boolean) => void>() };
 
       function focusOutside(element: HTMLElement) {
         document.body.append(element);
@@ -793,10 +803,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={items}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -808,10 +818,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={items}
         index={1}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -832,10 +842,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -872,10 +882,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -909,10 +919,10 @@ describe("GalleryItemModal", () => {
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -934,10 +944,10 @@ describe("GalleryItemModal", () => {
         items={[makeItem("sunset.png")]}
         index={0}
         hasCaptionBackup
-        onClose={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onPrevious={vi.fn<() => void>()}
+        onNext={vi.fn<() => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -963,16 +973,18 @@ describe("GalleryItemModal video editor action", () => {
   });
 
   function renderWithEditor(name: string, mediaType: "video" | "image") {
-    const open = vi.fn();
+    const open = vi.fn<(videoPath: string) => void>();
     renderWithProviders(
-      <VideoEditorContext value={{ open, openProject: vi.fn(), isOpen: false }}>
+      <VideoEditorContext
+        value={{ open, openProject: vi.fn<(projectPath: string) => void>(), isOpen: false }}
+      >
         <GalleryItemModal
           items={[makeItem(name, { media_type: mediaType })]}
           index={0}
-          onClose={vi.fn()}
-          onPrevious={vi.fn()}
-          onNext={vi.fn()}
-          onCaptionSaved={vi.fn()}
+          onClose={vi.fn<() => void>()}
+          onPrevious={vi.fn<() => void>()}
+          onNext={vi.fn<() => void>()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         />
       </VideoEditorContext>,
     );

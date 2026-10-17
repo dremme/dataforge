@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderHookWithQueryClient } from "@/test/queryClient";
 import { displayModeKey, useGalleryDisplayMode } from "./useGalleryDisplayMode";
 
-const loadMock = vi.fn();
-const updateMock = vi.fn();
-const readCachedMock = vi.fn();
+const loadMock = vi.fn<(...args: unknown[]) => unknown>();
+const updateMock = vi.fn<(...args: unknown[]) => unknown>();
+const readCachedMock = vi.fn<(...args: unknown[]) => unknown>();
 
 vi.mock("@/features/gallery/preferences/galleryDisplayPreferences", () => ({
   fetchDisplayMode: (...args: unknown[]) => loadMock(...args),

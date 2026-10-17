@@ -8,6 +8,7 @@ import {
 } from "@/shared/hooks/scrollLockManager";
 import type { ShortcutDefinition } from "@/shared/lib/shortcuts";
 import { useGlobalShortcut, type GlobalShortcutOptions } from "./useGlobalShortcut";
+import type { GlobalShortcutHandler } from "@/shared/hooks/useGlobalShortcut";
 
 const SHORTCUT: ShortcutDefinition = {
   group: "global",
@@ -43,7 +44,7 @@ afterEach(() => {
 
 describe("useGlobalShortcut", () => {
   it("runs the handler once under StrictMode and swallows the key", () => {
-    const handler = vi.fn();
+    const handler = vi.fn<(event: KeyboardEvent) => void | boolean>();
     renderShortcut(handler);
 
     const event = press();
@@ -53,7 +54,7 @@ describe("useGlobalShortcut", () => {
   });
 
   it("ignores other chords", () => {
-    const handler = vi.fn();
+    const handler = vi.fn<(event: KeyboardEvent) => void | boolean>();
     renderShortcut(handler);
 
     press({ key: "p" });
@@ -63,7 +64,7 @@ describe("useGlobalShortcut", () => {
   });
 
   it("stands down while an overlay holds the scroll lock, unless asked not to", () => {
-    const handler = vi.fn();
+    const handler = vi.fn<GlobalShortcutHandler>();
     const { rerender } = renderHook(
       ({ whenLocked }: { whenLocked: boolean }) =>
         useGlobalShortcut(SHORTCUT, handler, { whenLocked }),
@@ -84,7 +85,7 @@ describe("useGlobalShortcut", () => {
   });
 
   it("stands down in a text field, unless asked not to", () => {
-    const handler = vi.fn();
+    const handler = vi.fn<GlobalShortcutHandler>();
     const { rerender } = renderHook(
       ({ inEditable }: { inEditable: boolean }) =>
         useGlobalShortcut(SHORTCUT, handler, { inEditable }),
@@ -101,7 +102,7 @@ describe("useGlobalShortcut", () => {
   });
 
   it("does nothing while disabled", () => {
-    const handler = vi.fn();
+    const handler = vi.fn<(event: KeyboardEvent) => void | boolean>();
     renderShortcut(handler, { enabled: false });
 
     expect(press().defaultPrevented).toBe(false);
@@ -109,7 +110,7 @@ describe("useGlobalShortcut", () => {
   });
 
   it("leaves a key another handler already claimed", () => {
-    const handler = vi.fn();
+    const handler = vi.fn<(event: KeyboardEvent) => void | boolean>();
     renderShortcut(handler);
     const editor = document.body.appendChild(document.createElement("div"));
     editor.addEventListener("keydown", (event) => event.preventDefault());
@@ -126,8 +127,8 @@ describe("useGlobalShortcut", () => {
   });
 
   it("calls the latest handler without re-subscribing", () => {
-    const first = vi.fn();
-    const second = vi.fn();
+    const first = vi.fn<() => void>();
+    const second = vi.fn<() => void>();
     const { rerender } = renderHook(
       ({ handler }: { handler: () => void }) => useGlobalShortcut(SHORTCUT, handler),
       { initialProps: { handler: first } },

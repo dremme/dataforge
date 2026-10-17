@@ -7,6 +7,7 @@ import {
   editorRequestAt,
   sameRequest,
 } from "@/features/videoEditor/lib/editorLocation";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export interface VideoEditorRoute {
   /** What the open editor session was started on; null while the gallery shows. */
@@ -39,8 +40,7 @@ export function useVideoEditorRoute(onClosed: () => void): VideoEditorRoute {
     setMoved(null);
   }
 
-  const onClosedRef = useRef(onClosed);
-  onClosedRef.current = onClosed;
+  const onClosedRef = useLatestRef(onClosed);
   const afterCloseRef = useRef<(() => void) | null>(null);
   const wasOpenRef = useRef(session !== null);
   useEffect(() => {
@@ -51,7 +51,7 @@ export function useVideoEditorRoute(onClosed: () => void): VideoEditorRoute {
       after?.();
     }
     wasOpenRef.current = session !== null;
-  }, [session]);
+  }, [onClosedRef, session]);
 
   const open = useCallback(
     (request: VideoEditorRequest) => {

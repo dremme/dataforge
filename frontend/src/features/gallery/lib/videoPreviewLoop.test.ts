@@ -23,22 +23,24 @@ function decoder() {
     paused: { get: () => paused },
     readyState: { configurable: true, value: video.HAVE_ENOUGH_DATA },
   });
-  video.play = vi.fn(() => {
+  video.play = vi.fn<() => Promise<void>>(() => {
     paused = false;
     video.dispatchEvent(new Event("play"));
     video.dispatchEvent(new Event("playing"));
     return Promise.resolve();
   });
-  video.pause = vi.fn(() => {
+  video.pause = vi.fn<() => void>(() => {
     paused = true;
     video.dispatchEvent(new Event("pause"));
   });
-  video.requestVideoFrameCallback = vi.fn((callback) => {
-    const id = nextFrame++;
-    callbacks.set(id, callback);
-    return id;
-  });
-  video.cancelVideoFrameCallback = vi.fn((id) => callbacks.delete(id));
+  video.requestVideoFrameCallback = vi.fn<(callback: VideoFrameRequestCallback) => number>(
+    (callback) => {
+      const id = nextFrame++;
+      callbacks.set(id, callback);
+      return id;
+    },
+  );
+  video.cancelVideoFrameCallback = vi.fn<(handle: number) => void>((id) => callbacks.delete(id));
   return {
     video,
     seeks,
@@ -62,8 +64,8 @@ function preview() {
   const primary = decoder();
   const standby = decoder();
   let range = { start: 2, end: 8 };
-  const onSwitch = vi.fn();
-  const onPlayError = vi.fn();
+  const onSwitch = vi.fn<(index: number) => void>();
+  const onPlayError = vi.fn<() => void>();
   const loop = new VideoPreviewLoop({
     videos: [primary.video, standby.video],
     getRange: () => range,

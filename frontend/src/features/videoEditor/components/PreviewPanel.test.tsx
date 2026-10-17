@@ -6,6 +6,9 @@ import { makeItem } from "@/test/galleryItemModal";
 import { makeProject } from "@/test/videoProject";
 import { PreviewEngine } from "@/features/videoEditor/lib/previewEngine";
 import { PreviewPanel, type SourceTransport } from "./PreviewPanel";
+import type { PreviewMode, SourceRange } from "@/features/videoEditor/components/PreviewPanel";
+import type { Clip } from "@/features/videoEditor/lib/timeline";
+import type { ReplacePolicy } from "@/features/videoEditor/lib/assembly";
 
 function renderPanel(overrides: Partial<ComponentProps<typeof PreviewPanel>> = {}) {
   const project = overrides.project ?? makeProject();
@@ -13,23 +16,23 @@ function renderPanel(overrides: Partial<ComponentProps<typeof PreviewPanel>> = {
   engine.setProject(project, new Map());
   const props: ComponentProps<typeof PreviewPanel> = {
     mode: "timeline",
-    onModeChange: vi.fn(),
+    onModeChange: vi.fn<(mode: PreviewMode) => void>(),
     engine,
     project,
     selectedClip: null,
-    onTransform: vi.fn(),
+    onTransform: vi.fn<(clip: Clip, next: Clip["transform"], final: boolean) => void>(),
     sourceItem: null,
     sourceRange: { start: 0, end: null },
-    onSourceRange: vi.fn(),
-    onAddSource: vi.fn(),
-    onInsertSource: vi.fn(),
-    onReplaceSource: vi.fn(),
+    onSourceRange: vi.fn<(range: SourceRange) => void>(),
+    onAddSource: vi.fn<() => void>(),
+    onInsertSource: vi.fn<() => void>(),
+    onReplaceSource: vi.fn<(policy: ReplacePolicy) => void>(),
     replaceLabel: null,
     sourceTransportRef: createRef<SourceTransport | null>(),
     hasMissing: false,
     guides: false,
-    onGuides: vi.fn(),
-    renderFrame: vi.fn(),
+    onGuides: vi.fn<() => void>(),
+    renderFrame: vi.fn<(time: number) => Promise<Blob>>(),
     ...overrides,
   };
   return { ...props, ...render(<PreviewPanel {...props} />) };
@@ -53,7 +56,7 @@ describe("PreviewPanel", () => {
   const play = HTMLMediaElement.prototype.play;
   const capture = Element.prototype.setPointerCapture;
   beforeAll(() => {
-    HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
+    HTMLMediaElement.prototype.play = vi.fn<() => Promise<void>>(() => Promise.resolve());
     Element.prototype.setPointerCapture = () => undefined;
   });
   afterAll(() => {

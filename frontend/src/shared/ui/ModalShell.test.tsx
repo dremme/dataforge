@@ -8,7 +8,7 @@ import { ModalShell } from "./ModalShell";
 // The app mounts under StrictMode, so these do too: its double-invoked effects
 // are what surface focus bugs that a single-pass render hides.
 function renderShell(props: Partial<Parameters<typeof ModalShell>[0]> = {}) {
-  const onClose = props.onClose ?? vi.fn();
+  const onClose = props.onClose ?? vi.fn<() => void>();
 
   const result = render(
     <StrictMode>
@@ -58,7 +58,7 @@ describe("ModalShell", () => {
         <ModalShell
           block="test-modal"
           label="Test modal"
-          onClose={vi.fn()}
+          onClose={vi.fn<() => void>()}
           initialFocusRef={inputRef}
         >
           <input ref={inputRef} aria-label="Name" />
@@ -90,11 +90,11 @@ describe("ModalShell", () => {
 
     function Swapping({ second }: { second: boolean }) {
       return second ? (
-        <ModalShell block="second-modal" label="Second" onClose={vi.fn()}>
+        <ModalShell block="second-modal" label="Second" onClose={vi.fn<() => void>()}>
           <button type="button">Second body</button>
         </ModalShell>
       ) : (
-        <ModalShell block="first-modal" label="First" onClose={vi.fn()}>
+        <ModalShell block="first-modal" label="First" onClose={vi.fn<() => void>()}>
           <button type="button">First body</button>
         </ModalShell>
       );
@@ -122,7 +122,7 @@ describe("ModalShell", () => {
 
   it("stops dismissing while suspended and marks the panel inert", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     renderShell({ onClose, suspended: true, backdropLabel: "Close test modal" });
 
     // `hidden: true` is required precisely because the suspension worked: the
@@ -140,7 +140,7 @@ describe("ModalShell", () => {
 
   it("stops dismissing while busy", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     renderShell({ onClose, busy: true });
 
     await user.keyboard("{Escape}");
@@ -149,7 +149,7 @@ describe("ModalShell", () => {
 
   it("closes on Escape and on a backdrop click", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     renderShell({ onClose, backdropLabel: "Close test modal" });
 
     await user.keyboard("{Escape}");
@@ -161,8 +161,8 @@ describe("ModalShell", () => {
 
   it("does not let an editor overlay's Escape reach the overlay beneath it", async () => {
     const user = userEvent.setup();
-    const onCloseParent = vi.fn();
-    const onCloseChild = vi.fn();
+    const onCloseParent = vi.fn<() => void>();
+    const onCloseChild = vi.fn<() => void>();
 
     render(
       <StrictMode>
@@ -200,7 +200,7 @@ describe("ModalShell", () => {
         <ModalShell
           block="test-modal"
           label="Test modal"
-          onClose={vi.fn()}
+          onClose={vi.fn<() => void>()}
           backdropLabel="Close test modal"
           closing
         >
@@ -220,7 +220,7 @@ describe("ModalShell", () => {
 
   it("cannot be dismissed again while closing", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     renderShell({ onClose, closing: true, backdropLabel: "Close test modal" });
 
     await user.keyboard("{Escape}");
@@ -229,13 +229,13 @@ describe("ModalShell", () => {
   });
 
   it("reports the exit only when the panel's own animation ends", () => {
-    const onExited = vi.fn();
+    const onExited = vi.fn<() => void>();
     render(
       <StrictMode>
         <ModalShell
           block="test-modal"
           label="Test modal"
-          onClose={vi.fn()}
+          onClose={vi.fn<() => void>()}
           closing
           onExited={onExited}
         >
@@ -256,13 +256,13 @@ describe("ModalShell", () => {
   it("still exits when the animation never ends", () => {
     vi.useFakeTimers();
     try {
-      const onExited = vi.fn();
+      const onExited = vi.fn<() => void>();
       render(
         <StrictMode>
           <ModalShell
             block="test-modal"
             label="Test modal"
-            onClose={vi.fn()}
+            onClose={vi.fn<() => void>()}
             closing
             onExited={onExited}
           >
@@ -282,7 +282,7 @@ describe("ModalShell", () => {
   });
 
   it("ignores animation ends when it is not closing", () => {
-    const onExited = vi.fn();
+    const onExited = vi.fn<() => void>();
     renderShell({ onExited });
 
     fireEvent.animationEnd(screen.getByRole("dialog"));
@@ -295,7 +295,12 @@ describe("ModalShell", () => {
 
     rerender(
       <StrictMode>
-        <ModalShell block="test-modal" label="Test modal" onClose={vi.fn()} enterAnimation="none">
+        <ModalShell
+          block="test-modal"
+          label="Test modal"
+          onClose={vi.fn<() => void>()}
+          enterAnimation="none"
+        >
           <button type="button">Inside</button>
         </ModalShell>
       </StrictMode>,

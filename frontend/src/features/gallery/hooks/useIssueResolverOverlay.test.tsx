@@ -32,7 +32,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 describe("useIssueResolverOverlay", () => {
   it("returns to the originating item when the session was opened for one file", () => {
-    const onReturnToItem = vi.fn();
+    const onReturnToItem = vi.fn<(path: string) => void>();
     const { result } = renderHook(() => useIssueResolverOverlay(onReturnToItem), { wrapper });
 
     act(() => result.current.openIssueResolver([flagged[0]], flagged[0].path));
@@ -46,7 +46,7 @@ describe("useIssueResolverOverlay", () => {
   });
 
   it("closes to the gallery when the whole folder queue was opened", () => {
-    const onReturnToItem = vi.fn();
+    const onReturnToItem = vi.fn<(path: string) => void>();
     const { result } = renderHook(() => useIssueResolverOverlay(onReturnToItem), { wrapper });
 
     // The Review menu's shape: a queue, no originating file.
@@ -69,7 +69,7 @@ describe("useIssueResolverOverlay", () => {
   });
 
   it("clears the queue and the return path so a second close cannot fire again", () => {
-    const onReturnToItem = vi.fn();
+    const onReturnToItem = vi.fn<(path: string) => void>();
     const { result } = renderHook(() => useIssueResolverOverlay(onReturnToItem), { wrapper });
 
     act(() => result.current.openIssueResolver([flagged[0]], flagged[0].path));
@@ -85,7 +85,7 @@ describe("useIssueResolverOverlay", () => {
   });
 
   it("carries a fresh return path across back-to-back sessions", () => {
-    const onReturnToItem = vi.fn();
+    const onReturnToItem = vi.fn<(path: string) => void>();
     const { result } = renderHook(() => useIssueResolverOverlay(onReturnToItem), { wrapper });
 
     act(() => result.current.openIssueResolver([flagged[0]], flagged[0].path));

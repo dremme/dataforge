@@ -27,6 +27,7 @@ import { ADJUST_PREVIEW_LUT_SIZE } from "@/shared/constants";
 import { classNames } from "@/shared/lib/classNames";
 import type { CropRect } from "@/features/gallery/lib/crop";
 import type { ColorAdjustControls } from "@/features/gallery/hooks/useColorAdjust";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 type AdjustMedia = HTMLImageElement | HTMLVideoElement;
 
@@ -62,8 +63,7 @@ export function AdjustCanvas({
 }: AdjustCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<AdjustRenderer | null>(null);
-  const mediaRefRef = useRef(mediaRef);
-  mediaRefRef.current = mediaRef;
+  const mediaRefRef = useLatestRef(mediaRef);
   const frameRef = useRef(0);
   const lutKeyRef = useRef("");
   const originRef = useRef({ x: 0.5, y: 0.5 });
@@ -81,8 +81,15 @@ export function AdjustCanvas({
     setPreviewAvailable(previewAvailable);
   }, [previewAvailable, setPreviewAvailable]);
 
-  const stateRef = useRef({ values, comparing, zoomed, crop, scale, sourceWidth, sourceHeight });
-  stateRef.current = { values, comparing, zoomed, crop, scale, sourceWidth, sourceHeight };
+  const stateRef = useLatestRef({
+    values,
+    comparing,
+    zoomed,
+    crop,
+    scale,
+    sourceWidth,
+    sourceHeight,
+  });
 
   const outputSize = useCallback(() => {
     const state = stateRef.current;
@@ -90,12 +97,12 @@ export function AdjustCanvas({
       width: Math.max(1, Math.round(state.crop.width * state.sourceWidth * state.scale)),
       height: Math.max(1, Math.round(state.crop.height * state.sourceHeight * state.scale)),
     };
-  }, []);
+  }, [stateRef]);
 
   const frameSize = useCallback(() => {
     const state = stateRef.current;
     return { width: state.sourceWidth * state.scale, height: state.sourceHeight * state.scale };
-  }, []);
+  }, [stateRef]);
 
   const renderNow = useCallback(() => {
     const renderer = rendererRef.current;
@@ -127,7 +134,7 @@ export function AdjustCanvas({
       original: state.comparing,
     });
     pictureRef.current?.publish();
-  }, [frameSize, outputSize]);
+  }, [frameSize, outputSize, stateRef]);
 
   const scheduleRender = useCallback(() => {
     if (frameRef.current) return;
@@ -169,7 +176,7 @@ export function AdjustCanvas({
     renderer.setSource(bitmap, bitmap.width, bitmap.height, true);
     bitmap.close();
     scheduleRender();
-  }, [renderNow, scheduleRender]);
+  }, [mediaRefRef, renderNow, scheduleRender]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -229,7 +236,8 @@ export function AdjustCanvas({
   const backingWidth = Math.max(1, Math.round(pixelWidth * shrink));
   const backingHeight = Math.max(1, Math.round(pixelHeight * shrink));
 
-  const zoomable = active && canZoom({ width: backingWidth, height: backingHeight }, frameSize());
+  const frame = { width: sourceWidth * scale, height: sourceHeight * scale };
+  const zoomable = active && canZoom({ width: backingWidth, height: backingHeight }, frame);
 
   useEffect(() => {
     if (live) scheduleRender();

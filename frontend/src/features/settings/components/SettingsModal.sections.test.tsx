@@ -14,7 +14,7 @@ beforeEach(() => {
 
 async function openSection(section: string) {
   const user = userEvent.setup();
-  renderWithProviders(<SettingsModal onClose={vi.fn()} />);
+  renderWithProviders(<SettingsModal onClose={vi.fn<() => void>()} />);
   await screen.findByRole("textbox", { name: "Server URL", hidden: true });
   await user.click(screen.getByRole("tab", { name: new RegExp(`^${section}`) }));
   return user;

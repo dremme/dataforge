@@ -46,7 +46,7 @@ function renderOverlay(overrides: Partial<Props> = {}) {
     sourceHeight: SOURCE.height,
     aspectRatio: null,
     disabled: false,
-    onCropChange: vi.fn(),
+    onCropChange: vi.fn<(crop: CropRect) => void>(),
     ...overrides,
   };
 
@@ -83,14 +83,20 @@ beforeEach(() => {
   vi.stubGlobal("PointerEvent", PointerEventPolyfill);
   // Real capture semantics: without them a move on a handle also runs the rectangle's handler.
   const captured = new Set<Element>();
-  Element.prototype.setPointerCapture = vi.fn(function (this: Element) {
+  Element.prototype.setPointerCapture = vi.fn<(pointerId: number) => void>(function (
+    this: Element,
+  ) {
     captured.clear();
     captured.add(this);
   });
-  Element.prototype.releasePointerCapture = vi.fn(function (this: Element) {
+  Element.prototype.releasePointerCapture = vi.fn<(pointerId: number) => void>(function (
+    this: Element,
+  ) {
     captured.delete(this);
   });
-  Element.prototype.hasPointerCapture = vi.fn(function (this: Element) {
+  Element.prototype.hasPointerCapture = vi.fn<(pointerId: number) => boolean>(function (
+    this: Element,
+  ) {
     return captured.has(this);
   });
 });
@@ -337,7 +343,7 @@ describe("CropOverlay", () => {
         sourceHeight={0}
         aspectRatio={null}
         disabled={false}
-        onCropChange={vi.fn()}
+        onCropChange={vi.fn<(crop: CropRect) => void>()}
       />,
     );
 

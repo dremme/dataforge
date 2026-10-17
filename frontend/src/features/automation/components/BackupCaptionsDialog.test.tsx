@@ -8,14 +8,14 @@ const OVERWRITE_LABEL = "Overwrite captions already in the backup";
 describe("BackupCaptionsDialog", () => {
   it("leaves overwrite off until it is ticked", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
+    const onConfirm = vi.fn<(overwrite: boolean) => void>();
 
     render(
       <BackupCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={{}}
         onConfirm={onConfirm}
-        onCancel={vi.fn()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 
@@ -28,14 +28,14 @@ describe("BackupCaptionsDialog", () => {
 
   it("submits the overwrite choice", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
+    const onConfirm = vi.fn<(overwrite: boolean) => void>();
 
     render(
       <BackupCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={{}}
         onConfirm={onConfirm}
-        onCancel={vi.fn()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 
@@ -47,7 +47,7 @@ describe("BackupCaptionsDialog", () => {
 
   it("does not start while a start is already in flight", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
+    const onConfirm = vi.fn<(overwrite: boolean) => void>();
 
     render(
       <BackupCaptionsDialog
@@ -55,7 +55,7 @@ describe("BackupCaptionsDialog", () => {
         initialSettings={{}}
         busy
         onConfirm={onConfirm}
-        onCancel={vi.fn()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 

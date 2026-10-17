@@ -7,21 +7,33 @@ import { renderWithProviders } from "@/test/renderWithProviders";
 import { makeClip, makeProject, makeSource } from "@/test/videoProject";
 import * as api from "@/features/videoEditor/api/videoProjects";
 import { VideoEditorWorkspace } from "./VideoEditorWorkspace";
+import type {
+  listVideoProjectExports,
+  listVideoProjectVersions,
+  listVideoProjects,
+  makeCompatibleCopy,
+  openVideoProject,
+  probeVideoProjectSource,
+  readVideoProjectVersion,
+  saveVideoProject,
+  saveVideoProjectVersion,
+  startVideoProject,
+} from "@/features/videoEditor/api/videoProjects";
 
 vi.mock("@/features/videoEditor/api/videoProjects", async (importOriginal) => {
   const actual = await importOriginal<typeof api>();
   return {
     ...actual,
-    startVideoProject: vi.fn(),
-    openVideoProject: vi.fn(),
-    saveVideoProject: vi.fn(),
-    listVideoProjects: vi.fn(),
-    listVideoProjectExports: vi.fn(),
-    probeVideoProjectSource: vi.fn(),
-    makeCompatibleCopy: vi.fn(),
-    listVideoProjectVersions: vi.fn(),
-    saveVideoProjectVersion: vi.fn(),
-    readVideoProjectVersion: vi.fn(),
+    startVideoProject: vi.fn<typeof startVideoProject>(),
+    openVideoProject: vi.fn<typeof openVideoProject>(),
+    saveVideoProject: vi.fn<typeof saveVideoProject>(),
+    listVideoProjects: vi.fn<typeof listVideoProjects>(),
+    listVideoProjectExports: vi.fn<typeof listVideoProjectExports>(),
+    probeVideoProjectSource: vi.fn<typeof probeVideoProjectSource>(),
+    makeCompatibleCopy: vi.fn<typeof makeCompatibleCopy>(),
+    listVideoProjectVersions: vi.fn<typeof listVideoProjectVersions>(),
+    saveVideoProjectVersion: vi.fn<typeof saveVideoProjectVersion>(),
+    readVideoProjectVersion: vi.fn<typeof readVideoProjectVersion>(),
   };
 });
 
@@ -46,8 +58,8 @@ function renderEditor() {
     <VideoEditorWorkspace
       request={{ kind: "video", path: "C:\\media\\clip.mp4" }}
       items={[]}
-      onExit={vi.fn()}
-      onOpenInGallery={vi.fn()}
+      onExit={vi.fn<() => void>()}
+      onOpenInGallery={vi.fn<(path: string) => void>()}
     />,
   );
 }

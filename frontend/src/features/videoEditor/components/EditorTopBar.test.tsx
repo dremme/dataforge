@@ -16,23 +16,23 @@ function renderBar(latestExport: VideoProjectExportState) {
     <EditorTopBar
       state={state}
       latestExport={latestExport}
-      onCancelExport={vi.fn()}
-      onDismissExport={vi.fn()}
-      onOpenExport={vi.fn()}
+      onCancelExport={vi.fn<() => void>()}
+      onDismissExport={vi.fn<() => void>()}
+      onOpenExport={vi.fn<() => void>()}
       browserOpen
       inspectorOpen
-      onToggleBrowser={vi.fn()}
-      onToggleInspector={vi.fn()}
+      onToggleBrowser={vi.fn<() => void>()}
+      onToggleInspector={vi.fn<() => void>()}
       menuOpen={false}
-      onMenuOpenChange={vi.fn()}
-      onOpenProject={vi.fn()}
-      onSettings={vi.fn()}
-      onDuplicate={vi.fn()}
-      onVersions={vi.fn()}
-      onDelete={vi.fn()}
-      onExport={vi.fn()}
+      onMenuOpenChange={vi.fn<(open: boolean) => void>()}
+      onOpenProject={vi.fn<() => void>()}
+      onSettings={vi.fn<() => void>()}
+      onDuplicate={vi.fn<() => void>()}
+      onVersions={vi.fn<() => void>()}
+      onDelete={vi.fn<() => void>()}
+      onExport={vi.fn<() => void>()}
       canExport
-      onBack={vi.fn()}
+      onBack={vi.fn<() => void>()}
     />,
   );
 }

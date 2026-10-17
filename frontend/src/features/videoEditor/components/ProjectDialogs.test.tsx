@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { makeClip, makeProject, makeSource } from "@/test/videoProject";
 import { ExportDialog } from "./ExportDialog";
 import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
+import type { Project } from "@/features/videoEditor/lib/timeline";
+import type { VideoProjectExportSettings, VideoProjectExportSpan } from "@/shared/types";
 
 describe("ProjectSettingsDialog", () => {
   const project = makeProject({
@@ -15,8 +17,10 @@ describe("ProjectSettingsDialog", () => {
 
   it("matches a video of the project and applies its size and rate", async () => {
     const user = userEvent.setup();
-    const onSave = vi.fn();
-    render(<ProjectSettingsDialog project={project} onSave={onSave} onCancel={vi.fn()} />);
+    const onSave = vi.fn<(patch: Pick<Project, "width" | "height" | "frame_rate">) => void>();
+    render(
+      <ProjectSettingsDialog project={project} onSave={onSave} onCancel={vi.fn<() => void>()} />,
+    );
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Match a video" }), "film");
     await user.click(screen.getByRole("button", { name: "Apply" }));
@@ -26,8 +30,10 @@ describe("ProjectSettingsDialog", () => {
 
   it("rounds an odd size down to even, as the encoder needs", async () => {
     const user = userEvent.setup();
-    const onSave = vi.fn();
-    render(<ProjectSettingsDialog project={project} onSave={onSave} onCancel={vi.fn()} />);
+    const onSave = vi.fn<(patch: Pick<Project, "width" | "height" | "frame_rate">) => void>();
+    render(
+      <ProjectSettingsDialog project={project} onSave={onSave} onCancel={vi.fn<() => void>()} />,
+    );
 
     await user.clear(screen.getByRole("textbox", { name: "Width" }));
     await user.type(screen.getByRole("textbox", { name: "Width" }), "1001");
@@ -38,8 +44,10 @@ describe("ProjectSettingsDialog", () => {
 
   it("explains an out-of-range value and will not apply it", async () => {
     const user = userEvent.setup();
-    const onSave = vi.fn();
-    render(<ProjectSettingsDialog project={project} onSave={onSave} onCancel={vi.fn()} />);
+    const onSave = vi.fn<(patch: Pick<Project, "width" | "height" | "frame_rate">) => void>();
+    render(
+      <ProjectSettingsDialog project={project} onSave={onSave} onCancel={vi.fn<() => void>()} />,
+    );
 
     await user.clear(screen.getByRole("textbox", { name: "Frame rate" }));
     await user.type(screen.getByRole("textbox", { name: "Frame rate" }), "500");
@@ -58,7 +66,8 @@ describe("ExportDialog", () => {
 
   it("names the file after the first video and exports with the chosen settings", async () => {
     const user = userEvent.setup();
-    const onExport = vi.fn();
+    const onExport =
+      vi.fn<(settings: VideoProjectExportSettings, span: VideoProjectExportSpan | null) => void>();
     render(
       <ExportDialog
         project={project}
@@ -68,7 +77,7 @@ describe("ExportDialog", () => {
         error={null}
         blocked={null}
         onExport={onExport}
-        onCancel={vi.fn()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
     expect(screen.getByRole("textbox", { name: "File name" })).toHaveValue("trip-edited");
@@ -93,7 +102,8 @@ describe("ExportDialog", () => {
 
   it("limits the mix's peaks unless asked to normalize or leave it as mixed", async () => {
     const user = userEvent.setup();
-    const onExport = vi.fn();
+    const onExport =
+      vi.fn<(settings: VideoProjectExportSettings, span: VideoProjectExportSpan | null) => void>();
     render(
       <ExportDialog
         project={project}
@@ -103,7 +113,7 @@ describe("ExportDialog", () => {
         error={null}
         blocked={null}
         onExport={onExport}
-        onCancel={vi.fn()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
     expect(screen.getByRole("radio", { name: "Limit peaks" })).toBeChecked();
@@ -120,7 +130,8 @@ describe("ExportDialog", () => {
 
   it("exports the marked range under its own name and leaves the caption out", async () => {
     const user = userEvent.setup();
-    const onExport = vi.fn();
+    const onExport =
+      vi.fn<(settings: VideoProjectExportSettings, span: VideoProjectExportSpan | null) => void>();
     render(
       <ExportDialog
         project={project}
@@ -130,7 +141,7 @@ describe("ExportDialog", () => {
         error={null}
         blocked={null}
         onExport={onExport}
-        onCancel={vi.fn()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
     expect(screen.queryByRole("radio", { name: /Selected clips/ })).toBeNull();
@@ -156,8 +167,10 @@ describe("ExportDialog", () => {
         busy={false}
         error="Disk full"
         blocked="The timeline is empty."
-        onExport={vi.fn()}
-        onCancel={vi.fn()}
+        onExport={vi.fn<
+          (settings: VideoProjectExportSettings, span: VideoProjectExportSpan | null) => void
+        >()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 

@@ -122,7 +122,7 @@ Object.defineProperty(navigator, "clipboard", {
 });
 
 Object.defineProperty(window, "scrollY", { value: 0, writable: true });
-window.scrollTo = vi.fn();
+window.scrollTo = vi.fn<(...args: unknown[]) => void>();
 
 // jsdom logs "Not implemented" for HTMLMediaElement.load during video prefetch, and for pause
 // when a card's hover preview unmounts.

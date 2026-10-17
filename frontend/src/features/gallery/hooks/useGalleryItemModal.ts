@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { GalleryItem } from "@/shared/types";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 export function useGalleryItemModal(
   images: GalleryItem[],
@@ -9,10 +10,10 @@ export function useGalleryItemModal(
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [modalNavigationPaths, setModalNavigationPaths] = useState<string[] | null>(null);
 
-  useEffect(() => {
+  if (useChanged(resetToken)) {
     setSelectedPath(null);
     setModalNavigationPaths(null);
-  }, [resetToken]);
+  }
 
   const modalItems = useMemo(() => {
     if (!modalNavigationPaths) return [];
@@ -28,13 +29,10 @@ export function useGalleryItemModal(
     return modalItems.findIndex((item) => item.path === selectedPath);
   }, [modalItems, selectedPath]);
 
-  useEffect(() => {
-    if (!selectedPath) return;
-    if (!images.some((item) => item.path === selectedPath)) {
-      setSelectedPath(null);
-      setModalNavigationPaths(null);
-    }
-  }, [images, selectedPath]);
+  if (selectedPath && !images.some((item) => item.path === selectedPath)) {
+    setSelectedPath(null);
+    setModalNavigationPaths(null);
+  }
 
   const openGalleryItem = useCallback(
     (path: string) => {

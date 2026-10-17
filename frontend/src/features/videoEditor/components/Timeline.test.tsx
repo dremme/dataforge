@@ -9,7 +9,7 @@ import {
   makeTrack as track,
 } from "@/test/videoProject";
 import { PreviewEngine, type SourceLocation } from "@/features/videoEditor/lib/previewEngine";
-import type { Project } from "@/features/videoEditor/lib/timeline";
+import type { Project, TimeRange } from "@/features/videoEditor/lib/timeline";
 import {
   SOURCE_DRAG_TYPE,
   Timeline,
@@ -41,15 +41,15 @@ function renderTimeline(
   const engine = new PreviewEngine();
   engine.setProject(doc, SOURCES);
   const props = {
-    onSelect: vi.fn(),
-    onRange: vi.fn(),
-    onPreview: vi.fn(),
-    onCommit: vi.fn(),
-    onError: vi.fn(),
-    onSeek: vi.fn(),
-    onDropSource: vi.fn(),
-    onTracks: vi.fn(),
-    onZoom: vi.fn(),
+    onSelect: vi.fn<(ids: Set<string>, transition?: string | null) => void>(),
+    onRange: vi.fn<(range: TimeRange | null) => void>(),
+    onPreview: vi.fn<(project: Project) => void>(),
+    onCommit: vi.fn<(next: Project) => void>(),
+    onError: vi.fn<(message: string) => void>(),
+    onSeek: vi.fn<(time: number) => void>(),
+    onDropSource: vi.fn<(path: string, time: number, trackId: string) => void>(),
+    onTracks: vi.fn<(next: Project) => void>(),
+    onZoom: vi.fn<(pxPerSecond: number) => void>(),
   };
   const view = render(
     <Timeline
@@ -394,15 +394,15 @@ describe("Timeline", () => {
         tool="select"
         snapping={false}
         pxPerSecond={PPS}
-        onSelect={vi.fn()}
-        onRange={vi.fn()}
-        onPreview={vi.fn()}
-        onCommit={vi.fn()}
-        onError={vi.fn()}
-        onSeek={vi.fn()}
-        onDropSource={vi.fn()}
-        onTracks={vi.fn()}
-        onZoom={vi.fn()}
+        onSelect={vi.fn<(ids: Set<string>, transition?: string | null) => void>()}
+        onRange={vi.fn<(range: TimeRange | null) => void>()}
+        onPreview={vi.fn<(project: Project) => void>()}
+        onCommit={vi.fn<(next: Project) => void>()}
+        onError={vi.fn<(message: string) => void>()}
+        onSeek={vi.fn<(time: number) => void>()}
+        onDropSource={vi.fn<(path: string, time: number, trackId: string) => void>()}
+        onTracks={vi.fn<(next: Project) => void>()}
+        onZoom={vi.fn<(pxPerSecond: number) => void>()}
       />,
     );
     const shown = container.querySelector('[data-clip="first"]') as HTMLElement;

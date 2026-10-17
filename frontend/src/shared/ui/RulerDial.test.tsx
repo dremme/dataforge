@@ -66,8 +66,8 @@ describe("RulerDial", () => {
       const props = dial(overrides);
       const track = props.slider.querySelector(".ruler-dial__track") as HTMLElement;
       track.getBoundingClientRect = () => ({ left: 100, width: 200 }) as DOMRect;
-      props.slider.setPointerCapture = vi.fn();
-      props.slider.hasPointerCapture = vi.fn(() => true);
+      props.slider.setPointerCapture = vi.fn<(pointerId: number) => void>();
+      props.slider.hasPointerCapture = vi.fn<(pointerId: number) => boolean>(() => true);
       return props;
     }
 

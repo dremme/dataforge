@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { CropRect } from "@/features/gallery/lib/crop";
 import {
   DEFAULT_MASK_MODE,
@@ -8,6 +8,7 @@ import {
   type MaskDraft,
   type MaskMode,
 } from "@/features/gallery/lib/mask";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 /** The blur tool's half of an editor, shared so the picture and the video behave alike. */
 export interface MaskRegionControls {
@@ -46,12 +47,9 @@ export function useMaskRegions(
     strength: DEFAULT_MASK_STRENGTH,
   });
 
-  const masksRef = useRef(masks);
-  masksRef.current = masks;
-  const selectedMaskRef = useRef(selectedMaskId);
-  selectedMaskRef.current = selectedMaskId;
-  const defaultsRef = useRef(maskDefaults);
-  defaultsRef.current = maskDefaults;
+  const masksRef = useLatestRef(masks);
+  const selectedMaskRef = useLatestRef(selectedMaskId);
+  const defaultsRef = useLatestRef(maskDefaults);
 
   const selectMask = useCallback((maskId: string | null) => {
     setSelectedMaskId(maskId);
@@ -66,7 +64,7 @@ export function useMaskRegions(
 
     setMasks((current) => [...current, mask]);
     setSelectedMaskId(mask.id);
-  }, [setMasks]);
+  }, [defaultsRef, masksRef, setMasks]);
 
   const setMaskRect = useCallback(
     (maskId: string, rect: CropRect) => {
@@ -82,7 +80,7 @@ export function useMaskRegions(
         current.map((mask) => (mask.id === selectedMaskRef.current ? { ...mask, ...patch } : mask)),
       );
     },
-    [setMasks],
+    [selectedMaskRef, setMasks],
   );
 
   const setMaskMode = useCallback(

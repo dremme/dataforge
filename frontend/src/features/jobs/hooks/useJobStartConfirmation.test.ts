@@ -1,13 +1,13 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useJobStartConfirmation } from "./useJobStartConfirmation";
+import { useJobStartConfirmation, type StartJob } from "./useJobStartConfirmation";
 
 const breadcrumbs = [{ name: "Photos", path: "C:\\Photos" }];
 
 describe("useJobStartConfirmation", () => {
   it("freezes paths when the confirmation opens", async () => {
     const paths = ["C:\\Photos\\one.png"];
-    const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+    const startJob = vi.fn<StartJob>().mockResolvedValue({ id: "job-1" });
     const { result } = renderHook(() =>
       useJobStartConfirmation("C:\\Photos", breadcrumbs, startJob, () => paths),
     );
@@ -20,7 +20,7 @@ describe("useJobStartConfirmation", () => {
   });
 
   it("does not open or submit an empty scope", () => {
-    const startJob = vi.fn();
+    const startJob = vi.fn<StartJob>();
     const { result } = renderHook(() =>
       useJobStartConfirmation("C:\\Photos", breadcrumbs, startJob, () => []),
     );
@@ -30,7 +30,7 @@ describe("useJobStartConfirmation", () => {
     expect(startJob).not.toHaveBeenCalled();
   });
   it("starts strip metadata after confirmation", async () => {
-    const startJob = vi.fn().mockResolvedValue({ id: "job-2" });
+    const startJob = vi.fn<StartJob>().mockResolvedValue({ id: "job-2" });
     const { result } = renderHook(() =>
       useJobStartConfirmation("C:\\Photos", breadcrumbs, startJob),
     );
@@ -51,8 +51,8 @@ describe("useJobStartConfirmation", () => {
 
   it("passes selected gallery paths to the job starter on confirmation", async () => {
     const selectedPaths = ["C:\\Photos\\one.png", "C:\\Photos\\two.png"];
-    const getJobPaths = vi.fn(() => selectedPaths);
-    const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+    const getJobPaths = vi.fn<() => string[]>(() => selectedPaths);
+    const startJob = vi.fn<StartJob>().mockResolvedValue({ id: "job-1" });
     const { result } = renderHook(() =>
       useJobStartConfirmation("C:\\Photos", breadcrumbs, startJob, getJobPaths),
     );

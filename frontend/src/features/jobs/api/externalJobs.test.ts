@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { requestJsonMock } = vi.hoisted(() => ({
-  requestJsonMock: vi.fn(),
+  requestJsonMock: vi.fn<typeof requestJson>(),
 }));
 
 vi.mock("@/shared/api/http", () => ({
@@ -9,6 +9,7 @@ vi.mock("@/shared/api/http", () => ({
 }));
 
 import { fetchOstrisJobs, fetchOstrisTrainingSamples, stopOstrisJob } from "./externalJobs";
+import type { requestJson } from "@/shared/api/http";
 
 describe("externalJobs API", () => {
   beforeEach(() => {

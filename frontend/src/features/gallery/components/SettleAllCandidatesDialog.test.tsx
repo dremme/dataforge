@@ -18,9 +18,9 @@ function renderDialog(overrides: Partial<SettleAllCandidatesDialogProps> = {}) {
     },
     busy: false,
     keepMetadata: true,
-    onKeepMetadataChange: vi.fn(),
-    onConfirm: vi.fn(),
-    onCancel: vi.fn(),
+    onKeepMetadataChange: vi.fn<(keep: boolean) => void>(),
+    onConfirm: vi.fn<() => void>(),
+    onCancel: vi.fn<() => void>(),
     ...overrides,
   };
   return { ...render(<SettleAllCandidatesDialog {...props} />), props };

@@ -55,12 +55,14 @@ function respond(theme: string) {
 /** The server's copy of the UI settings, answered when the test says so. */
 function holdServerTheme() {
   let answer: (theme: string) => void = () => {};
-  const fetchMock = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
-    if (init?.method === "PUT") return respond(JSON.parse(init.body as string).theme);
-    return new Promise<Response>((resolve) => {
-      answer = (theme) => resolve(respond(theme));
+  const fetchMock = vi
+    .fn<(url: string, init?: RequestInit) => Promise<Response>>()
+    .mockImplementation(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "PUT") return respond(JSON.parse(init.body as string).theme);
+      return new Promise<Response>((resolve) => {
+        answer = (theme) => resolve(respond(theme));
+      });
     });
-  });
   vi.stubGlobal("fetch", fetchMock);
   return { fetchMock, answer: (theme: string) => answer(theme) };
 }

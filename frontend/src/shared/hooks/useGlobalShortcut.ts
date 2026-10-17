@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { getScrollLockDepth } from "@/shared/hooks/scrollLockManager";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { matchesShortcut, type ShortcutDefinition } from "@/shared/lib/shortcuts";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export interface GlobalShortcutOptions {
   enabled?: boolean;
@@ -19,10 +20,8 @@ export function useGlobalShortcut(
   handler: GlobalShortcutHandler,
   options: GlobalShortcutOptions = {},
 ): void {
-  const handlerRef = useRef(handler);
-  handlerRef.current = handler;
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const handlerRef = useLatestRef(handler);
+  const optionsRef = useLatestRef(options);
 
   // Attach once; re-subscribing on every render drops a keydown mid-flight in StrictMode.
   useEffect(() => {
@@ -39,5 +38,5 @@ export function useGlobalShortcut(
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [shortcut]);
+  }, [handlerRef, optionsRef, shortcut]);
 }

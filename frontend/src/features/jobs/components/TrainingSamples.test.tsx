@@ -112,7 +112,7 @@ describe("TrainingSamples", () => {
 
   it("reports the lightbox opening and closing, but not on mount", async () => {
     const user = userEvent.setup();
-    const onLightboxOpenChange = vi.fn();
+    const onLightboxOpenChange = vi.fn<(open: boolean) => void>();
     render(
       <TrainingSamples samples={makeSamples(2)} onLightboxOpenChange={onLightboxOpenChange} />,
     );
@@ -128,7 +128,7 @@ describe("TrainingSamples", () => {
 
   it("releases the host when it unmounts with the lightbox open", async () => {
     const user = userEvent.setup();
-    const onLightboxOpenChange = vi.fn();
+    const onLightboxOpenChange = vi.fn<(open: boolean) => void>();
     const { unmount } = render(
       <TrainingSamples samples={makeSamples(2)} onLightboxOpenChange={onLightboxOpenChange} />,
     );

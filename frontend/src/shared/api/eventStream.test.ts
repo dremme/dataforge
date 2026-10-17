@@ -34,9 +34,9 @@ afterEach(() => {
 describe("subscribeToServerEvents", () => {
   it("reports the connection opening and dropping", () => {
     const source = installFakeEventSource();
-    const onConnectedChange = vi.fn();
+    const onConnectedChange = vi.fn<(connected: boolean) => void>();
 
-    subscribeToServerEvents({ onEvent: vi.fn(), onConnectedChange });
+    subscribeToServerEvents({ onEvent: vi.fn<(event: ServerEvent) => void>(), onConnectedChange });
 
     // The tab id is what lets the server address folder events to the tab actually
     // viewing that folder, so it has to be on the stream's own URL.
@@ -51,9 +51,9 @@ describe("subscribeToServerEvents", () => {
 
   it("delivers parsed events", () => {
     const source = installFakeEventSource();
-    const onEvent = vi.fn();
+    const onEvent = vi.fn<(event: ServerEvent) => void>();
 
-    subscribeToServerEvents({ onEvent, onConnectedChange: vi.fn() });
+    subscribeToServerEvents({ onEvent, onConnectedChange: vi.fn<(connected: boolean) => void>() });
 
     const event: ServerEvent = {
       type: "job",
@@ -66,9 +66,9 @@ describe("subscribeToServerEvents", () => {
 
   it("ignores a frame it cannot parse rather than dropping the stream", () => {
     const source = installFakeEventSource();
-    const onEvent = vi.fn();
+    const onEvent = vi.fn<(event: ServerEvent) => void>();
 
-    subscribeToServerEvents({ onEvent, onConnectedChange: vi.fn() });
+    subscribeToServerEvents({ onEvent, onConnectedChange: vi.fn<(connected: boolean) => void>() });
 
     expect(() => source().onmessage!({ data: "not json" })).not.toThrow();
     expect(onEvent).not.toHaveBeenCalled();
@@ -77,10 +77,10 @@ describe("subscribeToServerEvents", () => {
 
   it("ignores a well-formed frame that does not match the wire schema", () => {
     const source = installFakeEventSource();
-    const onEvent = vi.fn();
+    const onEvent = vi.fn<(event: ServerEvent) => void>();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    subscribeToServerEvents({ onEvent, onConnectedChange: vi.fn() });
+    subscribeToServerEvents({ onEvent, onConnectedChange: vi.fn<(connected: boolean) => void>() });
 
     // Parses cleanly, so only the guard stands between this and `setExternalJobs`.
     source().onmessage!({ data: JSON.stringify({ type: "job", job: { id: "job-1" } }) });
@@ -99,9 +99,12 @@ describe("subscribeToServerEvents", () => {
 
   it("closes the source and stops listening when unsubscribed", () => {
     const source = installFakeEventSource();
-    const onEvent = vi.fn();
+    const onEvent = vi.fn<(event: ServerEvent) => void>();
 
-    const unsubscribe = subscribeToServerEvents({ onEvent, onConnectedChange: vi.fn() });
+    const unsubscribe = subscribeToServerEvents({
+      onEvent,
+      onConnectedChange: vi.fn<(connected: boolean) => void>(),
+    });
     unsubscribe();
 
     expect(source().closed).toBe(true);
@@ -109,9 +112,12 @@ describe("subscribeToServerEvents", () => {
   });
 
   it("stays inert where EventSource does not exist, leaving the caller to poll", () => {
-    const onConnectedChange = vi.fn();
+    const onConnectedChange = vi.fn<(connected: boolean) => void>();
 
-    const unsubscribe = subscribeToServerEvents({ onEvent: vi.fn(), onConnectedChange });
+    const unsubscribe = subscribeToServerEvents({
+      onEvent: vi.fn<(event: ServerEvent) => void>(),
+      onConnectedChange,
+    });
 
     expect(onConnectedChange).not.toHaveBeenCalled();
     expect(() => unsubscribe()).not.toThrow();

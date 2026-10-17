@@ -8,11 +8,11 @@ import { queryWrapper } from "@/test/queryClient";
 import { BackendUnavailable } from "./BackendUnavailable";
 
 function answering() {
-  return vi.fn(async () => Response.json({ status: "ok" }));
+  return vi.fn<() => Promise<Response>>(async () => Response.json({ status: "ok" }));
 }
 
 function unreachable() {
-  return vi.fn(async () => {
+  return vi.fn<() => Promise<never>>(async () => {
     throw new TypeError("Failed to fetch");
   });
 }
@@ -69,7 +69,9 @@ describe("BackendUnavailable", () => {
 
   it("stays out of the way while the API answers, even with an error", async () => {
     installFakeEventSource();
-    const fetchMock = vi.fn(async () => new Response("Not found", { status: 404 }));
+    const fetchMock = vi.fn<() => Promise<Response>>(
+      async () => new Response("Not found", { status: 404 }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     renderGate();

@@ -39,7 +39,9 @@ const uncaptionedVideo: GalleryItem = {
 
 describe("GalleryListRow", () => {
   it("shows the caption state as an icon instead of the caption text", () => {
-    const { container } = render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
+    const { container } = render(
+      <GalleryListRow item={captionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+    );
 
     // A caption paragraph would swamp a single-line row, and so would the word
     // for its state - the label survives as the tooltip.
@@ -52,7 +54,13 @@ describe("GalleryListRow", () => {
   });
 
   it("previews the caption after the file name when asked", () => {
-    render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} captionPreview />);
+    render(
+      <GalleryListRow
+        item={captionedItem}
+        onSelect={vi.fn<(path: string) => void>()}
+        captionPreview
+      />,
+    );
 
     const preview = screen.getByText("Golden hour over the harbour");
     expect(preview).toHaveClass("gallery-list-row__caption");
@@ -61,21 +69,27 @@ describe("GalleryListRow", () => {
 
   it("previews nothing for a file without a caption", () => {
     const { container } = render(
-      <GalleryListRow item={uncaptionedVideo} onSelect={vi.fn()} captionPreview />,
+      <GalleryListRow
+        item={uncaptionedVideo}
+        onSelect={vi.fn<(path: string) => void>()}
+        captionPreview
+      />,
     );
 
     expect(container.querySelector(".gallery-list-row__caption")).toBeNull();
   });
 
   it("never starts a native drag of the row", () => {
-    render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
+    render(<GalleryListRow item={captionedItem} onSelect={vi.fn<(path: string) => void>()} />);
 
     expect(fireEvent.dragStart(screen.getByRole("button", { name: /^View / }))).toBe(false);
   });
 
   it("gives each caption state its own icon and tooltip", () => {
     const statusOf = (item: GalleryItem) => {
-      const { container } = render(<GalleryListRow item={item} onSelect={vi.fn()} />);
+      const { container } = render(
+        <GalleryListRow item={item} onSelect={vi.fn<(path: string) => void>()} />,
+      );
       const status = container.querySelector(".gallery-list-row__status");
       return {
         title: status?.getAttribute("title"),
@@ -104,7 +118,9 @@ describe("GalleryListRow", () => {
   });
 
   it("shows megapixels, aspect ratio, size, and modified date", () => {
-    const { container } = render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
+    const { container } = render(
+      <GalleryListRow item={captionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+    );
 
     // Resolution is one number per row, not a w × h pair to compare down the column.
     expect(container.querySelector(".gallery-list-row__meta-item--megapixels")?.textContent).toBe(
@@ -125,7 +141,7 @@ describe("GalleryListRow", () => {
     const { container } = render(
       <GalleryListRow
         item={{ ...captionedItem, width: null, height: null, size: null, modified_at: null }}
-        onSelect={vi.fn()}
+        onSelect={vi.fn<(path: string) => void>()}
       />,
     );
 
@@ -137,7 +153,10 @@ describe("GalleryListRow", () => {
 
   it("shows a video's length in seconds", () => {
     const { container } = render(
-      <GalleryListRow item={{ ...uncaptionedVideo, duration: 5.4 }} onSelect={vi.fn()} />,
+      <GalleryListRow
+        item={{ ...uncaptionedVideo, duration: 5.4 }}
+        onSelect={vi.fn<(path: string) => void>()}
+      />,
     );
 
     expect(container.querySelector(".gallery-list-row__meta-item--duration")?.textContent).toBe(
@@ -146,7 +165,9 @@ describe("GalleryListRow", () => {
   });
 
   it("keeps the marker column for an item with no markers", () => {
-    const { container } = render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
+    const { container } = render(
+      <GalleryListRow item={captionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+    );
 
     const markers = container.querySelector(".gallery-list-row__markers");
     expect(markers).toBeInTheDocument();
@@ -157,7 +178,7 @@ describe("GalleryListRow", () => {
     const { container } = render(
       <GalleryListRow
         item={{ ...uncaptionedVideo, has_issue_file: true, has_duplicate_file: true }}
-        onSelect={vi.fn()}
+        onSelect={vi.fn<(path: string) => void>()}
       />,
     );
 
@@ -170,7 +191,9 @@ describe("GalleryListRow", () => {
 
   it("puts the media type icon in front of the name", () => {
     const iconOf = (item: GalleryItem) => {
-      const { container } = render(<GalleryListRow item={item} onSelect={vi.fn()} />);
+      const { container } = render(
+        <GalleryListRow item={item} onSelect={vi.fn<(path: string) => void>()} />,
+      );
       const name = container.querySelector(".gallery-list-row__name");
       expect(name?.firstElementChild).toHaveClass("gallery-list-row__name-icon");
       return name?.querySelector("svg")?.innerHTML;
@@ -181,7 +204,10 @@ describe("GalleryListRow", () => {
 
   it("marks a candidate", () => {
     const { container } = render(
-      <GalleryListRow item={{ ...captionedItem, has_candidate: true }} onSelect={vi.fn()} />,
+      <GalleryListRow
+        item={{ ...captionedItem, has_candidate: true }}
+        onSelect={vi.fn<(path: string) => void>()}
+      />,
     );
 
     const markers = [...container.querySelectorAll(".gallery-list-row__marker")];
@@ -191,7 +217,10 @@ describe("GalleryListRow", () => {
 
   it("marks an edited file so a stored original is visible without opening it", () => {
     const { container } = render(
-      <GalleryListRow item={{ ...captionedItem, has_backup: true }} onSelect={vi.fn()} />,
+      <GalleryListRow
+        item={{ ...captionedItem, has_backup: true }}
+        onSelect={vi.fn<(path: string) => void>()}
+      />,
     );
 
     const markers = [...container.querySelectorAll(".gallery-list-row__marker")];
@@ -200,7 +229,7 @@ describe("GalleryListRow", () => {
   });
 
   it("opens the item when not selecting", () => {
-    const onSelect = vi.fn();
+    const onSelect = vi.fn<(path: string) => void>();
     render(<GalleryListRow item={captionedItem} onSelect={onSelect} />);
 
     fireEvent.click(screen.getByRole("button", { name: `View ${captionedItem.name}` }));
@@ -208,8 +237,8 @@ describe("GalleryListRow", () => {
   });
 
   it("shows a leading checkbox and toggles instead of opening in selection mode", () => {
-    const onSelect = vi.fn();
-    const onToggleSelect = vi.fn();
+    const onSelect = vi.fn<(path: string) => void>();
+    const onToggleSelect = vi.fn<(path: string) => void>();
     const { container } = render(
       <GalleryListRow
         item={captionedItem}
@@ -231,7 +260,9 @@ describe("GalleryListRow", () => {
   });
 
   it("hides the checkbox outside selection mode", () => {
-    const { container } = render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
+    const { container } = render(
+      <GalleryListRow item={captionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+    );
 
     const row = container.querySelector(".gallery-list-row");
     expect(container.querySelector(".gallery-list-row__check")).toBeNull();
@@ -240,14 +271,14 @@ describe("GalleryListRow", () => {
   });
 
   it("selects on Ctrl+click without opening the item", () => {
-    const onSelect = vi.fn();
-    const onToggleSelect = vi.fn();
+    const onSelect = vi.fn<(path: string) => void>();
+    const onToggleSelect = vi.fn<(path: string) => void>();
     render(
       <GalleryListRow
         item={captionedItem}
         onSelect={onSelect}
         onToggleSelect={onToggleSelect}
-        onExtendSelect={vi.fn()}
+        onExtendSelect={vi.fn<(path: string) => void>()}
       />,
     );
 
@@ -260,9 +291,9 @@ describe("GalleryListRow", () => {
   });
 
   it("extends the selection on Shift+click", () => {
-    const onSelect = vi.fn();
-    const onToggleSelect = vi.fn();
-    const onExtendSelect = vi.fn();
+    const onSelect = vi.fn<(path: string) => void>();
+    const onToggleSelect = vi.fn<(path: string) => void>();
+    const onExtendSelect = vi.fn<(path: string) => void>();
     render(
       <GalleryListRow
         item={captionedItem}
@@ -283,7 +314,7 @@ describe("GalleryListRow", () => {
 
   // A row rendered without the handler predates the gesture; it must still open.
   it("falls back to opening when no selection handler is wired", () => {
-    const onSelect = vi.fn();
+    const onSelect = vi.fn<(path: string) => void>();
     render(<GalleryListRow item={captionedItem} onSelect={onSelect} />);
 
     fireEvent.click(screen.getByRole("button", { name: `View ${captionedItem.name}` }), {
@@ -295,7 +326,12 @@ describe("GalleryListRow", () => {
 
   it("marks a selected row for assistive tech and styling", () => {
     const { container } = render(
-      <GalleryListRow item={captionedItem} onSelect={vi.fn()} selectionMode selected />,
+      <GalleryListRow
+        item={captionedItem}
+        onSelect={vi.fn<(path: string) => void>()}
+        selectionMode
+        selected
+      />,
     );
 
     const row = screen.getByRole("button", { name: `Deselect ${captionedItem.name}` });

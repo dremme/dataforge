@@ -11,6 +11,7 @@ import { iconLoader2, iconX } from "@/shared/icons";
 import { DialogScope, type DialogScopeInfo } from "./DialogScope";
 import { Icon } from "./Icon";
 import { ModalShell } from "./ModalShell";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 /** Ignore Enter still in flight from the keypress that opened the dialog. */
 export const OPEN_GRACE_MS = 100;
@@ -62,8 +63,7 @@ export function Dialog({
     openedAtRef.current = performance.now();
   }, []);
 
-  const confirmRef = useRef(onConfirm);
-  confirmRef.current = onConfirm;
+  const confirmRef = useLatestRef(onConfirm);
 
   useEffect(() => {
     if (busy || suspended || !onConfirm) return;
@@ -79,7 +79,7 @@ export function Dialog({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, onConfirm, suspended]);
+  }, [busy, confirmRef, onConfirm, suspended]);
 
   return (
     <ModalShell

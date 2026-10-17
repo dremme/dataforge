@@ -7,8 +7,8 @@ import type { FolderInstructionsResponse, InstructionFileResponse } from "@/shar
 import { FolderInstructionsModal } from "./FolderInstructionsModal";
 import { renderWithQueryClient } from "@/test/queryClient";
 
-const fetchFolderInstructions = vi.fn();
-const saveInstructionFile = vi.fn();
+const fetchFolderInstructions = vi.fn<(...args: unknown[]) => unknown>();
+const saveInstructionFile = vi.fn<(...args: unknown[]) => unknown>();
 
 vi.mock("@/shared/api/folderInstructions", () => ({
   fetchFolderInstructions: (...args: unknown[]) => fetchFolderInstructions(...args),
@@ -71,8 +71,11 @@ function renderModal(
     <FolderInstructionsModal
       folderPath={HOME_PATH}
       initialTab={overrides.initialTab}
-      onClose={overrides.onClose ?? vi.fn()}
-      onSaved={overrides.onSaved ?? vi.fn()}
+      onClose={overrides.onClose ?? vi.fn<() => void>()}
+      onSaved={
+        overrides.onSaved ??
+        vi.fn<(kind: InstructionKind, saved: InstructionFileResponse) => void>()
+      }
     />,
   );
 }
@@ -91,8 +94,8 @@ describe("FolderInstructionsModal", () => {
     fetchFolderInstructions.mockReset();
     saveInstructionFile.mockReset();
     fetchFolderInstructions.mockResolvedValue(instructions());
-    saveInstructionFile.mockImplementation(async (_kind, _folder, text: string) =>
-      own(`${text.trim()}\n`),
+    saveInstructionFile.mockImplementation(async (_kind, _folder, text) =>
+      own(`${String(text).trim()}\n`),
     );
   });
 
@@ -131,8 +134,8 @@ describe("FolderInstructionsModal", () => {
 
   it("saves only when asked, then closes", async () => {
     const user = userEvent.setup();
-    const onSaved = vi.fn();
-    const onClose = vi.fn();
+    const onSaved = vi.fn<(kind: InstructionKind, saved: InstructionFileResponse) => void>();
+    const onClose = vi.fn<() => void>();
     renderModal({ onSaved, onClose });
 
     await user.type(await editor("sysprompt"), " more");
@@ -172,7 +175,7 @@ describe("FolderInstructionsModal", () => {
 
   it("closes straight away when nothing was edited", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     renderModal({ onClose });
     await editor("sysprompt");
 
@@ -184,7 +187,7 @@ describe("FolderInstructionsModal", () => {
 
   it("asks before throwing away edits", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     renderModal({ onClose });
 
     await user.type(await editor("sysprompt"), " edited");
@@ -206,7 +209,7 @@ describe("FolderInstructionsModal", () => {
 
   it("routes Escape through the same discard confirm", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     renderModal({ onClose });
     const prompt = await editor("sysprompt");
 
@@ -222,7 +225,7 @@ describe("FolderInstructionsModal", () => {
   it("keeps the draft on screen when the save fails", async () => {
     const user = userEvent.setup();
     saveInstructionFile.mockRejectedValue(new Error("disk is read-only"));
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     renderModal({ onClose });
 
     await user.type(await editor("sysprompt"), " edited");
@@ -317,7 +320,7 @@ describe("FolderInstructionsModal", () => {
 
     it("copies a parent's file into a new file of the folder's own", async () => {
       const user = userEvent.setup();
-      const onSaved = vi.fn();
+      const onSaved = vi.fn<(kind: InstructionKind, saved: InstructionFileResponse) => void>();
       fetchFolderInstructions.mockResolvedValue(
         instructions({ [kind]: inherited(kind, "From the parent.\n") }),
       );
@@ -375,7 +378,7 @@ describe("FolderInstructionsModal", () => {
 
   it("saves the rules before the prompt when both changed", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     renderModal({ onClose });
 
     await user.type(await editor("sysprompt"), " more");
@@ -393,7 +396,7 @@ describe("FolderInstructionsModal", () => {
   it("stays on the rules tab and keeps the prompt unsaved when the rules are refused", async () => {
     const user = userEvent.setup();
     saveInstructionFile.mockRejectedValue(new Error("colour: unknown setting"));
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     renderModal({ onClose });
 
     await user.type(await editor("sysprompt"), " more");

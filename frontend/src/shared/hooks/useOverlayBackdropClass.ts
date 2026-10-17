@@ -11,6 +11,7 @@ export function useOverlayBackdropClass(baseClass: string): string {
 
   useLayoutEffect(() => {
     const isNested = getScrollLockDepth() > 0;
+    // oxlint-disable-next-line react-hooks/set-state-in-effect -- reads the lock depth
     setNested((previous) => (previous === isNested ? previous : isNested));
     // Only the open session; re-running would count this overlay's own lock.
   }, []);

@@ -9,12 +9,13 @@ import { useAutomationDialogOverlays } from "./useAutomationDialogOverlays";
 
 import type * as AutomationPreferences from "@/features/automation/preferences/automationPreferences";
 import { createTestQueryClient, renderHookWithQueryClient } from "@/test/queryClient";
+import type { JobStartBody } from "@/shared/api/jobStartBodies";
 
 vi.mock("@/features/automation/preferences/automationPreferences", async (importOriginal) => {
   const actual = await importOriginal<typeof AutomationPreferences>();
   return {
     ...actual,
-    loadAutomationSettings: vi.fn(async (folderPath: string) => ({
+    loadAutomationSettings: vi.fn<typeof loadAutomationSettings>(async (folderPath: string) => ({
       ...actual.emptyAutomationSettings(folderPath),
       verify_captions: {
         mode: "instruct" as const,
@@ -38,7 +39,11 @@ function setupOverlays(
   startingJobType: JobType | null = null,
   scope: { itemCount?: number; folderItemCount?: number; selectionActive?: boolean } = {},
 ) {
-  const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+  const startJob = vi
+    .fn<
+      (jobType: JobType, folder: string, body?: JobStartBody, paths?: string[]) => Promise<unknown>
+    >()
+    .mockResolvedValue({ id: "job-1" });
   const { itemCount = 3, folderItemCount = 3, selectionActive = false } = scope;
 
   const { result } = renderHookWithQueryClient(() =>
@@ -59,7 +64,16 @@ function setupOverlays(
 describe("useAutomationDialogOverlays scope", () => {
   it("freezes target paths and preview counts before loading the dialog", async () => {
     const paths = ["C:\\Photos\\one.png"];
-    const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+    const startJob = vi
+      .fn<
+        (
+          jobType: JobType,
+          folder: string,
+          body?: JobStartBody,
+          paths?: string[],
+        ) => Promise<unknown>
+      >()
+      .mockResolvedValue({ id: "job-1" });
     const { result, rerender } = renderHookWithQueryClient(() =>
       useAutomationDialogOverlays({
         folderPath: "C:\\Photos",
@@ -90,7 +104,15 @@ describe("useAutomationDialogOverlays scope", () => {
   });
 
   it("does not open an ordinary bulk dialog for an empty target", async () => {
-    const startJob = vi.fn();
+    const startJob =
+      vi.fn<
+        (
+          jobType: JobType,
+          folder: string,
+          body?: JobStartBody,
+          paths?: string[],
+        ) => Promise<unknown>
+      >();
     const { result } = renderHookWithQueryClient(() =>
       useAutomationDialogOverlays({
         folderPath: "C:\\Photos",
@@ -109,7 +131,16 @@ describe("useAutomationDialogOverlays scope", () => {
   });
 
   it("submits whole-folder training without a filtered path list", async () => {
-    const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+    const startJob = vi
+      .fn<
+        (
+          jobType: JobType,
+          folder: string,
+          body?: JobStartBody,
+          paths?: string[],
+        ) => Promise<unknown>
+      >()
+      .mockResolvedValue({ id: "job-1" });
     const { result } = renderHookWithQueryClient(() =>
       useAutomationDialogOverlays({
         folderPath: "C:\\Photos",

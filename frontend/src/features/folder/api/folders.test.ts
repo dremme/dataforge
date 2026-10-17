@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { requestJsonMock } = vi.hoisted(() => ({
-  requestJsonMock: vi.fn(),
+  requestJsonMock: vi.fn<typeof requestJson>(),
 }));
 
 vi.mock("@/shared/api/http", () => ({
@@ -17,6 +17,7 @@ import {
   openFolderInExplorer,
   removeFolderFavorite,
 } from "./folders";
+import type { requestJson } from "@/shared/api/http";
 
 describe("folders API", () => {
   afterEach(() => {

@@ -10,16 +10,23 @@ import * as api from "@/features/videoEditor/api/videoProjects";
 import { restingAdjust } from "@/features/videoEditor/lib/timeline";
 import { setEditorClipboard } from "@/features/videoEditor/lib/clipboardStore";
 import { VideoEditorWorkspace } from "./VideoEditorWorkspace";
+import type {
+  listVideoProjectExports,
+  listVideoProjects,
+  probeVideoProjectSource,
+  saveVideoProject,
+  startVideoProject,
+} from "@/features/videoEditor/api/videoProjects";
 
 vi.mock("@/features/videoEditor/api/videoProjects", async (importOriginal) => {
   const actual = await importOriginal<typeof api>();
   return {
     ...actual,
-    startVideoProject: vi.fn(),
-    saveVideoProject: vi.fn(),
-    listVideoProjects: vi.fn(),
-    listVideoProjectExports: vi.fn(),
-    probeVideoProjectSource: vi.fn(),
+    startVideoProject: vi.fn<typeof startVideoProject>(),
+    saveVideoProject: vi.fn<typeof saveVideoProject>(),
+    listVideoProjects: vi.fn<typeof listVideoProjects>(),
+    listVideoProjectExports: vi.fn<typeof listVideoProjectExports>(),
+    probeVideoProjectSource: vi.fn<typeof probeVideoProjectSource>(),
   };
 });
 
@@ -68,8 +75,8 @@ function renderEditor() {
     <VideoEditorWorkspace
       request={{ kind: "video", path: "C:\\media\\clip.mp4" }}
       items={[makeItem("take2.mp4", { path: take.path, media_type: "video", duration: 10 })]}
-      onExit={vi.fn()}
-      onOpenInGallery={vi.fn()}
+      onExit={vi.fn<() => void>()}
+      onOpenInGallery={vi.fn<(path: string) => void>()}
     />,
   );
 }

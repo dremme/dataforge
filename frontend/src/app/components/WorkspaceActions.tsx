@@ -120,13 +120,13 @@ function ToolsMenuItems(props: ToolsMenuItemsProps) {
 }
 
 function ToolsMenu(props: ToolsMenuProps) {
-  const menu = usePopupMenu();
+  const { open, close, menuId, rootRef, panelRef, triggerProps } = usePopupMenu();
   const compact = useToolbarCompact();
   return (
     <>
-      <div ref={menu.rootRef}>
+      <div ref={rootRef}>
         <Tooltip content="Tools" disabled={!compact}>
-          <button type="button" className="workspace-button" {...menu.triggerProps}>
+          <button type="button" className="workspace-button" {...triggerProps}>
             <Icon icon={iconHammer} />
             <span className={COLLAPSIBLE_LABEL_CLASS}>Tools</span>
             <Icon icon={iconChevronDown} />
@@ -134,23 +134,23 @@ function ToolsMenu(props: ToolsMenuProps) {
         </Tooltip>
       </div>
       <AnchoredLayer
-        anchorRef={menu.rootRef}
-        floatingRef={menu.panelRef}
-        open={menu.open}
-        id={menu.menuId}
+        anchorRef={rootRef}
+        floatingRef={panelRef}
+        open={open}
+        id={menuId}
         placement="bottom-start"
         className="workspace-tools"
         role="menu"
         label="Tools"
       >
-        <ToolsMenuItems {...props} onPick={menu.close} />
+        <ToolsMenuItems {...props} onPick={close} />
       </AnchoredLayer>
     </>
   );
 }
 
 function ReviewMenu({ panel }: { panel: AutomationActions }) {
-  const menu = usePopupMenu();
+  const { open, close, menuId, rootRef, panelRef, triggerProps } = usePopupMenu();
   const queues = [
     {
       label: "Caption issues",
@@ -179,18 +179,18 @@ function ReviewMenu({ panel }: { panel: AutomationActions }) {
   if (total === 0) return null;
   return (
     <>
-      <div ref={menu.rootRef}>
-        <button type="button" className="workspace-button" {...menu.triggerProps}>
+      <div ref={rootRef}>
+        <button type="button" className="workspace-button" {...triggerProps}>
           <Icon icon={iconSearchCheck} />
           Review <span className="workspace-actions__count">{total}</span>
           <Icon icon={iconChevronDown} />
         </button>
       </div>
       <AnchoredLayer
-        anchorRef={menu.rootRef}
-        floatingRef={menu.panelRef}
-        open={menu.open}
-        id={menu.menuId}
+        anchorRef={rootRef}
+        floatingRef={panelRef}
+        open={open}
+        id={menuId}
         placement="bottom-start"
         className="workspace-review"
         role="menu"
@@ -204,7 +204,7 @@ function ReviewMenu({ panel }: { panel: AutomationActions }) {
             className={`workspace-review__item workspace-review__item--${queue.tone}`}
             disabled={!queue.action || queue.count === 0}
             onClick={() => {
-              menu.close();
+              close();
               queue.action?.();
             }}
           >

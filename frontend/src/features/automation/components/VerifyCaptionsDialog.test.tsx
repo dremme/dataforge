@@ -7,20 +7,21 @@ import {
 } from "@/features/automation/preferences/automationPreferences";
 import { VerifyCaptionsDialog } from "./VerifyCaptionsDialog";
 import { renderWithQueryClient } from "@/test/queryClient";
+import type { ComponentProps } from "react";
 
 const DEFAULTS: JobSettingsByType["verify_captions"] =
   emptyAutomationSettings("C:/datasets/photos").verify_captions;
 
 function renderDialog(
   overrides: Partial<JobSettingsByType["verify_captions"]> = {},
-  onConfirm = vi.fn(),
+  onConfirm = vi.fn<ComponentProps<typeof VerifyCaptionsDialog>["onConfirm"]>(),
 ) {
   renderWithQueryClient(
     <VerifyCaptionsDialog
       scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
-      onCancel={vi.fn()}
+      onCancel={vi.fn<() => void>()}
     />,
   );
 

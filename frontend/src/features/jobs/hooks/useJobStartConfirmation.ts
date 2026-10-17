@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { Breadcrumb, JobType } from "@/shared/types";
+import { useChanged } from "@/shared/hooks/useChanged";
 
-type StartJob = (
+export type StartJob = (
   jobType: JobType,
   folder: string,
   body?: undefined,
@@ -36,7 +37,10 @@ export function useJobStartConfirmation(
     setPendingJobStart(null);
   }, []);
 
-  useEffect(() => cancelPendingJobStart(), [cancelPendingJobStart, folder]);
+  if (useChanged(folder)) setPendingJobStart(null);
+  useEffect(() => {
+    targetRef.current = null;
+  }, [folder]);
 
   const confirmPendingJobStart = useCallback(() => {
     if (!pendingJobStart || !targetRef.current) return;

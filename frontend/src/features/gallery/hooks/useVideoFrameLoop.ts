@@ -1,12 +1,12 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, type RefObject } from "react";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export function useVideoFrameLoop(
   mediaRef: RefObject<HTMLElement | null>,
   onFrame: () => void,
   enabled = true,
 ): void {
-  const onFrameRef = useRef(onFrame);
-  onFrameRef.current = onFrame;
+  const onFrameRef = useLatestRef(onFrame);
 
   useEffect(() => {
     const media = mediaRef.current;
@@ -65,5 +65,5 @@ export function useVideoFrameLoop(
       media.removeEventListener("loadeddata", settled);
       media.removeEventListener("canplay", settled);
     };
-  }, [enabled, mediaRef]);
+  }, [enabled, mediaRef, onFrameRef]);
 }

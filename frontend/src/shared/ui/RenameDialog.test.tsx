@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { RenameDialog } from "./RenameDialog";
 
 function renderDialog(props: Partial<Parameters<typeof RenameDialog>[0]> = {}) {
-  const onConfirm = vi.fn();
-  const onCancel = vi.fn();
+  const onConfirm = vi.fn<(name: string) => void>();
+  const onCancel = vi.fn<() => void>();
   render(
     <RenameDialog
       title="Rename file"

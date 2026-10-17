@@ -7,7 +7,7 @@ import {
   iconScanSquare,
   iconTrash2,
 } from "@/shared/icons";
-import type { ExternalOstrisJob, Job } from "@/shared/types";
+import type { ExternalOstrisJob, Job, SidecarKind } from "@/shared/types";
 import type { QuickActionItem, QuickActionSection } from "../types";
 import {
   buildSettleAllCandidatesItems,
@@ -31,6 +31,8 @@ import {
   type SidecarSweepOptions,
 } from "./buildQuickActionItems";
 import { flattenGroups, orderQuickActionItems, rankQuickActionItems } from "./quickActionResults";
+import type { ResolvedTheme } from "@/shared/theme/theme";
+import type { FileFilter, ItemFilter, MediaTypeFilter } from "@/features/gallery/lib/query";
 
 function sections(overrides: Partial<Record<QuickActionSection, QuickActionItem[]>> = {}) {
   return {
@@ -55,8 +57,8 @@ function navigationItems(
   return buildNavigationCommandItems({
     parentPath: "C:\\Photos",
     atHome: false,
-    onGoHome: vi.fn(),
-    onNavigate: vi.fn(),
+    onGoHome: vi.fn<() => void>(),
+    onNavigate: vi.fn<(path: string) => void>(),
     ...overrides,
   });
 }
@@ -78,7 +80,7 @@ describe("buildNavigationCommandItems", () => {
   });
 
   it("navigates to the parent it names", () => {
-    const onNavigate = vi.fn();
+    const onNavigate = vi.fn<(path: string) => void>();
     const [, parent] = navigationItems({ onNavigate });
 
     parent.run();
@@ -100,9 +102,9 @@ describe("buildFolderCommandItems", () => {
     const items = buildFolderCommandItems({
       folderFound: false,
       isFavorite: false,
-      onCreateFolder: vi.fn(),
-      onToggleFavorite: vi.fn(),
-      onRefresh: vi.fn(),
+      onCreateFolder: vi.fn<() => void>(),
+      onToggleFavorite: vi.fn<() => void>(),
+      onRefresh: vi.fn<() => void>(),
     });
 
     expect(items.map((item) => item.id)).toEqual(["cmd:refresh-folder"]);
@@ -116,9 +118,9 @@ describe("buildFolderCommandItems", () => {
     const items = buildFolderCommandItems({
       folderFound: true,
       isFavorite: false,
-      onCreateFolder: vi.fn(),
-      onToggleFavorite: vi.fn(),
-      onRefresh: vi.fn(),
+      onCreateFolder: vi.fn<() => void>(),
+      onToggleFavorite: vi.fn<() => void>(),
+      onRefresh: vi.fn<() => void>(),
     });
 
     expect(idsFor(items, query)).toEqual([id]);
@@ -128,13 +130,13 @@ describe("buildFolderCommandItems", () => {
     [false, "cmd:favorite-folder", "Favorite folder"],
     [true, "cmd:unfavorite-folder", "Unfavorite folder"],
   ])("offers the favorite toggle that applies when favorite is %s", (isFavorite, id, label) => {
-    const onToggleFavorite = vi.fn();
+    const onToggleFavorite = vi.fn<() => void>();
     const toggle = buildFolderCommandItems({
       folderFound: true,
       isFavorite,
-      onCreateFolder: vi.fn(),
+      onCreateFolder: vi.fn<() => void>(),
       onToggleFavorite,
-      onRefresh: vi.fn(),
+      onRefresh: vi.fn<() => void>(),
     }).find((item) => item.id === id);
 
     toggle?.run();
@@ -147,11 +149,11 @@ describe("buildFolderCommandItems", () => {
     const options = {
       folderFound: true,
       isFavorite: false,
-      onCreateFolder: vi.fn(),
-      onToggleFavorite: vi.fn(),
-      onRefresh: vi.fn(),
+      onCreateFolder: vi.fn<() => void>(),
+      onToggleFavorite: vi.fn<() => void>(),
+      onRefresh: vi.fn<() => void>(),
     };
-    const onDeleteFolder = vi.fn();
+    const onDeleteFolder = vi.fn<() => void>();
 
     expect(buildFolderCommandItems(options).map((item) => item.id)).not.toContain(
       "cmd:delete-folder",
@@ -169,11 +171,11 @@ describe("buildFolderCommandItems", () => {
     const options = {
       folderFound: true,
       isFavorite: false,
-      onCreateFolder: vi.fn(),
-      onToggleFavorite: vi.fn(),
-      onRefresh: vi.fn(),
+      onCreateFolder: vi.fn<() => void>(),
+      onToggleFavorite: vi.fn<() => void>(),
+      onRefresh: vi.fn<() => void>(),
     };
-    const onRenameFolder = vi.fn();
+    const onRenameFolder = vi.fn<() => void>();
 
     expect(buildFolderCommandItems(options).map((item) => item.id)).not.toContain(
       "cmd:rename-folder",
@@ -194,16 +196,16 @@ describe("buildReviewCommandItems", () => {
   it("offers only the reviews that have work", () => {
     expect(buildReviewCommandItems(counts)).toEqual([]);
 
-    const items = buildReviewCommandItems({ ...counts, onReviewCandidates: vi.fn() });
+    const items = buildReviewCommandItems({ ...counts, onReviewCandidates: vi.fn<() => void>() });
     expect(items.map((item) => item.id)).toEqual(["cmd:review-candidates"]);
   });
 
   it("counts what each review has waiting", () => {
     const items = buildReviewCommandItems({
       ...counts,
-      onResolveIssues: vi.fn(),
-      onResolveDuplicates: vi.fn(),
-      onReviewCandidates: vi.fn(),
+      onResolveIssues: vi.fn<() => void>(),
+      onResolveDuplicates: vi.fn<() => void>(),
+      onReviewCandidates: vi.fn<() => void>(),
     });
 
     expect(items.map((item) => item.detail)).toEqual(["2 flagged", "1 group", "3 waiting"]);
@@ -216,9 +218,9 @@ describe("buildReviewCommandItems", () => {
   ])("finds %s as %s", (query, id) => {
     const items = buildReviewCommandItems({
       ...counts,
-      onResolveIssues: vi.fn(),
-      onResolveDuplicates: vi.fn(),
-      onReviewCandidates: vi.fn(),
+      onResolveIssues: vi.fn<() => void>(),
+      onResolveDuplicates: vi.fn<() => void>(),
+      onReviewCandidates: vi.fn<() => void>(),
     });
 
     expect(idsFor(items, query)).toEqual([id]);
@@ -227,8 +229,8 @@ describe("buildReviewCommandItems", () => {
 
 describe("buildFolderPathCommandItems", () => {
   it("copies and reveals the folder it shows", () => {
-    const onCopyPath = vi.fn();
-    const onRevealInExplorer = vi.fn();
+    const onCopyPath = vi.fn<(path: string) => void>();
+    const onRevealInExplorer = vi.fn<(path: string) => void>();
     const [copy, reveal] = buildFolderPathCommandItems({
       folderPath: "C:\\Photos",
       onCopyPath,
@@ -244,11 +246,11 @@ describe("buildFolderPathCommandItems", () => {
 });
 
 describe("buildAppCommandItems", () => {
-  const appItems = (onSetTheme = vi.fn()) =>
+  const appItems = (onSetTheme = vi.fn<(theme: ResolvedTheme) => void>()) =>
     buildAppCommandItems({
       theme: "dark",
-      onOpenSettings: vi.fn(),
-      onOpenShortcuts: vi.fn(),
+      onOpenSettings: vi.fn<() => void>(),
+      onOpenShortcuts: vi.fn<() => void>(),
       onSetTheme,
     });
 
@@ -263,7 +265,7 @@ describe("buildAppCommandItems", () => {
   });
 
   it("offers the scheme that is not on screen", () => {
-    const onSetTheme = vi.fn();
+    const onSetTheme = vi.fn<(theme: ResolvedTheme) => void>();
     const toggle = appItems(onSetTheme).find((item) => item.id === "cmd:toggle-theme");
 
     toggle?.run();
@@ -285,18 +287,18 @@ function commandItems(overrides: Partial<CommandOptions> = {}) {
   return buildCommandItems({
     folder: { path: "C:\\Photos\\Lakes", home: "C:\\Photos", parent: "C:\\Photos" },
     folderFound: true,
-    onGoHome: vi.fn(),
-    onNavigate: vi.fn(),
+    onGoHome: vi.fn<() => void>(),
+    onNavigate: vi.fn<(path: string) => void>(),
     isFavorite: false,
-    onCreateFolder: vi.fn(),
-    onToggleFavorite: vi.fn(),
-    onRefresh: vi.fn(),
-    onCopyPath: vi.fn(),
-    onRevealInExplorer: vi.fn(),
-    onEditSysprompt: vi.fn(),
+    onCreateFolder: vi.fn<() => void>(),
+    onToggleFavorite: vi.fn<() => void>(),
+    onRefresh: vi.fn<() => void>(),
+    onCopyPath: vi.fn<(path: string) => void>(),
+    onRevealInExplorer: vi.fn<(path: string) => void>(),
+    onEditSysprompt: vi.fn<() => void>(),
     review: {
       issueCount: 1,
-      onResolveIssues: vi.fn(),
+      onResolveIssues: vi.fn<() => void>(),
       duplicateGroupCount: 0,
       candidateCount: 0,
     },
@@ -304,30 +306,30 @@ function commandItems(overrides: Partial<CommandOptions> = {}) {
       count: 2,
       fromSelection: false,
       busy: false,
-      onAccept: vi.fn(),
-      onDelete: vi.fn(),
+      onAccept: vi.fn<() => void>(),
+      onDelete: vi.fn<() => void>(),
     },
     sidecarSweep: {
       counts: { issue: 1, duplicate: 0, empty_caption: 0 },
       busy: false,
-      onSweep: vi.fn(),
+      onSweep: vi.fn<(kind: SidecarKind) => void>(),
     },
     selection: {
       selectionMode: false,
       selectedCount: 0,
       visibleCount: 3,
       busy: false,
-      onSelectAll: vi.fn(),
-      onInvertSelection: vi.fn(),
-      onMove: vi.fn(),
-      onCopy: vi.fn(),
-      onDelete: vi.fn(),
+      onSelectAll: vi.fn<() => void>(),
+      onInvertSelection: vi.fn<() => void>(),
+      onMove: vi.fn<() => void>(),
+      onCopy: vi.fn<() => void>(),
+      onDelete: vi.fn<() => void>(),
     },
     app: {
       theme: "dark",
-      onOpenSettings: vi.fn(),
-      onOpenShortcuts: vi.fn(),
-      onSetTheme: vi.fn(),
+      onOpenSettings: vi.fn<() => void>(),
+      onOpenShortcuts: vi.fn<() => void>(),
+      onSetTheme: vi.fn<(theme: ResolvedTheme) => void>(),
     },
     ...overrides,
   });
@@ -406,7 +408,7 @@ function sweepItems(overrides: Partial<SidecarSweepOptions> = {}) {
     hasFolder: true,
     counts: { issue: 3, duplicate: 2, empty_caption: 5 },
     busy: false,
-    onSweep: vi.fn(),
+    onSweep: vi.fn<(kind: SidecarKind) => void>(),
     ...overrides,
   });
 }
@@ -481,7 +483,7 @@ describe("buildSidecarSweepItems", () => {
   });
 
   it("sweeps its own kind", () => {
-    const onSweep = vi.fn();
+    const onSweep = vi.fn<(kind: SidecarKind) => void>();
     const [issue, duplicate, emptyCaption] = sweepItems({ onSweep });
 
     issue.run();
@@ -505,8 +507,8 @@ function settleAllItems(overrides: Partial<SettleAllCandidatesOptions> = {}) {
     count: 4,
     fromSelection: false,
     busy: false,
-    onAccept: vi.fn(),
-    onDelete: vi.fn(),
+    onAccept: vi.fn<() => void>(),
+    onDelete: vi.fn<() => void>(),
     ...overrides,
   });
 }
@@ -566,8 +568,8 @@ describe("buildSettleAllCandidatesItems", () => {
   });
 
   it("opens the matching confirmation instead of settling", () => {
-    const onAccept = vi.fn();
-    const onDelete = vi.fn();
+    const onAccept = vi.fn<() => void>();
+    const onDelete = vi.fn<() => void>();
     const [accept, remove] = settleAllItems({ onAccept, onDelete });
 
     remove.run();
@@ -607,11 +609,11 @@ function selectionItems(overrides: Partial<SelectionCommandOptions> = {}) {
     selectedCount: 0,
     visibleCount: 3,
     busy: false,
-    onSelectAll: vi.fn(),
-    onInvertSelection: vi.fn(),
-    onMove: vi.fn(),
-    onCopy: vi.fn(),
-    onDelete: vi.fn(),
+    onSelectAll: vi.fn<() => void>(),
+    onInvertSelection: vi.fn<() => void>(),
+    onMove: vi.fn<() => void>(),
+    onCopy: vi.fn<() => void>(),
+    onDelete: vi.fn<() => void>(),
     ...overrides,
   });
 }
@@ -702,11 +704,11 @@ describe("buildSelectionCommandItems", () => {
   });
 
   it("runs the matching handler", () => {
-    const onSelectAll = vi.fn();
-    const onInvertSelection = vi.fn();
-    const onMove = vi.fn();
-    const onCopy = vi.fn();
-    const onDelete = vi.fn();
+    const onSelectAll = vi.fn<() => void>();
+    const onInvertSelection = vi.fn<() => void>();
+    const onMove = vi.fn<() => void>();
+    const onCopy = vi.fn<() => void>();
+    const onDelete = vi.fn<() => void>();
     const [selectAll, invert, move, copy, remove] = selectionItems({
       onSelectAll,
       onInvertSelection,
@@ -741,10 +743,10 @@ function filterItems(overrides: Partial<FilterCommandOptions> = {}) {
       caption: { all: 9, captioned: 5, issue: 1, uncaptioned: 4 },
       file: { all: 9, edited: 2, duplicates: 0, candidates: 1 },
     },
-    onSelectMediaType: vi.fn(),
-    onSelectCaption: vi.fn(),
-    onSelectFile: vi.fn(),
-    onReset: vi.fn(),
+    onSelectMediaType: vi.fn<(value: MediaTypeFilter) => void>(),
+    onSelectCaption: vi.fn<(value: ItemFilter) => void>(),
+    onSelectFile: vi.fn<(value: FileFilter) => void>(),
+    onReset: vi.fn<() => void>(),
     ...overrides,
   });
 }
@@ -826,9 +828,9 @@ describe("buildFilterItems", () => {
   });
 
   it("sets only its own axis", () => {
-    const onSelectMediaType = vi.fn();
-    const onSelectCaption = vi.fn();
-    const onSelectFile = vi.fn();
+    const onSelectMediaType = vi.fn<(value: MediaTypeFilter) => void>();
+    const onSelectCaption = vi.fn<(value: ItemFilter) => void>();
+    const onSelectFile = vi.fn<(value: FileFilter) => void>();
     const items = filterItems({ onSelectMediaType, onSelectCaption, onSelectFile });
 
     items.find((item) => item.id === "filter:mediaType:video")?.run();
@@ -844,7 +846,7 @@ describe("buildFilterItems", () => {
     expect(idle?.disabled).toBe(true);
     expect(idle?.detail).toBe("No filters active");
 
-    const onReset = vi.fn();
+    const onReset = vi.fn<() => void>();
     const active = filterItems({ hasActiveFilters: true, onReset }).at(-1);
     expect(active?.disabled).toBe(false);
     expect(active?.detail).toBe("Back to all media, captions and files");
@@ -911,7 +913,7 @@ describe("buildJobItems", () => {
   });
 
   it("yields to a plainer row for the same folder", () => {
-    const onNavigate = vi.fn();
+    const onNavigate = vi.fn<(path: string) => void>();
     const subfolders = buildSubfolderItems([{ name: "gts_dataset", path: folder }], onNavigate);
     const jobs = buildJobItems([job("j1", folder)], [], onNavigate);
 
@@ -922,7 +924,7 @@ describe("buildJobItems", () => {
   });
 
   it("opens a live training run's dataset folder", () => {
-    const onNavigate = vi.fn();
+    const onNavigate = vi.fn<(path: string) => void>();
     const [item] = buildJobItems([], [externalJob("ostris-1", folder)], onNavigate);
 
     item.run();
@@ -950,7 +952,7 @@ describe("buildJobItems", () => {
   });
 
   it("navigates to the job's folder", () => {
-    const onNavigate = vi.fn();
+    const onNavigate = vi.fn<(path: string) => void>();
     buildJobItems([job("j1", folder)], [], onNavigate)[0].run();
 
     expect(onNavigate).toHaveBeenCalledWith(folder);

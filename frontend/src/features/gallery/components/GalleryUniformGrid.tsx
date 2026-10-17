@@ -56,6 +56,8 @@ export function GalleryUniformGrid({
 
   const rows = useMemo(() => groupIntoRows(items, columnCount), [columnCount, items]);
 
+  // Flags TanStack Virtual for the React Compiler, which this app does not use.
+  // oxlint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => scrollElement,

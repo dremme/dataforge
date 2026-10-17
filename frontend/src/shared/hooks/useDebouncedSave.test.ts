@@ -10,7 +10,7 @@ interface Payload {
 describe("useDebouncedSave", () => {
   it("waits for an in-flight save before reporting a successful flush", async () => {
     let finish!: () => void;
-    const save = vi.fn(
+    const save = vi.fn<() => Promise<void>>(
       () =>
         new Promise<void>((resolve) => {
           finish = resolve;
@@ -35,7 +35,9 @@ describe("useDebouncedSave", () => {
   });
 
   it("returns failure until a failed save is retried or discarded", async () => {
-    const save = vi.fn().mockRejectedValue(new Error("Write failed"));
+    const save = vi
+      .fn<(payload: Payload) => Promise<void>>()
+      .mockRejectedValue(new Error("Write failed"));
     const { result } = setupHook({ save });
     act(() => {
       result.current.setBaseline({ path: "photo.png", text: "" });
@@ -52,7 +54,7 @@ describe("useDebouncedSave", () => {
   it("writes successive drafts in order while a previous save is running", async () => {
     let finish!: () => void;
     const save = vi
-      .fn()
+      .fn<(payload: Payload) => Promise<void>>()
       .mockImplementationOnce(
         () =>
           new Promise<void>((resolve) => {
@@ -82,8 +84,8 @@ describe("useDebouncedSave", () => {
     vi.useRealTimers();
   });
 
-  function setupHook(options: Partial<Parameters<typeof useDebouncedSave>[0]> = {}) {
-    const save = vi.fn().mockResolvedValue(undefined);
+  function setupHook(options: Partial<Parameters<typeof useDebouncedSave<Payload>>[0]> = {}) {
+    const save = vi.fn<(payload: Payload) => Promise<void>>().mockResolvedValue(undefined);
     const { result } = renderHook(() =>
       useDebouncedSave<Payload>({
         debounceMs: 500,
@@ -137,7 +139,7 @@ describe("useDebouncedSave", () => {
     "does not schedule feedback after unmounting a %s save",
     async (state) => {
       let finishSave!: () => void;
-      const save = vi.fn(
+      const save = vi.fn<() => Promise<void>>(
         () =>
           new Promise<void>((resolve) => {
             finishSave = resolve;
@@ -167,20 +169,22 @@ describe("useDebouncedSave", () => {
     const completionOrder: string[] = [];
     let resolveFirst: (() => void) | undefined;
 
-    const customSave = vi.fn().mockImplementation((payload: Payload) => {
-      if (payload.text === "First") {
-        return new Promise<void>((resolve) => {
-          resolveFirst = () => {
-            completionOrder.push("First");
-            resolve();
-          };
-        });
-      }
+    const customSave = vi
+      .fn<(payload: Payload) => Promise<void>>()
+      .mockImplementation((payload: Payload) => {
+        if (payload.text === "First") {
+          return new Promise<void>((resolve) => {
+            resolveFirst = () => {
+              completionOrder.push("First");
+              resolve();
+            };
+          });
+        }
 
-      return Promise.resolve().then(() => {
-        completionOrder.push("Second");
+        return Promise.resolve().then(() => {
+          completionOrder.push("Second");
+        });
       });
-    });
 
     const { result } = setupHook({ debounceMs: 10, feedbackClearMs: 10_000, save: customSave });
 
@@ -219,7 +223,7 @@ describe("useDebouncedSave", () => {
 
   it("reports pending, then saving, then saved across one edit", async () => {
     let resolveSave: (() => void) | undefined;
-    const save = vi.fn().mockImplementation(
+    const save = vi.fn<(payload: Payload) => Promise<void>>().mockImplementation(
       () =>
         new Promise<void>((resolve) => {
           resolveSave = resolve;
@@ -250,7 +254,9 @@ describe("useDebouncedSave", () => {
   });
 
   it("keeps a save error until the next edit instead of clearing it", async () => {
-    const save = vi.fn().mockRejectedValue(new Error("Disk is full"));
+    const save = vi
+      .fn<(payload: Payload) => Promise<void>>()
+      .mockRejectedValue(new Error("Disk is full"));
     const { result } = setupHook({ save, feedbackClearMs: 100 });
 
     act(() => {
@@ -282,7 +288,10 @@ describe("useDebouncedSave", () => {
   });
 
   it("resends the failed payload on retry", async () => {
-    const save = vi.fn().mockRejectedValueOnce(new Error("Offline")).mockResolvedValue(undefined);
+    const save = vi
+      .fn<(payload: Payload) => Promise<void>>()
+      .mockRejectedValueOnce(new Error("Offline"))
+      .mockResolvedValue(undefined);
     const { result } = setupHook({ save });
 
     act(() => {
@@ -321,7 +330,7 @@ describe("useDebouncedSave", () => {
   it("saves a restored baseline after an older draft finishes saving", async () => {
     let resolveFirst: (() => void) | undefined;
     const save = vi
-      .fn()
+      .fn<(payload: Payload) => Promise<void>>()
       .mockImplementationOnce(
         () =>
           new Promise<void>((resolve) => {

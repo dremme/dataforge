@@ -191,7 +191,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     return isDriveRoot(pathKey);
   };
 
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl =
       typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const url = new URL(requestUrl, "http://localhost");

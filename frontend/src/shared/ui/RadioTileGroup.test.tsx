@@ -11,7 +11,7 @@ const OPTIONS: ReadonlyArray<RadioTileOption<"one" | "two">> = [
 describe("RadioTileGroup", () => {
   it("reports the value the user picked", async () => {
     const user = userEvent.setup();
-    const onChange = vi.fn();
+    const onChange = vi.fn<(value: "one" | "two") => void>();
 
     render(
       <RadioTileGroup
@@ -38,7 +38,7 @@ describe("RadioTileGroup", () => {
         label="Count"
         name="count"
         groupLabel="How many"
-        onChange={vi.fn()}
+        onChange={vi.fn<(value: "one" | "two") => void>()}
       />,
     );
 
@@ -54,7 +54,7 @@ describe("RadioTileGroup", () => {
         name="count"
         groupLabel="Count"
         disabled
-        onChange={vi.fn()}
+        onChange={vi.fn<(value: "one" | "two") => void>()}
       />,
     );
 
@@ -74,7 +74,7 @@ describe("RadioTileGroup", () => {
           label="First"
           name="first"
           groupLabel="First"
-          onChange={vi.fn()}
+          onChange={vi.fn<(value: "one" | "two") => void>()}
         />
         <RadioTileGroup
           value="two"
@@ -82,7 +82,7 @@ describe("RadioTileGroup", () => {
           label="Second"
           name="second"
           groupLabel="Second"
-          onChange={vi.fn()}
+          onChange={vi.fn<(value: "one" | "two") => void>()}
         />
       </>,
     );

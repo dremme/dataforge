@@ -118,7 +118,7 @@ describe("thumbnail demand", () => {
   });
 
   it("notifies subscribers until they detach, and finishes the load regardless", () => {
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     const unsubscribe = store.subscribe(frame.url, listener);
     store.setDemand({}, [frame]);
     expect(listener).toHaveBeenCalledTimes(1);
@@ -134,7 +134,7 @@ describe("thumbnail demand", () => {
     store.setDemand(first, [frame]);
     loads.load();
     store.setDemand(first, []);
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     store.subscribe(frame.url, listener);
     store.setDemand({}, [frame]);
     expect(loads.images).toHaveLength(1);
@@ -313,7 +313,7 @@ describe("thumbnail recovery", () => {
   });
 
   it("releases callbacks, listeners and retry timers on disposal", () => {
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     store.subscribe(frame.url, listener);
     store.setDemand({}, [frame]);
     loads.fail();

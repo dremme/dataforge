@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { getScrollLockDepth } from "@/shared/hooks/scrollLockManager";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { matchesShortcut, SHORTCUTS, type ShortcutId } from "@/shared/lib/shortcuts";
 import type { QuickActionItem } from "../types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 /** Keys that run their palette row directly; the rest are bound where their feature lives. */
 export const PALETTE_BOUND_SHORTCUTS: readonly ShortcutId[] = [
@@ -13,8 +14,7 @@ export const PALETTE_BOUND_SHORTCUTS: readonly ShortcutId[] = [
 
 /** Runs a palette row from its key, so the key works exactly when the row is enabled. */
 export function useCommandShortcuts(items: readonly QuickActionItem[]): void {
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
+  const itemsRef = useLatestRef(items);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -36,5 +36,5 @@ export function useCommandShortcuts(items: readonly QuickActionItem[]): void {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [itemsRef]);
 }

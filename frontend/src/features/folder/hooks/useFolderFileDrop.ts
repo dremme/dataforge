@@ -3,6 +3,7 @@ import { importFiles, previewFileImport } from "@/features/folder/api/files";
 import { formatApiError } from "@/shared/api/http";
 import { isExternalFileDrag } from "@/shared/lib/dragTransfer";
 import { filterImportableFiles } from "@/features/folder/lib/importableFiles";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 type OverwritePrompt = {
   conflicts: string[];
@@ -32,10 +33,10 @@ export function useFolderFileDrop({ folderPath, enabled, onImported }: UseFolder
   // Synchronous, unlike `importing`: a double click must not send the upload twice.
   const busyRef = useRef(false);
 
+  if (useChanged(folderPath)) setOverwritePrompt(null);
   useEffect(() => {
     generationRef.current += 1;
     pendingRef.current = null;
-    setOverwritePrompt(null);
   }, [folderPath]);
 
   const resetDragState = useCallback(() => {

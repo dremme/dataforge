@@ -7,7 +7,7 @@ import { queryWrapper } from "@/test/queryClient";
 import type { Job, JobsResponse } from "@/shared/types";
 import { JOB_HISTORY_PAGE_SIZE, useJobHistory } from "./useJobHistory";
 
-vi.mock("@/features/jobs/api/jobs", () => ({ fetchJobs: vi.fn() }));
+vi.mock("@/features/jobs/api/jobs", () => ({ fetchJobs: vi.fn<typeof fetchJobs>() }));
 
 const fetchJobsMock = vi.mocked(fetchJobs);
 

@@ -15,7 +15,7 @@ function reservedHeight(items: GalleryItem[], captionLines = 2): string | undefi
     withGallerySelection(
       <GalleryUniformGrid
         items={items}
-        onSelect={vi.fn()}
+        onSelect={vi.fn<(path: string) => void>()}
         displayMode="small"
         captionLines={captionLines}
         showMegapixels

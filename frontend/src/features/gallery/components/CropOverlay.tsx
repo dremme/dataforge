@@ -24,6 +24,7 @@ import {
 import { usePaintedBox } from "@/features/gallery/hooks/usePaintedBox";
 import { arrowDelta, useRectDrag } from "@/features/gallery/hooks/useRectDrag";
 import { classNames } from "@/shared/lib/classNames";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 interface CropOverlayProps {
   mediaRef: RefObject<HTMLElement | null>;
@@ -53,8 +54,7 @@ export function CropOverlay({
 }: CropOverlayProps) {
   const box = usePaintedBox(mediaRef, sourceWidth, sourceHeight);
   const drag = useRectDrag(box, orientation, disabled);
-  const cropRef = useRef(crop);
-  cropRef.current = crop;
+  const cropRef = useLatestRef(crop);
   // The size readout only shows while a handle is resizing the rect.
   const [resizing, setResizing] = useState(false);
   const lingerRef = useRef<number | undefined>(undefined);
@@ -74,7 +74,7 @@ export function CropOverlay({
 
   const startDrag = useCallback(
     (event: PointerEvent<HTMLElement>) => drag.begin(event, cropRef.current),
-    [drag],
+    [cropRef, drag],
   );
 
   const startResize = useCallback(
@@ -83,7 +83,7 @@ export function CropOverlay({
       window.clearTimeout(lingerRef.current);
       setResizing(true);
     },
-    [drag],
+    [cropRef, drag],
   );
 
   const endResize = useCallback(

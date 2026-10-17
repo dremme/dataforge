@@ -9,12 +9,13 @@ import {
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
 import { renderWithQueryClient } from "@/test/queryClient";
+import type { ComponentProps } from "react";
 
 const FOLDER = "C:/datasets/photos";
 
 const DEFAULTS: JobSettingsByType["auto_caption"] = emptyAutomationSettings(FOLDER).auto_caption;
 
-const fetchFolderInstructions = vi.fn();
+const fetchFolderInstructions = vi.fn<(...args: unknown[]) => unknown>();
 
 vi.mock("@/shared/api/folderInstructions", async (importOriginal) => ({
   ...(await importOriginal<typeof FolderInstructionsApi>()),
@@ -49,7 +50,7 @@ beforeEach(() => {
 
 function renderDialog(
   busy = false,
-  onConfirm = vi.fn(),
+  onConfirm = vi.fn<ComponentProps<typeof AutoCaptionDialog>["onConfirm"]>(),
   overrides: Partial<JobSettingsByType["auto_caption"]> = {},
 ) {
   renderWithQueryClient(
@@ -59,7 +60,7 @@ function renderDialog(
       initialSettings={{ ...DEFAULTS, ...overrides }}
       busy={busy}
       onConfirm={onConfirm}
-      onCancel={vi.fn()}
+      onCancel={vi.fn<() => void>()}
     />,
   );
 

@@ -6,12 +6,18 @@ import { renderWithProviders } from "@/test/renderWithProviders";
 import * as api from "@/features/videoEditor/api/videoProjects";
 import { restingAdjust } from "@/features/videoEditor/lib/timeline";
 import { GradePresets } from "./GradePresets";
+import type {
+  deleteVideoProjectGrade,
+  listVideoProjectGrades,
+  saveVideoProjectGrade,
+} from "@/features/videoEditor/api/videoProjects";
+import type { ColorAdjust } from "@/shared/types";
 
 vi.mock("@/features/videoEditor/api/videoProjects", async (importOriginal) => ({
   ...(await importOriginal<typeof api>()),
-  listVideoProjectGrades: vi.fn(),
-  saveVideoProjectGrade: vi.fn(),
-  deleteVideoProjectGrade: vi.fn(),
+  listVideoProjectGrades: vi.fn<typeof listVideoProjectGrades>(),
+  saveVideoProjectGrade: vi.fn<typeof saveVideoProjectGrade>(),
+  deleteVideoProjectGrade: vi.fn<typeof deleteVideoProjectGrade>(),
 }));
 
 const dusk = {
@@ -30,7 +36,7 @@ describe("GradePresets", () => {
 
   it("applies a saved grade and saves the current one under a name", async () => {
     const user = userEvent.setup();
-    const onApply = vi.fn();
+    const onApply = vi.fn<(adjust: ColorAdjust) => void>();
     const current = { ...restingAdjust(), contrast: 0.2 };
     renderWithProviders(<GradePresets current={current} onApply={onApply} />);
 

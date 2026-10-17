@@ -60,7 +60,7 @@ const candidateItems = [
 
 describe("useGalleryQuery", () => {
   it("saves a sort change to the UI settings", async () => {
-    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+    const fetchMock = vi.fn<typeof fetch>(async (_url, init) => {
       const saved = init?.body ? JSON.parse(init.body as string) : {};
       return new Response(
         JSON.stringify({

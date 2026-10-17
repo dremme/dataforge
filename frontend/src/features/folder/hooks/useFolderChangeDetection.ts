@@ -4,6 +4,7 @@ import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { folderKeys, folderQueryOptions } from "@/features/folder/lib/folderQuery";
 import { useServerEvent } from "@/shared/events/serverEvents";
 import type { FolderResponse } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export const VISIBLE_POLL_MS = 30000;
 export const HIDDEN_POLL_MS = 60000;
@@ -14,8 +15,7 @@ export const RELOAD_THROTTLE_MS = 1500;
 function useThrottled(run: () => void, intervalMs: number) {
   const lastRunRef = useRef(0);
   const timerRef = useRef<number | null>(null);
-  const runRef = useRef(run);
-  runRef.current = run;
+  const runRef = useLatestRef(run);
 
   const cancel = useCallback(() => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
@@ -34,7 +34,7 @@ function useThrottled(run: () => void, intervalMs: number) {
       lastRunRef.current = Date.now();
       runRef.current();
     }, wait);
-  }, [intervalMs]);
+  }, [intervalMs, runRef]);
 
   useEffect(() => cancel, [cancel]);
 

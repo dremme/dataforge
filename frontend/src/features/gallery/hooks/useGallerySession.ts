@@ -2,7 +2,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   type Dispatch,
   type RefObject,
   type SetStateAction,
@@ -19,6 +18,7 @@ import { countResolvableIssues, isResolvableIssueItem } from "@/features/gallery
 import { instructionApplies, type InstructionKind } from "@/shared/api/folderInstructions";
 import type { FolderResponse, GalleryItem, InstructionFileResponse } from "@/shared/types";
 import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 type GallerySelection = ReturnType<typeof useGallerySelection>;
 
@@ -229,8 +229,7 @@ export function useGallerySession({
   );
 
   // Ref so this handler keeps identity; a new function per folder change re-renders the grid.
-  const filteredItemsRef = useRef(query.filteredItems);
-  filteredItemsRef.current = query.filteredItems;
+  const filteredItemsRef = useLatestRef(query.filteredItems);
 
   const handleExtendSelectionTo = useCallback(
     (path: string) => {
@@ -240,7 +239,7 @@ export function useGallerySession({
         path,
       );
     },
-    [enterSelectionMode, selectPathRange],
+    [enterSelectionMode, filteredItemsRef, selectPathRange],
   );
 
   const handleSelectAllPaths = useCallback(() => {

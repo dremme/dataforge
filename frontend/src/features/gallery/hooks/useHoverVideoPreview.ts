@@ -16,8 +16,12 @@ export function useHoverVideoPreview(enabled: boolean) {
     setPreviewing(false);
   }, []);
 
+  if (!enabled && previewing) setPreviewing(false);
   useEffect(() => {
-    if (!enabled) cancel();
+    if (!enabled && timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
     return cancel;
   }, [cancel, enabled]);
 

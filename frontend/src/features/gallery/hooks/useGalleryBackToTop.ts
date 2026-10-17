@@ -8,10 +8,7 @@ export function useGalleryBackToTop(scrollElement: HTMLElement | null) {
   const cancelScrollRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!scrollElement) {
-      setVisible(false);
-      return;
-    }
+    if (!scrollElement) return;
 
     const updateVisibility = () => {
       setVisible(scrollElement.scrollTop > GALLERY_BACK_TO_TOP_THRESHOLD_PX);
@@ -38,5 +35,5 @@ export function useGalleryBackToTop(scrollElement: HTMLElement | null) {
     cancelScrollRef.current = scrollContainerToTop(scrollElement);
   }, [scrollElement]);
 
-  return { visible, scrollToTop };
+  return { visible: visible && scrollElement !== null, scrollToTop };
 }

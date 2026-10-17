@@ -6,12 +6,13 @@ import {
   emptyAutomationSettings,
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
+import type { ComponentProps } from "react";
 
 const DEFAULTS: JobSettingsByType["batch_rename"] =
   emptyAutomationSettings("C:/datasets/photos").batch_rename;
 
 function renderDialog(
-  onConfirm = vi.fn(),
+  onConfirm = vi.fn<ComponentProps<typeof BatchRenameDialog>["onConfirm"]>(),
   itemCount = 12,
   overrides: Partial<JobSettingsByType["batch_rename"]> = {},
 ) {
@@ -20,7 +21,7 @@ function renderDialog(
       scope={{ itemCount, folderLabel: "Photos", kind: "folder" as const }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
-      onCancel={vi.fn()}
+      onCancel={vi.fn<() => void>()}
     />,
   );
   return onConfirm;

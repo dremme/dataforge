@@ -15,9 +15,9 @@ import { CandidateReviewModal } from "./CandidateReviewModal";
 import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/gallery/api/comfyCandidates", () => ({
-  acceptCandidate: vi.fn(),
-  fetchCandidateState: vi.fn(),
-  rejectCandidate: vi.fn(),
+  acceptCandidate: vi.fn<typeof acceptCandidate>(),
+  fetchCandidateState: vi.fn<typeof fetchCandidateState>(),
+  rejectCandidate: vi.fn<typeof rejectCandidate>(),
 }));
 
 const acceptOne = vi.mocked(acceptCandidate);
@@ -72,15 +72,15 @@ function videoEntries(names: string[] = ["clip.mp4"]) {
 }
 
 function renderEntries(queue: ReturnType<typeof entries>) {
-  const onIndexChange = vi.fn();
+  const onIndexChange = vi.fn<(index: number) => void>();
   renderWithQueryClient(
     <NotificationsProvider>
       <CandidateReviewModal
         entries={queue}
         index={0}
-        onClose={vi.fn()}
+        onClose={vi.fn<() => void>()}
         onIndexChange={onIndexChange}
-        onResolved={vi.fn()}
+        onResolved={vi.fn<() => void>()}
       />
     </NotificationsProvider>,
   );
@@ -88,9 +88,9 @@ function renderEntries(queue: ReturnType<typeof entries>) {
 }
 
 function renderModal(names = ["a.png", "b.png"], overrides: Partial<{ index: number }> = {}) {
-  const onClose = vi.fn();
-  const onIndexChange = vi.fn();
-  const onResolved = vi.fn();
+  const onClose = vi.fn<() => void>();
+  const onIndexChange = vi.fn<(index: number) => void>();
+  const onResolved = vi.fn<() => void>();
 
   renderWithQueryClient(
     <NotificationsProvider>
@@ -139,9 +139,9 @@ describe("CandidateReviewModal", () => {
         <CandidateReviewModal
           entries={buildCandidateReviewQueue(HOME_PATH, sources, candidates)}
           index={0}
-          onClose={vi.fn()}
-          onIndexChange={vi.fn()}
-          onResolved={vi.fn()}
+          onClose={vi.fn<() => void>()}
+          onIndexChange={vi.fn<(index: number) => void>()}
+          onResolved={vi.fn<() => void>()}
         />
       </NotificationsProvider>,
     );
@@ -179,9 +179,9 @@ describe("CandidateReviewModal", () => {
         <CandidateReviewModal
           entries={buildCandidateReviewQueue(HOME_PATH, sources, candidates)}
           index={0}
-          onClose={vi.fn()}
-          onIndexChange={vi.fn()}
-          onResolved={vi.fn()}
+          onClose={vi.fn<() => void>()}
+          onIndexChange={vi.fn<(index: number) => void>()}
+          onResolved={vi.fn<() => void>()}
         />
       </NotificationsProvider>,
     );
@@ -224,9 +224,9 @@ describe("CandidateReviewModal", () => {
         <CandidateReviewModal
           entries={buildCandidateReviewQueue(HOME_PATH, [], candidates)}
           index={0}
-          onClose={vi.fn()}
-          onIndexChange={vi.fn()}
-          onResolved={vi.fn()}
+          onClose={vi.fn<() => void>()}
+          onIndexChange={vi.fn<(index: number) => void>()}
+          onResolved={vi.fn<() => void>()}
         />
       </NotificationsProvider>,
     );
@@ -304,9 +304,9 @@ describe("CandidateReviewModal", () => {
         <CandidateReviewModal
           entries={orphan}
           index={0}
-          onClose={vi.fn()}
-          onIndexChange={vi.fn()}
-          onResolved={vi.fn()}
+          onClose={vi.fn<() => void>()}
+          onIndexChange={vi.fn<(index: number) => void>()}
+          onResolved={vi.fn<() => void>()}
         />
       </NotificationsProvider>,
     );
@@ -324,8 +324,8 @@ describe("CandidateReviewModal", () => {
   it("discards an orphaned candidate keyed by the staged name", async () => {
     const user = userEvent.setup();
     const orphan = buildCandidateReviewQueue(HOME_PATH, [], [mediaItem("gone.png", STAGING_PATH)]);
-    const onResolved = vi.fn();
-    const onClose = vi.fn();
+    const onResolved = vi.fn<() => void>();
+    const onClose = vi.fn<() => void>();
 
     renderWithQueryClient(
       <NotificationsProvider>
@@ -333,7 +333,7 @@ describe("CandidateReviewModal", () => {
           entries={orphan}
           index={0}
           onClose={onClose}
-          onIndexChange={vi.fn()}
+          onIndexChange={vi.fn<(index: number) => void>()}
           onResolved={onResolved}
         />
       </NotificationsProvider>,
@@ -613,15 +613,15 @@ describe("CandidateReviewModal", () => {
     }
 
     function renderEntriesWithClose(queue: ReturnType<typeof entries>) {
-      const onClose = vi.fn();
+      const onClose = vi.fn<() => void>();
       renderWithQueryClient(
         <NotificationsProvider>
           <CandidateReviewModal
             entries={queue}
             index={0}
             onClose={onClose}
-            onIndexChange={vi.fn()}
-            onResolved={vi.fn()}
+            onIndexChange={vi.fn<(index: number) => void>()}
+            onResolved={vi.fn<() => void>()}
           />
         </NotificationsProvider>,
       );

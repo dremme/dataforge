@@ -15,7 +15,7 @@ function renderBar(props: Partial<BarProps> = {}) {
       breadcrumbs={homeFolder.breadcrumbs}
       currentFolder={homeFolder.path}
       hasSubfolders
-      onNavigate={vi.fn()}
+      onNavigate={vi.fn<(path: string) => void>()}
       {...props}
     />,
   );
@@ -80,7 +80,7 @@ describe("BreadcrumbBar", () => {
 
   it("lists the current folder's subfolders from the trailing chevron", async () => {
     const user = userEvent.setup();
-    const onNavigate = vi.fn();
+    const onNavigate = vi.fn<(path: string) => void>();
     installMockBackend();
 
     renderBar({ onNavigate });

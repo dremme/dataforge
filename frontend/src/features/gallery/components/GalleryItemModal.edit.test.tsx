@@ -6,7 +6,7 @@ import { makeItem } from "@/test/galleryItemModal";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { stubVideoElement } from "@/test/videoElement";
-import type { GalleryItem } from "@/shared/types";
+import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import type * as videoEditApi from "@/features/gallery/api/videoEdit";
 import {
   applyVideoEdit,
@@ -15,6 +15,7 @@ import {
 } from "@/features/gallery/api/videoEdit";
 import { GalleryItemModal } from "./GalleryItemModal";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
+import type { cancelVideoEdit } from "@/features/gallery/api/videoEdit";
 
 vi.mock("@/shared/lib/defer", () => ({
   deferNonCriticalWork: (callback: () => void) => {
@@ -27,10 +28,10 @@ vi.mock("@/features/gallery/api/videoEdit", async (importOriginal) => {
   const actual = await importOriginal<typeof videoEditApi>();
   return {
     ...actual,
-    fetchVideoEditState: vi.fn(),
-    applyVideoEdit: vi.fn(),
-    cancelVideoEdit: vi.fn(),
-    revertVideoEdit: vi.fn(),
+    fetchVideoEditState: vi.fn<typeof fetchVideoEditState>(),
+    applyVideoEdit: vi.fn<typeof applyVideoEdit>(),
+    cancelVideoEdit: vi.fn<typeof cancelVideoEdit>(),
+    revertVideoEdit: vi.fn<typeof revertVideoEdit>(),
   };
 });
 
@@ -72,11 +73,11 @@ describe("GalleryItemModal", () => {
         items: [item],
         index: 0,
         currentFolder: HOME_PATH,
-        onClose: vi.fn(),
-        onPrevious: vi.fn(),
-        onNext: vi.fn(),
-        onCaptionSaved: vi.fn(),
-        onCopied: vi.fn(),
+        onClose: vi.fn<() => void>(),
+        onPrevious: vi.fn<() => void>(),
+        onNext: vi.fn<() => void>(),
+        onCaptionSaved: vi.fn<(path: string, update: CaptionSaveResponse) => void>(),
+        onCopied: vi.fn<() => void | Promise<void>>(),
         ...overrides,
       };
 
@@ -246,11 +247,11 @@ describe("GalleryItemModal", () => {
         items,
         index: 0,
         currentFolder: HOME_PATH,
-        onClose: vi.fn(),
-        onPrevious: vi.fn(),
-        onNext: vi.fn(),
-        onCaptionSaved: vi.fn(),
-        onCopied: vi.fn(),
+        onClose: vi.fn<() => void>(),
+        onPrevious: vi.fn<() => void>(),
+        onNext: vi.fn<() => void>(),
+        onCaptionSaved: vi.fn<(path: string, update: CaptionSaveResponse) => void>(),
+        onCopied: vi.fn<() => void | Promise<void>>(),
       };
       const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
       const dialog = await openEditMode(user);
@@ -278,11 +279,11 @@ describe("GalleryItemModal", () => {
         items,
         index: 0,
         currentFolder: HOME_PATH,
-        onClose: vi.fn(),
-        onPrevious: vi.fn(),
-        onNext: vi.fn(),
-        onCaptionSaved: vi.fn(),
-        onCopied: vi.fn(),
+        onClose: vi.fn<() => void>(),
+        onPrevious: vi.fn<() => void>(),
+        onNext: vi.fn<() => void>(),
+        onCaptionSaved: vi.fn<(path: string, update: CaptionSaveResponse) => void>(),
+        onCopied: vi.fn<() => void | Promise<void>>(),
       };
       fetchStateMock.mockImplementation(async (mediaPath: string) => ({
         path: mediaPath,
@@ -362,11 +363,11 @@ describe("GalleryItemModal", () => {
         items,
         index: 0,
         currentFolder: HOME_PATH,
-        onClose: vi.fn(),
-        onPrevious: vi.fn(),
-        onNext: vi.fn(),
-        onCaptionSaved: vi.fn(),
-        onCopied: vi.fn(),
+        onClose: vi.fn<() => void>(),
+        onPrevious: vi.fn<() => void>(),
+        onNext: vi.fn<() => void>(),
+        onCaptionSaved: vi.fn<(path: string, update: CaptionSaveResponse) => void>(),
+        onCopied: vi.fn<() => void | Promise<void>>(),
       };
       const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
       const dialog = await openEditMode(user);
@@ -579,11 +580,11 @@ describe("GalleryItemModal", () => {
         items: [item],
         index: 0,
         currentFolder: HOME_PATH,
-        onClose: vi.fn(),
-        onPrevious: vi.fn(),
-        onNext: vi.fn(),
-        onCaptionSaved: vi.fn(),
-        onCopied: vi.fn(),
+        onClose: vi.fn<() => void>(),
+        onPrevious: vi.fn<() => void>(),
+        onNext: vi.fn<() => void>(),
+        onCaptionSaved: vi.fn<(path: string, update: CaptionSaveResponse) => void>(),
+        onCopied: vi.fn<() => void | Promise<void>>(),
       };
       const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
       const dialog = await openEditMode(user);
@@ -659,10 +660,10 @@ describe("GalleryItemModal", () => {
           items={items}
           index={0}
           currentFolder={HOME_PATH}
-          onClose={vi.fn()}
-          onPrevious={vi.fn()}
-          onNext={vi.fn()}
-          onCaptionSaved={vi.fn()}
+          onClose={vi.fn<() => void>()}
+          onPrevious={vi.fn<() => void>()}
+          onNext={vi.fn<() => void>()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         />,
       );
 
@@ -673,10 +674,10 @@ describe("GalleryItemModal", () => {
           items={items}
           index={1}
           currentFolder={HOME_PATH}
-          onClose={vi.fn()}
-          onPrevious={vi.fn()}
-          onNext={vi.fn()}
-          onCaptionSaved={vi.fn()}
+          onClose={vi.fn<() => void>()}
+          onPrevious={vi.fn<() => void>()}
+          onNext={vi.fn<() => void>()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         />,
       );
 

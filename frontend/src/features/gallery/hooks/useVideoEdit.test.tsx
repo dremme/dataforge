@@ -12,14 +12,15 @@ import { makeItem } from "@/test/galleryItemModal";
 import { HOME_PATH } from "@/test/fixtures";
 import type { VideoEditStateResponse } from "@/shared/types";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
+import type { cancelVideoEdit, revertVideoEdit } from "@/features/gallery/api/videoEdit";
 
 vi.mock("@/features/gallery/api/videoEdit", () => ({
   videoOriginalUrl: (path: string) => `/api/media?path=${path}&original=1`,
-  fetchVideoEditState: vi.fn(),
-  fetchVideoAutoAdjust: vi.fn(),
-  applyVideoEdit: vi.fn(),
-  cancelVideoEdit: vi.fn(),
-  revertVideoEdit: vi.fn(),
+  fetchVideoEditState: vi.fn<typeof fetchVideoEditState>(),
+  fetchVideoAutoAdjust: vi.fn<typeof fetchVideoAutoAdjust>(),
+  applyVideoEdit: vi.fn<typeof applyVideoEdit>(),
+  cancelVideoEdit: vi.fn<typeof cancelVideoEdit>(),
+  revertVideoEdit: vi.fn<typeof revertVideoEdit>(),
 }));
 
 const fetchStateMock = vi.mocked(fetchVideoEditState);
@@ -66,7 +67,7 @@ function fakeVideo() {
 }
 
 function renderEdit(overrides: Partial<UseVideoEditOptions> = {}) {
-  const setEditMode = vi.fn();
+  const setEditMode = vi.fn<(editMode: boolean) => void>();
   const initial: UseVideoEditOptions = {
     item: makeItem("clip.mp4", { media_type: "video" }),
     videoRef: { current: null },

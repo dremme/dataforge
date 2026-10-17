@@ -11,29 +11,31 @@ function respond(body: unknown) {
 }
 
 function stubSettings(showAutomationSpecs: boolean) {
-  const fetchMock = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
-    const saved = init?.body ? JSON.parse(init.body as string) : {};
-    return respond({
-      sort: "name-asc",
-      theme: "system",
-      show_automation_specs: saved.show_automation_specs ?? showAutomationSpecs,
-      jobs_drawer_filters: { job_types: [], status: "all", folder: "all" },
-      gallery_cards: {
-        small_caption_lines: 2,
-        large_caption_lines: 4,
-        megapixels: true,
-        large_aspect_ratio: true,
-        list_caption_preview: false,
-      },
-      editor: {
-        line_wrap: true,
-        line_numbers: true,
-        caption_spellcheck: true,
-        caption_spellcheck_language: "en-US",
-        caption_suggestions: true,
-      },
+  const fetchMock = vi
+    .fn<(url: string, init?: RequestInit) => Promise<Response>>()
+    .mockImplementation(async (_url: string, init?: RequestInit) => {
+      const saved = init?.body ? JSON.parse(init.body as string) : {};
+      return respond({
+        sort: "name-asc",
+        theme: "system",
+        show_automation_specs: saved.show_automation_specs ?? showAutomationSpecs,
+        jobs_drawer_filters: { job_types: [], status: "all", folder: "all" },
+        gallery_cards: {
+          small_caption_lines: 2,
+          large_caption_lines: 4,
+          megapixels: true,
+          large_aspect_ratio: true,
+          list_caption_preview: false,
+        },
+        editor: {
+          line_wrap: true,
+          line_numbers: true,
+          caption_spellcheck: true,
+          caption_spellcheck_language: "en-US",
+          caption_suggestions: true,
+        },
+      });
     });
-  });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }

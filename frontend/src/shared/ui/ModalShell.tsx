@@ -11,6 +11,7 @@ import {
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import type { ScrollLockClass } from "@/shared/hooks/scrollLockManager";
 import { classNames } from "@/shared/lib/classNames";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 /** `bubble` is window-level; `editor` is capture-phase so the find panel gets first refusal. */
 export type ModalEscape = "bubble" | "editor" | "none";
@@ -91,15 +92,14 @@ export function ModalShell({
   const dismissible = !busy && !suspended && !closing;
 
   // Keep `onExited` identity from restarting the fallback timer.
-  const exitedRef = useRef(onExited);
-  exitedRef.current = onExited;
+  const exitedRef = useLatestRef(onExited);
 
   useEffect(() => {
     if (!closing) return;
 
     const timer = window.setTimeout(() => exitedRef.current?.(), EXIT_FALLBACK_MS);
     return () => window.clearTimeout(timer);
-  }, [closing]);
+  }, [closing, exitedRef]);
   // Both hooks stay mounted for stable order; the editor listener stops capture-phase
   // propagation and must stay detached in bubble mode.
   useEscapeKey(onClose, !inline && escape === "bubble" && dismissible);

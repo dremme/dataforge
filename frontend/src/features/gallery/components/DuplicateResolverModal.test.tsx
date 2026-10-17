@@ -7,8 +7,8 @@ import { HOME_PATH, mediaItem } from "@/test/fixtures";
 import { DuplicateResolverModal } from "./DuplicateResolverModal";
 
 vi.mock("@/features/gallery/api/duplicates", () => ({
-  resolveDuplicateGroup: vi.fn(),
-  dismissDuplicateGroup: vi.fn(),
+  resolveDuplicateGroup: vi.fn<typeof resolveDuplicateGroup>(),
+  dismissDuplicateGroup: vi.fn<typeof dismissDuplicateGroup>(),
 }));
 
 const resolveGroup = vi.mocked(resolveDuplicateGroup);
@@ -39,11 +39,11 @@ function renderModal(overrides: Partial<Parameters<typeof DuplicateResolverModal
   const props = {
     groups: [group()],
     index: 0,
-    onClose: vi.fn(),
-    onIndexChange: vi.fn(),
+    onClose: vi.fn<() => void>(),
+    onIndexChange: vi.fn<(index: number) => void>(),
     // Windows-like by default: the Recycle Bin path, where deleting is one click.
     deletesToTrash: true,
-    onResolved: vi.fn(),
+    onResolved: vi.fn<(deletedPaths: string[]) => void>(),
     ...overrides,
   };
   render(<DuplicateResolverModal {...props} />);
@@ -267,10 +267,10 @@ describe("DuplicateResolverModal", () => {
       <DuplicateResolverModal
         groups={[group()]}
         index={5}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
         deletesToTrash
-        onResolved={vi.fn()}
+        onResolved={vi.fn<(deletedPaths: string[]) => void>()}
       />,
     );
 

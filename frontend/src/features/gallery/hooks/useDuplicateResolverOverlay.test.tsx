@@ -7,7 +7,7 @@ import { HOME_PATH, mediaItem } from "@/test/fixtures";
 import { useDuplicateResolverOverlay } from "./useDuplicateResolverOverlay";
 
 vi.mock("@/features/gallery/api/duplicates", () => ({
-  fetchDuplicateGroups: vi.fn(),
+  fetchDuplicateGroups: vi.fn<typeof fetchDuplicateGroups>(),
 }));
 
 const fetchGroups = vi.mocked(fetchDuplicateGroups);
@@ -42,7 +42,7 @@ beforeEach(() => {
 
 describe("useDuplicateResolverOverlay", () => {
   it("tells the caller each time the modal resolves a group", () => {
-    const onResolved = vi.fn();
+    const onResolved = vi.fn<() => void>();
     const { result } = renderHook(() => useDuplicateResolverOverlay(onResolved), { wrapper });
 
     act(() => result.current.overlay.onResolved([]));
@@ -52,7 +52,7 @@ describe("useDuplicateResolverOverlay", () => {
 
   it("opens a file's own group alone, closing the file first", async () => {
     fetchGroups.mockResolvedValue(listing({ groups: [group("g1"), group("g2")] }));
-    const onOpen = vi.fn();
+    const onOpen = vi.fn<() => void>();
     const { result } = renderHook(() => useDuplicateResolverOverlay(), { wrapper });
 
     await result.current.openDuplicateResolver(HOME_PATH, {
@@ -68,13 +68,16 @@ describe("useDuplicateResolverOverlay", () => {
   });
 
   it("returns to the file when it was kept", async () => {
-    const onReturn = vi.fn();
+    const onReturn = vi.fn<(path: string) => void>();
     const { result } = renderHook(() => useDuplicateResolverOverlay(undefined, onReturn), {
       wrapper,
     });
     const kept = `${HOME_PATH}\\g1-one.png`;
 
-    await result.current.openDuplicateResolver(HOME_PATH, { path: kept, onOpen: vi.fn() });
+    await result.current.openDuplicateResolver(HOME_PATH, {
+      path: kept,
+      onOpen: vi.fn<() => void>(),
+    });
     await waitFor(() => expect(result.current.open).toBe(true));
     act(() => {
       result.current.overlay.onResolved([`${HOME_PATH}\\g1-two.png`]);
@@ -85,13 +88,16 @@ describe("useDuplicateResolverOverlay", () => {
   });
 
   it("drops back to the gallery when the file itself was deleted", async () => {
-    const onReturn = vi.fn();
+    const onReturn = vi.fn<(path: string) => void>();
     const { result } = renderHook(() => useDuplicateResolverOverlay(undefined, onReturn), {
       wrapper,
     });
     const deleted = `${HOME_PATH}\\g1-one.png`;
 
-    await result.current.openDuplicateResolver(HOME_PATH, { path: deleted, onOpen: vi.fn() });
+    await result.current.openDuplicateResolver(HOME_PATH, {
+      path: deleted,
+      onOpen: vi.fn<() => void>(),
+    });
     await waitFor(() => expect(result.current.open).toBe(true));
     // The modal settles its last group and closes in one go, before a refresh could land.
     act(() => {
@@ -103,7 +109,7 @@ describe("useDuplicateResolverOverlay", () => {
   });
 
   it("says so when the file's group is gone", async () => {
-    const onOpen = vi.fn();
+    const onOpen = vi.fn<() => void>();
     const { result } = renderHook(() => useDuplicateResolverOverlay(), { wrapper });
 
     await result.current.openDuplicateResolver(HOME_PATH, {
@@ -133,7 +139,7 @@ describe("useDuplicateResolverOverlay", () => {
 
   it("leaves the findings alone, because the job is what rebuilds them", async () => {
     fetchGroups.mockResolvedValue(listing({ groups: [], stale: ["gone.png"] }));
-    const onResolved = vi.fn();
+    const onResolved = vi.fn<() => void>();
     const { result } = renderHook(() => useDuplicateResolverOverlay(onResolved), { wrapper });
 
     await result.current.openDuplicateResolver(HOME_PATH);

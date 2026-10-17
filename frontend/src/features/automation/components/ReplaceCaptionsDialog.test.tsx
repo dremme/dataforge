@@ -8,18 +8,19 @@ import {
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
 import { renderWithQueryClient } from "@/test/queryClient";
+import type { ComponentProps } from "react";
 
 const DEFAULTS: JobSettingsByType["replace_captions"] =
   emptyAutomationSettings("C:/datasets/photos").replace_captions;
 
 vi.mock("@/features/automation/api/jobs", () => ({
-  previewCaptionReplacements: vi.fn(),
+  previewCaptionReplacements: vi.fn<typeof previewCaptionReplacements>(),
 }));
 
 const preview = vi.mocked(previewCaptionReplacements);
 
 function renderDialog(
-  onConfirm = vi.fn(),
+  onConfirm = vi.fn<ComponentProps<typeof ReplaceCaptionsDialog>["onConfirm"]>(),
   overrides: Partial<JobSettingsByType["replace_captions"]> = {},
 ) {
   renderWithQueryClient(
@@ -28,7 +29,7 @@ function renderDialog(
       initialSettings={{ ...DEFAULTS, ...overrides }}
       folderPath="C:/datasets/photos"
       onConfirm={onConfirm}
-      onCancel={vi.fn()}
+      onCancel={vi.fn<() => void>()}
     />,
   );
   return onConfirm;

@@ -151,7 +151,9 @@ describe("useUiSettings", () => {
 
   it("keeps the local copy when the backend cannot be reached", async () => {
     localStorage.setItem(THEME_CACHE_KEY, "light");
-    const fetchMock = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+    const fetchMock = vi
+      .fn<(url: string, init?: RequestInit) => Promise<Response>>()
+      .mockRejectedValue(new TypeError("Failed to fetch"));
     vi.stubGlobal("fetch", fetchMock);
     const { wrapper } = queryWrapper(createTestQueryClient({ retry: false }));
 
@@ -162,7 +164,9 @@ describe("useUiSettings", () => {
   });
 
   it("shares one request between readers that start together", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(respond(serverCopy));
+    const fetchMock = vi
+      .fn<(url: string, init?: RequestInit) => Promise<Response>>()
+      .mockResolvedValue(respond(serverCopy));
     vi.stubGlobal("fetch", fetchMock);
     const { wrapper } = queryWrapper();
 
@@ -178,7 +182,7 @@ describe("useUiSettings", () => {
 describe("useUpdateUiSettings", () => {
   it("applies a change at once and saves it", async () => {
     const fetchMock = vi
-      .fn()
+      .fn<(url: string, init?: RequestInit) => Promise<Response>>()
       .mockImplementation(async (_url: string, init?: RequestInit) =>
         respond(init?.method === "PUT" ? { ...serverCopy, sort: "date-desc" } : serverCopy),
       );
@@ -204,7 +208,10 @@ describe("useUpdateUiSettings", () => {
 it("keeps later choices visible while preference writes finish in order", async () => {
   const first = deferred<Response>();
   const second = deferred<Response>();
-  const writes = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+  const writes = vi
+    .fn<(init: RequestInit) => Promise<Response>>()
+    .mockReturnValueOnce(first.promise)
+    .mockReturnValueOnce(second.promise);
   vi.stubGlobal(
     "fetch",
     vi.fn((_url: string, init?: RequestInit) =>
@@ -242,7 +249,9 @@ it("keeps later choices visible while preference writes finish in order", async 
 });
 
 it("shares fresh preferences across remounts and refreshes an expired copy", async () => {
-  const fetchMock = vi.fn().mockResolvedValue(respond(serverCopy));
+  const fetchMock = vi
+    .fn<(url: string, init?: RequestInit) => Promise<Response>>()
+    .mockResolvedValue(respond(serverCopy));
   vi.stubGlobal("fetch", fetchMock);
   const { wrapper } = queryWrapper();
   const first = renderHook(() => useUiSettings(), { wrapper });
@@ -267,7 +276,10 @@ it("shares fresh preferences across remounts and refreshes an expired copy", asy
 it("continues queued writes after a failure, including theme saves outside React", async () => {
   const first = deferred<Response>();
   const second = deferred<Response>();
-  const fetchMock = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+  const fetchMock = vi
+    .fn<(url: string, init?: RequestInit) => Promise<Response>>()
+    .mockReturnValueOnce(first.promise)
+    .mockReturnValueOnce(second.promise);
   vi.stubGlobal("fetch", fetchMock);
   const failed = updateUiSettings({ sort: "date-desc" }).catch((error: unknown) => error);
   const later = updateUiSettings({ theme: "light", sort: "name-desc" });

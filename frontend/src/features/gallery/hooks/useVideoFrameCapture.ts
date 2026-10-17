@@ -14,6 +14,8 @@ import { encodeVideoFrame, seekVideoTo } from "@/features/gallery/lib/videoFrame
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { GalleryItem } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 export interface UseVideoFrameCaptureOptions {
   item: GalleryItem | undefined;
@@ -42,8 +44,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
   const { item, frameMode, setFrameMode } = options;
 
   // Ref so callbacks stay dependency-free; a save outliving a swap keeps its starting values.
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const optionsRef = useLatestRef(options);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mountedRef = useRef(true);
@@ -55,10 +56,8 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
   const [saving, setSaving] = useState(false);
 
   const savingRef = useRef(false);
-  const durationRef = useRef(duration);
-  durationRef.current = duration;
-  const sliderTimeRef = useRef(sliderTime);
-  sliderTimeRef.current = sliderTime;
+  const durationRef = useLatestRef(duration);
+  const sliderTimeRef = useLatestRef(sliderTime);
 
   const ready = hasUsableDuration(duration);
   const displayTime = presentedTime ?? sliderTime;
@@ -71,28 +70,31 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
   }, []);
 
   // Scrubber only; a save in flight against the previous item must run its own finally.
-  useEffect(() => {
+  if (useChanged(item?.path)) {
     setDuration(Number.NaN);
     setSliderTimeState(0);
     setPresentedTime(null);
-  }, [item?.path]);
+  }
 
-  const setSliderTime = useCallback((time: number) => {
-    const next = clampFrameTime(time, durationRef.current);
-    setSliderTimeState(next);
-    setPresentedTime(null);
+  const setSliderTime = useCallback(
+    (time: number) => {
+      const next = clampFrameTime(time, durationRef.current);
+      setSliderTimeState(next);
+      setPresentedTime(null);
 
-    const video = videoRef.current;
-    if (video) {
-      video.currentTime = next;
-    }
-  }, []);
+      const video = videoRef.current;
+      if (video) {
+        video.currentTime = next;
+      }
+    },
+    [durationRef],
+  );
 
   const stepFrame = useCallback(
     (direction: -1 | 1) => {
       setSliderTime(stepFrameTime(displayTime, direction, durationRef.current));
     },
-    [displayTime, setSliderTime],
+    [displayTime, durationRef, setSliderTime],
   );
 
   const seedFromVideo = useCallback((video: HTMLVideoElement) => {
@@ -110,7 +112,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
         seedFromVideo(video);
       }
     },
-    [seedFromVideo],
+    [optionsRef, seedFromVideo],
   );
 
   const enterFrameMode = useCallback(() => {
@@ -178,7 +180,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
         if (mountedRef.current) setSaving(false);
       }
     })();
-  }, [notify]);
+  }, [durationRef, notify, optionsRef, sliderTimeRef]);
 
   return {
     videoRef,

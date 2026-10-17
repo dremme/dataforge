@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { fetchComfyEditorWorkflow } from "@/features/gallery/api/captions";
 import { ComfyWorkflowMap } from "@/features/gallery/components/ComfyWorkflowMap";
 import { PASS_NOT_RUN, splitLora } from "@/features/gallery/lib/comfyWorkflow";
@@ -10,6 +10,7 @@ import type { ComfyOutputBranch, ComfyParameter } from "@/shared/types";
 import { Dialog, DialogButton } from "@/shared/ui/Dialog";
 import { scrollBehavior } from "@/shared/lib/motion";
 import { Icon } from "@/shared/ui/Icon";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 interface ComfyWorkflowDialogProps {
   mediaPath: string;
@@ -305,7 +306,8 @@ function BranchDetails({
   mediaPath: string;
   canCopyWorkflow: boolean;
 }) {
-  const sections = useRef(new Map<string, HTMLElement>());
+  // Filled by the sections' ref callbacks; stable for the dialog's lifetime.
+  const [sections] = useState(() => new Map<string, HTMLElement>());
   // Numbered as their sections are; a single pass has no section and is simply pass 1.
   const passNumbers = useMemo(() => {
     const passes =
@@ -376,7 +378,7 @@ function BranchDetails({
         ))}
 
         {branch.stages.length > 0 ? (
-          <SamplingPasses branch={branch} sections={sections.current} />
+          <SamplingPasses branch={branch} sections={sections} />
         ) : (
           <SettingsGroups parameters={branch.parameters} loras={branch.loras} />
         )}
@@ -390,7 +392,7 @@ function BranchDetails({
             onSelect={
               branch.stages.length > 0
                 ? (nodeId) =>
-                    sections.current
+                    sections
                       .get(nodeId)
                       ?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
                 : undefined
@@ -409,9 +411,11 @@ export function ComfyWorkflowDialog({ mediaPath, mediaName, onClose }: ComfyWork
   const branches = useMemo(() => data?.branches ?? [], [data]);
 
   // A pick belongs to one file's workflow; another file starts from its own default.
-  useEffect(() => {
+  const dataChanged = useChanged(data);
+  const mediaPathChanged = useChanged(mediaPath);
+  if (dataChanged || mediaPathChanged) {
     setSelectedId(null);
-  }, [data, mediaPath]);
+  }
 
   // Something is always shown: the pick, else the filename match, else the first output.
   const selected =

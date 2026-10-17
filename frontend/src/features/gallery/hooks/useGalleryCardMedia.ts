@@ -78,11 +78,9 @@ export function useGalleryCardMedia(
     const image = imageRef.current;
     if (src && image?.getAttribute("src") === src) setLoadedSrc(src);
   }, [src]);
+  if (!showImage && loadedSrc !== undefined) setLoadedSrc(undefined);
   useLayoutEffect(() => {
-    if (!showImage) {
-      setLoadedSrc(undefined);
-      return;
-    }
+    if (!showImage) return;
     const image = imageRef.current;
     if (image?.complete && image.naturalWidth > 0) handleReady();
   }, [showImage, handleReady]);

@@ -4,8 +4,11 @@ import { ApiError } from "@/shared/api/http";
 import type { VideoProjectDocument } from "@/shared/types";
 import * as api from "@/features/videoEditor/api/videoProjects";
 import { AUTOSAVE_DELAY_MS, useVideoProject } from "./useVideoProject";
+import type { saveVideoProject } from "@/features/videoEditor/api/videoProjects";
 
-vi.mock("@/features/videoEditor/api/videoProjects", () => ({ saveVideoProject: vi.fn() }));
+vi.mock("@/features/videoEditor/api/videoProjects", () => ({
+  saveVideoProject: vi.fn<typeof saveVideoProject>(),
+}));
 
 const saveMock = vi.mocked(api.saveVideoProject);
 

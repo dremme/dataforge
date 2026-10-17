@@ -11,6 +11,8 @@ import { galleryItemGifFrameUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { GalleryItem } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 const NEIGHBOUR_WARM_DELAY_MS = 120;
 const NEIGHBOUR_WARM_OFFSETS = [-2, -1, 1, 2] as const;
@@ -38,8 +40,7 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
   const { item, frameCount, frameMode, setFrameMode } = options;
 
   // Ref so callbacks stay dependency-free; a save outliving a swap keeps its starting values.
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const optionsRef = useLatestRef(options);
 
   const mountedRef = useRef(true);
 
@@ -47,12 +48,10 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
   const [saving, setSaving] = useState(false);
 
   const savingRef = useRef(false);
-  const frameIndexRef = useRef(frameIndex);
-  frameIndexRef.current = frameIndex;
+  const frameIndexRef = useLatestRef(frameIndex);
 
   const resolvedCount = frameCount ?? 0;
-  const frameCountRef = useRef(resolvedCount);
-  frameCountRef.current = resolvedCount;
+  const frameCountRef = useLatestRef(resolvedCount);
 
   // >= 1 so a one-frame GIF is still savable; the slider goes inert at that size.
   const ready = resolvedCount >= 1;
@@ -65,9 +64,9 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
   }, []);
 
   // Scrubber only; a save in flight against the previous item must run its own finally.
-  useEffect(() => {
+  if (useChanged(item?.path)) {
     setFrameIndexState(0);
-  }, [item?.path]);
+  }
 
   const previewUrl =
     frameMode && item && ready ? galleryItemGifFrameUrl(item, frameIndex) : undefined;
@@ -96,13 +95,19 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
     };
   }, [frameIndex, frameMode, item, ready, resolvedCount]);
 
-  const setFrameIndex = useCallback((index: number) => {
-    setFrameIndexState(clampFrameIndex(index, frameCountRef.current));
-  }, []);
+  const setFrameIndex = useCallback(
+    (index: number) => {
+      setFrameIndexState(clampFrameIndex(index, frameCountRef.current));
+    },
+    [frameCountRef],
+  );
 
-  const stepFrame = useCallback((direction: -1 | 1) => {
-    setFrameIndexState((current) => stepFrameIndex(current, direction, frameCountRef.current));
-  }, []);
+  const stepFrame = useCallback(
+    (direction: -1 | 1) => {
+      setFrameIndexState((current) => stepFrameIndex(current, direction, frameCountRef.current));
+    },
+    [frameCountRef],
+  );
 
   const exitFrameMode = useCallback(() => {
     setFrameMode(false);
@@ -155,7 +160,7 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
         if (mountedRef.current) setSaving(false);
       }
     })();
-  }, [notify]);
+  }, [frameCountRef, frameIndexRef, notify, optionsRef]);
 
   return {
     frameMode,

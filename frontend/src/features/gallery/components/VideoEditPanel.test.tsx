@@ -10,6 +10,8 @@ import {
 import type { VideoEdit } from "@/features/gallery/hooks/useVideoEdit";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 import { makeAdjustControls } from "@/test/colorAdjustControls";
+import type { CropRect } from "@/features/gallery/lib/crop";
+import type { MaskMode } from "@/features/gallery/lib/mask";
 
 function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
   const draft: VideoEditDraft = overrides.draft ?? emptyDraft(12);
@@ -43,36 +45,36 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     outputWidth: 1920,
     outputHeight: 1080,
     outputSeconds: 12,
-    toggleEditMode: vi.fn(),
-    exitEditMode: vi.fn(),
-    setTrimStart: vi.fn(),
-    setTrimEnd: vi.fn(),
-    setTrimStartAtPlayhead: vi.fn(),
-    setTrimEndAtPlayhead: vi.fn(),
-    setTrimLength: vi.fn(),
-    setCrop: vi.fn(),
-    setCropActive: vi.fn(),
-    setMaskActive: vi.fn(),
-    selectMask: vi.fn(),
-    addMask: vi.fn(),
-    setMaskRect: vi.fn(),
-    setMaskMode: vi.fn(),
-    setMaskStrength: vi.fn(),
-    removeMask: vi.fn(),
-    clearMasks: vi.fn(),
-    selectAspect: vi.fn(),
-    toggleMuted: vi.fn(),
-    setSpeed: vi.fn(),
-    setScale: vi.fn(),
-    setVolume: vi.fn(),
+    toggleEditMode: vi.fn<() => void>(),
+    exitEditMode: vi.fn<() => void>(),
+    setTrimStart: vi.fn<(seconds: number) => void>(),
+    setTrimEnd: vi.fn<(seconds: number) => void>(),
+    setTrimStartAtPlayhead: vi.fn<() => void>(),
+    setTrimEndAtPlayhead: vi.fn<() => void>(),
+    setTrimLength: vi.fn<(seconds: number) => void>(),
+    setCrop: vi.fn<(crop: CropRect) => void>(),
+    setCropActive: vi.fn<(active: boolean) => void>(),
+    setMaskActive: vi.fn<(active: boolean) => void>(),
+    selectMask: vi.fn<(maskId: string | null) => void>(),
+    addMask: vi.fn<() => void>(),
+    setMaskRect: vi.fn<(maskId: string, rect: CropRect) => void>(),
+    setMaskMode: vi.fn<(mode: MaskMode) => void>(),
+    setMaskStrength: vi.fn<(strength: number) => void>(),
+    removeMask: vi.fn<(maskId: string) => void>(),
+    clearMasks: vi.fn<() => void>(),
+    selectAspect: vi.fn<(aspectId: string) => void>(),
+    toggleMuted: vi.fn<() => void>(),
+    setSpeed: vi.fn<(speed: number) => void>(),
+    setScale: vi.fn<(scale: number) => void>(),
+    setVolume: vi.fn<(volume: number) => void>(),
     adjust: makeAdjustControls({ values: draft.adjust }),
-    seekTo: vi.fn(),
-    togglePlay: vi.fn(),
-    resetDraft: vi.fn(),
-    apply: vi.fn(),
-    cancel: vi.fn(),
-    revert: vi.fn(),
-    handleLoadedMetadata: vi.fn(),
+    seekTo: vi.fn<(seconds: number) => void>(),
+    togglePlay: vi.fn<() => void>(),
+    resetDraft: vi.fn<() => void>(),
+    apply: vi.fn<() => void>(),
+    cancel: vi.fn<() => void>(),
+    revert: vi.fn<() => void>(),
+    handleLoadedMetadata: vi.fn<(video: HTMLVideoElement) => void>(),
     ...overrides,
   };
 }
@@ -84,7 +86,7 @@ function renderPanel(
   const props = {
     edit,
     busy: false,
-    onRevertRequested: vi.fn(),
+    onRevertRequested: vi.fn<() => void>(),
     ...overrides,
   };
 

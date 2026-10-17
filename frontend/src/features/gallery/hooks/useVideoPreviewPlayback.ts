@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { trackPercent } from "@/features/gallery/lib/videoEdit";
 import { VideoPreviewLoop } from "@/features/gallery/lib/videoPreviewLoop";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 export interface PlaybackRange {
   start: number;
@@ -43,17 +45,18 @@ export function useVideoPreviewPlayback(
   const [playing, setPlaying] = useState(false);
   const [playheadTime, setPlayheadTime] = useState(0);
   const playheadRef = useRef<HTMLDivElement | null>(null);
-  const [activeMediaRef, setActiveMediaRef] = useState(videoRef);
+  // Index of the player the loop is showing: 0 the primary, 1 the standby.
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeMediaRef = activeIndex === 1 && standbyVideoRef ? standbyVideoRef : videoRef;
   const loopRef = useRef<VideoPreviewLoop | null>(null);
 
   // Ref so the frame loop reads current values without re-subscribing between frames.
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const optionsRef = useLatestRef(options);
 
   const seekTo = useCallback(
     (seconds: number) => {
       const loop = loopRef.current;
-      const video = loop?.current ?? videoRef.current;
+      const video = loop ? loop.current : videoRef.current;
       if (!video) return;
       // The standby waits at the in point whatever the playhead does; only a handoff is undone.
       const resume = loop?.cancelHandoff();
@@ -71,7 +74,7 @@ export function useVideoPreviewPlayback(
 
   const togglePlay = useCallback(() => {
     const loop = loopRef.current;
-    const video = loop?.current ?? videoRef.current;
+    const video = loop ? loop.current : videoRef.current;
     if (!video) return;
     // Mid-handoff both players are paused, so no pause event would report the stop.
     if (loop?.cancelHandoff() || !video.paused) {
@@ -88,11 +91,14 @@ export function useVideoPreviewPlayback(
     }
     if (loop) loop.play();
     else void video.play().catch(() => setPlaying(false));
-  }, [videoRef]);
+  }, [optionsRef, videoRef]);
 
+  // Each loop starts on the primary.
+  const activeChanged = useChanged(active);
+  const itemPathChanged = useChanged(itemPath);
+  if ((activeChanged || itemPathChanged) && activeIndex !== 0) setActiveIndex(0);
   useEffect(() => {
     const primary = videoRef.current;
-    setActiveMediaRef(videoRef);
     if (!primary || !active) return;
     const refs = standbyVideoRef?.current ? [videoRef, standbyVideoRef] : [videoRef];
     const videos = refs.map((ref) => ref.current!);
@@ -102,7 +108,7 @@ export function useVideoPreviewPlayback(
       getRange: () => optionsRef.current.getRange(),
       getFrameDuration: () => optionsRef.current.frameDuration,
       onSwitch: (index) => {
-        setActiveMediaRef(refs[index]);
+        setActiveIndex(index);
         setPlayheadTime(loop.current.currentTime);
       },
       onPlayError: () => {
@@ -196,7 +202,7 @@ export function useVideoPreviewPlayback(
       loop.dispose();
       loopRef.current = null;
     };
-  }, [active, itemPath, standbyVideoRef, syncFrom, videoRef]);
+  }, [active, itemPath, optionsRef, standbyVideoRef, syncFrom, videoRef]);
 
   const { start: trimStart, end: trimEnd } = options.getRange();
   useEffect(() => {

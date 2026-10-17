@@ -10,21 +10,33 @@ import * as api from "@/features/videoEditor/api/videoProjects";
 import { restingAdjust } from "@/features/videoEditor/lib/timeline";
 import { SOURCE_DRAG_TYPE, TIMELINE_ORIGIN_PX } from "./Timeline";
 import { VideoEditorWorkspace } from "./VideoEditorWorkspace";
+import type {
+  cancelVideoProjectExport,
+  deleteVideoProject,
+  listVideoProjectExports,
+  listVideoProjects,
+  openVideoProject,
+  probeVideoProjectSource,
+  saveVideoProject,
+  startVideoProject,
+  startVideoProjectExport,
+  suggestVideoProjectAdjust,
+} from "@/features/videoEditor/api/videoProjects";
 
 vi.mock("@/features/videoEditor/api/videoProjects", async (importOriginal) => {
   const actual = await importOriginal<typeof api>();
   return {
     ...actual,
-    startVideoProject: vi.fn(),
-    saveVideoProject: vi.fn(),
-    listVideoProjectExports: vi.fn(),
-    listVideoProjects: vi.fn(),
-    openVideoProject: vi.fn(),
-    deleteVideoProject: vi.fn(),
-    probeVideoProjectSource: vi.fn(),
-    suggestVideoProjectAdjust: vi.fn(),
-    startVideoProjectExport: vi.fn(),
-    cancelVideoProjectExport: vi.fn(),
+    startVideoProject: vi.fn<typeof startVideoProject>(),
+    saveVideoProject: vi.fn<typeof saveVideoProject>(),
+    listVideoProjectExports: vi.fn<typeof listVideoProjectExports>(),
+    listVideoProjects: vi.fn<typeof listVideoProjects>(),
+    openVideoProject: vi.fn<typeof openVideoProject>(),
+    deleteVideoProject: vi.fn<typeof deleteVideoProject>(),
+    probeVideoProjectSource: vi.fn<typeof probeVideoProjectSource>(),
+    suggestVideoProjectAdjust: vi.fn<typeof suggestVideoProjectAdjust>(),
+    startVideoProjectExport: vi.fn<typeof startVideoProjectExport>(),
+    cancelVideoProjectExport: vi.fn<typeof cancelVideoProjectExport>(),
   };
 });
 
@@ -120,13 +132,13 @@ function startingDocument(): VideoProjectDocument {
   };
 }
 
-function renderEditor(onExit = vi.fn()) {
+function renderEditor(onExit = vi.fn<() => void>()) {
   renderWithProviders(
     <VideoEditorWorkspace
       request={{ kind: "video", path: "C:\\media\\clip.mp4" }}
       items={[]}
       onExit={onExit}
-      onOpenInGallery={vi.fn()}
+      onOpenInGallery={vi.fn<(path: string) => void>()}
     />,
   );
   return onExit;
@@ -251,13 +263,13 @@ describe("VideoEditorWorkspace", () => {
     const saved = { ...startingDocument(), path: "C:\\media\\clip-edit.video-project.json" };
     vi.mocked(api.openVideoProject).mockResolvedValue(saved);
     const remove = vi.mocked(api.deleteVideoProject).mockResolvedValue();
-    const onExit = vi.fn();
+    const onExit = vi.fn<() => void>();
     renderWithProviders(
       <VideoEditorWorkspace
         request={{ kind: "project", path: saved.path }}
         items={[]}
         onExit={onExit}
-        onOpenInGallery={vi.fn()}
+        onOpenInGallery={vi.fn<(path: string) => void>()}
       />,
     );
 
@@ -606,8 +618,8 @@ describe("VideoEditorWorkspace", () => {
       <VideoEditorWorkspace
         request={{ kind: "video", path: "C:\\media\\clip.mp4" }}
         items={[makeItem("sky.png", { path: "C:\\media\\sky.png" })]}
-        onExit={vi.fn()}
-        onOpenInGallery={vi.fn()}
+        onExit={vi.fn<() => void>()}
+        onOpenInGallery={vi.fn<(path: string) => void>()}
       />,
     );
 
@@ -674,8 +686,8 @@ describe("VideoEditorWorkspace", () => {
       <VideoEditorWorkspace
         request={{ kind: "video", path: "C:\\media\\clip.mp4" }}
         items={[makeItem("take2.mp4", { path: "C:\\media\\take2.mp4", media_type: "video" })]}
-        onExit={vi.fn()}
-        onOpenInGallery={vi.fn()}
+        onExit={vi.fn<() => void>()}
+        onOpenInGallery={vi.fn<(path: string) => void>()}
       />,
     );
 
@@ -734,8 +746,8 @@ describe("VideoEditorWorkspace", () => {
       <VideoEditorWorkspace
         request={{ kind: "video", path: "C:\\media\\clip.mp4" }}
         items={[makeItem("take.mp4", { path: "C:\\media\\take.mp4", media_type: "video" })]}
-        onExit={vi.fn()}
-        onOpenInGallery={vi.fn()}
+        onExit={vi.fn<() => void>()}
+        onOpenInGallery={vi.fn<(path: string) => void>()}
       />,
     );
 
@@ -792,7 +804,7 @@ describe("VideoEditorWorkspace", () => {
 
   it("opens a finished export in the gallery once the project is saved", async () => {
     const user = userEvent.setup();
-    const onOpenInGallery = vi.fn();
+    const onOpenInGallery = vi.fn<(path: string) => void>();
     vi.mocked(api.listVideoProjectExports).mockResolvedValue({
       exports: [
         {
@@ -814,7 +826,7 @@ describe("VideoEditorWorkspace", () => {
       <VideoEditorWorkspace
         request={{ kind: "project", path: saved.path }}
         items={[]}
-        onExit={vi.fn()}
+        onExit={vi.fn<() => void>()}
         onOpenInGallery={onOpenInGallery}
       />,
     );

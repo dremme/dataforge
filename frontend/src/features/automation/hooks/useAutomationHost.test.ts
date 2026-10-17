@@ -6,12 +6,14 @@ import { useAutomationHost } from "./useAutomationHost";
 
 import type * as AutomationPreferences from "@/features/automation/preferences/automationPreferences";
 import { renderHookWithQueryClient } from "@/test/queryClient";
+import type { loadAutomationSettings } from "@/features/automation/preferences/automationPreferences";
+import type { StartJob } from "@/features/jobs/hooks/useJobStartConfirmation";
 
 vi.mock("@/features/automation/preferences/automationPreferences", async (importOriginal) => {
   const actual = await importOriginal<typeof AutomationPreferences>();
   return {
     ...actual,
-    loadAutomationSettings: vi.fn(async (folderPath: string) =>
+    loadAutomationSettings: vi.fn<typeof loadAutomationSettings>(async (folderPath: string) =>
       actual.emptyAutomationSettings(folderPath),
     ),
   };
@@ -24,7 +26,7 @@ function setupHost(
     comfyPresetsAvailable?: boolean;
   } = {},
 ) {
-  const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+  const startJob = vi.fn<StartJob>().mockResolvedValue({ id: "job-1" });
 
   const automation = {
     folderJob: null,
@@ -32,7 +34,7 @@ function setupHost(
     startingJobType: null,
     isStarting: false,
     cancellingJob: false,
-    cancelFolderJob: vi.fn(),
+    cancelFolderJob: vi.fn<() => void>(),
     startJob,
   };
 
@@ -50,7 +52,7 @@ function setupHost(
       getJobPaths: () => undefined,
       // The hook only reads the fields asserted here.
       automation: automation as never,
-      onEditSysprompt: vi.fn(),
+      onEditSysprompt: vi.fn<() => void>(),
       issueCount: 0,
       duplicateGroupCount: 0,
       candidateCount: 0,

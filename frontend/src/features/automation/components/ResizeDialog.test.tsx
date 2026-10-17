@@ -11,13 +11,13 @@ const RESET_LABEL = "Reset size to the original";
 const DEFAULTS: JobSettingsByType["resize"] = emptyAutomationSettings("C:/datasets/photos").resize;
 
 function renderDialog(overrides: Partial<JobSettingsByType["resize"]> = {}) {
-  const onConfirm = vi.fn();
+  const onConfirm = vi.fn<(megapixels: number, multiple: number, resetSize: boolean) => void>();
   render(
     <ResizeDialog
       scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
-      onCancel={vi.fn()}
+      onCancel={vi.fn<() => void>()}
     />,
   );
   return onConfirm;

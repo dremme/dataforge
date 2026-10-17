@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useMemo, useState, type CSSProperties } from "react";
 import { dismissDuplicateGroup, resolveDuplicateGroup } from "@/features/gallery/api/duplicates";
 import {
   KEEPER_REASON_LABEL,
@@ -22,6 +22,7 @@ import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import type { DuplicateGroup, GalleryItem } from "@/shared/types";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 type PendingAction = "resolve" | "dismiss" | null;
 
@@ -57,12 +58,12 @@ export function DuplicateResolverModal({
 
   const suggestion = useMemo(() => (group ? chooseKeeper(group.members) : null), [group]);
 
-  useEffect(() => {
+  if (useChanged(group?.group)) {
     setKeepPath(null);
     setError(null);
     setPending(null);
     setConfirmOpen(false);
-  }, [group?.group]);
+  }
 
   const selectedPath = keepPath ?? suggestion?.path ?? null;
   const alreadySettled = group ? settledGroups.has(group.group) : false;

@@ -1,4 +1,4 @@
-import { useCallback, useId, useState } from "react";
+import { useId, useState } from "react";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { MAX_RESIZE_MEGAPIXELS, MAX_RESIZE_MULTIPLE } from "@/shared/constants";
 import { fittedSize } from "@/shared/lib/sizeFit";
@@ -61,7 +61,7 @@ export function ResizeDialog({
         })
       : EXAMPLE_SOURCES.flatMap((source) => [{ label: source.label, size: "-" }]);
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = () => {
     if (busy) return;
 
     // The fields are ignored on a reset, so the remembered settings travel unchanged.
@@ -81,7 +81,7 @@ export function ResizeDialog({
 
     setError(null);
     onConfirm(parsedMegapixels, parsedMultiple, false);
-  }, [busy, initialSettings, onConfirm, parsedMegapixels, parsedMultiple, reset]);
+  };
 
   return (
     <Dialog

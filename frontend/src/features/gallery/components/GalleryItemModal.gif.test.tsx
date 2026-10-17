@@ -10,6 +10,13 @@ import { importFiles } from "@/features/folder/api/files";
 import { encodeVideoFrame, seekVideoTo } from "@/features/gallery/lib/videoFrameEncode";
 import { convertGifToMp4, fetchGifToMp4State } from "@/features/gallery/api/gifToMp4";
 import { GalleryItemModal } from "./GalleryItemModal";
+import type {
+  deleteMedia,
+  previewMediaTransfer,
+  transferSelectedMedia,
+} from "@/features/gallery/api/media";
+import type { previewFileImport } from "@/features/folder/api/files";
+import type { CaptionSaveResponse } from "@/shared/types";
 
 vi.mock("@/shared/lib/defer", () => ({
   deferNonCriticalWork: (callback: () => void) => {
@@ -22,27 +29,27 @@ vi.mock("@/features/gallery/api/media", async (importOriginal) => {
   const actual = await importOriginal<typeof mediaApi>();
   return {
     ...actual,
-    deleteMedia: vi.fn(actual.deleteMedia),
-    previewMediaTransfer: vi.fn(),
-    transferSelectedMedia: vi.fn(),
+    deleteMedia: vi.fn<typeof deleteMedia>(actual.deleteMedia),
+    previewMediaTransfer: vi.fn<typeof previewMediaTransfer>(),
+    transferSelectedMedia: vi.fn<typeof transferSelectedMedia>(),
   };
 });
 
 // jsdom has neither a video decoder nor a 2D canvas context, which is exactly why
 // these two live in their own module: the flow around them stays testable.
 vi.mock("@/features/gallery/lib/videoFrameEncode", () => ({
-  seekVideoTo: vi.fn(),
-  encodeVideoFrame: vi.fn(),
+  seekVideoTo: vi.fn<typeof seekVideoTo>(),
+  encodeVideoFrame: vi.fn<typeof encodeVideoFrame>(),
 }));
 
 vi.mock("@/features/folder/api/files", () => ({
-  importFiles: vi.fn(),
-  previewFileImport: vi.fn(),
+  importFiles: vi.fn<typeof importFiles>(),
+  previewFileImport: vi.fn<typeof previewFileImport>(),
 }));
 
 vi.mock("@/features/gallery/api/gifToMp4", () => ({
-  fetchGifToMp4State: vi.fn(),
-  convertGifToMp4: vi.fn(),
+  fetchGifToMp4State: vi.fn<typeof fetchGifToMp4State>(),
+  convertGifToMp4: vi.fn<typeof convertGifToMp4>(),
 }));
 
 const seekVideoToMock = vi.mocked(seekVideoTo);
@@ -79,11 +86,11 @@ describe("GalleryItemModal", () => {
         items: [makeItem("loop.gif", { media_type: "gif" as const })],
         index: 0,
         currentFolder: HOME_PATH,
-        onClose: vi.fn(),
-        onPrevious: vi.fn(),
-        onNext: vi.fn(),
-        onCaptionSaved: vi.fn(),
-        onCopied: vi.fn(),
+        onClose: vi.fn<() => void>(),
+        onPrevious: vi.fn<() => void>(),
+        onNext: vi.fn<() => void>(),
+        onCaptionSaved: vi.fn<(path: string, update: CaptionSaveResponse) => void>(),
+        onCopied: vi.fn<() => void | Promise<void>>(),
         ...overrides,
       };
 
@@ -190,11 +197,11 @@ describe("GalleryItemModal", () => {
         items: [makeItem("loop.gif", { media_type: "gif" as const })],
         index: 0,
         currentFolder: HOME_PATH,
-        onClose: vi.fn(),
-        onPrevious: vi.fn(),
-        onNext: vi.fn(),
-        onCaptionSaved: vi.fn(),
-        onCopied: vi.fn(),
+        onClose: vi.fn<() => void>(),
+        onPrevious: vi.fn<() => void>(),
+        onNext: vi.fn<() => void>(),
+        onCaptionSaved: vi.fn<(path: string, update: CaptionSaveResponse) => void>(),
+        onCopied: vi.fn<() => void | Promise<void>>(),
         ...overrides,
       };
 

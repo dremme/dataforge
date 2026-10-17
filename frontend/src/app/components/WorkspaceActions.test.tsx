@@ -17,6 +17,7 @@ import { job } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithQueryClient } from "@/test/queryClient";
 import { WorkspaceActions, WorkspaceActivity } from "./WorkspaceActions";
+import type { JobType } from "@/shared/types";
 
 function renderActions(
   overrides: Partial<AutomationActions> = {},
@@ -24,7 +25,7 @@ function renderActions(
   compact = false,
 ) {
   installMockBackend();
-  const onRequestStart = vi.fn();
+  const onRequestStart = vi.fn<(jobType: JobType) => void>();
   const panel: AutomationActions = {
     job: null,
     startingJobType: null,
@@ -40,9 +41,9 @@ function renderActions(
     },
     hasSyspromptFile: true,
     hasCaptionRulesFile: true,
-    onEditSysprompt: vi.fn(),
+    onEditSysprompt: vi.fn<() => void>(),
     onRequestStart,
-    onCancelJob: vi.fn(),
+    onCancelJob: vi.fn<() => void>(),
     ...overrides,
   };
   const { unmount } = renderWithQueryClient(
@@ -101,7 +102,7 @@ describe("Workspace tools", () => {
 
   it("asks before cancelling the running job", async () => {
     const user = userEvent.setup();
-    const onCancelJob = vi.fn();
+    const onCancelJob = vi.fn<() => void>();
     renderActions({ job: job({ status: "running", processed: 2, total: 8 }), onCancelJob });
 
     await user.click(screen.getByRole("button", { name: "Cancel job" }));
@@ -161,7 +162,7 @@ describe("Workspace tools", () => {
 
   it("lists every non-empty review queue", async () => {
     const user = userEvent.setup();
-    const onResolveIssues = vi.fn();
+    const onResolveIssues = vi.fn<() => void>();
     renderActions({ issueCount: 2, onResolveIssues });
     await user.click(screen.getByRole("button", { name: /^Review/ }));
     const menu = screen.getByRole("menu", { name: "Review queues" });

@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { Splitter } from "./Splitter";
 
 function renderSplitter(orientation: "vertical" | "horizontal") {
-  const onResize = vi.fn();
-  const onReset = vi.fn();
+  const onResize = vi.fn<(delta: number) => void>();
+  const onReset = vi.fn<() => void>();
   render(
     <Splitter label="Panel size" orientation={orientation} onResize={onResize} onReset={onReset} />,
   );

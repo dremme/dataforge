@@ -8,15 +8,18 @@ import {
 } from "@/features/automation/preferences/automationPreferences";
 import { EditCaptionsDialog } from "./EditCaptionsDialog";
 import { renderWithQueryClient } from "@/test/queryClient";
+import type { ComponentProps } from "react";
 
-vi.mock("@/features/automation/api/jobs", () => ({ previewCaptionEdits: vi.fn() }));
+vi.mock("@/features/automation/api/jobs", () => ({
+  previewCaptionEdits: vi.fn<typeof previewCaptionEdits>(),
+}));
 
 const DEFAULTS: JobSettingsByType["edit_captions"] =
   emptyAutomationSettings("C:/datasets/photos").edit_captions;
 
 function renderDialog(
   overrides: Partial<JobSettingsByType["edit_captions"]> = {},
-  onConfirm = vi.fn(),
+  onConfirm = vi.fn<ComponentProps<typeof EditCaptionsDialog>["onConfirm"]>(),
   selectedPaths?: string[],
 ) {
   renderWithQueryClient(
@@ -26,7 +29,7 @@ function renderDialog(
       folderPath="C:/datasets/photos"
       selectedPaths={selectedPaths}
       onConfirm={onConfirm}
-      onCancel={vi.fn()}
+      onCancel={vi.fn<() => void>()}
     />,
   );
 

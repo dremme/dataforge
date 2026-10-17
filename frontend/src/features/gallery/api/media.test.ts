@@ -9,10 +9,11 @@ import {
   thumbnailUrl,
 } from "./media";
 import { requestJson } from "@/shared/api/http";
+import type { postJson } from "@/shared/api/http";
 
 vi.mock("@/shared/api/http", () => ({
-  requestJson: vi.fn(),
-  postJson: vi.fn(),
+  requestJson: vi.fn<typeof requestJson>(),
+  postJson: vi.fn<typeof postJson>(),
 }));
 
 const requestJsonMock = vi.mocked(requestJson);

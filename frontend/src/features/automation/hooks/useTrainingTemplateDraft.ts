@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchTrainingTemplate } from "@/features/automation/api/jobs";
 import { formatApiError } from "@/shared/api/http";
 import type { TrainingModel } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 /** A shipped template does not change while the app runs, so each is read at most once. */
 function stockTemplateQuery(model: TrainingModel) {
@@ -19,8 +20,7 @@ export function useTrainingTemplateDraft(model: TrainingModel) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const modelRef = useRef(model);
-  modelRef.current = model;
+  const modelRef = useLatestRef(model);
 
   // Read only when the editor is asked for; this just follows what is already cached.
   const { data: stockTemplate } = useQuery({ ...stockTemplateQuery(model), enabled: false });
@@ -37,7 +37,7 @@ export function useTrainingTemplateDraft(model: TrainingModel) {
     } finally {
       setLoading(false);
     }
-  }, [model, queryClient]);
+  }, [model, modelRef, queryClient]);
 
   const closeEditor = useCallback(() => setEditorOpen(false), []);
 

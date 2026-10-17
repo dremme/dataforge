@@ -5,7 +5,7 @@ import { JobsButton } from "./JobsButton";
 const jobsContext = {
   activeCount: 0,
   drawerOpen: false,
-  toggleDrawer: vi.fn(),
+  toggleDrawer: vi.fn<() => void>(),
   unseenCount: 0,
   unseenFailed: false,
 };

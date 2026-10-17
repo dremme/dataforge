@@ -5,8 +5,8 @@ import { stubDialogClock } from "@/test/dialogClock";
 import { Dialog, DialogActions } from "./Dialog";
 
 function renderDialog(overrides: Partial<Parameters<typeof Dialog>[0]> = {}) {
-  const onConfirm = vi.fn();
-  const onClose = vi.fn();
+  const onConfirm = vi.fn<() => void>();
+  const onClose = vi.fn<() => void>();
 
   // Stubbed before the render so the dialog stamps its open time on this clock.
   const { passOpenGrace } = stubDialogClock();
@@ -36,8 +36,8 @@ describe("Dialog", () => {
   it("generates unique ids so stacked dialogs do not collide", () => {
     render(
       <>
-        <Dialog title="First" description="One" onClose={vi.fn()} footer={null} />
-        <Dialog title="Second" description="Two" onClose={vi.fn()} footer={null} />
+        <Dialog title="First" description="One" onClose={vi.fn<() => void>()} footer={null} />
+        <Dialog title="Second" description="Two" onClose={vi.fn<() => void>()} footer={null} />
       </>,
     );
 
@@ -118,7 +118,12 @@ describe("Dialog", () => {
     function WithInput() {
       const ref = { current: null } as { current: HTMLInputElement | null };
       return (
-        <Dialog title="New folder" onClose={vi.fn()} initialFocusRef={ref} footer={null}>
+        <Dialog
+          title="New folder"
+          onClose={vi.fn<() => void>()}
+          initialFocusRef={ref}
+          footer={null}
+        >
           <input ref={ref} aria-label="Folder name" />
         </Dialog>
       );
@@ -130,7 +135,7 @@ describe("Dialog", () => {
   });
 
   it("omits aria-describedby when there is no description", () => {
-    render(<Dialog title="Bare" onClose={vi.fn()} footer={null} />);
+    render(<Dialog title="Bare" onClose={vi.fn<() => void>()} footer={null} />);
 
     expect(screen.getByRole("alertdialog")).not.toHaveAttribute("aria-describedby");
   });
@@ -143,8 +148,8 @@ describe("DialogActions", () => {
         confirmLabel="Start detection"
         busyLabel="Starting..."
         busy
-        onConfirm={vi.fn()}
-        onCancel={vi.fn()}
+        onConfirm={vi.fn<() => void>()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 
@@ -159,8 +164,8 @@ describe("DialogActions", () => {
       <DialogActions
         confirmLabel="Create folder"
         confirmDisabled
-        onConfirm={vi.fn()}
-        onCancel={vi.fn()}
+        onConfirm={vi.fn<() => void>()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 

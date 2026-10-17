@@ -26,7 +26,7 @@ describe("useVideoFrameLoop", () => {
     const video = document.createElement("video");
     Object.defineProperty(video, "paused", { value: false, writable: true });
     const loop = frames();
-    const paint = vi.fn();
+    const paint = vi.fn<() => void>();
     const view = renderHook(() => useVideoFrameLoop({ current: video }, paint));
     loop.tick();
     fireEvent.seeked(video);
@@ -40,7 +40,7 @@ describe("useVideoFrameLoop", () => {
   it("paints a paused seek once and does not keep polling", () => {
     const video = document.createElement("video");
     const loop = frames();
-    const paint = vi.fn();
+    const paint = vi.fn<() => void>();
     renderHook(() => useVideoFrameLoop({ current: video }, paint));
     fireEvent.seeked(video);
     expect(paint).toHaveBeenCalledTimes(1);
@@ -51,13 +51,15 @@ describe("useVideoFrameLoop", () => {
     const video = document.createElement("video");
     const callbacks = new Map<number, VideoFrameRequestCallback>();
     let nextId = 1;
-    video.requestVideoFrameCallback = vi.fn((callback) => {
-      const id = nextId++;
-      callbacks.set(id, callback);
-      return id;
-    });
-    video.cancelVideoFrameCallback = vi.fn((id) => callbacks.delete(id));
-    const paint = vi.fn();
+    video.requestVideoFrameCallback = vi.fn<(callback: VideoFrameRequestCallback) => number>(
+      (callback) => {
+        const id = nextId++;
+        callbacks.set(id, callback);
+        return id;
+      },
+    );
+    video.cancelVideoFrameCallback = vi.fn<(handle: number) => void>((id) => callbacks.delete(id));
+    const paint = vi.fn<() => void>();
     const mediaRef = { current: video };
     const view = renderHook((enabled) => useVideoFrameLoop(mediaRef, paint, enabled), {
       initialProps: true,

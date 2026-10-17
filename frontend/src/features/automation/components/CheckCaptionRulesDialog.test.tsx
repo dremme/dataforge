@@ -6,7 +6,7 @@ import type { FolderInstructionsResponse, InstructionFileResponse } from "@/shar
 import { CheckCaptionRulesDialog } from "./CheckCaptionRulesDialog";
 import { renderWithQueryClient } from "@/test/queryClient";
 
-const fetchFolderInstructions = vi.fn();
+const fetchFolderInstructions = vi.fn<(...args: unknown[]) => unknown>();
 
 vi.mock("@/shared/api/folderInstructions", async (importOriginal) => ({
   ...(await importOriginal<typeof FolderInstructionsApi>()),
@@ -33,8 +33,8 @@ function rulesResponse(rules: Partial<InstructionFileResponse> = {}): FolderInst
 }
 
 function renderDialog() {
-  const onConfirm = vi.fn();
-  const onCancel = vi.fn();
+  const onConfirm = vi.fn<() => void>();
+  const onCancel = vi.fn<() => void>();
   renderWithQueryClient(
     <CheckCaptionRulesDialog
       scope={{ itemCount: 12, folderLabel: "portraits", kind: "folder" as const }}

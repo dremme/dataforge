@@ -11,7 +11,7 @@ describe("createQueryClient retries", () => {
   it("retries an unreachable backend on the load schedule, then gives up", async () => {
     vi.useFakeTimers();
     const client = createQueryClient();
-    const queryFn = vi.fn().mockRejectedValue(new NetworkError());
+    const queryFn = vi.fn<() => Promise<unknown>>().mockRejectedValue(new NetworkError());
 
     const result = client.fetchQuery({ queryKey: ["down"], queryFn }).catch((error) => error);
     for (const delay of LOAD_RETRY_DELAYS_MS) await vi.advanceTimersByTimeAsync(delay);
@@ -22,7 +22,9 @@ describe("createQueryClient retries", () => {
 
   it("does not retry an answer the API gave on purpose", async () => {
     const client = createQueryClient();
-    const queryFn = vi.fn().mockRejectedValue(new ApiError(404, "Folder not found"));
+    const queryFn = vi
+      .fn<() => Promise<unknown>>()
+      .mockRejectedValue(new ApiError(404, "Folder not found"));
 
     await expect(client.fetchQuery({ queryKey: ["gone"], queryFn })).rejects.toThrow(
       "Folder not found",

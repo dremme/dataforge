@@ -2,12 +2,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ActiveFilters } from "./ActiveFilters";
+import type { FileFilter, ItemFilter, MediaTypeFilter } from "@/features/gallery/lib/query";
 
 function renderFilters() {
   const handlers = {
-    onFilterChange: vi.fn(),
-    onMediaTypeFilterChange: vi.fn(),
-    onFileFilterChange: vi.fn(),
+    onFilterChange: vi.fn<(value: ItemFilter) => void>(),
+    onMediaTypeFilterChange: vi.fn<(value: MediaTypeFilter) => void>(),
+    onFileFilterChange: vi.fn<(value: FileFilter) => void>(),
   };
   render(
     <ActiveFilters filter="captioned" mediaTypeFilter="video" fileFilter="edited" {...handlers} />,

@@ -10,7 +10,7 @@ vi.unmock("@codemirror/lang-markdown");
 vi.unmock("@codemirror/search");
 
 function renderEditor(value: string) {
-  const onChange = vi.fn();
+  const onChange = vi.fn<(value: string) => void>();
   const { container } = render(
     <MarkdownEditor value={value} aria-label="Prompt" onChange={onChange} />,
   );

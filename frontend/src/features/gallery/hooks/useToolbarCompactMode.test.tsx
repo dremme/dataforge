@@ -5,7 +5,7 @@ import type * as toolbarCompact from "@/features/gallery/lib/toolbarCompact";
 import { classNames } from "@/shared/lib/classNames";
 import { useToolbarCompactMode } from "./useToolbarCompactMode";
 
-const needsCompact = vi.hoisted(() => vi.fn(() => false));
+const needsCompact = vi.hoisted(() => vi.fn<() => boolean>(() => false));
 
 vi.mock("@/features/gallery/lib/toolbarCompact", async (importOriginal) => ({
   ...(await importOriginal<typeof toolbarCompact>()),

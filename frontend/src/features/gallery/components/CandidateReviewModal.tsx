@@ -37,6 +37,7 @@ import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { matchesShortcut, queueIndexAfter, queueStepFor, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import type { ComfyCandidateStateResponse, GalleryItem } from "@/shared/types";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 type CandidateDetails = ComfyCandidateStateResponse;
 
@@ -77,10 +78,10 @@ export function CandidateReviewModal({
   const edited = entry?.source?.has_backup === true;
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
-  useEffect(() => {
+  if (useChanged(entry?.path)) {
     setError(null);
     setPending(null);
-  }, [entry?.path]);
+  }
 
   const closeModal = useCallback(() => {
     if (busy) return;
@@ -499,9 +500,9 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
   );
 
   // Drop with the entry like useImageZoom, or the next candidate keeps the old shape until decode.
-  useEffect(() => {
+  if (useChanged(entry.path)) {
     setLoadedSize(null);
-  }, [entry.path]);
+  }
 
   const afterSrc = galleryItemMediaUrl(entry.candidate);
   const beforeSrc = entry.source ? galleryItemMediaUrl(entry.source) : null;

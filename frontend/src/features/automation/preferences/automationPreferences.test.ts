@@ -5,10 +5,11 @@ import {
   emptyAutomationSettings,
   loadAutomationSettings as loadWith,
 } from "./automationPreferences";
+import type { putJson } from "@/shared/api/http";
 
 vi.mock("@/shared/api/http", () => ({
-  requestJson: vi.fn(),
-  putJson: vi.fn(),
+  requestJson: vi.fn<typeof requestJson>(),
+  putJson: vi.fn<typeof putJson>(),
 }));
 
 const request = vi.mocked(requestJson);

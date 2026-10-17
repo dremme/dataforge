@@ -16,8 +16,8 @@ describe("SetCaptionsDialog", () => {
       <SetCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={DEFAULTS}
-        onConfirm={vi.fn()}
-        onCancel={vi.fn()}
+        onConfirm={vi.fn<(caption: string, overwrite: boolean) => void>()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 
@@ -26,14 +26,14 @@ describe("SetCaptionsDialog", () => {
 
   it("submits the caption text and the overwrite choice", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
+    const onConfirm = vi.fn<(caption: string, overwrite: boolean) => void>();
 
     render(
       <SetCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={DEFAULTS}
         onConfirm={onConfirm}
-        onCancel={vi.fn()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 
@@ -46,14 +46,14 @@ describe("SetCaptionsDialog", () => {
 
   it("keeps Enter in the caption field instead of submitting", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
+    const onConfirm = vi.fn<(caption: string, overwrite: boolean) => void>();
 
     render(
       <SetCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={DEFAULTS}
         onConfirm={onConfirm}
-        onCancel={vi.fn()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 
@@ -71,8 +71,8 @@ describe("SetCaptionsDialog saved settings", () => {
       <SetCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={{ caption }}
-        onConfirm={vi.fn()}
-        onCancel={vi.fn()}
+        onConfirm={vi.fn<(caption: string, overwrite: boolean) => void>()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
   }

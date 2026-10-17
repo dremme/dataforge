@@ -11,7 +11,7 @@ const wrapper = AppProviders;
 function renderAdjust() {
   let resolve!: (suggestion: ColorAdjust) => void;
   let reject!: (error: Error) => void;
-  const requestSuggestion = vi.fn(
+  const requestSuggestion = vi.fn<() => Promise<ColorAdjust>>(
     () =>
       new Promise<ColorAdjust>((done, fail) => {
         resolve = done;

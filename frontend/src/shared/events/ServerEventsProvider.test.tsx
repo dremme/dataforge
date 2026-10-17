@@ -11,18 +11,15 @@ import {
   useStreamConnected,
 } from "./serverEvents";
 
-function Probe({ onState }: { onState: (state: { connected: boolean; events: number }) => void }) {
+function Probe({ onState }: { onState: (state: { connected: boolean }) => void }) {
   const connected = useStreamConnected();
-  const seen = { current: 0 };
-  useServerEvent(() => {
-    seen.current += 1;
-  });
-  onState({ connected, events: seen.current });
+  useServerEvent(() => {});
+  onState({ connected });
   return null;
 }
 
 function renderProvider(client?: QueryClient) {
-  const latest = { current: { connected: false, events: 0 } };
+  const latest = { current: { connected: false } };
   render(
     <ServerEventsProvider>
       <Probe

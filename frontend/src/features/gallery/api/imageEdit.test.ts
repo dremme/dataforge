@@ -9,10 +9,11 @@ import {
 import { requestJson } from "@/shared/api/http";
 import type { ImageEditSpec } from "@/shared/types";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
+import type { postJson } from "@/shared/api/http";
 
 vi.mock("@/shared/api/http", () => ({
-  requestJson: vi.fn(),
-  postJson: vi.fn(),
+  requestJson: vi.fn<typeof requestJson>(),
+  postJson: vi.fn<typeof postJson>(),
 }));
 
 const requestJsonMock = vi.mocked(requestJson);

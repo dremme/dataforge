@@ -10,8 +10,8 @@ const SCOPE = { itemCount: 12, folderLabel: "Photos", kind: "folder" as const };
 describe("AutoAdjustDialog", () => {
   it("keeps earlier adjustments unless replacing is ticked", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
-    render(<AutoAdjustDialog scope={SCOPE} onConfirm={onConfirm} onCancel={vi.fn()} />);
+    const onConfirm = vi.fn<(replaceAdjustments: boolean, resetAdjustments: boolean) => void>();
+    render(<AutoAdjustDialog scope={SCOPE} onConfirm={onConfirm} onCancel={vi.fn<() => void>()} />);
 
     expect(screen.getByLabelText(REPLACE_LABEL)).not.toBeChecked();
     await user.click(screen.getByRole("button", { name: "Start auto-adjust" }));
@@ -22,8 +22,8 @@ describe("AutoAdjustDialog", () => {
 
   it("submits the choice to replace earlier adjustments", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
-    render(<AutoAdjustDialog scope={SCOPE} onConfirm={onConfirm} onCancel={vi.fn()} />);
+    const onConfirm = vi.fn<(replaceAdjustments: boolean, resetAdjustments: boolean) => void>();
+    render(<AutoAdjustDialog scope={SCOPE} onConfirm={onConfirm} onCancel={vi.fn<() => void>()} />);
 
     await user.click(screen.getByLabelText(REPLACE_LABEL));
     await user.click(screen.getByRole("button", { name: "Start auto-adjust" }));
@@ -33,8 +33,8 @@ describe("AutoAdjustDialog", () => {
 
   it("disables replacing and submits only reset while reset is active", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
-    render(<AutoAdjustDialog scope={SCOPE} onConfirm={onConfirm} onCancel={vi.fn()} />);
+    const onConfirm = vi.fn<(replaceAdjustments: boolean, resetAdjustments: boolean) => void>();
+    render(<AutoAdjustDialog scope={SCOPE} onConfirm={onConfirm} onCancel={vi.fn<() => void>()} />);
 
     await user.click(screen.getByLabelText(REPLACE_LABEL));
     await user.click(screen.getByLabelText(RESET_LABEL));
@@ -51,8 +51,10 @@ describe("AutoAdjustDialog", () => {
 
   it("does not start while a start is already in flight", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
-    render(<AutoAdjustDialog scope={SCOPE} busy onConfirm={onConfirm} onCancel={vi.fn()} />);
+    const onConfirm = vi.fn<(replaceAdjustments: boolean, resetAdjustments: boolean) => void>();
+    render(
+      <AutoAdjustDialog scope={SCOPE} busy onConfirm={onConfirm} onCancel={vi.fn<() => void>()} />,
+    );
 
     expect(screen.getByLabelText(REPLACE_LABEL)).toBeDisabled();
     expect(screen.getByLabelText(RESET_LABEL)).toBeDisabled();

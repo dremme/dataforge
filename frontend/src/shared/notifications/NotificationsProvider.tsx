@@ -19,6 +19,7 @@ import {
   type Toast,
 } from "./notifications";
 import { useToastTimers } from "./useToastTimers";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 const HISTORY_QUERY_KEY = ["notifications"] as const;
 
@@ -58,19 +59,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   // Collapse and cap decisions read committed toasts, never the value inside a state updater.
   const toastsRef = useRef<Toast[]>([]);
-  const panelOpenRef = useRef(false);
-  panelOpenRef.current = panelOpen;
+  const panelOpenRef = useLatestRef(panelOpen);
 
   const applyToasts = useCallback((next: Toast[]) => {
     toastsRef.current = next;
     setToasts(next);
   }, []);
 
-  // The wrappers close over the bindings below, so the timers can own the whole lifecycle.
-  const timers = useToastTimers(
-    (id) => dismiss(id),
-    (id) => removeToast(id),
-  );
+  const timers = useToastTimers();
 
   const removeToast = useCallback(
     (id: string) => {
@@ -84,13 +80,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       const target = toastsRef.current.find((toast) => toast.id === id);
       if (!target || target.exiting) return;
-      if (!timers.armExit(id)) return;
+      if (!timers.armExit(id, removeToast)) return;
 
       applyToasts(
         toastsRef.current.map((toast) => (toast.id === id ? { ...toast, exiting: true } : toast)),
       );
     },
-    [applyToasts, timers],
+    [applyToasts, removeToast, timers],
   );
 
   const pushToast = useCallback(
@@ -109,21 +105,21 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             toast.id === existing.id ? { ...toast, count: toast.count + 1 } : toast,
           ),
         );
-        timers.schedule(existing.id, durationMs);
+        timers.schedule(existing.id, durationMs, dismiss);
         return;
       }
 
       const id = createToastId();
       const next = [...toastsRef.current, { id, message, variant, count: 1, durationMs }];
       applyToasts(next);
-      timers.schedule(id, durationMs);
+      timers.schedule(id, durationMs, dismiss);
 
       const live = next.filter((toast) => !toast.exiting);
       for (const stale of live.slice(0, Math.max(0, live.length - MAX_VISIBLE_TOASTS))) {
         dismiss(stale.id);
       }
     },
-    [applyToasts, dismiss, timers],
+    [applyToasts, dismiss, panelOpenRef, timers],
   );
 
   const notify = useCallback(

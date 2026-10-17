@@ -11,7 +11,7 @@ describe("ToolButton", () => {
         icon={iconUndo2}
         label="Undo"
         shortcut={SHORTCUTS.editorUndo}
-        onClick={vi.fn()}
+        onClick={vi.fn<() => void>()}
       />,
     );
     const button = screen.getByRole("button", { name: "Undo" });

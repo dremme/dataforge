@@ -34,6 +34,7 @@ import { Tooltip } from "@/shared/ui/Tooltip";
 import { ZoomableImage } from "./ZoomableImage";
 import { MediaInfoBar } from "./MediaInfoBar";
 import { ComfyWorkflowDialog } from "./ComfyWorkflowDialog";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 interface IssueGroup {
   label: string;
@@ -85,13 +86,13 @@ export function IssueResolverModal({
     autoSave: false,
   });
 
-  useEffect(() => {
+  if (useChanged(item?.path)) {
     setComfyWorkflowOpen(false);
     setSaveError(false);
     setSaving(false);
     setOpeningInViewer(false);
     setViewerError(null);
-  }, [item?.path]);
+  }
 
   useEffect(() => {
     return schedulePrefetchModalMedia(collectAdjacentModalMediaTargets(queue, index));

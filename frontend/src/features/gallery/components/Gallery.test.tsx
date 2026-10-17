@@ -15,11 +15,15 @@ import { HOME_PATH } from "@/test/fixtures";
 import { withGallerySelection } from "@/test/gallerySelection";
 import type { GalleryItem } from "@/shared/types";
 import { Gallery } from "./Gallery";
+import type { getCardModifierClass } from "@/features/gallery/lib/captionStatus";
 
 // Not getCardCaptionDisplay: masonry reads that too, so it would count layout passes.
 vi.mock("@/features/gallery/lib/captionStatus", async (importOriginal) => {
   const actual = await importOriginal<typeof captionStatus>();
-  return { ...actual, getCardModifierClass: vi.fn(actual.getCardModifierClass) };
+  return {
+    ...actual,
+    getCardModifierClass: vi.fn<typeof getCardModifierClass>(actual.getCardModifierClass),
+  };
 });
 
 const cardRenderSpy = vi.mocked(captionStatus.getCardModifierClass);
@@ -168,7 +172,7 @@ describe("Gallery", () => {
     const { container } = render(
       withGallerySelection(
         <main className="main">
-          <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} />
+          <Gallery items={[imageItem, videoItem]} onSelect={vi.fn<(path: string) => void>()} />
         </main>,
       ),
     );
@@ -183,8 +187,8 @@ describe("Gallery", () => {
   });
 
   it("toggles selection in selection mode instead of opening the item", () => {
-    const onSelect = vi.fn();
-    const toggleSelectedPath = vi.fn();
+    const onSelect = vi.fn<(path: string) => void>();
+    const toggleSelectedPath = vi.fn<(path: string) => void>();
 
     render(
       withGallerySelection(
@@ -206,7 +210,7 @@ describe("Gallery", () => {
 
   it("re-renders only the card whose selection changed", () => {
     // Stable across renders, matching the memoized `openGalleryItem` in the app.
-    const onSelect = vi.fn();
+    const onSelect = vi.fn<(path: string) => void>();
     const gallery = (selectedPaths: ReadonlySet<string>) =>
       withGallerySelection(
         <main className="main">
@@ -229,7 +233,11 @@ describe("Gallery", () => {
     const { container } = render(
       withGallerySelection(
         <main className="main">
-          <Gallery items={LARGE_ITEMS} onSelect={vi.fn()} displayMode="large" />
+          <Gallery
+            items={LARGE_ITEMS}
+            onSelect={vi.fn<(path: string) => void>()}
+            displayMode="large"
+          />
         </main>,
       ),
     );
@@ -256,7 +264,7 @@ describe("Gallery", () => {
         <main className="main">
           <Gallery
             items={LARGE_ITEMS}
-            onSelect={vi.fn()}
+            onSelect={vi.fn<(path: string) => void>()}
             displayMode="large"
             cardOptions={cardOptions}
           />
@@ -275,7 +283,11 @@ describe("Gallery", () => {
       const { container } = render(
         withGallerySelection(
           <main className="main">
-            <Gallery items={LARGE_ITEMS} onSelect={vi.fn()} displayMode="large" />
+            <Gallery
+              items={LARGE_ITEMS}
+              onSelect={vi.fn<(path: string) => void>()}
+              displayMode="large"
+            />
           </main>,
         ),
       );
@@ -303,7 +315,11 @@ describe("Gallery", () => {
       const { container } = render(
         withGallerySelection(
           <main className="main">
-            <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} displayMode="small" />
+            <Gallery
+              items={[imageItem, videoItem]}
+              onSelect={vi.fn<(path: string) => void>()}
+              displayMode="small"
+            />
           </main>,
         ),
       );
@@ -327,7 +343,11 @@ describe("Gallery", () => {
     const { container } = render(
       withGallerySelection(
         <main className="main">
-          <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} displayMode="small" />
+          <Gallery
+            items={[imageItem, videoItem]}
+            onSelect={vi.fn<(path: string) => void>()}
+            displayMode="small"
+          />
         </main>,
       ),
     );
@@ -340,7 +360,11 @@ describe("Gallery", () => {
     const { container } = render(
       withGallerySelection(
         <main className="main">
-          <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} displayMode="list" />
+          <Gallery
+            items={[imageItem, videoItem]}
+            onSelect={vi.fn<(path: string) => void>()}
+            displayMode="list"
+          />
         </main>,
       ),
     );
@@ -353,8 +377,8 @@ describe("Gallery", () => {
 
   it("keeps selection working in list and small mode", () => {
     for (const displayMode of ["list", "small"] as const) {
-      const onSelect = vi.fn();
-      const toggleSelectedPath = vi.fn();
+      const onSelect = vi.fn<(path: string) => void>();
+      const toggleSelectedPath = vi.fn<(path: string) => void>();
 
       const { unmount } = render(
         withGallerySelection(
@@ -386,7 +410,7 @@ describe("Gallery", () => {
     const { container } = render(
       withGallerySelection(
         <main className="main">
-          <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} />
+          <Gallery items={[imageItem, videoItem]} onSelect={vi.fn<(path: string) => void>()} />
         </main>,
       ),
     );

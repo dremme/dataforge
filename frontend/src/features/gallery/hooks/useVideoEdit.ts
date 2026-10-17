@@ -40,6 +40,8 @@ import { formatApiError } from "@/shared/api/http";
 import { useServerEvent } from "@/shared/events/serverEvents";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { GalleryItem, VideoEditSpec } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 export interface UseVideoEditOptions {
   item: GalleryItem | undefined;
@@ -107,8 +109,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const { item, videoRef, standbyVideoRef, editMode, setEditMode } = options;
 
   // Ref so callbacks stay dependency-free; an apply outliving a swap keeps its starting values.
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const optionsRef = useLatestRef(options);
 
   const mountedRef = useRef(true);
   const applyingRef = useRef(false);
@@ -129,20 +130,14 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   // Sticky across items; remounts pick it up from the muted effect and handleLoadedMetadata.
   const [muted, setMuted] = useState(true);
 
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-  const durationRef = useRef(duration);
-  durationRef.current = duration;
+  const draftRef = useLatestRef(draft);
+  const durationRef = useLatestRef(duration);
   const frameSeconds = frameDurationFor(frameRate);
-  const frameSecondsRef = useRef(frameSeconds);
-  frameSecondsRef.current = frameSeconds;
+  const frameSecondsRef = useLatestRef(frameSeconds);
   const seededPathRef = useRef<string | null>(null);
-  const mutedRef = useRef(muted);
-  mutedRef.current = muted;
-  const savedSpecRef = useRef(savedSpec);
-  savedSpecRef.current = savedSpec;
-  const sourceRef = useRef({ width: sourceWidth, height: sourceHeight });
-  sourceRef.current = { width: sourceWidth, height: sourceHeight };
+  const mutedRef = useLatestRef(muted);
+  const savedSpecRef = useLatestRef(savedSpec);
+  const sourceRef = useLatestRef({ width: sourceWidth, height: sourceHeight });
 
   const setMasks = useCallback((update: (current: MaskDraft[]) => MaskDraft[]) => {
     setDraft((current) => ({ ...current, masks: update(current.masks) }));
@@ -159,13 +154,12 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const [loadedPath, setLoadedPath] = useState<string | null>(null);
   const ready =
     hasUsableDuration(duration) && sourceWidth > 0 && sourceHeight > 0 && loadedPath === path;
-  const readyRef = useRef(ready);
-  readyRef.current = ready;
+  const readyRef = useLatestRef(ready);
 
   // Read per frame rather than captured, so a handle dragged mid-playback lands on the next lap.
   const getRange = useCallback(
     () => ({ start: draftRef.current.trimStart, end: draftRef.current.trimEnd }),
-    [],
+    [draftRef],
   );
 
   const { activeMediaRef, playing, playheadTime, playheadRef, seekTo, togglePlay, syncFrom } =
@@ -188,10 +182,9 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
 
   // Keyed to the video remount so a longer original cannot keep a stale duration.
   // Leave has_backup/applying/cropActive out: they race apply or drop handles on next/prev.
-  useEffect(() => {
-    // Through the ref too: the seeding effect below runs in this same commit, where a state
-    // update is not visible yet, and would latch onto the duration of the file being replaced.
-    durationRef.current = Number.NaN;
+  const editModeChanged = useChanged(editMode);
+  const pathChanged = useChanged(path);
+  if (editModeChanged || pathChanged) {
     setDuration(Number.NaN);
     setSourceWidth(0);
     setSourceHeight(0);
@@ -199,14 +192,17 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setFrameRate(null);
     setSavedSpec(null);
     setAspectId("free");
-    seededPathRef.current = null;
     clearMaskSelection();
-  }, [path, editMode, clearMaskSelection]);
+  }
+  // Before the seeding effect below, which runs in the same commit.
+  useEffect(() => {
+    seededPathRef.current = null;
+  }, [editMode, path]);
 
   // Separate so a listing that learns about a backup does not reset the editor.
-  useEffect(() => {
-    setHasBackup(item?.has_backup ?? false);
-  }, [item?.path, item?.has_backup]);
+  const itemPathChanged = useChanged(item?.path);
+  const listedBackupChanged = useChanged(item?.has_backup);
+  if (itemPathChanged || listedBackupChanged) setHasBackup(item?.has_backup ?? false);
 
   useServerEvent((event) => {
     if (event.type !== "video_edit") return;
@@ -243,7 +239,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
         syncFrom(video);
       }
     },
-    [syncFrom],
+    [durationRef, mutedRef, optionsRef, syncFrom],
   );
 
   const seedDraft = useCallback(
@@ -255,20 +251,19 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       // Half a frame in: a seek to a boundary can land on either of the frames it divides.
       seekTo(seeded.trimStart + frameSecondsRef.current / 2);
     },
-    [clearMaskSelection, seekTo],
+    [clearMaskSelection, frameSecondsRef, seekTo, sourceRef],
   );
 
   // Wait for a real duration: seeding against NaN collapsed the timeline to 0:00-0:00.
   // Keyed on path, not the item object, so a folder refresh cannot throw away a draft in progress.
+  if (!editMode && loadedPath !== null) setLoadedPath(null);
   useEffect(() => {
     if (!editMode) {
       seededPathRef.current = null;
-      setLoadedPath(null);
       return;
     }
-    // The ref, not the state: `duration` still holds the outgoing file's value in the commit
-    // that swaps sources. `duration` stays a dependency so this re-runs once the real one lands.
-    if (!path || !hasUsableDuration(durationRef.current) || seededPathRef.current === path) return;
+    // Re-runs once the real duration lands; a source swap resets it to NaN in the same render.
+    if (!path || !hasUsableDuration(duration) || seededPathRef.current === path) return;
 
     seededPathRef.current = path;
     const forPath = path;
@@ -288,7 +283,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       }
       if (mountedRef.current && optionsRef.current.item?.path === forPath) setLoadedPath(forPath);
     })();
-  }, [editMode, path, duration, seedDraft]);
+  }, [duration, durationRef, editMode, frameSecondsRef, optionsRef, path, seedDraft]);
 
   // Preview plays every source frame at the chosen rate; setpts drops frames instead.
   useEffect(() => {
@@ -316,7 +311,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       setDraft((current) => ({ ...current, trimStart: next }));
       seekTo(next + frame / 2);
     },
-    [seekTo],
+    [draftRef, durationRef, frameSecondsRef, seekTo],
   );
 
   const setTrimEnd = useCallback(
@@ -326,7 +321,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       setDraft((current) => ({ ...current, trimEnd: next }));
       seekTo(Math.max(draftRef.current.trimStart + frame / 2, next - frame / 2));
     },
-    [seekTo],
+    [draftRef, durationRef, frameSecondsRef, seekTo],
   );
 
   // The frame on screen becomes the first kept one, or the last: a boundary either side of it.
@@ -335,14 +330,14 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     if (!video) return;
     const frame = frameSecondsRef.current;
     setTrimStart(frameIndexAt(video.currentTime, frame) * frame);
-  }, [activeMediaRef, setTrimStart]);
+  }, [activeMediaRef, frameSecondsRef, setTrimStart]);
 
   const setTrimEndAtPlayhead = useCallback(() => {
     const video = activeMediaRef.current;
     if (!video) return;
     const frame = frameSecondsRef.current;
     setTrimEnd((frameIndexAt(video.currentTime, frame) + 1) * frame);
-  }, [activeMediaRef, setTrimEnd]);
+  }, [activeMediaRef, frameSecondsRef, setTrimEnd]);
 
   const setTrimLength = useCallback(
     (seconds: number) => {
@@ -352,7 +347,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       setDraft((current) => ({ ...current, ...range }));
       seekTo(range.trimStart + frame / 2);
     },
-    [seekTo],
+    [draftRef, durationRef, frameSecondsRef, seekTo],
   );
 
   const setCrop = useCallback((crop: CropRect) => {
@@ -360,19 +355,22 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   }, []);
 
   // Owned here so it resets with the item and restores with a stored spec.
-  const selectAspect = useCallback((nextAspectId: string) => {
-    setAspectId(nextAspectId);
+  const selectAspect = useCallback(
+    (nextAspectId: string) => {
+      setAspectId(nextAspectId);
 
-    // Free only releases the lock; keep the rectangle the user already shaped.
-    const ratio = CROP_ASPECTS.find((aspect) => aspect.id === nextAspectId)?.ratio ?? null;
-    if (ratio === null) return;
+      // Free only releases the lock; keep the rectangle the user already shaped.
+      const ratio = CROP_ASPECTS.find((aspect) => aspect.id === nextAspectId)?.ratio ?? null;
+      if (ratio === null) return;
 
-    setCropActive(true);
-    // Frame fractions, so the source's own aspect divides out first.
-    const frame = sourceRef.current.width / sourceRef.current.height;
-    if (!Number.isFinite(frame) || frame <= 0) return;
-    setDraft((current) => ({ ...current, crop: cropForAspect(ratio / frame) }));
-  }, []);
+      setCropActive(true);
+      // Frame fractions, so the source's own aspect divides out first.
+      const frame = sourceRef.current.width / sourceRef.current.height;
+      if (!Number.isFinite(frame) || frame <= 0) return;
+      setDraft((current) => ({ ...current, crop: cropForAspect(ratio / frame) }));
+    },
+    [sourceRef],
+  );
 
   const setSpeed = useCallback((speed: number) => {
     setDraft((current) => ({ ...current, speed }));
@@ -401,7 +399,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
           toVideoEditSpec(draftRef.current, durationRef.current),
         )
       ).suggestion,
-    [],
+    [draftRef, durationRef],
   );
 
   const adjust = useColorAdjust({
@@ -416,7 +414,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const resetDraft = useCallback(() => {
     cancelAuto();
     seedDraft(savedSpecRef.current, durationRef.current);
-  }, [cancelAuto, seedDraft]);
+  }, [cancelAuto, durationRef, savedSpecRef, seedDraft]);
 
   const enterEditMode = useCallback(() => {
     // The element remounts on the mode, and the playback hook re-reads the fresh one.
@@ -484,7 +482,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
         }
       })();
     },
-    [notify],
+    [notify, optionsRef, readyRef],
   );
 
   const revert = useCallback(() => {
@@ -497,7 +495,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
         seedDraft(null, durationRef.current);
       },
     );
-  }, [cancelAuto, runEdit, seedDraft]);
+  }, [cancelAuto, durationRef, runEdit, seedDraft]);
 
   const apply = useCallback(() => {
     cancelAuto();
@@ -518,13 +516,13 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       (name) => `Edited ${name} - ${formatFrameTime(seconds)} long.`,
       () => setSavedSpec(spec),
     );
-  }, [cancelAuto, revert, runEdit]);
+  }, [cancelAuto, draftRef, durationRef, revert, runEdit]);
 
   const cancel = useCallback(() => {
     const currentItem = optionsRef.current.item;
     if (!currentItem || !applyingRef.current) return;
     void cancelVideoEdit(currentItem.path);
-  }, []);
+  }, [optionsRef]);
 
   // Dirty vs disk, not an untouched source: an identity draft after a write means Revert.
   const dirty =

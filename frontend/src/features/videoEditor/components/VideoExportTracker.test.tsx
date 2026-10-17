@@ -6,14 +6,19 @@ import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import * as api from "@/features/videoEditor/api/videoProjects";
 import { VideoExportTracker } from "./VideoExportTracker";
+import type {
+  cancelVideoProjectExport,
+  dismissVideoProjectExport,
+  listVideoProjectExports,
+} from "@/features/videoEditor/api/videoProjects";
 
 vi.mock("@/features/videoEditor/api/videoProjects", async (importOriginal) => {
   const actual = await importOriginal<typeof api>();
   return {
     ...actual,
-    listVideoProjectExports: vi.fn(),
-    cancelVideoProjectExport: vi.fn(),
-    dismissVideoProjectExport: vi.fn(),
+    listVideoProjectExports: vi.fn<typeof listVideoProjectExports>(),
+    cancelVideoProjectExport: vi.fn<typeof cancelVideoProjectExport>(),
+    dismissVideoProjectExport: vi.fn<typeof dismissVideoProjectExport>(),
   };
 });
 
@@ -47,7 +52,7 @@ describe("VideoExportTracker", () => {
     const user = userEvent.setup();
     const cancel = vi.mocked(api.cancelVideoProjectExport).mockResolvedValue(job("trip", {}));
     const dismiss = vi.mocked(api.dismissVideoProjectExport).mockResolvedValue();
-    const onOpen = vi.fn();
+    const onOpen = vi.fn<(path: string) => void>();
     renderWithProviders(<VideoExportTracker hidden={false} onOpen={onOpen} />);
 
     expect(await screen.findByText(/Exporting trip\.mp4 · 25%/)).toBeInTheDocument();
@@ -62,7 +67,7 @@ describe("VideoExportTracker", () => {
   });
 
   it("stays hidden while the editor shows its own exports", async () => {
-    renderWithProviders(<VideoExportTracker hidden onOpen={vi.fn()} />);
+    renderWithProviders(<VideoExportTracker hidden onOpen={vi.fn<(path: string) => void>()} />);
 
     await Promise.resolve();
     expect(screen.queryByText(/Exporting/)).not.toBeInTheDocument();

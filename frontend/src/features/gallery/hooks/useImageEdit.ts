@@ -33,6 +33,8 @@ import {
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { GalleryItem, ImageEditSpec } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 export interface UseImageEditOptions {
   item: GalleryItem | undefined;
@@ -79,8 +81,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   const { item, editMode, setEditMode } = options;
 
   // Ref so callbacks stay dependency-free; an apply outliving a swap keeps its starting values.
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const optionsRef = useLatestRef(options);
 
   const mountedRef = useRef(true);
   const applyingRef = useRef(false);
@@ -97,12 +98,9 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   // The saved spec has been read; editing before then would apply a draft missing it.
   const [stateLoaded, setStateLoaded] = useState(false);
 
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-  const savedSpecRef = useRef(savedSpec);
-  savedSpecRef.current = savedSpec;
-  const sourceRef = useRef({ width: sourceWidth, height: sourceHeight });
-  sourceRef.current = { width: sourceWidth, height: sourceHeight };
+  const draftRef = useLatestRef(draft);
+  const savedSpecRef = useLatestRef(savedSpec);
+  const sourceRef = useLatestRef({ width: sourceWidth, height: sourceHeight });
 
   const setMasks = useCallback((update: (current: MaskDraft[]) => MaskDraft[]) => {
     setDraft((current) => ({ ...current, masks: update(current.masks) }));
@@ -117,8 +115,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   const path = item?.path;
   const sized = sourceWidth > 0 && sourceHeight > 0;
   const ready = sized && stateLoaded;
-  const readyRef = useRef(ready);
-  readyRef.current = ready;
+  const readyRef = useLatestRef(ready);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -129,7 +126,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
 
   // Keyed on path alone: has_backup would clear the frame size on apply (load never re-fires),
   // and applying/cropActive must stay out or they race the previous item / drop handles on next/prev.
-  useEffect(() => {
+  if (useChanged(path)) {
     setSourceWidth(0);
     setSourceHeight(0);
     setDraft(emptyDraft());
@@ -137,12 +134,12 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     setStateLoaded(false);
     setAspectId("free");
     clearMaskSelection();
-  }, [path, clearMaskSelection]);
+  }
 
   // Separate so a listing that learns about a backup does not reset the editor.
-  useEffect(() => {
-    setHasBackup(item?.has_backup ?? false);
-  }, [item?.path, item?.has_backup]);
+  const itemPathChanged = useChanged(item?.path);
+  const listedBackupChanged = useChanged(item?.has_backup);
+  if (itemPathChanged || listedBackupChanged) setHasBackup(item?.has_backup ?? false);
 
   const handleLoad = useCallback((image: HTMLImageElement) => {
     setSourceWidth(image.naturalWidth);
@@ -156,16 +153,17 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
       setAspectId(aspectIdForCrop(seeded.crop, sourceRef.current));
       clearMaskSelection();
     },
-    [clearMaskSelection],
+    [clearMaskSelection, sourceRef],
   );
 
   // Wait for a real size: seeding 0x0 makes aspectIdForCrop answer "free" over a locked rect.
   // Keyed on path, not the item object, so a folder refresh cannot throw away a draft in progress.
+  const loadPath = editMode && sized ? path : undefined;
+  if (useChanged(loadPath) && loadPath) setStateLoaded(false);
   useEffect(() => {
     if (!editMode || !path || !sized) return;
 
     let cancelled = false;
-    setStateLoaded(false);
     void (async () => {
       try {
         const state = await fetchImageEditState(path);
@@ -189,19 +187,22 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   }, []);
 
   // Owned here so it resets with the item and restores with a stored spec.
-  const selectAspect = useCallback((nextAspectId: string) => {
-    setAspectId(nextAspectId);
+  const selectAspect = useCallback(
+    (nextAspectId: string) => {
+      setAspectId(nextAspectId);
 
-    // Free only releases the lock; keep the rectangle the user already shaped.
-    const ratio = CROP_ASPECTS.find((aspect) => aspect.id === nextAspectId)?.ratio ?? null;
-    if (ratio === null) return;
+      // Free only releases the lock; keep the rectangle the user already shaped.
+      const ratio = CROP_ASPECTS.find((aspect) => aspect.id === nextAspectId)?.ratio ?? null;
+      if (ratio === null) return;
 
-    setCropActive(true);
-    // Frame fractions, so the source's own aspect divides out first.
-    const frame = sourceRef.current.width / sourceRef.current.height;
-    if (!Number.isFinite(frame) || frame <= 0) return;
-    setDraft((current) => ({ ...current, crop: cropForAspect(ratio / frame) }));
-  }, []);
+      setCropActive(true);
+      // Frame fractions, so the source's own aspect divides out first.
+      const frame = sourceRef.current.width / sourceRef.current.height;
+      if (!Number.isFinite(frame) || frame <= 0) return;
+      setDraft((current) => ({ ...current, crop: cropForAspect(ratio / frame) }));
+    },
+    [sourceRef],
+  );
 
   const turn = useCallback((turns: number) => {
     setDraft((current) => ({ ...current, rotate: rotateBy(current.rotate, turns) }));
@@ -232,7 +233,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   const requestSuggestion = useCallback(
     async (mediaPath: string) =>
       (await fetchImageAutoAdjust(mediaPath, toImageEditSpec(draftRef.current))).suggestion,
-    [],
+    [draftRef],
   );
 
   const adjust = useColorAdjust({
@@ -247,7 +248,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   const resetDraft = useCallback(() => {
     cancelAuto();
     seedDraft(savedSpecRef.current);
-  }, [cancelAuto, seedDraft]);
+  }, [cancelAuto, savedSpecRef, seedDraft]);
 
   const exitEditMode = useCallback(() => {
     cancelAuto();
@@ -305,7 +306,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
         }
       })();
     },
-    [notify],
+    [notify, optionsRef, readyRef],
   );
 
   const revert = useCallback(() => {
@@ -344,7 +345,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
       (name) => `Edited ${name} - ${size.width} x ${size.height}.`,
       () => setSavedSpec(spec),
     );
-  }, [cancelAuto, revert, runEdit]);
+  }, [cancelAuto, draftRef, revert, runEdit, sourceRef]);
 
   // Dirty vs disk, not an untouched source: an identity draft after a write means Revert.
   const dirty =

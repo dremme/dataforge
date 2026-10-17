@@ -5,8 +5,8 @@ import {
   updateGalleryDisplayMode,
 } from "./galleryDisplayPreferences";
 
-const requestJsonMock = vi.fn();
-const putJsonMock = vi.fn();
+const requestJsonMock = vi.fn<(...args: unknown[]) => unknown>();
+const putJsonMock = vi.fn<(...args: unknown[]) => unknown>();
 
 vi.mock("@/shared/api/http", () => ({
   requestJson: (...args: unknown[]) => requestJsonMock(...args),

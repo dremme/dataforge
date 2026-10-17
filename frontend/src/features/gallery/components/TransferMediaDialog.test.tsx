@@ -10,13 +10,13 @@ import { renderWithProviders } from "@/test/renderWithProviders";
 import { TransferMediaDialog } from "./TransferMediaDialog";
 
 function renderDialog() {
-  const onSelectDestination = vi.fn();
+  const onSelectDestination = vi.fn<(path: string) => void>();
   renderWithProviders(
     <TransferMediaDialog
       mode="move"
       currentFolder={HOME_PATH}
       selectedCount={1}
-      onClose={vi.fn()}
+      onClose={vi.fn<() => void>()}
       onSelectDestination={onSelectDestination}
     />,
   );

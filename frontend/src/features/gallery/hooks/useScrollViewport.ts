@@ -12,10 +12,7 @@ export function useScrollViewport(scrollElement: HTMLElement | null): ScrollView
   const [viewport, setViewport] = useState<ScrollViewport>(AT_TOP);
 
   useLayoutEffect(() => {
-    if (!scrollElement) {
-      setViewport((current) => (current === AT_TOP ? current : AT_TOP));
-      return;
-    }
+    if (!scrollElement) return;
 
     let frame: number | null = null;
 
@@ -47,5 +44,5 @@ export function useScrollViewport(scrollElement: HTMLElement | null): ScrollView
     };
   }, [scrollElement]);
 
-  return viewport;
+  return scrollElement ? viewport : AT_TOP;
 }

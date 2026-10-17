@@ -8,8 +8,8 @@ import { HOME_PATH } from "@/test/fixtures";
 import type { GifToMp4Response } from "@/shared/types";
 
 vi.mock("@/features/gallery/api/gifToMp4", () => ({
-  fetchGifToMp4State: vi.fn(),
-  convertGifToMp4: vi.fn(),
+  fetchGifToMp4State: vi.fn<typeof fetchGifToMp4State>(),
+  convertGifToMp4: vi.fn<typeof convertGifToMp4>(),
 }));
 
 const fetchStateMock = vi.mocked(fetchGifToMp4State);
@@ -28,7 +28,7 @@ const CONVERTED: GifToMp4Response = {
 const wrapper = AppProviders;
 
 function renderConversion(overrides: Partial<UseGifToMp4Options> = {}) {
-  const onConverted = vi.fn();
+  const onConverted = vi.fn<() => void | Promise<void>>();
   const initial: UseGifToMp4Options = {
     item: makeItem("loop.gif", { media_type: "gif" }),
     onConverted,

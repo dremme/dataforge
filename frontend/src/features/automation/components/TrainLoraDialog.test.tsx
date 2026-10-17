@@ -8,12 +8,13 @@ import {
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
 import { renderWithQueryClient } from "@/test/queryClient";
+import type { ComponentProps } from "react";
 
 const DEFAULTS: JobSettingsByType["train_lora"] =
   emptyAutomationSettings("C:/datasets/photos").train_lora;
 
-const fetchTrainingTemplate = vi.fn();
-const checkTrainingTemplate = vi.fn();
+const fetchTrainingTemplate = vi.fn<(...args: unknown[]) => unknown>();
+const checkTrainingTemplate = vi.fn<(...args: unknown[]) => unknown>();
 
 vi.mock("@/features/automation/api/jobs", () => ({
   fetchTrainingTemplate: (...args: unknown[]) => fetchTrainingTemplate(...args),
@@ -24,7 +25,7 @@ const KREA_TEMPLATE = "model:\n  arch: krea2:turbo\n";
 const H3_TEMPLATE = "model:\n  arch: minimax_h3\n";
 
 function renderDialog(
-  onConfirm = vi.fn(),
+  onConfirm = vi.fn<ComponentProps<typeof TrainLoraDialog>["onConfirm"]>(),
   overrides: Partial<JobSettingsByType["train_lora"]> = {},
 ) {
   renderWithQueryClient(
@@ -32,7 +33,7 @@ function renderDialog(
       scope={{ itemCount: 24, folderLabel: "landscapes", kind: "folder" as const }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
-      onCancel={vi.fn()}
+      onCancel={vi.fn<() => void>()}
     />,
   );
   return onConfirm;
@@ -42,7 +43,7 @@ describe("TrainLoraDialog", () => {
   beforeEach(() => {
     fetchTrainingTemplate.mockReset();
     checkTrainingTemplate.mockReset();
-    fetchTrainingTemplate.mockImplementation(async (model: string) =>
+    fetchTrainingTemplate.mockImplementation(async (model: unknown) =>
       model === "h3_fl2va" ? H3_TEMPLATE : KREA_TEMPLATE,
     );
     checkTrainingTemplate.mockResolvedValue({ ok: true, error: null });

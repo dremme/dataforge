@@ -11,12 +11,12 @@ import { JobsDrawer } from "./JobsDrawer";
 import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/jobs/api/externalJobs", () => ({
-  fetchOstrisTrainingSamples: vi.fn(),
+  fetchOstrisTrainingSamples: vi.fn<typeof fetchOstrisTrainingSamples>(),
 }));
 
 vi.mock("@/features/jobs/api/jobs", async (importOriginal) => ({
   ...(await importOriginal<typeof JobsApi>()),
-  fetchJobs: vi.fn(),
+  fetchJobs: vi.fn<typeof fetchJobs>(),
 }));
 
 const fetchSamples = vi.mocked(fetchOstrisTrainingSamples);
@@ -70,15 +70,15 @@ const jobsContext = {
   jobs: [] as Job[],
   externalJobs: [] as ExternalOstrisJob[],
   drawerOpen: true,
-  closeDrawer: vi.fn(),
-  cancelJob: vi.fn(),
+  closeDrawer: vi.fn<() => void>(),
+  cancelJob: vi.fn<(jobId: string) => Promise<Job | null>>(),
   cancellingJobId: null,
   stoppingOstrisJobId: null,
-  stopExternalOstrisJob: vi.fn(),
-  deleteJob: vi.fn(),
-  deleteAllJobs: vi.fn(),
+  stopExternalOstrisJob: vi.fn<(jobId: string) => Promise<boolean>>(),
+  deleteJob: vi.fn<(jobId: string) => Promise<boolean>>(),
+  deleteAllJobs: vi.fn<() => Promise<boolean>>(),
   seenAtMs: 0,
-  setShownJobFilter: vi.fn(),
+  setShownJobFilter: vi.fn<(isShown: ((job: Job) => boolean) | null) => void>(),
 };
 
 vi.mock("@/features/jobs/context/JobsContext", () => ({
@@ -95,7 +95,7 @@ function renderDrawer(
   return renderWithQueryClient(
     <JobsDrawer
       currentFolder="C:\\datasets\\landscapes"
-      onOpenFolder={vi.fn()}
+      onOpenFolder={vi.fn<(folderPath: string) => void>()}
       currentActions={currentActions}
     />,
   );
@@ -250,7 +250,7 @@ describe("JobsDrawer", () => {
     });
 
     it("saves filter changes to the server", async () => {
-      const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
+      const fetchMock = vi.fn<typeof fetch>((_url, init) =>
         Promise.resolve(Response.json(init?.body ? JSON.parse(String(init.body)) : {})),
       );
       vi.stubGlobal("fetch", fetchMock);
@@ -273,7 +273,9 @@ describe("JobsDrawer", () => {
     });
 
     it("keeps a filter whose save fails, without saying anything about it", async () => {
-      const fetchMock = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
+      const fetchMock = vi.fn<() => Promise<never>>(() =>
+        Promise.reject(new TypeError("Failed to fetch")),
+      );
       vi.stubGlobal("fetch", fetchMock);
       const user = userEvent.setup();
       renderDrawer([finishedCaption]);
@@ -402,7 +404,12 @@ describe("JobsDrawer", () => {
     // Must re-render the same tree: a fresh mount would start with
     // `drawerOpen` already false and never enter the closing phase.
     jobsContext.drawerOpen = false;
-    rerender(<JobsDrawer currentFolder="C:\\datasets\\landscapes" onOpenFolder={vi.fn()} />);
+    rerender(
+      <JobsDrawer
+        currentFolder="C:\\datasets\\landscapes"
+        onOpenFolder={vi.fn<(folderPath: string) => void>()}
+      />,
+    );
 
     const panel = screen.getByRole("dialog");
     expect(panel).toHaveClass("modal-panel--exit");
@@ -552,7 +559,7 @@ describe("JobsDrawer", () => {
 
     it("offers the folder's review queues on its latest job only", async () => {
       const user = userEvent.setup();
-      const onResolveIssues = vi.fn();
+      const onResolveIssues = vi.fn<() => void>();
       // The drawer's JSX attribute keeps both backslashes, so the jobs must too to match it.
       const folder = "C:\\\\datasets\\\\landscapes";
       const latest = {

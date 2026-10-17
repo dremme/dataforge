@@ -12,11 +12,7 @@ export function useGalleryColumns(
   const [width, setWidth] = useState(0);
 
   useLayoutEffect(() => {
-    if (minColumnWidth === null) {
-      setColumnCount(1);
-      setWidth(0);
-      return;
-    }
+    if (minColumnWidth === null) return;
 
     const element = containerRef.current;
     if (!element) return;
@@ -40,5 +36,6 @@ export function useGalleryColumns(
     return () => observer.disconnect();
   }, [containerRef, minColumnWidth]);
 
-  return { columnCount, width };
+  // A layout without columns (list mode) ignores the last measurement.
+  return minColumnWidth === null ? { columnCount: 1, width: 0 } : { columnCount, width };
 }

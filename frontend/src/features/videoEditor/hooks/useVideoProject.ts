@@ -57,9 +57,8 @@ export function useVideoProject(initial: VideoProjectDocument): VideoProjectStat
   const [saveState, setSaveState] = useState<ProjectSaveState>(initial.path ? "saved" : "new");
   const [saveError, setSaveError] = useState<string | null>(null);
   // Kept in a ref and mirrored into state: updaters with side effects run twice in StrictMode.
-  const historyRef = useRef<ProjectHistory | null>(null);
-  historyRef.current ??= startHistory(initial.project);
-  const [history, setHistory] = useState(historyRef.current);
+  const [history, setHistory] = useState(() => startHistory(initial.project));
+  const historyRef = useRef<ProjectHistory>(history);
 
   const pathRef = useRef<string | null>(initial.path ?? null);
   const folderRef = useRef(initial.folder);
@@ -80,7 +79,7 @@ export function useVideoProject(initial: VideoProjectDocument): VideoProjectStat
     const run = async (): Promise<boolean> => {
       if (!dirtyRef.current && !asCopy) return true;
       if (blockedRef.current && !asCopy) return false;
-      const snapshot = settledProject(historyRef.current!);
+      const snapshot = settledProject(historyRef.current);
       setSaveState("saving");
       try {
         const response = await saveVideoProject(
@@ -94,7 +93,7 @@ export function useVideoProject(initial: VideoProjectDocument): VideoProjectStat
         blockedRef.current = false;
         setPath(response.path);
         setSaveError(null);
-        if (settledProject(historyRef.current!) === snapshot) {
+        if (settledProject(historyRef.current) === snapshot) {
           dirtyRef.current = false;
           setSaveState("saved");
         } else {
@@ -123,7 +122,7 @@ export function useVideoProject(initial: VideoProjectDocument): VideoProjectStat
   /** Saves only when what a save would write changed; a preview alone never does. */
   const update = useCallback(
     (next: ProjectHistory) => {
-      const before = settledProject(historyRef.current!);
+      const before = settledProject(historyRef.current);
       historyRef.current = next;
       setHistory(next);
       if (settledProject(next) !== before) schedule();
@@ -132,23 +131,23 @@ export function useVideoProject(initial: VideoProjectDocument): VideoProjectStat
   );
 
   const preview = useCallback(
-    (next: Project) => update(previewEdit(historyRef.current!, next)),
+    (next: Project) => update(previewEdit(historyRef.current, next)),
     [update],
   );
   const commit = useCallback(
-    (next: Project) => update(commitEdit(historyRef.current!, next)),
+    (next: Project) => update(commitEdit(historyRef.current, next)),
     [update],
   );
   const amend = useCallback(
     (change: (project: Project) => Project) => {
-      update(amendAll(historyRef.current!, change));
-      return historyRef.current!.present;
+      update(amendAll(historyRef.current, change));
+      return historyRef.current.present;
     },
     [update],
   );
-  const undo = useCallback(() => update(undoEdit(historyRef.current!)), [update]);
-  const redo = useCallback(() => update(redoEdit(historyRef.current!)), [update]);
-  const settle = useCallback(() => update(settleGesture(historyRef.current!)), [update]);
+  const undo = useCallback(() => update(undoEdit(historyRef.current)), [update]);
+  const redo = useCallback(() => update(redoEdit(historyRef.current)), [update]);
+  const settle = useCallback(() => update(settleGesture(historyRef.current)), [update]);
 
   const flush = useCallback(() => {
     settle();
@@ -178,8 +177,8 @@ export function useVideoProject(initial: VideoProjectDocument): VideoProjectStat
   // A pending save, or a gesture never let go, must not be lost when the editor unmounts.
   useEffect(
     () => () => {
-      const before = settledProject(historyRef.current!);
-      historyRef.current = settleGesture(historyRef.current!);
+      const before = settledProject(historyRef.current);
+      historyRef.current = settleGesture(historyRef.current);
       if (historyRef.current.present !== before) dirtyRef.current = true;
       if (dirtyRef.current) void save();
     },

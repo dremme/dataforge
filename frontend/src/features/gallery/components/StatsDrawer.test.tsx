@@ -16,7 +16,7 @@ const items = [
 ];
 
 function renderDrawer(overrides: Partial<Parameters<typeof StatsDrawer>[0]> = {}) {
-  const onClose = vi.fn();
+  const onClose = vi.fn<() => void>();
   render(<StatsDrawer open items={items} onClose={onClose} {...overrides} />);
   return onClose;
 }
@@ -75,7 +75,9 @@ describe("StatsDrawer", () => {
   });
 
   it("renders nothing while closed", () => {
-    const { container } = render(<StatsDrawer open={false} items={items} onClose={vi.fn()} />);
+    const { container } = render(
+      <StatsDrawer open={false} items={items} onClose={vi.fn<() => void>()} />,
+    );
 
     expect(container).toBeEmptyDOMElement();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -200,7 +202,9 @@ describe("StatsDrawer", () => {
       mediaItem("one.png", HOME_PATH, { created_at: "2025-06-01T12:00:00" }),
       mediaItem("two.png", HOME_PATH, { created_at: "2026-06-01T12:00:00" }),
     ];
-    const { unmount } = render(<StatsDrawer open items={datedItems} onClose={vi.fn()} />);
+    const { unmount } = render(
+      <StatsDrawer open items={datedItems} onClose={vi.fn<() => void>()} />,
+    );
     expect(screen.getByRole("radio", { name: "Year" })).toBeChecked();
 
     await user.click(screen.getByRole("radio", { name: "Month" }));
@@ -378,7 +382,7 @@ describe("StatsDrawer", () => {
 
   it("sends a frequent word to the gallery search", async () => {
     const user = userEvent.setup();
-    const onSearchWord = vi.fn();
+    const onSearchWord = vi.fn<(word: string) => void>();
     renderDrawer({ onSearchWord });
 
     const chart = screen.getByRole("figure", {
@@ -391,7 +395,7 @@ describe("StatsDrawer", () => {
 
   it("ranks tags by how many files carry them and sends one to the search", async () => {
     const user = userEvent.setup();
-    const onSearchWord = vi.fn();
+    const onSearchWord = vi.fn<(word: string) => void>();
     const tag = (label: string) => ({ label, confidence: 0.8 });
     renderDrawer({
       onSearchWord,

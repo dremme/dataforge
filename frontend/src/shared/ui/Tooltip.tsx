@@ -180,6 +180,7 @@ export function Tooltip({
   );
 
   useEffect(() => {
+    // oxlint-disable-next-line react-hooks/set-state-in-effect -- hide also clears timers
     if (childExpanded) hide();
   }, [childExpanded, hide]);
 
@@ -210,6 +211,8 @@ export function Tooltip({
         }
       : {};
 
+  // The handlers are only attached here; the refs they read are touched when focus moves.
+  // oxlint-disable-next-line react-hooks/refs
   const triggerElement = cloneElement(children, {
     "aria-describedby": ariaDescribedBy,
     ...focusHandlers,

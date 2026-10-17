@@ -2,11 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { GalleryDisplayMenu } from "./GalleryDisplayMenu";
+import type { GalleryDisplayMode } from "@/shared/types";
 
 describe("GalleryDisplayMenu", () => {
   it("marks the active mode and reports a new choice", async () => {
     const user = userEvent.setup();
-    const onChange = vi.fn();
+    const onChange = vi.fn<(value: GalleryDisplayMode) => void>();
 
     render(<GalleryDisplayMenu value="large" onChange={onChange} />);
 
@@ -32,7 +33,9 @@ describe("GalleryDisplayMenu", () => {
   it("closes on Escape", async () => {
     const user = userEvent.setup();
 
-    render(<GalleryDisplayMenu value="small" onChange={vi.fn()} />);
+    render(
+      <GalleryDisplayMenu value="small" onChange={vi.fn<(value: GalleryDisplayMode) => void>()} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "Display mode" }));
     expect(screen.getByRole("menu", { name: "Display mode" })).toBeInTheDocument();
@@ -46,7 +49,7 @@ describe("GalleryDisplayMenu", () => {
 
     render(
       <div>
-        <GalleryDisplayMenu value="small" onChange={vi.fn()} />
+        <GalleryDisplayMenu value="small" onChange={vi.fn<(value: GalleryDisplayMode) => void>()} />
         <button type="button">Elsewhere</button>
       </div>,
     );

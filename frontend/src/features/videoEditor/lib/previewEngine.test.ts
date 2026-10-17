@@ -316,10 +316,15 @@ describe("PreviewEngine media problems and fidelity", () => {
 
     engine.dispose();
     engine = new PreviewEngine();
-    const fake = { setLut: vi.fn(), setSource: vi.fn(), render: vi.fn(), dispose: vi.fn() };
+    const fake = {
+      setLut: vi.fn<AdjustRenderer["setLut"]>(),
+      setSource: vi.fn<AdjustRenderer["setSource"]>(),
+      render: vi.fn<AdjustRenderer["render"]>(),
+      dispose: vi.fn<AdjustRenderer["dispose"]>(),
+    };
     vi.spyOn(AdjustRenderer, "create").mockReturnValue(fake as unknown as AdjustRenderer);
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
-      drawImage: vi.fn(),
+      drawImage: vi.fn<() => void>(),
     } as unknown as CanvasRenderingContext2D);
     engine.attach(recordingCanvas().canvas);
     engine.setProject(graded, located());

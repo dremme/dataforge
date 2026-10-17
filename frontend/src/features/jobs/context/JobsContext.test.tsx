@@ -17,22 +17,23 @@ import {
   JobsProvider,
   useJobs,
 } from "./JobsContext";
+import type { fetchLatestFolderJob } from "@/features/jobs/api/jobs";
 
 vi.mock("@/features/jobs/api/jobs", () => ({
-  fetchJobs: vi.fn(),
-  fetchLatestFolderJob: vi.fn(),
-  cancelJob: vi.fn(),
-  deleteJob: vi.fn(),
-  deleteAllJobs: vi.fn(),
+  fetchJobs: vi.fn<typeof fetchJobs>(),
+  fetchLatestFolderJob: vi.fn<typeof fetchLatestFolderJob>(),
+  cancelJob: vi.fn<typeof cancelJob>(),
+  deleteJob: vi.fn<typeof deleteJob>(),
+  deleteAllJobs: vi.fn<typeof deleteAllJobs>(),
 }));
 
 vi.mock("@/features/automation/api/jobs", () => ({
-  startAutomationJob: vi.fn(),
+  startAutomationJob: vi.fn<typeof startAutomationJob>(),
 }));
 
 vi.mock("@/features/jobs/api/externalJobs", () => ({
-  fetchOstrisJobs: vi.fn(),
-  stopOstrisJob: vi.fn(),
+  fetchOstrisJobs: vi.fn<typeof fetchOstrisJobs>(),
+  stopOstrisJob: vi.fn<typeof stopOstrisJob>(),
 }));
 
 const listJobs = vi.mocked(fetchJobs);

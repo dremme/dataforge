@@ -1,10 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-} from "react";
+import { useCallback, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 /** Zoom relative to the displayed image, so a click always magnifies visibly. */
 export const IMAGE_ZOOM_SCALE = 2.5;
@@ -144,17 +139,15 @@ export function useImageZoom(resetKey?: string, enabled = true) {
   const [origin, setOrigin] = useState<ImageZoomOrigin>(CENTER);
   const zoomed = geometry !== null;
 
-  useEffect(() => {
+  if (useChanged(resetKey)) {
     setGeometry(null);
     setOrigin(CENTER);
-  }, [resetKey]);
+  }
 
-  useEffect(() => {
-    if (!enabled) {
-      setGeometry(null);
-      setOrigin(CENTER);
-    }
-  }, [enabled]);
+  if (!enabled && (geometry !== null || origin !== CENTER)) {
+    setGeometry(null);
+    setOrigin(CENTER);
+  }
 
   /** `measured` defaults to the clicked element; panes sharing one zoom pass the same one. */
   const handleClick = useCallback(

@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export function useEscapeKey(onEscape: () => void, enabled = true): void {
-  const onEscapeRef = useRef(onEscape);
-  onEscapeRef.current = onEscape;
+  const onEscapeRef = useLatestRef(onEscape);
 
   useEffect(() => {
     if (!enabled) return;
@@ -15,5 +15,5 @@ export function useEscapeKey(onEscape: () => void, enabled = true): void {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [enabled]);
+  }, [enabled, onEscapeRef]);
 }

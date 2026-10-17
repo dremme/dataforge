@@ -64,7 +64,7 @@ function box(label: string): HTMLElement {
 describe("ComfyWorkflowMap", () => {
   it("opens a pass from the map by click or keyboard, and only passes", async () => {
     const user = userEvent.setup();
-    const onSelect = vi.fn();
+    const onSelect = vi.fn<(nodeId: string) => void>();
     renderMap(onSelect);
 
     await user.click(screen.getByRole("button", { name: "Pass 2: FaceDetailer, bypassed" }));

@@ -115,8 +115,8 @@ describe("ConfirmDialog", () => {
 
   it("confirms with Enter and cancels with Escape", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
-    const onCancel = vi.fn();
+    const onConfirm = vi.fn<() => void>();
+    const onCancel = vi.fn<() => void>();
     // Stubbed before the render so the dialog stamps its open time on this clock.
     const { passOpenGrace } = stubDialogClock();
 
@@ -143,8 +143,8 @@ describe("ConfirmDialog", () => {
 
   it("does not respond to keyboard shortcuts while busy", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
-    const onCancel = vi.fn();
+    const onConfirm = vi.fn<() => void>();
+    const onCancel = vi.fn<() => void>();
 
     render(
       <ConfirmDialog

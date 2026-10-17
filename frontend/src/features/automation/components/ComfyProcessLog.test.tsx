@@ -6,7 +6,7 @@ import { job } from "@/test/fixtures";
 import { ComfyProcessLog } from "./ComfyProcessLog";
 
 vi.mock("@/features/automation/hooks/useComfyProcessLogs", () => ({
-  useComfyProcessLogs: vi.fn(),
+  useComfyProcessLogs: vi.fn<typeof useComfyProcessLogs>(),
 }));
 
 const useLogs = vi.mocked(useComfyProcessLogs);

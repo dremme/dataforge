@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { rescaleAuto, withAuto, withoutAuto } from "@/features/gallery/lib/autoAdjust";
 import { RESTING_ADJUST, type AdjustTool } from "@/features/gallery/lib/colorAdjust";
 import { formatApiError } from "@/shared/api/http";
 import { useStaleRequest } from "@/shared/hooks/useStaleRequest";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { AutoAdjust, ColorAdjust } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 export interface AdjustDraft {
   adjust: ColorAdjust;
@@ -54,22 +56,19 @@ export function useColorAdjust({
   const [zoomed, setZoomed] = useState(false);
   const [previewAvailable, setPreviewAvailable] = useState(true);
 
-  const requestRef = useRef(requestSuggestion);
-  requestRef.current = requestSuggestion;
+  const requestRef = useLatestRef(requestSuggestion);
 
-  useEffect(() => {
-    invalidate();
+  useEffect(() => invalidate(), [path, invalidate]);
+  if (useChanged(path)) {
     setAutoPending(false);
     setComparing(false);
     setZoomed(false);
-  }, [path, invalidate]);
+  }
 
-  useEffect(() => {
-    if (!active) {
-      setZoomed(false);
-      setComparing(false);
-    }
-  }, [active]);
+  if (!active && (zoomed || comparing)) {
+    setZoomed(false);
+    setComparing(false);
+  }
 
   useEffect(() => invalidate, [invalidate]);
 
@@ -116,7 +115,7 @@ export function useColorAdjust({
         if (isCurrent(request)) setAutoPending(false);
       }
     })();
-  }, [isCurrent, name, next, notify, path, update]);
+  }, [isCurrent, name, next, notify, path, requestRef, update]);
 
   const deactivateAuto = useCallback(() => {
     cancelAuto();

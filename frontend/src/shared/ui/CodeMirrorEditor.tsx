@@ -21,6 +21,7 @@ import {
   getCodeEditorHighlightExtension,
   type CodeEditorLanguage,
 } from "@/shared/lib/codeEditorTheme";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 const CODE_MIRROR_BASIC_SETUP = {
   lineNumbers: true,
@@ -83,17 +84,18 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
     // EditorState when this prop changes, which closes the Ctrl+F search panel.
     const rootRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
-    const onChangeRef = useRef(onChange);
-    onChangeRef.current = onChange;
-    const handleChange = useCallback((next: string) => {
-      onChangeRef.current(next);
-    }, []);
+    const onChangeRef = useLatestRef(onChange);
+    const handleChange = useCallback(
+      (next: string) => {
+        onChangeRef.current(next);
+      },
+      [onChangeRef],
+    );
 
     const { lineWrap, lineNumbers } = useEditorOptions();
     const basicSetup = useMemo(() => ({ ...CODE_MIRROR_BASIC_SETUP, lineNumbers }), [lineNumbers]);
 
-    const onBlurRef = useRef(onBlur);
-    onBlurRef.current = onBlur;
+    const onBlurRef = useLatestRef(onBlur);
 
     // First Escape dismisses a completion list or the find panel; host dialogs must not see it.
     const handleKeyDownCapture = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
@@ -110,11 +112,14 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
       event.stopPropagation();
     }, []);
 
-    const handleBlur = useCallback((event: FocusEvent<HTMLDivElement>) => {
-      const next = event.relatedTarget;
-      if (next instanceof Node && event.currentTarget.contains(next)) return;
-      onBlurRef.current?.();
-    }, []);
+    const handleBlur = useCallback(
+      (event: FocusEvent<HTMLDivElement>) => {
+        const next = event.relatedTarget;
+        if (next instanceof Node && event.currentTarget.contains(next)) return;
+        onBlurRef.current?.();
+      },
+      [onBlurRef],
+    );
 
     const extensions = useMemo(() => {
       const attrs: Record<string, string> = {

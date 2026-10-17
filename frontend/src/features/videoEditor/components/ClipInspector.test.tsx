@@ -5,8 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { makeClip, makeProject, makeSource } from "@/test/videoProject";
-import type { Clip, Project } from "@/features/videoEditor/lib/timeline";
+import type { Clip, EditResult, Project } from "@/features/videoEditor/lib/timeline";
 import { ClipInspector } from "./ClipInspector";
+import type { ClipEdit } from "@/features/videoEditor/components/InspectorParts";
+import type { MixEdit, TrackEdit } from "@/features/videoEditor/components/MixPanel";
+import type { BatchEdit } from "@/features/videoEditor/components/MultiClipInspector";
 
 const video = makeClip("shot", "v1", 0, 2, { kind: "video", source_id: "film", link_id: "pair" });
 const sound = makeClip("sound", "a1", 0, 2, { kind: "audio", source_id: "film", link_id: "pair" });
@@ -26,26 +29,26 @@ function renderInspector(overrides: Partial<ComponentProps<typeof ClipInspector>
     selection: [],
     transitionId: null,
     time: 0,
-    onSeek: vi.fn(),
-    onEdit: vi.fn(),
-    onTrackEdit: vi.fn(),
-    onMixEdit: vi.fn(),
-    onMarkersEdit: vi.fn(),
-    onSpeed: vi.fn(),
+    onSeek: vi.fn<(time: number) => void>(),
+    onEdit: vi.fn<ClipEdit>(),
+    onTrackEdit: vi.fn<TrackEdit>(),
+    onMixEdit: vi.fn<MixEdit>(),
+    onMarkersEdit: vi.fn<(result: EditResult) => void>(),
+    onSpeed: vi.fn<(speed: number) => void>(),
 
-    onStart: vi.fn(),
-    onSourceIn: vi.fn(),
-    onDuration: vi.fn(),
-    onBatchEdit: vi.fn(),
-    onBatchLength: vi.fn(),
-    onUnlink: vi.fn(),
-    onLink: vi.fn(),
-    onAddDissolve: vi.fn(),
-    onDissolveDuration: vi.fn(),
-    onRemoveDissolve: vi.fn(),
-    onDelete: vi.fn(),
+    onStart: vi.fn<(seconds: number) => void>(),
+    onSourceIn: vi.fn<(seconds: number) => void>(),
+    onDuration: vi.fn<(seconds: number) => void>(),
+    onBatchEdit: vi.fn<BatchEdit>(),
+    onBatchLength: vi.fn<(seconds: number) => void>(),
+    onUnlink: vi.fn<() => void>(),
+    onLink: vi.fn<() => void>(),
+    onAddDissolve: vi.fn<() => void>(),
+    onDissolveDuration: vi.fn<(seconds: number, final: boolean) => void>(),
+    onRemoveDissolve: vi.fn<() => void>(),
+    onDelete: vi.fn<() => void>(),
     autoPending: false,
-    onAuto: vi.fn(),
+    onAuto: vi.fn<() => void>(),
     ...overrides,
   };
   return { ...props, ...renderWithProviders(<ClipInspector {...props} />) };

@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useRef } from "react";
+import { createContext, useContext, useEffect } from "react";
 import type { ServerEvent } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export const STREAM_STALE_MS = 45_000;
 // Hidden tabs give up the stream so they do not consume a scarce per-origin EventSource slot.
@@ -26,22 +27,20 @@ export function useStreamConnected(): boolean {
 
 export function useServerEvent(handler: (event: ServerEvent) => void): void {
   const { subscribe } = useServerEventsContext();
-  const handlerRef = useRef(handler);
-  handlerRef.current = handler;
+  const handlerRef = useLatestRef(handler);
 
-  useEffect(() => subscribe((event) => handlerRef.current(event)), [subscribe]);
+  useEffect(() => subscribe((event) => handlerRef.current(event)), [handlerRef, subscribe]);
 }
 
 /** Subscribes when a stream provider is mounted; a provider tree without one is not an error. */
 export function useOptionalServerEvent(handler: (event: ServerEvent) => void): void {
   const context = useContext(ServerEventsContext);
-  const handlerRef = useRef(handler);
-  handlerRef.current = handler;
+  const handlerRef = useLatestRef(handler);
 
   useEffect(() => {
     if (!context) return;
     return context.subscribe((event) => handlerRef.current(event));
-  }, [context]);
+  }, [context, handlerRef]);
 }
 
 /** ``false`` when no stream provider is mounted, so a standalone tree is not an error. */

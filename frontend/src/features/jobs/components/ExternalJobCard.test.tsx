@@ -7,7 +7,7 @@ import { ExternalJobCard } from "./ExternalJobCard";
 import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/jobs/api/externalJobs", () => ({
-  fetchOstrisTrainingSamples: vi.fn(),
+  fetchOstrisTrainingSamples: vi.fn<typeof fetchOstrisTrainingSamples>(),
 }));
 
 const fetchSamples = vi.mocked(fetchOstrisTrainingSamples);
@@ -46,7 +46,7 @@ afterEach(() => {
 describe("ExternalJobCard", () => {
   it("opens the run's dataset folder", async () => {
     const user = userEvent.setup();
-    const onOpenFolder = vi.fn();
+    const onOpenFolder = vi.fn<(folderPath: string) => void>();
     renderWithQueryClient(<ExternalJobCard job={runningJob} onOpenFolder={onOpenFolder} />);
 
     await user.click(screen.getByTitle(`sample_train_v1 · ${runningJob.dataset_folder}`));
@@ -56,7 +56,7 @@ describe("ExternalJobCard", () => {
 
   it("stops the run", async () => {
     const user = userEvent.setup();
-    const onStop = vi.fn();
+    const onStop = vi.fn<(jobId: string) => void>();
     renderWithQueryClient(<ExternalJobCard job={runningJob} onStop={onStop} />);
 
     await user.click(screen.getByRole("button", { name: "Stop job sample_train_v1" }));
@@ -80,7 +80,7 @@ describe("ExternalJobCard", () => {
 
   it("spins again once a stop is in flight for a queued run", () => {
     const { container } = renderWithQueryClient(
-      <ExternalJobCard job={queuedJob} onStop={vi.fn()} stopping />,
+      <ExternalJobCard job={queuedJob} onStop={vi.fn<(jobId: string) => void>()} stopping />,
     );
 
     expect(badgeIcon(container)).toHaveClass("job-card__badge-icon--spin");

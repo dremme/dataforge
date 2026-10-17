@@ -6,6 +6,7 @@ import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
 import { Icon } from "@/shared/ui/Icon";
 import type { VideoProjectFont, VideoProjectFontFamily } from "@/shared/types";
 import { useFontFamilies } from "@/features/videoEditor/hooks/useFontFamilies";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 const DEFAULT_LABEL = "Default";
 
@@ -98,20 +99,17 @@ function FamilyMenu({
     ...families.filter((family) => family.family.toLowerCase().includes(needle)),
   ];
 
-  // Read on opening only: a list refreshing while open must not move the cursor.
-  const openingRef = useRef({ families, value });
-  openingRef.current = { families, value };
-
-  // Opens on the chosen family, scrolled into view, with the search ready for typing.
-  useEffect(() => {
-    if (!open) return;
-    const { families: listed, value: chosen } = openingRef.current;
+  // Opens on the chosen family, scrolled into view, with the search ready for typing. Only on
+  // opening: a list refreshing while open must not move the cursor.
+  if (useChanged(open) && open) {
     setSearch("");
-    const index = chosen
-      ? listed.findIndex((family) => family.family.toLowerCase() === chosen.toLowerCase()) + 1
+    const index = value
+      ? families.findIndex((family) => family.family.toLowerCase() === value.toLowerCase()) + 1
       : 0;
     setActive(Math.max(0, index));
-    searchRef.current?.focus();
+  }
+  useEffect(() => {
+    if (open) searchRef.current?.focus();
   }, [open]);
 
   useEffect(() => {

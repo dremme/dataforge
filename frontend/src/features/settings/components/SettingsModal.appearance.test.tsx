@@ -11,7 +11,7 @@ beforeEach(() => {
   ({ requestsTo: requests } = installMockBackend());
 });
 
-async function openAppearance(onClose = vi.fn()) {
+async function openAppearance(onClose = vi.fn<() => void>()) {
   const user = userEvent.setup();
   const view = renderWithProviders(<SettingsModal onClose={onClose} />);
   await screen.findByRole("radiogroup", { name: "Color scheme" });

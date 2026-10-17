@@ -5,10 +5,11 @@ import type { VideoProjectSummary } from "@/shared/types";
 import { renderWithQueryClient } from "@/test/queryClient";
 import * as api from "@/features/videoEditor/api/videoProjects";
 import { VideoProjectGrid } from "./VideoProjectGrid";
+import type { listVideoProjects } from "@/features/videoEditor/api/videoProjects";
 
 vi.mock("@/features/videoEditor/api/videoProjects", async (importOriginal) => ({
   ...(await importOriginal<typeof api>()),
-  listVideoProjects: vi.fn(),
+  listVideoProjects: vi.fn<typeof listVideoProjects>(),
 }));
 
 const summary: VideoProjectSummary = {
@@ -29,7 +30,7 @@ describe("VideoProjectGrid", () => {
         folderPath="C:\media"
         fingerprint={fingerprint}
         searchQuery=""
-        onOpen={vi.fn()}
+        onOpen={vi.fn<(projectPath: string) => void>()}
       />
     );
     const { rerender } = renderWithQueryClient(grid("before"));
@@ -49,7 +50,12 @@ describe("VideoProjectGrid", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     try {
       renderWithQueryClient(
-        <VideoProjectGrid folderPath="C:\media" fingerprint="" searchQuery="" onOpen={vi.fn()} />,
+        <VideoProjectGrid
+          folderPath="C:\media"
+          fingerprint=""
+          searchQuery=""
+          onOpen={vi.fn<(projectPath: string) => void>()}
+        />,
       );
 
       await user.hover(

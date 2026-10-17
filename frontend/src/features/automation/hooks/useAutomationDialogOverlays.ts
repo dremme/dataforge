@@ -25,6 +25,8 @@ import type {
   WatermarkPosition,
   WatermarkSizeName,
 } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 type UseAutomationDialogOverlaysOptions = {
   folderPath: string | undefined;
@@ -60,8 +62,7 @@ export function useAutomationDialogOverlays({
   const queryClient = useQueryClient();
   const [settings, setSettings] = useState<AutomationSettings | null>(null);
   const [snapshot, setSnapshot] = useState<BulkScopeSnapshot | null>(null);
-  const folderRef = useRef(folderPath);
-  folderRef.current = folderPath;
+  const folderRef = useLatestRef(folderPath);
   const openRevisionRef = useRef(0);
 
   const closeDialog = useCallback(() => {
@@ -71,7 +72,14 @@ export function useAutomationDialogOverlays({
     openRevisionRef.current += 1;
   }, []);
 
-  useEffect(() => closeDialog(), [closeDialog, folderPath]);
+  if (useChanged(folderPath)) {
+    setOpenJobType(null);
+    setSettings(null);
+    setSnapshot(null);
+  }
+  useEffect(() => {
+    openRevisionRef.current += 1;
+  }, [folderPath]);
 
   /** Closes the dialog, then starts its job; a rejection is already reported by the context. */
   const startJobFromDialog = useCallback(
@@ -286,7 +294,7 @@ export function useAutomationDialogOverlays({
         setOpenJobType(jobType);
       })();
     },
-    [folderPath, queryClient, getJobPaths, itemCount, folderLabel, scopeKind],
+    [folderLabel, folderPath, folderRef, getJobPaths, itemCount, queryClient, scopeKind],
   );
 
   return { dialogs, openDialogForJobType };

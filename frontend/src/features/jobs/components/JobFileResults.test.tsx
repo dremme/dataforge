@@ -7,7 +7,7 @@ import { JobFileResults } from "./JobFileResults";
 import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/jobs/api/jobs", () => ({
-  fetchJobResults: vi.fn(),
+  fetchJobResults: vi.fn<typeof fetchJobResults>(),
 }));
 
 const fetchResults = vi.mocked(fetchJobResults);
@@ -143,7 +143,7 @@ describe("JobFileResults", () => {
 
   it("retries only the files that failed", async () => {
     const user = userEvent.setup();
-    const onRetryFailed = vi.fn();
+    const onRetryFailed = vi.fn<(paths: string[]) => void>();
     renderWithQueryClient(<JobFileResults job={finishedJob} onRetryFailed={onRetryFailed} />);
 
     await user.click(screen.getByRole("button", { name: /1 failed/ }));
@@ -158,7 +158,7 @@ describe("JobFileResults", () => {
     renderWithQueryClient(
       <JobFileResults
         job={{ ...finishedJob, stats: { total: 1, success: 1 } }}
-        onRetryFailed={vi.fn()}
+        onRetryFailed={vi.fn<(paths: string[]) => void>()}
       />,
     );
 
@@ -170,7 +170,7 @@ describe("JobFileResults", () => {
 
   it("opens a file from its row", async () => {
     const user = userEvent.setup();
-    const onOpenItem = vi.fn();
+    const onOpenItem = vi.fn<(path: string) => void>();
     renderWithQueryClient(<JobFileResults job={finishedJob} onOpenItem={onOpenItem} />);
 
     await user.click(screen.getByRole("button", { name: /1 failed/ }));

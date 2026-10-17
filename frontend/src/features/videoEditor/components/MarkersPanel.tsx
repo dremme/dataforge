@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { iconBookmarkPlus, iconSearch, iconTrash2 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { SHORTCUTS } from "@/shared/lib/shortcuts";
@@ -19,6 +19,7 @@ import {
 import { Panel } from "./InspectorParts";
 import { TimecodeField } from "./TimecodeField";
 import { ToolButton } from "./ToolButton";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 /** A filter appears once the list is long enough to need one. */
 const FILTER_FROM = 6;
@@ -167,7 +168,9 @@ function DraftInput({
   onCommit: (value: string) => void;
 }) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  if (useChanged(value)) {
+    setDraft(value);
+  }
   return (
     <input
       {...rest}

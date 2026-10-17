@@ -6,7 +6,7 @@ import type { SidecarDeleteResponse } from "@/shared/types";
 import { useSidecarSweep } from "./useSidecarSweep";
 
 vi.mock("@/features/gallery/api/sidecars", () => ({
-  deleteSidecars: vi.fn(),
+  deleteSidecars: vi.fn<typeof deleteSidecars>(),
 }));
 
 const deleteSidecarsMock = vi.mocked(deleteSidecars);
@@ -24,7 +24,7 @@ function sweepResult(overrides: Partial<SidecarDeleteResponse> = {}): SidecarDel
   };
 }
 
-function renderSweep(onSwept = vi.fn()) {
+function renderSweep(onSwept = vi.fn<() => void | Promise<void>>()) {
   return renderHook(
     () =>
       useSidecarSweep({
@@ -72,7 +72,7 @@ describe("useSidecarSweep", () => {
           issueCount: 0,
           duplicateCount: 0,
           emptyCaptionCount: 0,
-          onSwept: vi.fn(),
+          onSwept: vi.fn<() => void | Promise<void>>(),
         }),
       { wrapper },
     );
@@ -91,7 +91,7 @@ describe("useSidecarSweep", () => {
           issueCount: 2,
           duplicateCount: 1,
           emptyCaptionCount: 0,
-          onSwept: vi.fn(),
+          onSwept: vi.fn<() => void | Promise<void>>(),
         }),
       { wrapper },
     );
@@ -157,7 +157,7 @@ describe("useSidecarSweep", () => {
       order.push("api");
       return sweepResult();
     });
-    const onSwept = vi.fn(async () => {
+    const onSwept = vi.fn<() => Promise<void>>(async () => {
       order.push("swept");
     });
 
@@ -179,7 +179,7 @@ describe("useSidecarSweep", () => {
 
   it("closes the dialog and notifies danger when the request fails", async () => {
     deleteSidecarsMock.mockRejectedValue(new Error("Permission denied"));
-    const onSwept = vi.fn();
+    const onSwept = vi.fn<() => void | Promise<void>>();
     const { result } = renderSweep(onSwept);
 
     act(() => result.current.openSweep("duplicate"));

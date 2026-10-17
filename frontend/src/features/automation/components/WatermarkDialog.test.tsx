@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { MAX_WATERMARK_TEXT_LENGTH, WatermarkDialog } from "./WatermarkDialog";
+import type { WatermarkOpacity, WatermarkPosition, WatermarkSizeName } from "@/shared/types";
+import type { ComponentProps } from "react";
 
 const DEFAULTS: JobSettingsByType["watermark"] = {
   text: "",
@@ -14,14 +16,14 @@ const DEFAULTS: JobSettingsByType["watermark"] = {
 
 function renderDialog(
   overrides: Partial<JobSettingsByType["watermark"]> = {},
-  onConfirm = vi.fn(),
+  onConfirm = vi.fn<ComponentProps<typeof WatermarkDialog>["onConfirm"]>(),
 ) {
   render(
     <WatermarkDialog
       scope={{ itemCount: 3, folderLabel: "Photos", kind: "folder" as const }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
-      onCancel={vi.fn()}
+      onCancel={vi.fn<() => void>()}
     />,
   );
 
@@ -139,8 +141,16 @@ describe("WatermarkDialog", () => {
         scope={{ itemCount: 3, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={{ ...DEFAULTS, text: "Sample Studio" }}
         busy
-        onConfirm={vi.fn()}
-        onCancel={vi.fn()}
+        onConfirm={vi.fn<
+          (
+            text: string,
+            size: WatermarkSizeName,
+            opacity: WatermarkOpacity,
+            position: WatermarkPosition,
+            stripMetadata: boolean,
+          ) => void
+        >()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 

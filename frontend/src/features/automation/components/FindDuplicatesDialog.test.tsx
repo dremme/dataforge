@@ -6,12 +6,13 @@ import {
   emptyAutomationSettings,
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
+import type { ComponentProps } from "react";
 
 const DEFAULTS: JobSettingsByType["find_duplicates"] =
   emptyAutomationSettings("C:/datasets/photos").find_duplicates;
 
 function renderDialog(
-  onConfirm = vi.fn(),
+  onConfirm = vi.fn<ComponentProps<typeof FindDuplicatesDialog>["onConfirm"]>(),
   overrides: Partial<JobSettingsByType["find_duplicates"]> = {},
 ) {
   render(
@@ -19,7 +20,7 @@ function renderDialog(
       scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
-      onCancel={vi.fn()}
+      onCancel={vi.fn<() => void>()}
     />,
   );
   return onConfirm;

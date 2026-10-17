@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { JobType } from "@/shared/types";
 
 const { postJsonMock } = vi.hoisted(() => ({
-  postJsonMock: vi.fn(),
+  postJsonMock: vi.fn<typeof postJson>(),
 }));
 
 vi.mock("@/shared/api/http", () => ({
@@ -10,6 +10,7 @@ vi.mock("@/shared/api/http", () => ({
 }));
 
 import { startAutomationJob, trainLoraBody } from "./jobs";
+import type { postJson } from "@/shared/api/http";
 
 describe("automation API", () => {
   afterEach(() => {

@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ToolbarSortMenu } from "./ToolbarSortMenu";
+import type { SortOption } from "@/features/gallery/lib/query";
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Sort media" }));
@@ -11,7 +12,7 @@ async function openMenu(user: ReturnType<typeof userEvent.setup>) {
 describe("ToolbarSortMenu", () => {
   it("lists the fields, then the current field's two orders", async () => {
     const user = userEvent.setup();
-    render(<ToolbarSortMenu value="date-desc" onChange={vi.fn()} />);
+    render(<ToolbarSortMenu value="date-desc" onChange={vi.fn<(value: SortOption) => void>()} />);
     const menu = await openMenu(user);
 
     const fields = within(menu).getByRole("group", { name: "Sort by" });
@@ -39,7 +40,7 @@ describe("ToolbarSortMenu", () => {
 
   it("starts a newly picked field at its first order and stays open for the direction", async () => {
     const user = userEvent.setup();
-    const onChange = vi.fn();
+    const onChange = vi.fn<(value: SortOption) => void>();
     render(<ToolbarSortMenu value="name-desc" onChange={onChange} />);
     const menu = await openMenu(user);
 
@@ -51,7 +52,7 @@ describe("ToolbarSortMenu", () => {
 
   it("keeps the direction when the current field is picked again", async () => {
     const user = userEvent.setup();
-    const onChange = vi.fn();
+    const onChange = vi.fn<(value: SortOption) => void>();
     render(<ToolbarSortMenu value="name-desc" onChange={onChange} />);
     const menu = await openMenu(user);
 
@@ -62,7 +63,7 @@ describe("ToolbarSortMenu", () => {
 
   it("reports a picked direction", async () => {
     const user = userEvent.setup();
-    const onChange = vi.fn();
+    const onChange = vi.fn<(value: SortOption) => void>();
     render(<ToolbarSortMenu value="caption-asc" onChange={onChange} />);
     const menu = await openMenu(user);
 
@@ -73,7 +74,9 @@ describe("ToolbarSortMenu", () => {
 
   it("names the current order in its tooltip", async () => {
     const user = userEvent.setup();
-    render(<ToolbarSortMenu value="megapixels-desc" onChange={vi.fn()} />);
+    render(
+      <ToolbarSortMenu value="megapixels-desc" onChange={vi.fn<(value: SortOption) => void>()} />,
+    );
 
     await user.hover(screen.getByRole("button", { name: "Sort media" }));
 
@@ -81,12 +84,14 @@ describe("ToolbarSortMenu", () => {
   });
 
   it("shows the direction on the trigger, and marks only a non-default order", () => {
-    const { rerender } = render(<ToolbarSortMenu value="date-desc" onChange={vi.fn()} />);
+    const { rerender } = render(
+      <ToolbarSortMenu value="date-desc" onChange={vi.fn<(value: SortOption) => void>()} />,
+    );
     const trigger = screen.getByRole("button", { name: "Sort media" });
     expect(trigger.querySelector("svg")).toHaveClass("lucide-arrow-down-wide-narrow");
     expect(trigger).not.toHaveClass("toolbar__sort-menu-trigger--sorted");
 
-    rerender(<ToolbarSortMenu value="name-asc" onChange={vi.fn()} />);
+    rerender(<ToolbarSortMenu value="name-asc" onChange={vi.fn<(value: SortOption) => void>()} />);
     expect(trigger.querySelector("svg")).toHaveClass("lucide-arrow-up-a-z");
     expect(trigger).toHaveClass("toolbar__sort-menu-trigger--sorted");
   });

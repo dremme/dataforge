@@ -6,9 +6,10 @@ import type { JobSettingsByType } from "@/features/automation/preferences/automa
 import type { ComfyPresetSettings, ComfyPresetsResponse } from "@/shared/types";
 import { ComfyProcessDialog } from "./ComfyProcessDialog";
 import { renderWithQueryClient } from "@/test/queryClient";
+import type { ComfyProcessSettings } from "@/features/automation/components/ComfyProcessDialog";
 
 vi.mock("@/features/automation/api/jobs", () => ({
-  fetchComfyPresets: vi.fn(),
+  fetchComfyPresets: vi.fn<typeof fetchComfyPresets>(),
 }));
 
 const fetchPresets = vi.mocked(fetchComfyPresets);
@@ -46,8 +47,8 @@ function presets(
 }
 
 function renderDialog(initialSettings = settings()) {
-  const onConfirm = vi.fn();
-  const onCancel = vi.fn();
+  const onConfirm = vi.fn<(settings: ComfyProcessSettings) => void>();
+  const onCancel = vi.fn<() => void>();
 
   renderWithQueryClient(
     <ComfyProcessDialog

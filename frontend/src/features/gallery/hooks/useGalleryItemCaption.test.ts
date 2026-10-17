@@ -61,7 +61,7 @@ describe("useGalleryItemCaption", () => {
     const fetchCaption = vi
       .spyOn(api, "fetchCaption")
       .mockResolvedValue(captionResponse("Fresh caption"));
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
 
     renderHook(() =>
       useGalleryItemCaption({
@@ -82,7 +82,7 @@ describe("useGalleryItemCaption", () => {
     const fetchCaption = vi
       .spyOn(api, "fetchCaption")
       .mockResolvedValue(captionResponse("Fresh caption"));
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
 
     const { result, rerender } = renderHook(
       ({ item }: { item: GalleryItem }) =>
@@ -118,7 +118,7 @@ describe("useGalleryItemCaption", () => {
 
   it("keeps local edits when folder caption updates arrive in the background", async () => {
     vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("Fresh caption"));
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
 
     const { result, rerender } = renderHook(
       ({ item }: { item: GalleryItem }) =>
@@ -165,7 +165,7 @@ describe("useGalleryItemCaption", () => {
 
       return Promise.resolve(captionResponse("Beach caption"));
     });
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
 
     const { result, rerender } = renderHook(
       ({ item }: { item: GalleryItem | undefined }) =>
@@ -200,7 +200,7 @@ describe("useGalleryItemCaption", () => {
 
   it("keeps cached folder data when the refresh request fails", async () => {
     vi.spyOn(api, "fetchCaption").mockRejectedValue(new Error("Network error"));
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
 
     const { result } = renderHook(() =>
       useGalleryItemCaption({
@@ -220,7 +220,7 @@ describe("useGalleryItemCaption", () => {
   it("preserves saved feedback when folder echoes the saved caption", async () => {
     vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("Fresh caption"));
     vi.spyOn(api, "saveCaption").mockResolvedValue(captionResponse("Edited caption"));
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
 
     const { result, rerender } = renderHook(
       ({ item }: { item: GalleryItem }) =>
@@ -266,7 +266,7 @@ describe("useGalleryItemCaption", () => {
           resolveSave = () => resolve(captionResponse(text));
         }),
     );
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
     const item = makeItem("sunset.png", { description: "Fresh caption" });
 
     const { result } = renderHook(() => useGalleryItemCaption({ item, onCaptionSaved }));
@@ -299,7 +299,7 @@ describe("useGalleryItemCaption", () => {
   it("ignores a background folder reload that predates the last save", async () => {
     vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("Hello"));
     vi.spyOn(api, "saveCaption").mockImplementation(async (_path, text) => captionResponse(text));
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
 
     const { result, rerender } = renderHook(
       ({ item }: { item: GalleryItem }) => useGalleryItemCaption({ item, onCaptionSaved }),
@@ -327,7 +327,7 @@ describe("useGalleryItemCaption", () => {
 
   it("syncs a caption changed back to text it showed before", async () => {
     vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("A"));
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
     const { result, rerender } = renderHook(
       ({ item }: { item: GalleryItem }) => useGalleryItemCaption({ item, onCaptionSaved }),
       { initialProps: { item: makeItem("sunset.png", { description: "A" }) } },
@@ -345,7 +345,7 @@ describe("useGalleryItemCaption", () => {
   it("syncs a restore of the pre-save text once the save has been echoed", async () => {
     vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("Hello"));
     vi.spyOn(api, "saveCaption").mockImplementation(async (_path, text) => captionResponse(text));
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
     const { result, rerender } = renderHook(
       ({ item }: { item: GalleryItem }) => useGalleryItemCaption({ item, onCaptionSaved }),
       { initialProps: { item: makeItem("sunset.png", { description: "Hello" }) } },
@@ -373,7 +373,7 @@ describe("useGalleryItemCaption", () => {
         }),
     );
     vi.spyOn(api, "saveCaption").mockResolvedValue(captionResponse("Typed first"));
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
     const item = makeItem("sunset.png");
 
     const { result } = renderHook(() => useGalleryItemCaption({ item, onCaptionSaved }));
@@ -393,7 +393,7 @@ describe("useGalleryItemCaption", () => {
   it("does not auto-save caption edits when autoSave is false", async () => {
     vi.spyOn(api, "fetchCaption").mockRejectedValue(new Error("Network error"));
     const saveCaption = vi.spyOn(api, "saveCaption");
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
 
     const { result } = renderHook(() =>
       useGalleryItemCaption({
@@ -423,7 +423,7 @@ describe("useGalleryItemCaption", () => {
   it("flushes a pending save when switching items", async () => {
     vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("Fresh caption"));
     const saveCaption = vi.spyOn(api, "saveCaption").mockResolvedValue(captionResponse("Saved"));
-    const onCaptionSaved = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
 
     const { result, rerender } = renderHook(
       ({ item }: { item: GalleryItem }) =>

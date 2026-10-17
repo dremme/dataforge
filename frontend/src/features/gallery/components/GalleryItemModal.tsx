@@ -112,6 +112,7 @@ import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
 import { evenTrunc } from "@/features/gallery/lib/videoEdit";
 import { useVideoEditorLauncher } from "@/features/videoEditor/context/VideoEditorContext";
 import { VIDEO_PROJECT_VIDEO_EXTENSIONS } from "@/shared/constants";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 const noop = () => {};
 
@@ -251,7 +252,7 @@ export function GalleryItemModal({
   const gifFrameCount = useGifFrameCount(item, itemIsGif);
 
   // Both hooks run unconditionally; hooks cannot be called behind a branch.
-  const videoCapture = useVideoFrameCapture({
+  const { videoRef, ...videoCapture } = useVideoFrameCapture({
     item,
     folderPath: currentFolder,
     onSaved: onCopied,
@@ -271,7 +272,7 @@ export function GalleryItemModal({
   const standbyVideoRef = useRef<HTMLVideoElement | null>(null);
   const videoEdit = useVideoEdit({
     item,
-    videoRef: videoCapture.videoRef,
+    videoRef,
     standbyVideoRef,
     onEdited: onCopied,
     editMode,
@@ -330,7 +331,7 @@ export function GalleryItemModal({
   const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
 
   // Transfer state stays out: a move advances the item while finally is pending, re-enabling early.
-  useEffect(() => {
+  if (useChanged(item?.path)) {
     setDeleteConfirmOpen(false);
     setDeleting(false);
     setRenameOpen(false);
@@ -339,21 +340,20 @@ export function GalleryItemModal({
     setOpeningInViewer(false);
     setViewerError(null);
     setComfyWorkflowOpen(false);
-  }, [item?.path]);
+  }
 
   // Drop sticky capture on a still or missing destination so the bar needs no scrubber.
-  useEffect(() => {
-    if (!item || !currentFolder || (!itemIsVideo && !itemIsGif)) {
-      setFrameMode(false);
-    }
-  }, [item, currentFolder, itemIsVideo, itemIsGif]);
+  if (frameMode && (!item || !currentFolder || (!itemIsVideo && !itemIsGif))) {
+    setFrameMode(false);
+  }
 
-  useEffect(() => {
-    if (!item || (!isEditableVideo(item) && !isEditableImage(item))) {
-      setEditMode(false);
-      setRevertConfirmOpen(false);
-    }
-  }, [item]);
+  if (
+    (editMode || revertConfirmOpen) &&
+    (!item || (!isEditableVideo(item) && !isEditableImage(item)))
+  ) {
+    setEditMode(false);
+    setRevertConfirmOpen(false);
+  }
 
   useEffect(() => {
     return schedulePrefetchModalMedia(collectAdjacentModalMediaTargets(items, index));
@@ -905,7 +905,7 @@ export function GalleryItemModal({
                 <video
                   // Editing plays the original, so source and key change with the mode, not just the bytes.
                   key={editMode ? `${item.path}#original` : item.path}
-                  ref={videoCapture.videoRef}
+                  ref={videoRef}
                   className="gallery-item-modal__video"
                   style={{
                     opacity: !editMode || videoEdit.activeMediaRef !== standbyVideoRef ? 1 : 0,

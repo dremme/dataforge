@@ -42,13 +42,19 @@ const uncaptionedItem: GalleryItem = {
 
 describe("GalleryCard", () => {
   it("shows the caption text", () => {
-    render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
+    render(<GalleryCard item={captionedItem} onSelect={vi.fn<(path: string) => void>()} />);
 
     expect(screen.getByText("Golden hour over the harbour")).toBeInTheDocument();
   });
 
   it("clamps the caption to the configured line count", () => {
-    render(<GalleryCard item={captionedItem} onSelect={vi.fn()} captionLines={6} />);
+    render(
+      <GalleryCard
+        item={captionedItem}
+        onSelect={vi.fn<(path: string) => void>()}
+        captionLines={6}
+      />,
+    );
 
     expect(
       screen
@@ -59,7 +65,11 @@ describe("GalleryCard", () => {
 
   it("hides the caption when its line count is off, without a status pill", () => {
     const { container } = render(
-      <GalleryCard item={captionedItem} onSelect={vi.fn()} captionLines={0} />,
+      <GalleryCard
+        item={captionedItem}
+        onSelect={vi.fn<(path: string) => void>()}
+        captionLines={0}
+      />,
     );
 
     expect(screen.queryByText("Golden hour over the harbour")).toBeNull();
@@ -69,12 +79,18 @@ describe("GalleryCard", () => {
   it("hides the status pill too when captions are off, keeping the seam", () => {
     const empty = { ...uncaptionedItem, has_caption_file: true, caption_status: "empty" as const };
     const { container, rerender } = render(
-      <GalleryCard item={uncaptionedItem} onSelect={vi.fn()} captionLines={0} />,
+      <GalleryCard
+        item={uncaptionedItem}
+        onSelect={vi.fn<(path: string) => void>()}
+        captionLines={0}
+      />,
     );
 
     expect(container.querySelector(".card__caption-status")).toBeNull();
 
-    rerender(<GalleryCard item={empty} onSelect={vi.fn()} captionLines={0} />);
+    rerender(
+      <GalleryCard item={empty} onSelect={vi.fn<(path: string) => void>()} captionLines={0} />,
+    );
     expect(container.querySelector(".card__caption-status")).toBeNull();
     expect(container.querySelector(".card")).toHaveClass("card--partial");
   });
@@ -86,7 +102,9 @@ describe("GalleryCard", () => {
       has_candidate: true,
       has_duplicate_file: true,
     };
-    const { container } = render(<GalleryCard item={item} onSelect={vi.fn()} captionLines={0} />);
+    const { container } = render(
+      <GalleryCard item={item} onSelect={vi.fn<(path: string) => void>()} captionLines={0} />,
+    );
 
     const media = container.querySelector(".card__media");
     expect(media?.querySelector(".card__badge--video")).toBeInTheDocument();
@@ -111,7 +129,7 @@ describe("GalleryCard", () => {
           : 0;
       });
     const { container, rerender } = render(
-      <GalleryCard item={tagged} onSelect={vi.fn()} showTags />,
+      <GalleryCard item={tagged} onSelect={vi.fn<(path: string) => void>()} showTags />,
     );
 
     const shown = [...container.querySelectorAll(".card__tag")].map((tag) => tag.textContent);
@@ -121,16 +139,27 @@ describe("GalleryCard", () => {
     expect(await screen.findByText("sand, person")).toBeInTheDocument();
     offsetTop.mockRestore();
 
-    rerender(<GalleryCard item={tagged} onSelect={vi.fn()} />);
+    rerender(<GalleryCard item={tagged} onSelect={vi.fn<(path: string) => void>()} />);
     expect(container.querySelector(".card__tags")).toBeNull();
 
-    rerender(<GalleryCard item={tagged} onSelect={vi.fn()} displayMode="small" showTags />);
+    rerender(
+      <GalleryCard
+        item={tagged}
+        onSelect={vi.fn<(path: string) => void>()}
+        displayMode="small"
+        showTags
+      />,
+    );
     expect(container.querySelector(".card__tags")).toBeNull();
   });
 
   it("adds the aspect ratio beside the megapixels when asked", () => {
     const { container } = render(
-      <GalleryCard item={captionedItem} onSelect={vi.fn()} showAspectRatio />,
+      <GalleryCard
+        item={captionedItem}
+        onSelect={vi.fn<(path: string) => void>()}
+        showAspectRatio
+      />,
     );
 
     expect(container.querySelector(".card__meta")).toHaveTextContent("2.1 MP · 16:9");
@@ -138,7 +167,11 @@ describe("GalleryCard", () => {
 
   it("hides the megapixels when asked, keeping the aspect ratio", () => {
     const { container, rerender } = render(
-      <GalleryCard item={captionedItem} onSelect={vi.fn()} showMegapixels={false} />,
+      <GalleryCard
+        item={captionedItem}
+        onSelect={vi.fn<(path: string) => void>()}
+        showMegapixels={false}
+      />,
     );
 
     expect(container.querySelector(".card__meta")).toBeNull();
@@ -146,7 +179,7 @@ describe("GalleryCard", () => {
     rerender(
       <GalleryCard
         item={captionedItem}
-        onSelect={vi.fn()}
+        onSelect={vi.fn<(path: string) => void>()}
         showMegapixels={false}
         showAspectRatio
       />,
@@ -155,7 +188,7 @@ describe("GalleryCard", () => {
   });
 
   it("never starts a native drag of the card", () => {
-    render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
+    render(<GalleryCard item={captionedItem} onSelect={vi.fn<(path: string) => void>()} />);
 
     expect(fireEvent.dragStart(screen.getByRole("button", { name: "View sunset.png" }))).toBe(
       false,
@@ -163,28 +196,37 @@ describe("GalleryCard", () => {
   });
 
   it("falls back to the caption status when there is no caption", () => {
-    render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+    render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />);
 
     expect(screen.getByText("No caption file found")).toBeInTheDocument();
   });
 
   it("carries the display mode as a modifier so small cards can tighten", () => {
     const { container } = render(
-      <GalleryCard item={captionedItem} onSelect={vi.fn()} displayMode="small" />,
+      <GalleryCard
+        item={captionedItem}
+        onSelect={vi.fn<(path: string) => void>()}
+        displayMode="small"
+      />,
     );
 
     expect(container.querySelector(".card--small")).toBeInTheDocument();
   });
 
   it("pins badges over the thumbnail", () => {
-    const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+    const { container } = render(
+      <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+    );
 
     expect(container.querySelector(".card__media .card__badge")).toBeInTheDocument();
   });
 
   it("badges a file that has a candidate", () => {
     const { container } = render(
-      <GalleryCard item={{ ...captionedItem, has_candidate: true }} onSelect={vi.fn()} />,
+      <GalleryCard
+        item={{ ...captionedItem, has_candidate: true }}
+        onSelect={vi.fn<(path: string) => void>()}
+      />,
     );
 
     const badge = container.querySelector(".card__badge--candidate");
@@ -196,7 +238,7 @@ describe("GalleryCard", () => {
     const { container } = render(
       <GalleryCard
         item={{ ...captionedItem, has_issue_file: true, has_candidate: true }}
-        onSelect={vi.fn()}
+        onSelect={vi.fn<(path: string) => void>()}
       />,
     );
 
@@ -213,7 +255,10 @@ describe("GalleryCard", () => {
     ["candidate", { has_candidate: true }],
   ])("keeps a lone %s badge in the stack corner", (variant, flags) => {
     const { container } = render(
-      <GalleryCard item={{ ...captionedItem, ...flags }} onSelect={vi.fn()} />,
+      <GalleryCard
+        item={{ ...captionedItem, ...flags }}
+        onSelect={vi.fn<(path: string) => void>()}
+      />,
     );
 
     const stack = container.querySelector(".card__badge-stack");
@@ -225,7 +270,7 @@ describe("GalleryCard", () => {
     const { container } = render(
       <GalleryCard
         item={{ ...captionedItem, has_issue_file: true, has_duplicate_file: true }}
-        onSelect={vi.fn()}
+        onSelect={vi.fn<(path: string) => void>()}
       />,
     );
 
@@ -236,12 +281,20 @@ describe("GalleryCard", () => {
 
   it("labels a video badge with the clip length when it is known", () => {
     const { container, rerender } = render(
-      <GalleryCard item={{ ...uncaptionedItem, duration: 12.4 }} onSelect={vi.fn()} />,
+      <GalleryCard
+        item={{ ...uncaptionedItem, duration: 12.4 }}
+        onSelect={vi.fn<(path: string) => void>()}
+      />,
     );
 
     expect(container.querySelector(".card__badge--video")).toHaveTextContent("12 s");
 
-    rerender(<GalleryCard item={{ ...uncaptionedItem, duration: null }} onSelect={vi.fn()} />);
+    rerender(
+      <GalleryCard
+        item={{ ...uncaptionedItem, duration: null }}
+        onSelect={vi.fn<(path: string) => void>()}
+      />,
+    );
 
     expect(container.querySelector(".card__badge--video")).toHaveTextContent("Video");
   });
@@ -256,32 +309,54 @@ describe("GalleryCard", () => {
       height: null,
       duration: 75,
     };
-    const { container, rerender } = render(<GalleryCard item={audio} onSelect={vi.fn()} />);
+    const { container, rerender } = render(
+      <GalleryCard item={audio} onSelect={vi.fn<(path: string) => void>()} />,
+    );
 
     expect(container.querySelector(".card__badge--audio")).toHaveTextContent("1:15");
     expect(container.querySelector(".card__badge--video")).toBeNull();
     expect(container.querySelector(".card")).not.toHaveClass("card--video");
 
-    rerender(<GalleryCard item={{ ...audio, duration: null }} onSelect={vi.fn()} />);
+    rerender(
+      <GalleryCard
+        item={{ ...audio, duration: null }}
+        onSelect={vi.fn<(path: string) => void>()}
+      />,
+    );
 
     expect(container.querySelector(".card__badge--audio")).toHaveTextContent("Audio");
   });
 
   it("shows the megapixel count beside the title on large and small cards", () => {
-    const { container, rerender } = render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
+    const { container, rerender } = render(
+      <GalleryCard item={captionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+    );
 
     expect(container.querySelector(".card__title")).toHaveTextContent(/^sunset\.png$/);
     expect(container.querySelector(".card__meta")).toHaveTextContent("2.1 MP");
 
-    rerender(<GalleryCard item={captionedItem} onSelect={vi.fn()} displayMode="small" />);
+    rerender(
+      <GalleryCard
+        item={captionedItem}
+        onSelect={vi.fn<(path: string) => void>()}
+        displayMode="small"
+      />,
+    );
     expect(container.querySelector(".card__meta")).toHaveTextContent("2.1 MP");
 
-    rerender(<GalleryCard item={{ ...captionedItem, width: null }} onSelect={vi.fn()} />);
+    rerender(
+      <GalleryCard
+        item={{ ...captionedItem, width: null }}
+        onSelect={vi.fn<(path: string) => void>()}
+      />,
+    );
     expect(container.querySelector(".card__meta")).toBeNull();
   });
 
   it("renders no stack when neither badge applies", () => {
-    const { container } = render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
+    const { container } = render(
+      <GalleryCard item={captionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+    );
 
     expect(container.querySelector(".card__badge-stack")).toBeNull();
   });
@@ -290,7 +365,7 @@ describe("GalleryCard", () => {
     const { container } = render(
       <GalleryCard
         item={{ ...captionedItem, has_candidate: true }}
-        onSelect={vi.fn()}
+        onSelect={vi.fn<(path: string) => void>()}
         displayMode="small"
       />,
     );
@@ -328,7 +403,9 @@ describe("GalleryCard", () => {
       container.querySelector<HTMLVideoElement>("video.card__video-preview");
 
     it("mounts a muted preview only after the pointer rests for 400 ms", () => {
-      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+      const { container } = render(
+        <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+      );
 
       hover(screen.getByRole("button"));
       act(() => vi.advanceTimersByTime(399));
@@ -343,7 +420,9 @@ describe("GalleryCard", () => {
     });
 
     it("plays the preview at double speed, surviving the load that resets the rate", () => {
-      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+      const { container } = render(
+        <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+      );
 
       hover(screen.getByRole("button"));
       act(() => vi.advanceTimersByTime(400));
@@ -357,7 +436,7 @@ describe("GalleryCard", () => {
     it("keeps the preview source through an effect replay", () => {
       const { container } = render(
         <StrictMode>
-          <GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />
+          <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />
         </StrictMode>,
       );
 
@@ -368,7 +447,9 @@ describe("GalleryCard", () => {
     });
 
     it("never mounts when the pointer leaves before the delay", () => {
-      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+      const { container } = render(
+        <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+      );
       const card = screen.getByRole("button");
 
       hover(card);
@@ -381,7 +462,9 @@ describe("GalleryCard", () => {
 
     it("tears the preview down and aborts its download on leave", () => {
       const load = vi.spyOn(HTMLMediaElement.prototype, "load");
-      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+      const { container } = render(
+        <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+      );
       const card = screen.getByRole("button");
 
       hover(card);
@@ -395,7 +478,9 @@ describe("GalleryCard", () => {
     });
 
     it("hides the overlay once the preview is actually playing", () => {
-      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+      const { container } = render(
+        <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+      );
 
       hover(screen.getByRole("button"));
       act(() => vi.advanceTimersByTime(400));
@@ -413,7 +498,9 @@ describe("GalleryCard", () => {
       ["an image", captionedItem],
       ["a GIF", { ...captionedItem, name: "loop.gif", media_type: "gif" as const }],
     ])("never previews %s", (_label, item) => {
-      const { container } = render(<GalleryCard item={item} onSelect={vi.fn()} />);
+      const { container } = render(
+        <GalleryCard item={item} onSelect={vi.fn<(path: string) => void>()} />,
+      );
 
       hover(screen.getByRole("button"));
       act(() => vi.advanceTimersByTime(1000));
@@ -422,7 +509,9 @@ describe("GalleryCard", () => {
     });
 
     it("ignores touch so a tap never starts a download", () => {
-      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+      const { container } = render(
+        <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
+      );
 
       hover(screen.getByRole("button"), "touch");
       act(() => vi.advanceTimersByTime(1000));
@@ -443,7 +532,12 @@ describe("GalleryCard", () => {
     });
 
     it("shows the full file name after the usual tooltip delay", () => {
-      render(<GalleryCard item={{ ...captionedItem, name: longName }} onSelect={vi.fn()} />);
+      render(
+        <GalleryCard
+          item={{ ...captionedItem, name: longName }}
+          onSelect={vi.fn<(path: string) => void>()}
+        />,
+      );
 
       fireEvent.mouseEnter(screen.getByRole("button", { name: `View ${longName}` }));
       act(() => vi.advanceTimersByTime(399));
@@ -455,7 +549,10 @@ describe("GalleryCard", () => {
 
     it("shows the name to keyboard users too, in place of the native title", () => {
       const { container } = render(
-        <GalleryCard item={{ ...captionedItem, name: longName }} onSelect={vi.fn()} />,
+        <GalleryCard
+          item={{ ...captionedItem, name: longName }}
+          onSelect={vi.fn<(path: string) => void>()}
+        />,
       );
 
       act(() => screen.getByRole("button", { name: `View ${longName}` }).focus());

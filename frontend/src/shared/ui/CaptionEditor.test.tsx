@@ -32,7 +32,7 @@ function content(container: HTMLElement): HTMLElement {
 describe("CaptionEditor", () => {
   it("checks spelling in the chosen language, with numbered, wrapped lines by default", () => {
     const { container } = renderWithOptions(
-      <CaptionEditor value="A red fox" onChange={vi.fn()} />,
+      <CaptionEditor value="A red fox" onChange={vi.fn<(value: string) => void>()} />,
       { captionSpellcheckLanguage: "de" },
     );
 
@@ -44,7 +44,7 @@ describe("CaptionEditor", () => {
 
   it("turns spelling, line numbers, and wrapping off when asked", () => {
     const { container } = renderWithOptions(
-      <CaptionEditor value="A red fox" onChange={vi.fn()} />,
+      <CaptionEditor value="A red fox" onChange={vi.fn<(value: string) => void>()} />,
       { captionSpellcheck: false, lineNumbers: false, lineWrap: false },
     );
 
@@ -55,7 +55,11 @@ describe("CaptionEditor", () => {
 
   it("leaves other editors' spelling alone", () => {
     const { container } = renderWithOptions(
-      <CodeMirrorEditor language="markdown" value="# Notes" onChange={vi.fn()} />,
+      <CodeMirrorEditor
+        language="markdown"
+        value="# Notes"
+        onChange={vi.fn<(value: string) => void>()}
+      />,
       { captionSpellcheck: false, captionSpellcheckLanguage: "de", lineNumbers: false },
     );
 

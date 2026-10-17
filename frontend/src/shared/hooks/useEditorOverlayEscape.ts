@@ -1,5 +1,6 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, type RefObject } from "react";
 import { closeCodeEditorSearchPanel } from "@/shared/lib/codeEditorSearch";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export function useEditorOverlayEscape(
   overlayRef: RefObject<HTMLElement | null>,
@@ -7,8 +8,7 @@ export function useEditorOverlayEscape(
   enabled = true,
   active = true,
 ): void {
-  const onEscapeRef = useRef(onEscape);
-  onEscapeRef.current = onEscape;
+  const onEscapeRef = useLatestRef(onEscape);
 
   useEffect(() => {
     if (!active) return;
@@ -30,5 +30,5 @@ export function useEditorOverlayEscape(
 
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [active, enabled, overlayRef]);
+  }, [active, enabled, onEscapeRef, overlayRef]);
 }

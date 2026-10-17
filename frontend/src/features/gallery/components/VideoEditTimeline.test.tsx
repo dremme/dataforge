@@ -18,11 +18,11 @@ function renderTimeline(overrides: Partial<Props> = {}) {
     muted: true,
     ready: true,
     disabled: false,
-    onTrimStartChange: vi.fn(),
-    onTrimEndChange: vi.fn(),
-    onSeek: vi.fn(),
-    onTogglePlay: vi.fn(),
-    onToggleMuted: vi.fn(),
+    onTrimStartChange: vi.fn<(seconds: number) => void>(),
+    onTrimEndChange: vi.fn<(seconds: number) => void>(),
+    onSeek: vi.fn<(seconds: number) => void>(),
+    onTogglePlay: vi.fn<() => void>(),
+    onToggleMuted: vi.fn<() => void>(),
     ...overrides,
   };
 
@@ -43,10 +43,14 @@ class PointerEventPolyfill extends MouseEvent {
 beforeEach(() => {
   vi.stubGlobal("PointerEvent", PointerEventPolyfill);
   const captured = new Set<Element>();
-  Element.prototype.setPointerCapture = vi.fn(function (this: Element) {
+  Element.prototype.setPointerCapture = vi.fn<(pointerId: number) => void>(function (
+    this: Element,
+  ) {
     captured.add(this);
   });
-  Element.prototype.hasPointerCapture = vi.fn(function (this: Element) {
+  Element.prototype.hasPointerCapture = vi.fn<(pointerId: number) => boolean>(function (
+    this: Element,
+  ) {
     return captured.has(this);
   });
 });
@@ -73,7 +77,7 @@ describe("VideoEditTimeline", () => {
     // Focus is what exempts the handle from the modal's next/prev arrows. Without it a
     // nudge moves to the next gallery item instead of the trim point.
     renderTimeline();
-    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.setPointerCapture = vi.fn<(pointerId: number) => void>();
 
     fireEvent.pointerDown(startHandle(), { pointerId: 1, clientX: 100 });
 

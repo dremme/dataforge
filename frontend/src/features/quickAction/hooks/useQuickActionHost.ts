@@ -93,6 +93,7 @@ export function useQuickActionHost({
   useEffect(() => {
     if (!open) return;
 
+    // oxlint-disable-next-line react-hooks/set-state-in-effect -- reads storage on open
     setRecentFolderPaths(readRecentFolderPaths());
     setRecentActionIds(readRecentActionIds());
   }, [open]);

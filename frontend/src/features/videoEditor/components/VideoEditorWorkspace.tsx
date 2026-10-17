@@ -128,6 +128,8 @@ import { Splitter } from "./Splitter";
 import { Timeline, TIMELINE_ORIGIN_PX, TRACK_HEADER_PX, type TimelineTool } from "./Timeline";
 import { VersionsDialog } from "./VersionsDialog";
 import { MAX_PX_PER_SECOND, MIN_PX_PER_SECOND, TimelineToolbar } from "./TimelineToolbar";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 interface VideoEditorWorkspaceProps {
   request: VideoEditorRequest;
@@ -191,10 +193,14 @@ export function VideoEditorWorkspace({
   const [document, setDocument] = useState<VideoProjectDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let live = true;
+  const kindChanged = useChanged(request.kind);
+  const pathChanged = useChanged(request.path);
+  if (kindChanged || pathChanged) {
     setDocument(null);
     setError(null);
+  }
+  useEffect(() => {
+    let live = true;
     const load = { video: startVideoProject, project: openVideoProject, new: newVideoProject }[
       request.kind
     ];
@@ -361,22 +367,16 @@ function EditorSession({
   }, [project.clips, state.sources]);
   const selectedClips = project.clips.filter((clip) => selection.has(clip.id));
   // Read by edits that wait on the server, so they act on the latest project and selection.
-  const projectRef = useRef(project);
-  projectRef.current = project;
-  const selectedClipsRef = useRef(selectedClips);
-  selectedClipsRef.current = selectedClips;
+  const projectRef = useLatestRef(project);
+  const selectedClipsRef = useLatestRef(selectedClips);
   // Undo and redo can take away what is chosen; a choice never names a clip that is gone.
-  useEffect(() => {
-    const ids = new Set(project.clips.map((clip) => clip.id));
-    setSelectionState((current) =>
-      [...current].every((id) => ids.has(id))
-        ? current
-        : new Set([...current].filter((id) => ids.has(id))),
-    );
-    setTransitionId((current) =>
-      current && project.transitions.some((item) => item.id === current) ? current : null,
-    );
-  }, [project.clips, project.transitions]);
+  const clipIds = useMemo(() => new Set(project.clips.map((clip) => clip.id)), [project.clips]);
+  if ([...selection].some((id) => !clipIds.has(id))) {
+    setSelectionState(new Set([...selection].filter((id) => clipIds.has(id))));
+  }
+  if (transitionId && !project.transitions.some((item) => item.id === transitionId)) {
+    setTransitionId(null);
+  }
   const duration = projectDuration(project);
 
   useEffect(() => () => engine.dispose(), [engine]);
@@ -623,7 +623,16 @@ function EditorSession({
         setBusy(false);
       }
     },
-    [apply, engine, noteSource, setSelection, sourceItem, sourceRange],
+    [
+      apply,
+      engine,
+      noteSource,
+      projectRef,
+      selectedClipsRef,
+      setSelection,
+      sourceItem,
+      sourceRange,
+    ],
   );
 
   const addSource = useCallback(
@@ -693,7 +702,7 @@ function EditorSession({
         });
       }
     },
-    [apply, locations, project],
+    [apply, locations, project, projectRef],
   );
 
   /** Saves what is owed; when that fails, asks the user and resolves false. */
@@ -708,8 +717,7 @@ function EditorSession({
   }, [confirmLeave, onExit]);
   // Back, Forward or any other way out saves first; a failed save asks before going. A reload
   // or a closed tab cannot wait for a save, so the browser asks while one is owed.
-  const owesSaveRef = useRef(false);
-  owesSaveRef.current = state.saveState !== "new" && state.saveState !== "saved";
+  const owesSaveRef = useLatestRef(state.saveState !== "new" && state.saveState !== "saved");
   useBlocker({
     shouldBlockFn: async ({ next }) => next.routeId !== EDITOR_ROUTE && !(await confirmLeave()),
     enableBeforeUnload: () => owesSaveRef.current,
@@ -895,8 +903,7 @@ function EditorSession({
 
   // Keys reach the editor only outside form controls and while none of its dialogs is open.
   // Undo and redo also reach it from sliders and the like, which have no history of their own.
-  const keysRef = useRef<(event: KeyboardEvent) => void>(() => undefined);
-  keysRef.current = (event: KeyboardEvent) => {
+  const keysRef = useLatestRef((event: KeyboardEvent) => {
     if (dialogOpen || menuOpen || event.defaultPrevented) return;
     const run = (action: () => void) => {
       event.preventDefault();
@@ -988,13 +995,13 @@ function EditorSession({
       run(() => copySelection(true));
     else if (matchesShortcut(event, SHORTCUTS.editorPasteAttributes)) run(openPasteAttributes);
     else if (matchesShortcut(event, SHORTCUTS.editorPaste)) run(() => void paste());
-  };
+  });
   // A layout effect, so a key pressed as the editor first shows is never dropped.
   useLayoutEffect(() => {
     const onKey = (event: KeyboardEvent) => keysRef.current(event);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [keysRef]);
 
   const myExports = exports.filter(
     (item) =>

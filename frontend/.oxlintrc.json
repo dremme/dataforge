@@ -35,12 +35,6 @@
     ],
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "warn",
-    "react/refs": "off",
-    "react/set-state-in-effect": "off",
-    "react/preserve-manual-memoization": "off",
-    "react/immutability": "off",
-    "react/incompatible-library": "off",
-    "react/globals": "off",
     "react/only-export-components": [
       "warn",
       {
@@ -65,7 +59,6 @@
       "files": ["**/*.test.{ts,tsx}", "src/test/**/*.{ts,tsx}"],
       "plugins": ["vitest"],
       "rules": {
-        "vitest/require-mock-type-parameters": "off",
         "vitest/no-commented-out-tests": "error",
         "vitest/no-identical-title": "error",
         "vitest/no-import-node-test": "error",

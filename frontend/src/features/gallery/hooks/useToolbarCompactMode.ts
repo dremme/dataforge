@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useLayoutEffect, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import {
   COLLAPSIBLE_LABEL_CLASS,
@@ -6,6 +6,7 @@ import {
   toolbarNeedsCompact,
   type ToolbarRowWidths,
 } from "@/features/gallery/lib/toolbarCompact";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 function px(value: string): number {
   return parseFloat(value) || 0;
@@ -66,8 +67,7 @@ function measureToolbarRow(toolbar: HTMLElement, round: RoundSaving): ToolbarRow
 /** Whether the folder actions should drop their labels so the toolbar keeps to one row. */
 export function useToolbarCompactMode(toolbarRef: RefObject<HTMLElement | null>): boolean {
   const [compact, setCompact] = useState(false);
-  const compactRef = useRef(compact);
-  compactRef.current = compact;
+  const compactRef = useLatestRef(compact);
 
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
@@ -115,7 +115,7 @@ export function useToolbarCompactMode(toolbarRef: RefObject<HTMLElement | null>)
       resizes.disconnect();
       mutations.disconnect();
     };
-  }, [toolbarRef]);
+  }, [compactRef, toolbarRef]);
 
   return compact;
 }

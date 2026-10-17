@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { installThumbnailIntersections } from "@/test/thumbnailIntersections";
 import { ThumbnailVisibility } from "./thumbnailVisibility";
+import type { GalleryMediaZones } from "@/features/gallery/lib/scrollRoot";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -10,7 +11,7 @@ afterEach(() => {
 it("cancels pending layout measurements on disposal", () => {
   vi.useFakeTimers();
   const visibility = new ThumbnailVisibility();
-  const listener = vi.fn();
+  const listener = vi.fn<(zones: GalleryMediaZones) => void>();
   visibility.observe(document.createElement("div"), null, listener);
   listener.mockClear();
   visibility.dispose();
@@ -46,7 +47,7 @@ it("updates visible priority when a prefetched card enters the viewport", () => 
   let top = 900;
   vi.spyOn(root, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, 0, 800, 600));
   vi.spyOn(card, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, top, 200, 200));
-  const listener = vi.fn();
+  const listener = vi.fn<(zones: GalleryMediaZones) => void>();
   const release = visibility.observe(card, root, listener);
   expect(listener).toHaveBeenLastCalledWith({
     shouldLoad: true,
@@ -66,7 +67,7 @@ it("updates visible priority when a prefetched card enters the viewport", () => 
 
 it("trusts the observer for a card the layout has not measured yet", () => {
   const visibility = new ThumbnailVisibility();
-  const listener = vi.fn();
+  const listener = vi.fn<(zones: GalleryMediaZones) => void>();
   const release = visibility.observe(document.createElement("div"), null, listener);
   expect(listener).toHaveBeenNthCalledWith(1, {
     shouldLoad: false,
@@ -88,7 +89,7 @@ it("ignores repeat syncs that leave the zones unchanged", async () => {
   const card = document.createElement("div");
   vi.spyOn(root, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, 0, 800, 600));
   vi.spyOn(card, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, 100, 200, 200));
-  const listener = vi.fn();
+  const listener = vi.fn<(zones: GalleryMediaZones) => void>();
   const release = visibility.observe(card, root, listener);
   expect(listener).toHaveBeenCalledTimes(1);
   await new Promise((resolve) => requestAnimationFrame(resolve));

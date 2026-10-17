@@ -4,6 +4,8 @@ import { pathBaseName } from "@/features/gallery/lib/mediaActionMessages";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { GalleryItem } from "@/shared/types";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 export interface UseGifToMp4Options {
   item: GalleryItem | undefined;
@@ -22,8 +24,7 @@ export function useGifToMp4(options: UseGifToMp4Options): GifToMp4Conversion {
   const notify = useNotify();
 
   // Ref so callbacks stay dependency-free; a conversion outliving a swap keeps its values.
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const optionsRef = useLatestRef(options);
 
   const mountedRef = useRef(true);
   const [converting, setConverting] = useState(false);
@@ -41,10 +42,11 @@ export function useGifToMp4(options: UseGifToMp4Options): GifToMp4Conversion {
   }, []);
 
   // Prompt belongs to the item that raised it; a conversion in flight runs its own finally.
+  const itemPath = options.item?.path;
+  if (useChanged(itemPath)) setConflict(null);
   useEffect(() => {
     conflictSourceRef.current = null;
-    setConflict(null);
-  }, [options.item?.path]);
+  }, [itemPath]);
 
   const start = useCallback(
     (sourcePath: string, overwrite: boolean) => {
@@ -83,7 +85,7 @@ export function useGifToMp4(options: UseGifToMp4Options): GifToMp4Conversion {
         }
       })();
     },
-    [notify],
+    [notify, optionsRef],
   );
 
   const convert = useCallback(() => {
@@ -91,7 +93,7 @@ export function useGifToMp4(options: UseGifToMp4Options): GifToMp4Conversion {
     if (!current) return;
 
     start(current.path, false);
-  }, [start]);
+  }, [optionsRef, start]);
 
   const confirmOverwrite = useCallback(() => {
     const sourcePath = conflictSourceRef.current;

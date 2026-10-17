@@ -6,9 +6,15 @@ import { CreateFolderDialog } from "./CreateFolderDialog";
 describe("CreateFolderDialog", () => {
   it("submits the trimmed folder name", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
+    const onConfirm = vi.fn<(name: string) => void>();
 
-    render(<CreateFolderDialog parentLabel="Photos" onConfirm={onConfirm} onCancel={vi.fn()} />);
+    render(
+      <CreateFolderDialog
+        parentLabel="Photos"
+        onConfirm={onConfirm}
+        onCancel={vi.fn<() => void>()}
+      />,
+    );
 
     await user.type(screen.getByLabelText("Folder name"), "  Landscapes  ");
     await user.click(screen.getByRole("button", { name: "Create folder" }));
@@ -21,8 +27,8 @@ describe("CreateFolderDialog", () => {
       <CreateFolderDialog
         parentLabel="Photos"
         error="Folder already exists"
-        onConfirm={vi.fn()}
-        onCancel={vi.fn()}
+        onConfirm={vi.fn<(name: string) => void>()}
+        onCancel={vi.fn<() => void>()}
       />,
     );
 
@@ -32,7 +38,13 @@ describe("CreateFolderDialog", () => {
   it("disables submit until a name is entered", async () => {
     const user = userEvent.setup();
 
-    render(<CreateFolderDialog parentLabel="Photos" onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    render(
+      <CreateFolderDialog
+        parentLabel="Photos"
+        onConfirm={vi.fn<(name: string) => void>()}
+        onCancel={vi.fn<() => void>()}
+      />,
+    );
 
     expect(screen.getByRole("button", { name: "Create folder" })).toBeDisabled();
 

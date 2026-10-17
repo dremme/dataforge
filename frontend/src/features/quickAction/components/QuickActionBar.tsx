@@ -65,6 +65,14 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
   }, [items, query, recentItems]);
 
   const rows = useMemo(() => flattenGroups(groups), [groups]);
+  // Where each group's items start in `rows`, so a row's option id matches its flat index.
+  const groupOffsets = useMemo(
+    () =>
+      groups.map((_, index) =>
+        groups.slice(0, index).reduce((sum, group) => sum + group.items.length, 0),
+      ),
+    [groups],
+  );
   const selectable = useMemo(() => rows.filter((item) => !item.disabled), [rows]);
 
   // Track by id so a jobs refresh cannot leave the highlight on whichever row slid into its slot.
@@ -146,8 +154,6 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
     }
   };
 
-  let rowIndex = -1;
-
   return (
     <ModalShell
       block="quick-action"
@@ -184,14 +190,14 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
         role="listbox"
         aria-label="Quick action results"
       >
-        {groups.map((group) => (
+        {groups.map((group, groupIndex) => (
           <div key={group.id} className="quick-action__group" role="group" aria-label={group.label}>
             <div className="quick-action__group-label" aria-hidden="true">
               {group.label}
             </div>
 
-            {group.items.map((item) => {
-              rowIndex += 1;
+            {group.items.map((item, itemIndex) => {
+              const rowIndex = groupOffsets[groupIndex] + itemIndex;
               const isActive = item === active;
 
               return (

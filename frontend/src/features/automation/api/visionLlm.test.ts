@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchVisionModelId } from "./visionLlm";
 
-const requestJsonMock = vi.fn();
+const requestJsonMock = vi.fn<(...args: unknown[]) => unknown>();
 
 vi.mock("@/shared/api/http", () => ({
   requestJson: (...args: unknown[]) => requestJsonMock(...args),

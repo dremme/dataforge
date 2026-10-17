@@ -28,8 +28,8 @@ function makeSamples(count: number): OstrisTrainingSample[] {
 }
 
 function renderModal(overrides: { index?: number; count?: number } = {}) {
-  const onIndexChange = vi.fn();
-  const onClose = vi.fn();
+  const onIndexChange = vi.fn<(index: number) => void>();
+  const onClose = vi.fn<() => void>();
 
   const { unmount } = render(
     <TrainingSampleModal
@@ -70,8 +70,8 @@ describe("TrainingSampleModal", () => {
       <TrainingSampleModal
         samples={[makeSample(1, "mp4")]}
         index={0}
-        onIndexChange={vi.fn()}
-        onClose={vi.fn()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onClose={vi.fn<() => void>()}
       />,
     );
 
@@ -89,13 +89,13 @@ describe("TrainingSampleModal", () => {
 
   it("keeps stills as images when navigating onto a video neighbour", async () => {
     const user = userEvent.setup();
-    const onIndexChange = vi.fn();
+    const onIndexChange = vi.fn<(index: number) => void>();
     const { unmount } = render(
       <TrainingSampleModal
         samples={[makeSample(0, "jpg"), makeSample(1, "mp4")]}
         index={0}
         onIndexChange={onIndexChange}
-        onClose={vi.fn()}
+        onClose={vi.fn<() => void>()}
       />,
     );
 

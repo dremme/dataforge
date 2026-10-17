@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { installThumbnailImages } from "@/test/thumbnailImages";
@@ -37,7 +38,10 @@ it("releases in-flight loads, retry timers and observers when it unmounts", () =
   const intersections = installThumbnailIntersections();
   let runtime: ReturnType<typeof useThumbnailRuntime> | undefined;
   function Probe() {
-    runtime = useThumbnailRuntime();
+    const value = useThumbnailRuntime();
+    useEffect(() => {
+      runtime = value;
+    });
     return <div />;
   }
   const { container, unmount } = render(

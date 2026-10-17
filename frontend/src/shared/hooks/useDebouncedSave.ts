@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStaleRequest } from "./useStaleRequest";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export type SaveState = "idle" | "pending" | "saving" | "saved" | "error";
 
@@ -30,11 +31,9 @@ export function useDebouncedSave<T>({
   const pendingSaveRef = useRef<T | null>(null);
   const failedSaveRef = useRef<T | null>(null);
   const inFlightRef = useRef<Promise<boolean> | null>(null);
-  const saveRef = useRef(save);
-  const isUnchangedRef = useRef(isUnchanged);
 
-  saveRef.current = save;
-  isUnchangedRef.current = isUnchanged;
+  const saveRef = useLatestRef(save);
+  const isUnchangedRef = useLatestRef(isUnchanged);
 
   const clearFeedbackTimer = useCallback(() => {
     if (feedbackTimerRef.current) {
@@ -94,7 +93,7 @@ export function useDebouncedSave<T>({
       });
       return request;
     },
-    [clearFeedbackTimer, errorMessage, isCurrent, next, showError, showSaved],
+    [clearFeedbackTimer, errorMessage, isCurrent, next, saveRef, showError, showSaved],
   );
 
   const flushPendingSave = useCallback(() => {
@@ -116,7 +115,7 @@ export function useDebouncedSave<T>({
 
     pendingSaveRef.current = null;
     return persist(pending);
-  }, [persist]);
+  }, [isUnchangedRef, persist]);
 
   const scheduleSave = useCallback(
     (payload: T) => {
@@ -144,7 +143,7 @@ export function useDebouncedSave<T>({
         void persist(payload);
       }, debounceMs);
     },
-    [clearFeedbackTimer, debounceMs, persist],
+    [clearFeedbackTimer, debounceMs, isUnchangedRef, persist],
   );
 
   /** Re-sends the payload whose save failed. No-op once anything else has been scheduled. */
@@ -177,18 +176,21 @@ export function useDebouncedSave<T>({
     setSaveError(null);
   }, [invalidateInFlight]);
 
-  const hasUnsavedChanges = useCallback((current: T) => {
-    const pending = pendingSaveRef.current;
-    const baseline = lastSavedRef.current;
+  const hasUnsavedChanges = useCallback(
+    (current: T) => {
+      const pending = pendingSaveRef.current;
+      const baseline = lastSavedRef.current;
 
-    if (pending !== null) {
-      if (baseline === null) return true;
-      return !isUnchangedRef.current(pending, baseline);
-    }
+      if (pending !== null) {
+        if (baseline === null) return true;
+        return !isUnchangedRef.current(pending, baseline);
+      }
 
-    if (baseline === null) return false;
-    return !isUnchangedRef.current(current, baseline);
-  }, []);
+      if (baseline === null) return false;
+      return !isUnchangedRef.current(current, baseline);
+    },
+    [isUnchangedRef],
+  );
 
   useEffect(() => {
     return () => {

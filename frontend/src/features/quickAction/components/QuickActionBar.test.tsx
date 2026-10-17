@@ -17,13 +17,13 @@ function makeItem(
     section: "commands",
     label,
     icon: iconFolder,
-    run: vi.fn(),
+    run: vi.fn<() => void>(),
     ...overrides,
   };
 }
 
 function renderBar(overrides: Partial<Parameters<typeof QuickActionBar>[0]> = {}) {
-  const onClose = vi.fn();
+  const onClose = vi.fn<() => void>();
   const items = overrides.items ?? [
     makeItem("cmd:alpha", "Alpha"),
     makeItem("cmd:beta", "Beta"),
@@ -113,7 +113,7 @@ describe("QuickActionBar", () => {
     const user = userEvent.setup();
     const order: string[] = [];
     const beta = makeItem("cmd:beta", "Beta", { run: () => order.push("run") });
-    const onClose = vi.fn(() => order.push("close"));
+    const onClose = vi.fn<() => number>(() => order.push("close"));
 
     render(<QuickActionBar items={[beta]} recentItems={[beta]} onClose={onClose} />);
 
@@ -133,9 +133,9 @@ describe("QuickActionBar", () => {
 
   it("records nothing and stays open for a disabled row", async () => {
     const user = userEvent.setup();
-    const run = vi.fn();
+    const run = vi.fn<() => void>();
     const item = makeItem("cmd:alpha", "Alpha", { disabled: true, run });
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
 
     render(<QuickActionBar items={[item]} recentItems={[item]} onClose={onClose} />);
     await user.keyboard("{Enter}");

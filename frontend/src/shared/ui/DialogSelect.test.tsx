@@ -10,7 +10,7 @@ const OPTIONS = [
 
 /** jsdom has no `showPicker`, so the picker is a stub hung off the rendered select. */
 function renderSelect(props: Partial<Parameters<typeof DialogSelect<string>>[0]> = {}) {
-  const onChange = vi.fn();
+  const onChange = vi.fn<(value: string) => void>();
   const { container } = render(
     <DialogSelect
       label="Workflow"
@@ -22,7 +22,7 @@ function renderSelect(props: Partial<Parameters<typeof DialogSelect<string>>[0]>
   );
 
   const select = screen.getByRole("combobox", { name: "Workflow" }) as HTMLSelectElement;
-  const showPicker = vi.fn();
+  const showPicker = vi.fn<() => void>();
   select.showPicker = showPicker;
 
   return {

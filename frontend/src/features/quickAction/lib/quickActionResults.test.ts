@@ -35,7 +35,7 @@ function item(
     section: "commands" as QuickActionSection,
     label,
     icon: iconFolder,
-    run: vi.fn(),
+    run: vi.fn<() => void>(),
     ...overrides,
   };
 }

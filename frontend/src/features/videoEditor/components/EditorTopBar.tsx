@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   iconArrowLeft,
   iconCircleCheck,
@@ -26,6 +26,7 @@ import { Tooltip } from "@/shared/ui/Tooltip";
 import type { VideoProjectExportState } from "@/shared/types";
 import type { VideoProjectState } from "@/features/videoEditor/hooks/useVideoProject";
 import { ToolButton } from "./ToolButton";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 interface EditorTopBarProps {
   state: VideoProjectState;
@@ -164,7 +165,9 @@ export function EditorTopBar({
 function ProjectName({ state }: { state: VideoProjectState }) {
   const { project } = state;
   const [name, setName] = useState(project.name);
-  useEffect(() => setName(project.name), [project.name]);
+  if (useChanged(project.name)) {
+    setName(project.name);
+  }
   return (
     <input
       className="video-editor__name"

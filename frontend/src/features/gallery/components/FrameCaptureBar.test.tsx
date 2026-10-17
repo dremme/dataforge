@@ -19,9 +19,9 @@ function renderTimeBar(overrides: Partial<Parameters<typeof FrameCaptureBar>[0]>
     currentLabel: formatFrameTime(value),
     totalLabel: formatFrameTime(duration),
     hint: "Frame times load with the video.",
-    onValueChange: vi.fn(),
-    onStepFrame: vi.fn(),
-    onSave: vi.fn(),
+    onValueChange: vi.fn<(value: number) => void>(),
+    onStepFrame: vi.fn<(direction: -1 | 1) => void>(),
+    onSave: vi.fn<() => void>(),
     ...overrides,
   };
 
@@ -42,9 +42,9 @@ function renderIndexBar(overrides: Partial<Parameters<typeof FrameCaptureBar>[0]
     currentLabel: "7",
     totalLabel: "24",
     hint: "Frame count loads with the GIF.",
-    onValueChange: vi.fn(),
-    onStepFrame: vi.fn(),
-    onSave: vi.fn(),
+    onValueChange: vi.fn<(value: number) => void>(),
+    onStepFrame: vi.fn<(direction: -1 | 1) => void>(),
+    onSave: vi.fn<() => void>(),
     ...overrides,
   };
 

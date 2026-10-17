@@ -4,7 +4,7 @@ import { MarkdownEditor } from "./MarkdownEditor";
 
 describe("MarkdownEditor", () => {
   it("preserves the caret when only non-value props change", () => {
-    const onChange = vi.fn();
+    const onChange = vi.fn<(value: string) => void>();
     const { rerender } = render(
       <MarkdownEditor value="Hello world" aria-label="Prompt" onChange={onChange} />,
     );
@@ -28,7 +28,7 @@ describe("MarkdownEditor", () => {
   });
 
   it("does not restore a stale caret after save feedback while the user repositions", () => {
-    const onChange = vi.fn();
+    const onChange = vi.fn<(value: string) => void>();
     const { rerender } = render(
       <MarkdownEditor value="Hello world" aria-label="Prompt" onChange={onChange} />,
     );

@@ -9,6 +9,7 @@ import { folderLeafName } from "@/features/folder/lib/folderPath";
 import { failureMessage } from "@/features/gallery/lib/mediaActionMessages";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export type MediaTransferPrompt = {
   mode: MediaTransferMode;
@@ -39,8 +40,7 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
   const notify = useNotify();
 
   // Ref so callbacks stay dependency-free; a flow outliving a swap keeps its starting values.
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const optionsRef = useLatestRef(options);
 
   const [transferPicker, setTransferPicker] = useState<MediaTransferMode | null>(null);
   const [overwritePrompt, setOverwritePrompt] = useState<MediaTransferPrompt | null>(null);
@@ -57,10 +57,13 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
     setTransferring(null);
   }, []);
 
-  const openTransferPicker = useCallback((mode: MediaTransferMode) => {
-    if (transferringRef.current || optionsRef.current.paths.length === 0) return;
-    setTransferPicker(mode);
-  }, []);
+  const openTransferPicker = useCallback(
+    (mode: MediaTransferMode) => {
+      if (transferringRef.current || optionsRef.current.paths.length === 0) return;
+      setTransferPicker(mode);
+    },
+    [optionsRef],
+  );
 
   const closeTransferPicker = useCallback(() => {
     if (transferringRef.current) return;
@@ -108,7 +111,7 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
         notify({ variant: "success", message });
       }
     },
-    [notify],
+    [notify, optionsRef],
   );
 
   const selectDestination = useCallback(
@@ -150,7 +153,7 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
         }
       })();
     },
-    [beginTransfer, endTransfer, executeTransfer, notify],
+    [beginTransfer, endTransfer, executeTransfer, notify, optionsRef],
   );
 
   const confirmOverwrite = useCallback(

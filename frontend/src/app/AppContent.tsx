@@ -94,6 +94,8 @@ export function AppContent() {
   useEffect(() => {
     if (!pendingOpen) return;
     if (query.filteredItems.some((item) => item.path === pendingOpen)) {
+      // Opening may start a workspace transition, so it waits for the commit.
+      // oxlint-disable-next-line react-hooks/set-state-in-effect -- paired with the open
       setPendingOpen(null);
       openItem(pendingOpen);
       return;

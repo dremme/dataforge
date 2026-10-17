@@ -8,7 +8,7 @@ import { HOME_PATH, mediaItem } from "@/test/fixtures";
 import { useCandidateReviewOverlay } from "./useCandidateReviewOverlay";
 
 vi.mock("@/features/folder/api/folderContents", () => ({
-  fetchFolder: vi.fn(),
+  fetchFolder: vi.fn<typeof fetchFolder>(),
 }));
 
 const fetchFolderMock = vi.mocked(fetchFolder);
@@ -34,7 +34,7 @@ describe("useCandidateReviewOverlay", () => {
   });
 
   it("tells the caller each time the modal settles a candidate", () => {
-    const onResolved = vi.fn();
+    const onResolved = vi.fn<() => void>();
     const { result } = renderHook(() => useCandidateReviewOverlay(onResolved), { wrapper });
 
     act(() => result.current.overlay.onResolved());
@@ -121,7 +121,7 @@ describe("useCandidateReviewOverlay", () => {
   });
 
   it("refreshes the folder on close, not after every decision", async () => {
-    const onResolved = vi.fn();
+    const onResolved = vi.fn<() => void>();
     fetchFolderMock.mockResolvedValue(stagingListing([mediaItem("a.png", STAGING_PATH)]));
 
     const { result } = renderHook(() => useCandidateReviewOverlay(onResolved), { wrapper });
@@ -172,7 +172,7 @@ describe("useCandidateReviewOverlay", () => {
       await act(async () => {
         await result.current.openCandidateReview(HOME_PATH, [lake, ridge], {
           path: ridge.path,
-          onOpen: vi.fn(),
+          onOpen: vi.fn<() => void>(),
         });
       });
 
@@ -181,7 +181,7 @@ describe("useCandidateReviewOverlay", () => {
 
     it("hands over only once the queue is ready, so a failed listing leaves the file open", async () => {
       fetchFolderMock.mockRejectedValue(new Error("Disk on fire"));
-      const onOpen = vi.fn();
+      const onOpen = vi.fn<() => void>();
       const { result } = renderHook(() => useCandidateReviewOverlay(), { wrapper });
 
       await act(async () => {
@@ -194,7 +194,7 @@ describe("useCandidateReviewOverlay", () => {
 
     it("says so when that file's candidate is already gone", async () => {
       fetchFolderMock.mockResolvedValue(stagingListing([mediaItem("ridge.png", STAGING_PATH)]));
-      const onOpen = vi.fn();
+      const onOpen = vi.fn<() => void>();
       const { result } = renderHook(() => useCandidateReviewOverlay(), { wrapper });
 
       await act(async () => {
@@ -210,7 +210,7 @@ describe("useCandidateReviewOverlay", () => {
     });
 
     it("returns to the file on close", async () => {
-      const onReturnToItem = vi.fn();
+      const onReturnToItem = vi.fn<(path: string) => void>();
       const { result } = renderHook(() => useCandidateReviewOverlay(vi.fn(), onReturnToItem), {
         wrapper,
       });
@@ -218,7 +218,7 @@ describe("useCandidateReviewOverlay", () => {
       await act(async () => {
         await result.current.openCandidateReview(HOME_PATH, [lake], {
           path: lake.path,
-          onOpen: vi.fn(),
+          onOpen: vi.fn<() => void>(),
         });
       });
       act(() => result.current.closeCandidateReview());
@@ -227,7 +227,7 @@ describe("useCandidateReviewOverlay", () => {
     });
 
     it("does not return anywhere after a folder-wide review", async () => {
-      const onReturnToItem = vi.fn();
+      const onReturnToItem = vi.fn<(path: string) => void>();
       const { result } = renderHook(() => useCandidateReviewOverlay(vi.fn(), onReturnToItem), {
         wrapper,
       });

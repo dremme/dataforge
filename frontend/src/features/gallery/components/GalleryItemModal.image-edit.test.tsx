@@ -7,7 +7,7 @@ import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { stubImageElement } from "@/test/imageElement";
 import { stubVideoElement } from "@/test/videoElement";
-import type { GalleryItem, ImageEditResponse } from "@/shared/types";
+import type { CaptionSaveResponse, GalleryItem, ImageEditResponse } from "@/shared/types";
 import type * as imageEditApi from "@/features/gallery/api/imageEdit";
 import {
   applyImageEdit,
@@ -28,9 +28,9 @@ vi.mock("@/features/gallery/api/imageEdit", async (importOriginal) => {
   const actual = await importOriginal<typeof imageEditApi>();
   return {
     ...actual,
-    fetchImageEditState: vi.fn(),
-    applyImageEdit: vi.fn(),
-    revertImageEdit: vi.fn(),
+    fetchImageEditState: vi.fn<typeof fetchImageEditState>(),
+    applyImageEdit: vi.fn<typeof applyImageEdit>(),
+    revertImageEdit: vi.fn<typeof revertImageEdit>(),
   };
 });
 
@@ -76,11 +76,11 @@ describe("GalleryItemModal", () => {
         items: [item],
         index: 0,
         currentFolder: HOME_PATH,
-        onClose: vi.fn(),
-        onPrevious: vi.fn(),
-        onNext: vi.fn(),
-        onCaptionSaved: vi.fn(),
-        onCopied: vi.fn(),
+        onClose: vi.fn<() => void>(),
+        onPrevious: vi.fn<() => void>(),
+        onNext: vi.fn<() => void>(),
+        onCaptionSaved: vi.fn<(path: string, update: CaptionSaveResponse) => void>(),
+        onCopied: vi.fn<() => void | Promise<void>>(),
         ...overrides,
       };
 
@@ -248,7 +248,7 @@ describe("GalleryItemModal", () => {
     describe("beside the gallery", () => {
       it("expands only for the edit, without changing the saved viewing layout", async () => {
         const user = userEvent.setup();
-        const onFocusViewChange = vi.fn();
+        const onFocusViewChange = vi.fn<(focus: boolean) => void>();
         renderModal(imageItem(), { focusView: false, onFocusViewChange });
         const docked = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
 
@@ -267,10 +267,10 @@ describe("GalleryItemModal", () => {
 
       it("reports covering the gallery while the edit expands it, so thumbnails can pause", async () => {
         const user = userEvent.setup();
-        const onEditExpandedChange = vi.fn();
+        const onEditExpandedChange = vi.fn<(expanded: boolean) => void>();
         renderModal(imageItem(), {
           focusView: false,
-          onFocusViewChange: vi.fn(),
+          onFocusViewChange: vi.fn<(focus: boolean) => void>(),
           onEditExpandedChange,
         });
         const docked = await screen.findByRole("complementary", { name: "Viewing sunset.png" });

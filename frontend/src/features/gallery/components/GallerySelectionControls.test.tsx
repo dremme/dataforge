@@ -14,14 +14,19 @@ import { withGallerySelection, withGallerySelectionActions } from "@/test/galler
 import type { GallerySelectionValue } from "@/features/gallery/context/GallerySelectionContext";
 import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import { GallerySelectionControls } from "./GallerySelectionControls";
+import type {
+  deleteSelectedMedia,
+  previewMediaTransfer,
+  transferSelectedMedia,
+} from "@/features/gallery/api/media";
 
 vi.mock("@/features/gallery/api/media", async (importOriginal) => {
   const actual = await importOriginal<typeof mediaApi>();
   return {
     ...actual,
-    deleteSelectedMedia: vi.fn(),
-    transferSelectedMedia: vi.fn(),
-    previewMediaTransfer: vi.fn(),
+    deleteSelectedMedia: vi.fn<typeof deleteSelectedMedia>(),
+    transferSelectedMedia: vi.fn<typeof transferSelectedMedia>(),
+    previewMediaTransfer: vi.fn<typeof previewMediaTransfer>(),
   };
 });
 
@@ -91,7 +96,7 @@ describe("GallerySelectionControls", () => {
 
   it("enters selection mode from the idle state", async () => {
     const user = userEvent.setup();
-    const onEnterSelectionMode = vi.fn();
+    const onEnterSelectionMode = vi.fn<() => void>();
 
     renderControls({
       selectionMode: false,
@@ -135,7 +140,7 @@ describe("GallerySelectionControls", () => {
 
   it("inverts the selection from the header", async () => {
     const user = userEvent.setup();
-    const invertSelectedPaths = vi.fn();
+    const invertSelectedPaths = vi.fn<() => void>();
 
     renderControls({
       invertSelectedPaths,
@@ -166,7 +171,7 @@ describe("GallerySelectionControls", () => {
 
   it("deletes only the selected files the filters leave visible", async () => {
     const user = userEvent.setup();
-    const onDeleted = vi.fn();
+    const onDeleted = vi.fn<(paths: string[]) => void | Promise<void>>();
     const visiblePath = `${HOME_PATH}\\sunset.png`;
     const selectedPaths = new Set([visiblePath, `${HOME_PATH}\\beach.jpg`]);
     const visibleSelectedPaths = new Set([visiblePath]);
@@ -189,8 +194,8 @@ describe("GallerySelectionControls", () => {
 
   it("deletes selected files after confirmation", async () => {
     const user = userEvent.setup();
-    const onDeleted = vi.fn();
-    const exitSelectionMode = vi.fn();
+    const onDeleted = vi.fn<(paths: string[]) => void | Promise<void>>();
+    const exitSelectionMode = vi.fn<() => void>();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
     deleteSelectedMediaMock.mockResolvedValue({
@@ -241,7 +246,7 @@ describe("GallerySelectionControls", () => {
   it("keeps controls disabled with a spinner until deletion and refresh finish", async () => {
     const user = userEvent.setup();
     let resolveDeleted: (() => void) | undefined;
-    const onDeleted = vi.fn(
+    const onDeleted = vi.fn<() => Promise<void>>(
       () =>
         new Promise<void>((resolve) => {
           resolveDeleted = resolve;
@@ -281,7 +286,7 @@ describe("GallerySelectionControls", () => {
   });
 
   it("selects every visible file on Ctrl+A from the idle state", () => {
-    const selectAllPaths = vi.fn();
+    const selectAllPaths = vi.fn<() => void>();
 
     renderControls({
       selectionMode: false,
@@ -300,7 +305,7 @@ describe("GallerySelectionControls", () => {
   });
 
   it("selects every visible file on Ctrl+A while already in selection mode", () => {
-    const selectAllPaths = vi.fn();
+    const selectAllPaths = vi.fn<() => void>();
 
     renderControls({
       selectedPaths: new Set([`${HOME_PATH}\\sunset.png`]),
@@ -318,7 +323,7 @@ describe("GallerySelectionControls", () => {
   });
 
   it("treats Cmd+A the same as Ctrl+A", () => {
-    const selectAllPaths = vi.fn();
+    const selectAllPaths = vi.fn<() => void>();
 
     renderControls({
       selectionMode: false,
@@ -332,7 +337,7 @@ describe("GallerySelectionControls", () => {
   });
 
   it("ignores Ctrl+A entirely while scroll lock is active", () => {
-    const selectAllPaths = vi.fn();
+    const selectAllPaths = vi.fn<() => void>();
     const handle = acquireScrollLock("confirm-dialog-open");
 
     renderControls({
@@ -352,7 +357,7 @@ describe("GallerySelectionControls", () => {
   });
 
   it("leaves Ctrl+A to an editable field", () => {
-    const selectAllPaths = vi.fn();
+    const selectAllPaths = vi.fn<() => void>();
 
     renderControls({
       selectionMode: false,
@@ -380,7 +385,7 @@ describe("GallerySelectionControls", () => {
   });
 
   it("swallows Ctrl+A while a batch action is busy, without changing the selection", () => {
-    const selectAllPaths = vi.fn();
+    const selectAllPaths = vi.fn<() => void>();
 
     renderWithProviders(
       withGallerySelection(<GallerySelectionControls totalCount={2} />, {
@@ -396,8 +401,8 @@ describe("GallerySelectionControls", () => {
   });
 
   it("clears the selection on Escape rather than leaving selection mode", () => {
-    const exitSelectionMode = vi.fn();
-    const clearSelectedPaths = vi.fn();
+    const exitSelectionMode = vi.fn<() => void>();
+    const clearSelectedPaths = vi.fn<() => void>();
 
     renderControls({ exitSelectionMode, clearSelectedPaths });
 
@@ -408,8 +413,8 @@ describe("GallerySelectionControls", () => {
   });
 
   it("exits selection mode on Escape once nothing is selected", () => {
-    const exitSelectionMode = vi.fn();
-    const clearSelectedPaths = vi.fn();
+    const exitSelectionMode = vi.fn<() => void>();
+    const clearSelectedPaths = vi.fn<() => void>();
 
     renderControls({
       selectedPaths: new Set(),
@@ -424,8 +429,8 @@ describe("GallerySelectionControls", () => {
   });
 
   it("ignores Escape entirely while scroll lock is active", () => {
-    const exitSelectionMode = vi.fn();
-    const clearSelectedPaths = vi.fn();
+    const exitSelectionMode = vi.fn<() => void>();
+    const clearSelectedPaths = vi.fn<() => void>();
     const handle = acquireScrollLock("confirm-dialog-open");
 
     renderControls({ exitSelectionMode, clearSelectedPaths });
@@ -439,8 +444,8 @@ describe("GallerySelectionControls", () => {
 
   it("ignores Escape entirely while the delete confirm dialog is open", async () => {
     const user = userEvent.setup();
-    const exitSelectionMode = vi.fn();
-    const clearSelectedPaths = vi.fn();
+    const exitSelectionMode = vi.fn<() => void>();
+    const clearSelectedPaths = vi.fn<() => void>();
 
     renderControls({ exitSelectionMode, clearSelectedPaths });
 
@@ -455,8 +460,8 @@ describe("GallerySelectionControls", () => {
 
   it("moves selected files after choosing a destination folder", async () => {
     const user = userEvent.setup();
-    const onMoved = vi.fn();
-    const exitSelectionMode = vi.fn();
+    const onMoved = vi.fn<(paths: string[]) => void | Promise<void>>();
+    const exitSelectionMode = vi.fn<() => void>();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
     previewMediaTransferMock.mockResolvedValue({
@@ -537,7 +542,7 @@ describe("GallerySelectionControls", () => {
 
   it("reports files the backend could not move", async () => {
     const user = userEvent.setup();
-    const onMoved = vi.fn();
+    const onMoved = vi.fn<(paths: string[]) => void | Promise<void>>();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
     previewMediaTransferMock.mockResolvedValue({
@@ -568,9 +573,9 @@ describe("GallerySelectionControls", () => {
 
   it("copies selected files and keeps them in the current folder", async () => {
     const user = userEvent.setup();
-    const onMoved = vi.fn();
-    const onCopied = vi.fn();
-    const exitSelectionMode = vi.fn();
+    const onMoved = vi.fn<(paths: string[]) => void | Promise<void>>();
+    const onCopied = vi.fn<() => void | Promise<void>>();
+    const exitSelectionMode = vi.fn<() => void>();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
     previewMediaTransferMock.mockResolvedValue({
@@ -720,8 +725,8 @@ describe("GallerySelectionControls", () => {
 
   it("reports files the backend could not delete and keeps selection mode open", async () => {
     const user = userEvent.setup();
-    const onDeleted = vi.fn();
-    const exitSelectionMode = vi.fn();
+    const onDeleted = vi.fn<(paths: string[]) => void | Promise<void>>();
+    const exitSelectionMode = vi.fn<() => void>();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
     deleteSelectedMediaMock.mockResolvedValue({
@@ -833,7 +838,7 @@ describe("GallerySelectionControls", () => {
 
   it("deletes only the filter-visible selection when armed by the Delete key", async () => {
     const user = userEvent.setup();
-    const onDeleted = vi.fn();
+    const onDeleted = vi.fn<(paths: string[]) => void | Promise<void>>();
     const visiblePath = `${HOME_PATH}\\sunset.png`;
     const selectedPaths = new Set([visiblePath, `${HOME_PATH}\\beach.jpg`]);
     const visibleSelectedPaths = new Set([visiblePath]);

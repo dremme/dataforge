@@ -7,16 +7,17 @@ import { makeAdjustControls } from "@/test/colorAdjustControls";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 import type { ColorAdjustControls } from "@/features/gallery/hooks/useColorAdjust";
 import type * as RendererModule from "@/features/gallery/lib/adjustRenderer";
+import type { AdjustedPicture } from "@/features/gallery/lib/adjustedPicture";
 
 const gpu = vi.hoisted(() => ({
-  create: vi.fn(),
+  create: vi.fn<(...args: unknown[]) => unknown>(),
   renderer: {
     hasSource: true,
     floatTargets: true,
-    setSource: vi.fn(),
-    setLut: vi.fn(),
-    render: vi.fn(),
-    dispose: vi.fn(),
+    setSource: vi.fn<RendererModule.AdjustRenderer["setSource"]>(),
+    setLut: vi.fn<RendererModule.AdjustRenderer["setLut"]>(),
+    render: vi.fn<RendererModule.AdjustRenderer["render"]>(),
+    dispose: vi.fn<RendererModule.AdjustRenderer["dispose"]>(),
   },
 }));
 
@@ -36,8 +37,8 @@ function preview(overrides: Partial<ColorAdjustControls> = {}, crop: CropRect = 
     readyState: { value: 2 },
   });
   const controls = makeAdjustControls({ active: true, ...overrides });
-  const onPictureChange = vi.fn();
-  const onShowingChange = vi.fn();
+  const onPictureChange = vi.fn<(picture: AdjustedPicture | null) => void>();
+  const onShowingChange = vi.fn<(showing: boolean) => void>();
   const view = render(
     <StrictMode>
       <AdjustCanvas
@@ -151,7 +152,11 @@ describe("AdjustCanvas", () => {
   it("paints an image that finishes loading after the preview mounted", async () => {
     vi.stubGlobal(
       "createImageBitmap",
-      vi.fn(async () => ({ width: 640, height: 360, close: vi.fn() })),
+      vi.fn<() => Promise<Pick<ImageBitmap, "width" | "height" | "close">>>(async () => ({
+        width: 640,
+        height: 360,
+        close: vi.fn<() => void>(),
+      })),
     );
     const image = document.createElement("img");
     let loaded = false;

@@ -9,8 +9,8 @@ import {
 } from "./useSettleAllCandidates";
 
 vi.mock("@/features/gallery/api/comfyCandidates", () => ({
-  acceptCandidates: vi.fn(),
-  rejectCandidates: vi.fn(),
+  acceptCandidates: vi.fn<typeof acceptCandidates>(),
+  rejectCandidates: vi.fn<typeof rejectCandidates>(),
 }));
 
 const acceptCandidatesMock = vi.mocked(acceptCandidates);
@@ -30,7 +30,10 @@ function batchResult(
 
 type Props = Omit<UseSettleAllCandidatesOptions, "onSettled" | "folderLabel">;
 
-function renderSettleAll(props: Partial<Props> = {}, onSettled = vi.fn()) {
+function renderSettleAll(
+  props: Partial<Props> = {},
+  onSettled = vi.fn<() => void | Promise<void>>(),
+) {
   const initialProps: Props = {
     folderItemCount: 5,
     candidatePaths: [LAKE, RIDGE],
@@ -210,7 +213,7 @@ describe("useSettleAllCandidates", () => {
       order.push("api");
       return batchResult();
     });
-    const onSettled = vi.fn(async () => {
+    const onSettled = vi.fn<() => Promise<void>>(async () => {
       order.push("refreshed");
     });
     const { result } = renderSettleAll({}, onSettled);
@@ -223,7 +226,7 @@ describe("useSettleAllCandidates", () => {
 
   it("closes and notifies danger when the request fails", async () => {
     acceptCandidatesMock.mockRejectedValue(new Error("Permission denied"));
-    const onSettled = vi.fn();
+    const onSettled = vi.fn<() => void | Promise<void>>();
     const { result } = renderSettleAll({}, onSettled);
 
     await confirm(result);
@@ -255,7 +258,7 @@ describe("useSettleAllCandidates", () => {
 
     it("refreshes, then reports what it deleted", async () => {
       rejectCandidatesMock.mockResolvedValue(batchResult());
-      const onSettled = vi.fn();
+      const onSettled = vi.fn<() => void | Promise<void>>();
       const { result } = renderSettleAll({}, onSettled);
 
       await confirm(result, "delete");

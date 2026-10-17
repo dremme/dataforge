@@ -20,7 +20,9 @@ const defaultSystemSpecs: SystemSpecs = {
 
 let mockSystemSpecs: SystemSpecs | null = defaultSystemSpecs;
 
-const useSystemSpecsMock = vi.fn((_live?: boolean) => mockSystemSpecs);
+const useSystemSpecsMock = vi.fn<(_live?: boolean) => SystemSpecs | null>(
+  (_live?: boolean) => mockSystemSpecs,
+);
 
 vi.mock("@/features/automation/hooks/useSystemSpecs", () => ({
   useSystemSpecs: (live?: boolean) => useSystemSpecsMock(live),

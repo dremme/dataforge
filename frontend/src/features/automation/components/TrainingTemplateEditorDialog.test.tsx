@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TrainingTemplateEditorDialog } from "./TrainingTemplateEditorDialog";
 import { renderWithQueryClient } from "@/test/queryClient";
 
-const checkTrainingTemplate = vi.fn();
+const checkTrainingTemplate = vi.fn<(...args: unknown[]) => unknown>();
 
 vi.mock("@/features/automation/api/jobs", () => ({
   checkTrainingTemplate: (...args: unknown[]) => checkTrainingTemplate(...args),
@@ -13,8 +13,8 @@ vi.mock("@/features/automation/api/jobs", () => ({
 const STOCK = "config:\n  process:\n    - train:\n        steps: 1000\n";
 
 function renderEditor(overrides: { initialContent?: string } = {}) {
-  const onApply = vi.fn();
-  const onClose = vi.fn();
+  const onApply = vi.fn<(template: string | null) => void>();
+  const onClose = vi.fn<() => void>();
   renderWithQueryClient(
     <TrainingTemplateEditorDialog
       model="krea2_turbo"

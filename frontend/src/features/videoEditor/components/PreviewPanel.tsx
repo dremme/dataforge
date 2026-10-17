@@ -60,6 +60,7 @@ import { ReferenceWipe, type ReferenceFrame } from "./ReferenceWipe";
 import { RenderedFrame, type RenderedFrameState } from "./RenderedFrame";
 import { TimecodeField } from "./TimecodeField";
 import { ToolButton } from "./ToolButton";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 export type PreviewMode = "timeline" | "source";
 
@@ -261,7 +262,11 @@ function TimelinePreview({
   }, [engine, box.width, project.width, project.height]);
 
   // A rendered frame answers for one moment of one edit; moving on puts the live preview back.
-  useEffect(() => setFrame(null), [time, project]);
+  const timeChanged = useChanged(time);
+  const projectChanged = useChanged(project);
+  if (timeChanged || projectChanged) {
+    setFrame(null);
+  }
   useEffect(() => {
     if (!frame) return;
     return () => URL.revokeObjectURL(frame.url);

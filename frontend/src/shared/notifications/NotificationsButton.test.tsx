@@ -6,12 +6,13 @@ import * as notificationsApi from "@/shared/api/notifications";
 import { NotificationsButton } from "./NotificationsButton";
 import { NotificationsProvider } from "./NotificationsProvider";
 import { renderWithQueryClient } from "@/test/queryClient";
+import type { postNotification } from "@/shared/api/notifications";
 
 vi.mock("@/shared/api/notifications", () => ({
-  fetchNotifications: vi.fn(),
-  postNotification: vi.fn(),
-  markNotificationsRead: vi.fn(),
-  clearNotifications: vi.fn(),
+  fetchNotifications: vi.fn<typeof notificationsApi.fetchNotifications>(),
+  postNotification: vi.fn<typeof postNotification>(),
+  markNotificationsRead: vi.fn<typeof notificationsApi.markNotificationsRead>(),
+  clearNotifications: vi.fn<typeof notificationsApi.clearNotifications>(),
 }));
 
 const fetchNotifications = vi.mocked(notificationsApi.fetchNotifications);

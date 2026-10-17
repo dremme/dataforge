@@ -16,6 +16,8 @@ import {
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 import { makeAdjustControls } from "@/test/colorAdjustControls";
 import type { ImageEdit } from "@/features/gallery/hooks/useImageEdit";
+import type { CropRect } from "@/features/gallery/lib/crop";
+import type { MaskMode } from "@/features/gallery/lib/mask";
 
 const SOURCE = { width: 1920, height: 1080 };
 
@@ -44,29 +46,29 @@ function makeEdit(overrides: Partial<ImageEdit> = {}): ImageEdit {
     orientation: orientationOf(draft),
     outputWidth: output.width,
     outputHeight: output.height,
-    toggleEditMode: vi.fn(),
-    exitEditMode: vi.fn(),
-    setCrop: vi.fn(),
-    setCropActive: vi.fn(),
-    setMaskActive: vi.fn(),
-    selectMask: vi.fn(),
-    addMask: vi.fn(),
-    setMaskRect: vi.fn(),
-    setMaskMode: vi.fn(),
-    setMaskStrength: vi.fn(),
-    removeMask: vi.fn(),
-    clearMasks: vi.fn(),
-    selectAspect: vi.fn(),
-    rotateClockwise: vi.fn(),
-    rotateCounterClockwise: vi.fn(),
-    toggleMirrorH: vi.fn(),
-    toggleMirrorV: vi.fn(),
-    setScale: vi.fn(),
+    toggleEditMode: vi.fn<() => void>(),
+    exitEditMode: vi.fn<() => void>(),
+    setCrop: vi.fn<(crop: CropRect) => void>(),
+    setCropActive: vi.fn<(active: boolean) => void>(),
+    setMaskActive: vi.fn<(active: boolean) => void>(),
+    selectMask: vi.fn<(maskId: string | null) => void>(),
+    addMask: vi.fn<() => void>(),
+    setMaskRect: vi.fn<(maskId: string, rect: CropRect) => void>(),
+    setMaskMode: vi.fn<(mode: MaskMode) => void>(),
+    setMaskStrength: vi.fn<(strength: number) => void>(),
+    removeMask: vi.fn<(maskId: string) => void>(),
+    clearMasks: vi.fn<() => void>(),
+    selectAspect: vi.fn<(aspectId: string) => void>(),
+    rotateClockwise: vi.fn<() => void>(),
+    rotateCounterClockwise: vi.fn<() => void>(),
+    toggleMirrorH: vi.fn<() => void>(),
+    toggleMirrorV: vi.fn<() => void>(),
+    setScale: vi.fn<(scale: number) => void>(),
     adjust: makeAdjustControls({ values: draft.adjust }),
-    resetDraft: vi.fn(),
-    apply: vi.fn(),
-    revert: vi.fn(),
-    handleLoad: vi.fn(),
+    resetDraft: vi.fn<() => void>(),
+    apply: vi.fn<() => void>(),
+    revert: vi.fn<() => void>(),
+    handleLoad: vi.fn<(image: HTMLImageElement) => void>(),
     ...overrides,
   };
 }
@@ -78,7 +80,7 @@ function renderPanel(
   const props = {
     edit,
     busy: false,
-    onRevertRequested: vi.fn(),
+    onRevertRequested: vi.fn<() => void>(),
     ...overrides,
   };
 

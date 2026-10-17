@@ -15,7 +15,7 @@ beforeEach(() => {
 
 const settingsRequests = (method: string) => backend.requestsTo("/api/settings", method);
 
-async function openDialog(section = "Vision model", onClose = vi.fn()) {
+async function openDialog(section = "Vision model", onClose = vi.fn<() => void>()) {
   const user = userEvent.setup();
   renderWithProviders(<SettingsModal onClose={onClose} />);
   await screen.findByRole("textbox", { name: "Server URL", hidden: true });

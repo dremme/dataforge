@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { makeItem } from "@/test/galleryItemModal";
 import { makeClip, makeProject, makeSource } from "@/test/videoProject";
 import { SourceIssues } from "./SourceIssues";
+import type { GalleryItem } from "@/shared/types";
 
 const project = makeProject({
   sources: [makeSource("gone", "gone.png", "image"), makeSource("edited", "edited.png", "image")],
@@ -14,8 +15,8 @@ const project = makeProject({
 });
 
 function renderIssues(busy = false) {
-  const onRelink = vi.fn();
-  const onAccept = vi.fn();
+  const onRelink = vi.fn<(sourceId: string, item: GalleryItem) => void>();
+  const onAccept = vi.fn<(sourceId: string) => void>();
   const view = render(
     <SourceIssues
       project={project}
@@ -72,8 +73,8 @@ describe("SourceIssues", () => {
         statuses={[]}
         items={[]}
         busy={false}
-        onRelink={vi.fn()}
-        onAccept={vi.fn()}
+        onRelink={vi.fn<(sourceId: string, item: GalleryItem) => void>()}
+        onAccept={vi.fn<(sourceId: string) => void>()}
       />,
     );
 

@@ -21,15 +21,15 @@ function stubViewportWidth(width: number) {
 
 function renderSidebar(options: Parameters<typeof installMockBackend>[0] = {}) {
   const backend = installMockBackend(options);
-  const onNavigate = vi.fn();
+  const onNavigate = vi.fn<(path?: string) => void>();
   renderWithQueryClient(
     <NotificationsProvider>
       <WorkspaceSidebar
         currentFolder={HOME_PATH}
         onNavigate={onNavigate}
-        onCreateFolder={vi.fn()}
-        onOpenSettings={vi.fn()}
-        onOpenVideoEditor={vi.fn()}
+        onCreateFolder={vi.fn<() => void>()}
+        onOpenSettings={vi.fn<() => void>()}
+        onOpenVideoEditor={vi.fn<() => void>()}
         videoEditorDisabled={false}
         createDisabled={false}
       />
@@ -141,7 +141,11 @@ describe("WorkspaceSidebar", () => {
         .filter((name) => !name?.startsWith("Unfavorite"));
 
     async function dragFavorite(from: string, to: string) {
-      const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+      const dataTransfer = {
+        setData: vi.fn<(format: string, data: string) => void>(),
+        effectAllowed: "",
+        dropEffect: "",
+      };
       const source = await screen.findByRole("button", { name: from });
       const target = screen.getByRole("button", { name: to });
       fireEvent.dragStart(source, { dataTransfer });

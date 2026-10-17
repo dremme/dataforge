@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
+import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export interface PopupMenuTriggerProps {
   "aria-haspopup": "menu";
@@ -23,8 +24,7 @@ function useOutsidePointerDown(
   enabled: boolean,
 ): void {
   // A fresh array literal each render must not resubscribe.
-  const refsRef = useRef(refs);
-  refsRef.current = refs;
+  const refsRef = useLatestRef(refs);
 
   useEffect(() => {
     if (!enabled) return;
@@ -37,7 +37,7 @@ function useOutsidePointerDown(
 
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [enabled, onOutside]);
+  }, [enabled, onOutside, refsRef]);
 }
 
 function usePanelFocus(

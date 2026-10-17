@@ -9,11 +9,11 @@ import { JobCard } from "./JobCard";
 import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/jobs/api/externalJobs", () => ({
-  fetchOstrisTrainingSamples: vi.fn(),
+  fetchOstrisTrainingSamples: vi.fn<typeof fetchOstrisTrainingSamples>(),
 }));
 
 vi.mock("@/features/jobs/api/jobs", () => ({
-  fetchJobResults: vi.fn(),
+  fetchJobResults: vi.fn<typeof fetchJobResults>(),
 }));
 
 const fetchSamples = vi.mocked(fetchOstrisTrainingSamples);
@@ -73,7 +73,7 @@ describe("JobCard", () => {
 
   it("shows a spinner on the cancel button while cancellation is in flight", () => {
     const { container } = renderWithQueryClient(
-      <JobCard job={runningJob} onCancel={vi.fn()} cancelling />,
+      <JobCard job={runningJob} onCancel={vi.fn<(jobId: string) => void>()} cancelling />,
     );
 
     const cancelButton = screen.getByRole("button", { name: "Cancel job for Photos" });
@@ -83,7 +83,7 @@ describe("JobCard", () => {
 
   it("opens the job's folder", async () => {
     const user = userEvent.setup();
-    const onOpenFolder = vi.fn();
+    const onOpenFolder = vi.fn<(folderPath: string) => void>();
     renderWithQueryClient(<JobCard job={runningJob} onOpenFolder={onOpenFolder} />);
 
     await user.click(screen.getByTitle(`Open ${runningJob.folder}`));
@@ -207,7 +207,7 @@ describe("JobCard", () => {
 
   it("offers the follow-ups it was given once the job has finished", async () => {
     const user = userEvent.setup();
-    const onReview = vi.fn();
+    const onReview = vi.fn<() => void>();
     const followUps = [{ label: "Review 3 issues", icon: iconMessageCheck, onClick: onReview }];
     const finished: Job = { ...runningJob, status: "completed", effective_status: "completed" };
 

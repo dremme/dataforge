@@ -11,12 +11,15 @@ import { useDeleteFolderDialog } from "./useDeleteFolderDialog";
 
 vi.mock("@/features/folder/api/folders", async (importOriginal) => ({
   ...(await importOriginal<typeof FoldersApi>()),
-  deleteFolder: vi.fn(),
+  deleteFolder: vi.fn<typeof deleteFolder>(),
 }));
 
 const deleteFolderMock = vi.mocked(deleteFolder);
 
-function renderDialog({ enabled = true, onDeleted = vi.fn() } = {}) {
+function renderDialog({
+  enabled = true,
+  onDeleted = vi.fn<(parentPath: string) => Promise<void> | void>(),
+} = {}) {
   return renderHook(
     () =>
       useDeleteFolderDialog({
@@ -49,7 +52,7 @@ describe("useDeleteFolderDialog", () => {
       parent: "C:\\Photos",
       deletes_to_trash: true,
     });
-    const onDeleted = vi.fn();
+    const onDeleted = vi.fn<(parentPath: string) => Promise<void> | void>();
     const { result } = renderDialog({ onDeleted });
 
     act(() => result.current.openDialog?.());
@@ -68,7 +71,7 @@ describe("useDeleteFolderDialog", () => {
 
   it("closes and explains a refusal without leaving the folder", async () => {
     deleteFolderMock.mockRejectedValue(new Error("Folder is not empty: contains notes.txt"));
-    const onDeleted = vi.fn();
+    const onDeleted = vi.fn<(parentPath: string) => Promise<void> | void>();
     const { result } = renderDialog({ onDeleted });
 
     act(() => result.current.openDialog?.());

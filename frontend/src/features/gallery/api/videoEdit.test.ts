@@ -11,10 +11,11 @@ import { requestJson } from "@/shared/api/http";
 import { serverEventsTabId } from "@/shared/api/eventStream";
 import type { VideoEditSpec } from "@/shared/types";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
+import type { postJson } from "@/shared/api/http";
 
 vi.mock("@/shared/api/http", () => ({
-  requestJson: vi.fn(),
-  postJson: vi.fn(),
+  requestJson: vi.fn<typeof requestJson>(),
+  postJson: vi.fn<typeof postJson>(),
 }));
 
 const requestJsonMock = vi.mocked(requestJson);
@@ -99,7 +100,9 @@ describe("revertVideoEdit", () => {
 
 describe("cancelVideoEdit", () => {
   it("posts to the cancel endpoint without waiting on a body", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const fetchMock = vi
+      .fn<(url: string, init?: RequestInit) => Promise<Response>>()
+      .mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
 
     await cancelVideoEdit(CLIP);

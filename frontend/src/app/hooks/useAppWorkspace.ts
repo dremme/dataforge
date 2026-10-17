@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useInsertionEffect, useMemo, useRef } from "react";
 import { useAutomationHost } from "@/features/automation/hooks/useAutomationHost";
 import { useComfyPresetsAvailable } from "@/features/automation/hooks/useComfyPresets";
 import { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
@@ -185,13 +185,14 @@ export function useAppWorkspace() {
   );
   const { openCandidateReview } = candidateReviewOverlay;
   const { closeGalleryItem } = gallery;
+  const folderPath = folder?.path;
 
   const reviewGalleryItemCandidate = useCallback(
     (item: GalleryItem) => {
-      if (!folder?.path || !isCandidateItem(item)) return;
-      void openCandidateReview(folder.path, items, { path: item.path, onOpen: closeGalleryItem });
+      if (!folderPath || !isCandidateItem(item)) return;
+      void openCandidateReview(folderPath, items, { path: item.path, onOpen: closeGalleryItem });
     },
-    [closeGalleryItem, folder?.path, items, openCandidateReview],
+    [closeGalleryItem, folderPath, items, openCandidateReview],
   );
 
   const candidateReview = { ...candidateReviewOverlay, reviewGalleryItemCandidate };
@@ -199,10 +200,10 @@ export function useAppWorkspace() {
   const { openDuplicateResolver } = duplicateResolverOverlay;
   const resolveGalleryItemDuplicate = useCallback(
     (item: GalleryItem) => {
-      if (!folder?.path || !isDuplicateItem(item)) return;
-      void openDuplicateResolver(folder.path, { path: item.path, onOpen: closeGalleryItem });
+      if (!folderPath || !isDuplicateItem(item)) return;
+      void openDuplicateResolver(folderPath, { path: item.path, onOpen: closeGalleryItem });
     },
-    [closeGalleryItem, folder?.path, openDuplicateResolver],
+    [closeGalleryItem, folderPath, openDuplicateResolver],
   );
   const duplicateResolver = { ...duplicateResolverOverlay, resolveGalleryItemDuplicate };
   const settleAllCandidates = useSettleAllCandidates({
@@ -276,7 +277,10 @@ export function useAppWorkspace() {
     onRetryFailed: retryFailedFiles,
   });
 
-  requestJobStartRef.current = automation.requestStart;
+  const { requestStart } = automation;
+  useInsertionEffect(() => {
+    requestJobStartRef.current = requestStart;
+  });
 
   // Memoized: an inline bag would change identity every render and defeat the palette's memo.
   const quickActionFilters = useMemo(

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState, type RefObject } from "react";
+import { useCallback, useState, type RefObject } from "react";
 import { useGalleryItemModal } from "@/features/gallery/hooks/useGalleryItemModal";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import type { GalleryItem } from "@/shared/types";
 import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
 import { readStored, writeStored } from "@/shared/lib/storage";
+import { useChanged } from "@/shared/hooks/useChanged";
 
 type UseGalleryOverlaysArgs = {
   images: GalleryItem[];
@@ -44,9 +45,9 @@ export function useGalleryOverlays({
     renameGalleryItem,
   } = useGalleryItemModal(images, filteredItems, folderResetToken);
 
-  useEffect(() => {
+  if (useChanged(folderResetToken)) {
     setInstructionsOpen(false);
-  }, [folderResetToken]);
+  }
 
   const openGalleryItem = useCallback(
     (path: string) => {

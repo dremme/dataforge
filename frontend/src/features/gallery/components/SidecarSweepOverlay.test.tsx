@@ -11,8 +11,8 @@ function renderSweep(overrides: Partial<SidecarSweepOverlayProps> = {}) {
     count: 3,
     folderLabel: "Photos",
     busy: false,
-    onConfirm: vi.fn(),
-    onCancel: vi.fn(),
+    onConfirm: vi.fn<() => void>(),
+    onCancel: vi.fn<() => void>(),
     ...overrides,
   };
   return { ...render(<SidecarSweepOverlay {...props} />), props };

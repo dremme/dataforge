@@ -1,4 +1,4 @@
-import { useCallback, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { comfyPresetsQueryOptions } from "@/features/automation/lib/automationQueries";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
@@ -95,7 +95,7 @@ export function ComfyProcessDialog({
   const promptBlocked = selected?.accepts_prompt === false;
   const seedBlocked = selected?.accepts_seed === false;
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = () => {
     if (busy) return;
 
     if (!preset) {
@@ -116,7 +116,7 @@ export function ComfyProcessDialog({
       promptText: promptBlocked ? "" : promptText.trim(),
       overwriteCandidates: overwrite,
     });
-  }, [busy, onConfirm, overwrite, preset, promptBlocked, promptText, seedBlocked, seedText]);
+  };
 
   const ready = state.status === "ready";
   const disabled = busy || !ready;

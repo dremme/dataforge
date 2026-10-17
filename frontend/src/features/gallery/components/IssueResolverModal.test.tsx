@@ -7,12 +7,13 @@ import * as api from "@/features/gallery/api/captions";
 import { literalMatchHighlight } from "@/shared/lib/codeEditorQueryHighlight";
 import { HOME_PATH, homeFolder } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
-import type { GalleryItem } from "@/shared/types";
+import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { IssueResolverModal } from "./IssueResolverModal";
+import type { queryMatchHighlight } from "@/shared/lib/codeEditorQueryHighlight";
 
 vi.mock("@/shared/lib/codeEditorQueryHighlight", () => ({
-  queryMatchHighlight: vi.fn(() => []),
-  literalMatchHighlight: vi.fn(() => []),
+  queryMatchHighlight: vi.fn<typeof queryMatchHighlight>(() => []),
+  literalMatchHighlight: vi.fn<typeof literalMatchHighlight>(() => []),
 }));
 
 vi.mock("@/shared/lib/defer", () => ({
@@ -59,9 +60,9 @@ describe("IssueResolverModal", () => {
           }),
         ]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -91,9 +92,9 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={[makeIssueItem("sunset.png", { issue_fixes: ['Change "seated" to "kneeling".'] })]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -116,9 +117,9 @@ describe("IssueResolverModal", () => {
           }),
         ]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -145,9 +146,9 @@ describe("IssueResolverModal", () => {
           }),
         ]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -165,9 +166,9 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={[makeIssueItem("sunset.png", { issue_fixes: [] })]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -184,9 +185,9 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={[makeIssueItem("sunset.png", { width: 1920, height: 1080 })]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -220,9 +221,9 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={[makeIssueItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
     const caption = screen.getByRole("textbox", { name: "Caption for sunset.png" });
@@ -244,9 +245,9 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={[makeIssueItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -268,9 +269,9 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={[makeIssueItem("sunset.png", { description: caption })]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -305,9 +306,9 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={[makeIssueItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -332,9 +333,9 @@ describe("IssueResolverModal", () => {
           }),
         ]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -355,9 +356,9 @@ describe("IssueResolverModal", () => {
           }),
         ]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -383,9 +384,9 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={[makeIssueItem("car.png")]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -402,8 +403,8 @@ describe("IssueResolverModal", () => {
 
   it("resolves the caption and advances to the next issue", async () => {
     const user = userEvent.setup();
-    const onCaptionSaved = vi.fn();
-    const onIndexChange = vi.fn();
+    const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
+    const onIndexChange = vi.fn<(index: number) => void>();
     const items = [
       makeIssueItem("car.png"),
       makeIssueItem("boat.png", {
@@ -416,7 +417,7 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={items}
         index={0}
-        onClose={vi.fn()}
+        onClose={vi.fn<() => void>()}
         onIndexChange={onIndexChange}
         onCaptionSaved={onCaptionSaved}
       />,
@@ -438,7 +439,7 @@ describe("IssueResolverModal", () => {
 
   it("keeps walking the full issue queue when resolved items leave the live list", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     const resolvedPaths: string[] = [];
 
     const initialItems = [
@@ -511,15 +512,15 @@ describe("IssueResolverModal", () => {
   it("resolves with Ctrl+Enter while the caption editor has focus", async () => {
     const user = userEvent.setup();
     const saveCaption = vi.spyOn(api, "saveCaption");
-    const onIndexChange = vi.fn();
+    const onIndexChange = vi.fn<(index: number) => void>();
 
     render(
       <IssueResolverModal
         items={[makeIssueItem("car.png"), makeIssueItem("boat.png")]}
         index={0}
-        onClose={vi.fn()}
+        onClose={vi.fn<() => void>()}
         onIndexChange={onIndexChange}
-        onCaptionSaved={vi.fn()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -545,9 +546,9 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={[makeIssueItem("car.png")]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -575,9 +576,9 @@ describe("IssueResolverModal", () => {
         <IssueResolverModal
           items={items}
           index={index}
-          onClose={vi.fn()}
+          onClose={vi.fn<() => void>()}
           onIndexChange={setIndex}
-          onCaptionSaved={vi.fn()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         />
       );
     }
@@ -603,9 +604,9 @@ describe("IssueResolverModal", () => {
         <IssueResolverModal
           items={items}
           index={index}
-          onClose={vi.fn()}
+          onClose={vi.fn<() => void>()}
           onIndexChange={setIndex}
-          onCaptionSaved={vi.fn()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         />
       );
     }
@@ -629,9 +630,9 @@ describe("IssueResolverModal", () => {
         <IssueResolverModal
           items={items}
           index={index}
-          onClose={vi.fn()}
+          onClose={vi.fn<() => void>()}
           onIndexChange={setIndex}
-          onCaptionSaved={vi.fn()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         />
       );
     }
@@ -657,9 +658,9 @@ describe("IssueResolverModal", () => {
         <IssueResolverModal
           items={items}
           index={index}
-          onClose={vi.fn()}
+          onClose={vi.fn<() => void>()}
           onIndexChange={setIndex}
-          onCaptionSaved={vi.fn()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         />
       );
     }
@@ -689,9 +690,9 @@ describe("IssueResolverModal", () => {
         <IssueResolverModal
           items={items}
           index={index}
-          onClose={vi.fn()}
+          onClose={vi.fn<() => void>()}
           onIndexChange={setIndex}
-          onCaptionSaved={vi.fn()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         />
       );
     }
@@ -723,9 +724,9 @@ describe("IssueResolverModal", () => {
         <IssueResolverModal
           items={items}
           index={index}
-          onClose={vi.fn()}
+          onClose={vi.fn<() => void>()}
           onIndexChange={setIndex}
-          onCaptionSaved={vi.fn()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
         />
       );
     }
@@ -753,7 +754,7 @@ describe("IssueResolverModal", () => {
 
   it("closes after resolving the final issue", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
     const saveCaption = vi.spyOn(api, "saveCaption");
 
     render(
@@ -761,8 +762,8 @@ describe("IssueResolverModal", () => {
         items={[makeIssueItem("car.png")]}
         index={0}
         onClose={onClose}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -780,15 +781,15 @@ describe("IssueResolverModal", () => {
 
   it("closes once per Escape press", async () => {
     const user = userEvent.setup();
-    const onClose = vi.fn();
+    const onClose = vi.fn<() => void>();
 
     render(
       <IssueResolverModal
         items={[makeIssueItem("car.png")]}
         index={0}
         onClose={onClose}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 
@@ -803,9 +804,9 @@ describe("IssueResolverModal", () => {
       <IssueResolverModal
         items={[makeIssueItem("sunset.png")]}
         index={0}
-        onClose={vi.fn()}
-        onIndexChange={vi.fn()}
-        onCaptionSaved={vi.fn()}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={vi.fn<(index: number) => void>()}
+        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
       />,
     );
 

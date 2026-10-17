@@ -8,6 +8,7 @@ import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { MediaBrowser, type MediaView } from "./MediaBrowser";
 import { SOURCE_DRAG_TYPE } from "./Timeline";
+import type { GalleryItem } from "@/shared/types";
 
 const ITEMS = [
   makeItem("beach.mp4", { media_type: "video", duration: 65 }),
@@ -31,9 +32,9 @@ function Harness(props: Partial<ComponentProps<typeof MediaBrowser>>) {
       onView={setView}
       previewing={null}
       currentProjectPath={null}
-      onPreview={vi.fn()}
-      onAdd={vi.fn()}
-      onOpenProject={vi.fn()}
+      onPreview={vi.fn<(item: GalleryItem) => void>()}
+      onAdd={vi.fn<(item: GalleryItem) => void>()}
+      onOpenProject={vi.fn<(path: string) => void>()}
       {...props}
     />
   );
@@ -80,14 +81,14 @@ describe("MediaBrowser", () => {
   it("previews, adds and drags a file", async () => {
     const user = userEvent.setup();
     installMockBackend();
-    const onPreview = vi.fn();
-    const onAdd = vi.fn();
+    const onPreview = vi.fn<(item: GalleryItem) => void>();
+    const onAdd = vi.fn<(item: GalleryItem) => void>();
     renderWithProviders(<Harness onPreview={onPreview} onAdd={onAdd} />);
 
     await user.click(screen.getByRole("button", { name: "Preview sunset.jpg" }));
     await user.click(screen.getByRole("button", { name: "Add sunset.jpg to the timeline" }));
     const row = screen.getByRole("button", { name: "Preview sunset.jpg" }).closest("li")!;
-    const setData = vi.fn();
+    const setData = vi.fn<(format: string, data: string) => void>();
     fireEvent(row, createEvent.dragStart(row, { dataTransfer: { setData, effectAllowed: "" } }));
 
     expect(onPreview).toHaveBeenCalledWith(ITEMS[1]);
@@ -112,7 +113,7 @@ describe("MediaBrowser", () => {
       clip_count: 3,
     });
     installMockBackend({ videoProjects: { [HOME_PATH]: [draft("Trip"), draft("Party")] } });
-    const onOpenProject = vi.fn();
+    const onOpenProject = vi.fn<(path: string) => void>();
     renderWithProviders(
       <Harness currentProjectPath={draft("Party").path} onOpenProject={onOpenProject} />,
     );
