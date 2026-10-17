@@ -8,6 +8,7 @@ import type {
   FolderOpenResponse,
   FolderReviewCountsResponse,
   FolderRootsResponse,
+  RenameResponse,
 } from "@/shared/types";
 
 export async function fetchFolderRoots(signal?: AbortSignal): Promise<FolderRootsResponse> {
@@ -77,6 +78,14 @@ export async function createFolder(
 export async function deleteFolder(folderPath: string): Promise<FolderDeleteResponse> {
   const params = new URLSearchParams({ path: folderPath });
   return requestJson<FolderDeleteResponse>(`/api/folders/delete?${params}`, {
+    method: "POST",
+  });
+}
+
+/** Same rule as deleting: the backend refuses (409) a folder with any entry in it. */
+export async function renameFolder(folderPath: string, name: string): Promise<RenameResponse> {
+  const params = new URLSearchParams({ path: folderPath, name });
+  return requestJson<RenameResponse>(`/api/folders/rename?${params}`, {
     method: "POST",
   });
 }

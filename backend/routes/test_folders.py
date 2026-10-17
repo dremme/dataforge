@@ -289,5 +289,108 @@ class FolderDeleteEndpointTests(unittest.TestCase):
             self.assertEqual(delete_folder(root / "does-not-exist").status_code, 404)
 
 
+def rename_folder(folder: object, name: str):
+    return client.post(f"/api/folders/rename?path={quote(str(folder))}&name={quote(name)}")
+
+
+def favorite_paths() -> list[str]:
+    favorites = client.get("/api/folders/favorites").json()["favorites"]
+    return [entry["path"] for entry in favorites]
+
+
+class FolderRenameEndpointTests(unittest.TestCase):
+    def test_renames_an_empty_folder(self) -> None:
+        with TempMediaFolder() as root:
+            empty = root / "Album"
+            empty.mkdir()
+
+            response = rename_folder(empty, "Holiday")
+
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(
+                response.json(),
+                {
+                    "source": str(empty.resolve()),
+                    "destination": str((root / "Holiday").resolve()),
+                },
+            )
+            self.assertEqual(os.listdir(root), ["Holiday"])
+
+    def test_a_favorite_follows_its_folder_and_keeps_its_place(self) -> None:
+        with TempMediaFolder() as root:
+            folders = [root / name for name in ("First", "Album", "Last")]
+            for folder in folders:
+                folder.mkdir()
+                client.post(f"/api/folders/favorites?path={quote(str(folder))}")
+            before = favorite_paths()
+            old, new = str(folders[1].resolve()), str((root / "Holiday").resolve())
+
+            self.assertEqual(rename_folder(folders[1], "Holiday").status_code, 200)
+
+            self.assertEqual(favorite_paths(), [new if path == old else path for path in before])
+
+    def test_changes_only_the_case_of_a_name(self) -> None:
+        with TempMediaFolder() as root:
+            folder = root / "Album"
+            folder.mkdir()
+
+            response = rename_folder(folder, "album")
+
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(os.listdir(root), ["album"])
+
+    def test_answers_an_unchanged_name_without_touching_the_folder(self) -> None:
+        with TempMediaFolder() as root:
+            folder = root / "Album"
+            folder.mkdir()
+
+            response = rename_folder(folder, "Album")
+
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["destination"], str(folder.resolve()))
+            self.assertTrue(folder.is_dir())
+
+    def test_refuses_a_folder_holding_a_file(self) -> None:
+        with TempMediaFolder() as root:
+            folder = root / "Album"
+            folder.mkdir()
+            (folder / "notes.txt").write_text("", encoding="utf-8")
+
+            response = rename_folder(folder, "Holiday")
+
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(response.json()["detail"], "Folder is not empty: contains notes.txt")
+            self.assertTrue((folder / "notes.txt").is_file())
+
+    def test_refuses_a_name_another_folder_already_has(self) -> None:
+        with TempMediaFolder() as root:
+            folder = root / "Album"
+            folder.mkdir()
+            (root / "Holiday").mkdir()
+
+            response = rename_folder(folder, "Holiday")
+
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(response.json()["detail"], "Folder already exists")
+            self.assertTrue(folder.is_dir())
+
+    def test_rejects_an_invalid_name(self) -> None:
+        with TempMediaFolder() as root:
+            folder = root / "Album"
+            folder.mkdir()
+
+            for name in ("bad/name", " Holiday", "CON", "Holiday."):
+                with self.subTest(name=name):
+                    response = rename_folder(folder, name)
+
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(response.json()["detail"], "Invalid folder name")
+            self.assertTrue(folder.is_dir())
+
+    def test_returns_404_for_a_missing_folder(self) -> None:
+        with TempMediaFolder() as root:
+            self.assertEqual(rename_folder(root / "does-not-exist", "Holiday").status_code, 404)
+
+
 if __name__ == "__main__":
     unittest.main()

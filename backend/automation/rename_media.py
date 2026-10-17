@@ -2,27 +2,25 @@
 
 from __future__ import annotations
 
-import filecmp
 import logging
 import re
-import shutil
-from functools import partial
 from pathlib import Path
 
 from automation.job_runner import ProgressCallback, ShouldCancel
 from automation.selection import filter_media_list, list_folder_media
-from candidate_pairing import candidate_path_for
-from comfy_candidates import is_settling, read_candidate_sidecar, write_candidate_sidecar
 from constants import MEDIA_EXTENSIONS
-from edit_sidecars import is_rendering
-from file_write import retry_while_locked
-from media_group import group_target, media_group_paths, shared_stem_paths
+from media_group import media_group_paths
+from media_rename import (
+    RENAME_TEMP_PREFIX,
+    check_not_busy,
+    check_rename_conflicts,
+    rename_media_group,
+)
 
 logger = logging.getLogger(__name__)
 
 
 _INVALID_STEM_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
-_TEMP_PREFIX = ".__df_rename_media_"
 
 
 def normalize_name_stem(stem: str) -> str:
@@ -61,57 +59,7 @@ def build_target_name(stem: str, index: int, padding: int, suffix: str) -> str:
 
 def list_rename_media(folder: Path) -> list[Path]:
     media = list_folder_media(folder, MEDIA_EXTENSIONS, order="mtime")
-    return [path for path in media if not path.name.startswith(_TEMP_PREFIX)]
-
-
-def _repoint_candidate_record(source_media: Path, target_media: Path) -> None:
-    """The record names its source, and processing refuses a candidate whose name disagrees."""
-    candidate = candidate_path_for(target_media)
-    record = read_candidate_sidecar(candidate) if candidate is not None else None
-    if candidate is None or record is None or record.source_name != source_media.name:
-        return
-    write_candidate_sidecar(candidate, record.model_copy(update={"source_name": target_media.name}))
-
-
-def _rename_media_group(source_media: Path, target_media: Path) -> None:
-    """A file a same-stem sibling still shares is copied; an identical one already there merges."""
-    if source_media == target_media:
-        # Every sidecar would compare equal to itself and be merged away.
-        return
-    shared = shared_stem_paths(source_media)
-    # (original, target, copied): a copy is undone by removing it, not by renaming it back.
-    renamed: list[tuple[Path, Path, bool]] = []
-    try:
-        for path in media_group_paths(source_media):
-            target = group_target(source_media, target_media, path)
-            if path in shared:
-                shutil.copy2(path, target)
-                renamed.append((path, target, True))
-            elif path != source_media and target.is_file() and filecmp.cmp(path, target, False):
-                # A sibling renamed earlier in the batch already carried this shared file here.
-                retry_while_locked(path.unlink)
-            else:
-                retry_while_locked(partial(path.rename, target))
-                renamed.append((path, target, False))
-        _repoint_candidate_record(source_media, target_media)
-    except OSError:
-        for original, target, copied in reversed(renamed):
-            try:
-                if copied:
-                    retry_while_locked(partial(target.unlink, missing_ok=True))
-                else:
-                    retry_while_locked(partial(target.rename, original))
-            except OSError:
-                logger.exception("Failed to restore %s from %s", original, target)
-        raise
-
-
-def _check_target_conflict(target_path: Path, moving_sources: set[Path]) -> None:
-    if not target_path.exists():
-        return
-    if target_path.resolve() in moving_sources:
-        return
-    raise ValueError(f'Cannot rename files: "{target_path.name}" already exists in this folder.')
+    return [path for path in media if not path.name.startswith(RENAME_TEMP_PREFIX)]
 
 
 def _validate_target_names(
@@ -123,30 +71,13 @@ def _validate_target_names(
 
     moving_sources: set[Path] = set()
     for media_path in media_files:
-        # A render or accept still running would write back under the old name afterwards.
-        if is_rendering(media_path) or is_settling(media_path):
-            raise ValueError(
-                f'Cannot rename files: "{media_path.name}" is being edited or reviewed. '
-                "Try again when it finishes."
-            )
+        check_not_busy(media_path)
         for related in media_group_paths(media_path):
             moving_sources.add(related.resolve())
 
     for index, media_path in enumerate(media_files, start=start_number):
         target_media = folder / build_target_name(stem, index, padding, media_path.suffix.lower())
-        _check_target_conflict(target_media, moving_sources)
-
-        for related in media_group_paths(media_path):
-            if related == media_path:
-                continue
-            _check_target_conflict(group_target(media_path, target_media, related), moving_sources)
-
-        candidate = candidate_path_for(media_path)
-        if candidate is not None:
-            renamed = group_target(media_path, target_media, candidate)
-            # A folder file of that exact name would own the candidate, and pairing would move.
-            if renamed.name != target_media.name:
-                _check_target_conflict(folder / renamed.name, moving_sources)
+        check_rename_conflicts(media_path, target_media, moving_sources)
 
 
 def validate_rename_media_folder(
@@ -160,7 +91,7 @@ def validate_rename_media_folder(
         raise ValueError("Folder not found")
 
     # Its original name is lost, and this run's temporary names would land on it.
-    leftover = next((p for p in folder.iterdir() if p.name.startswith(_TEMP_PREFIX)), None)
+    leftover = next((p for p in folder.iterdir() if p.name.startswith(RENAME_TEMP_PREFIX)), None)
     if leftover is not None:
         raise ValueError(
             f'Cannot rename files: "{leftover.name}" is left over from an interrupted rename. '
@@ -187,7 +118,7 @@ def _rollback_temp_entries(temp_entries: list[tuple[Path, Path, Path]]) -> None:
         if not temp_media.exists():
             continue
         try:
-            _rename_media_group(temp_media, original_media)
+            rename_media_group(temp_media, original_media)
         except OSError:
             logger.exception("Failed to restore %s; it is left as %s", original_media, temp_media)
 
@@ -199,7 +130,7 @@ def _rollback_after_phase2_failure(
     for original_media, temp_media, target_media in reversed(temp_entries[:completed_count]):
         if target_media.exists():
             try:
-                _rename_media_group(target_media, temp_media)
+                rename_media_group(target_media, temp_media)
             except OSError:
                 logger.exception(
                     "Failed to restore %s; it is left as %s", original_media, target_media
@@ -251,10 +182,12 @@ def run_rename_media_job(
             _rollback_temp_entries(temp_entries)
             break
 
-        temp_media = source_media.with_name(f"{_TEMP_PREFIX}{index}{source_media.suffix.lower()}")
+        temp_media = source_media.with_name(
+            f"{RENAME_TEMP_PREFIX}{index}{source_media.suffix.lower()}"
+        )
 
         try:
-            _rename_media_group(source_media, temp_media)
+            rename_media_group(source_media, temp_media)
         except OSError as exc:
             stats["rename_error"] += 1
             file_results.append(
@@ -307,7 +240,7 @@ def run_rename_media_job(
         }
 
         try:
-            _rename_media_group(temp_media, target_media)
+            rename_media_group(temp_media, target_media)
             stats["success"] += 1
         except OSError as exc:
             stats["rename_error"] += 1

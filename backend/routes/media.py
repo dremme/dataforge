@@ -43,6 +43,7 @@ from image_edit import is_identity_spec as is_identity_image_spec
 from image_io import ImageReadError
 from media_delete import delete_media_with_sidecars
 from media_file_response import MediaFileResponse
+from media_rename import rename_media_file
 from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
 from routes._helpers import (
     resolve_candidate_media,
@@ -75,6 +76,7 @@ from schemas import (
     MediaTransferPreviewResponse,
     MediaTransferRequest,
     MediaTransferResponse,
+    RenameResponse,
     VideoEditEvent,
     VideoEditResponse,
     VideoEditSpec,
@@ -218,6 +220,14 @@ def delete_media(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return MediaDeleteResponse.model_validate(result)
+
+
+@router.post("/media/rename", response_model=RenameResponse)
+def rename_media(
+    path: str = Query(..., description="Absolute path to image, video or audio file"),
+    name: str = Query(..., description="New file name without its extension"),
+) -> RenameResponse:
+    return RenameResponse.model_validate(rename_media_file(resolve_media_file(path), name))
 
 
 def _resolve_transfer_sources(paths: list[str]) -> tuple[list[Path], list[dict[str, str]]]:

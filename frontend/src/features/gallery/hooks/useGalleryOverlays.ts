@@ -41,6 +41,7 @@ export function useGalleryOverlays({
     goToNext,
     goToIndex,
     removeGalleryItem,
+    renameGalleryItem,
   } = useGalleryItemModal(images, filteredItems, folderResetToken);
 
   useEffect(() => {
@@ -81,6 +82,7 @@ export function useGalleryOverlays({
     goToNext,
     goToIndex,
     removeGalleryItem,
+    renameGalleryItem,
     openSysPrompt,
     closeInstructions,
     instructionsOpen,

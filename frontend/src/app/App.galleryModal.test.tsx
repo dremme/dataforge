@@ -146,6 +146,67 @@ describe("App: gallery item modal", () => {
     await screen.findByRole("complementary", { name: "Viewing waves.mp4" });
   });
 
+  it("renames a file from the gallery item modal and keeps viewing it under the new name", async () => {
+    const user = userEvent.setup();
+    const { requestsTo } = installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
+    const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+    await user.click(within(dialog).getByRole("button", { name: "Rename sunset.png" }));
+
+    const rename = await screen.findByRole("alertdialog", { name: "Rename file" });
+    expect(within(rename).getByText(".png")).toBeVisible();
+    const input = within(rename).getByLabelText("File name");
+    expect(input).toHaveValue("sunset");
+    await user.clear(input);
+    await user.type(input, "dusk");
+    await user.click(within(rename).getByRole("button", { name: "Rename" }));
+
+    expect(await screen.findByRole("complementary", { name: "Viewing dusk.png" })).toBeVisible();
+    expect(screen.queryByRole("alertdialog", { name: "Rename file" })).not.toBeInTheDocument();
+    expect(
+      requestsTo(
+        `/api/media/rename?path=${encodeURIComponent(`${HOME_PATH}\\sunset.png`)}&name=dusk`,
+        "POST",
+      ),
+    ).toHaveLength(1);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View dusk.png" })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "View sunset.png" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the rename dialog open with the reason when the new name is taken", async () => {
+    const user = userEvent.setup();
+    const taken: FolderResponse = {
+      ...homeFolder,
+      items: [...homeFolder.items, mediaItem("dusk.png", HOME_PATH)],
+      item_count: homeFolder.items.length + 1,
+    };
+    installMockBackend({ folderByPath: { undefined: taken, [HOME_PATH]: taken } });
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
+    const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+    await user.click(within(dialog).getByRole("button", { name: "Rename sunset.png" }));
+
+    const rename = await screen.findByRole("alertdialog", { name: "Rename file" });
+    const input = within(rename).getByLabelText("File name");
+    await user.clear(input);
+    await user.type(input, "dusk");
+    await user.click(within(rename).getByRole("button", { name: "Rename" }));
+
+    expect(await within(rename).findByRole("alert")).toHaveTextContent(
+      '"dusk.png" already exists in this folder.',
+    );
+    expect(screen.getByRole("complementary", { name: "Viewing sunset.png" })).toBeVisible();
+
+    await user.click(within(rename).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog", { name: "Rename file" })).not.toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Viewing sunset.png" })).toBeVisible();
+  });
+
   it("counts the selection against the visible media while selecting", async () => {
     const user = userEvent.setup();
     installMockBackend();

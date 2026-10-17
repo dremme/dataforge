@@ -4,6 +4,7 @@ import string
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path, PureWindowsPath
 
 from fastapi import HTTPException
@@ -11,6 +12,7 @@ from fastapi import HTTPException
 from api_errors import folder_not_found
 from constants import LAST_FOLDER_KEY
 from db import get_preference
+from file_write import retry_while_locked
 from folder_scan import scan_folder
 from media_delete import delete_empty_dir
 from media_listing import summarize_folder_contents
@@ -167,8 +169,9 @@ def list_child_folders(folder: Path) -> list[dict[str, str]]:
     return [{"name": entry.name, "path": str(entry)} for entry in _iter_child_directories(folder)]
 
 
-def sanitize_folder_name(name: str) -> str | None:
-    # Surrounding whitespace is refused rather than trimmed, so the folder gets the name typed.
+def sanitize_entry_name(name: str) -> str | None:
+    """``name`` if a folder, or a file's stem, may carry it on every platform; else ``None``."""
+    # Surrounding whitespace is refused rather than trimmed, so the entry gets the name typed.
     if name != name.strip() or name in {"", ".", ".."} or name.endswith("."):
         return None
 
@@ -179,7 +182,7 @@ def sanitize_folder_name(name: str) -> str | None:
 
 
 def create_subfolder(parent: Path, name: str) -> dict[str, str | int]:
-    folder_name = sanitize_folder_name(name)
+    folder_name = sanitize_entry_name(name)
     if folder_name is None:
         raise HTTPException(status_code=400, detail="Invalid folder name")
 
@@ -195,11 +198,11 @@ def create_subfolder(parent: Path, name: str) -> dict[str, str | int]:
     return _subfolder_with_stats(destination.resolve())
 
 
-def delete_empty_folder(folder: Path) -> Path:
-    """Delete ``folder`` only if it has no entries, hidden ones included; returns the parent."""
+def _empty_folder_parent(folder: Path, action: str) -> Path:
+    """The parent of ``folder``, once it is a non-root folder with no entries, hidden ones too."""
     parent = folder.parent
     if parent == folder:
-        raise HTTPException(status_code=400, detail="Cannot delete a drive root")
+        raise HTTPException(status_code=400, detail=f"Cannot {action} a drive root")
 
     try:
         with os.scandir(folder) as entries:
@@ -214,12 +217,40 @@ def delete_empty_folder(folder: Path) -> Path:
             detail=f"Folder is not empty: contains {names[0]}{extra}",
         )
 
+    return parent
+
+
+def delete_empty_folder(folder: Path) -> Path:
+    """Delete ``folder`` only if it has no entries, hidden ones included; returns the parent."""
+    parent = _empty_folder_parent(folder, "delete")
+
     try:
         delete_empty_dir(folder)
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Failed to delete folder: {exc}") from exc
 
     return parent
+
+
+def rename_empty_folder(folder: Path, name: str) -> Path:
+    """Rename ``folder`` only if it has no entries, hidden ones included; returns the new path."""
+    new_name = sanitize_entry_name(name)
+    if new_name is None:
+        raise HTTPException(status_code=400, detail="Invalid folder name")
+
+    destination = _empty_folder_parent(folder, "rename") / new_name
+    if new_name == folder.name:
+        return folder
+    # On a case-insensitive disk a change of case names the folder itself, which is no clash.
+    if destination.exists() and not destination.samefile(folder):
+        raise HTTPException(status_code=409, detail="Folder already exists")
+
+    try:
+        retry_while_locked(partial(folder.rename, destination))
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to rename folder: {exc}") from exc
+
+    return destination
 
 
 def list_subfolders(folder: Path) -> list[dict[str, str | int]]:

@@ -13,26 +13,26 @@ from filesystem import (
     normalize_user_path,
     path_leaf_name,
     preference_folder_key,
-    sanitize_folder_name,
+    sanitize_entry_name,
 )
 from testing_fixtures import TempMediaFolder
 
 
-class SanitizeFolderNameTests(unittest.TestCase):
+class SanitizeEntryNameTests(unittest.TestCase):
     def test_accepts_simple_name(self) -> None:
-        self.assertEqual(sanitize_folder_name("Landscapes"), "Landscapes")
+        self.assertEqual(sanitize_entry_name("Landscapes"), "Landscapes")
 
     def test_rejects_path_separators(self) -> None:
-        self.assertIsNone(sanitize_folder_name("bad/name"))
-        self.assertIsNone(sanitize_folder_name("bad\\name"))
+        self.assertIsNone(sanitize_entry_name("bad/name"))
+        self.assertIsNone(sanitize_entry_name("bad\\name"))
 
     def test_rejects_reserved_windows_names(self) -> None:
-        self.assertIsNone(sanitize_folder_name("CON"))
-        self.assertIsNone(sanitize_folder_name("lpt1"))
+        self.assertIsNone(sanitize_entry_name("CON"))
+        self.assertIsNone(sanitize_entry_name("lpt1"))
 
     def test_rejects_trailing_dot_or_space(self) -> None:
-        self.assertIsNone(sanitize_folder_name("Album."))
-        self.assertIsNone(sanitize_folder_name("Album "))
+        self.assertIsNone(sanitize_entry_name("Album."))
+        self.assertIsNone(sanitize_entry_name("Album "))
 
 
 class PathHandlingTests(unittest.TestCase):

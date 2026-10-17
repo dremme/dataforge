@@ -150,6 +150,7 @@ export {
   PanelRightOpen as iconPanelRightOpen,
   Pause as iconPause,
   Pencil as iconPencil,
+  PencilLine as iconPencilLine,
   PencilSparkles as iconPencilSparkles,
   Play as iconPlay,
   Plus as iconPlus,

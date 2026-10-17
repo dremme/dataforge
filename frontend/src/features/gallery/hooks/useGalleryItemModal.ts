@@ -90,6 +90,13 @@ export function useGalleryItemModal(
     [modalNavigationPaths],
   );
 
+  const renameGalleryItem = useCallback((path: string, renamedPath: string) => {
+    setModalNavigationPaths(
+      (paths) => paths && paths.map((entry) => (entry === path ? renamedPath : entry)),
+    );
+    setSelectedPath((current) => (current === path ? renamedPath : current));
+  }, []);
+
   return {
     selectedPath,
     selectedIndex,
@@ -100,5 +107,6 @@ export function useGalleryItemModal(
     goToNext,
     goToIndex,
     removeGalleryItem,
+    renameGalleryItem,
   };
 }

@@ -4,6 +4,7 @@ import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { SelectionActionOverlaysProps } from "@/features/gallery/components/SelectionActionOverlays";
 import type { SidecarSweepOverlayProps } from "@/features/gallery/components/SidecarSweepOverlay";
 import type { DeleteFolderOverlayState } from "@/features/folder/hooks/useDeleteFolderDialog";
+import type { RenameFolderOverlayState } from "@/features/folder/hooks/useRenameFolderDialog";
 import type { SettleAllCandidatesDialogProps } from "@/features/gallery/components/SettleAllCandidatesDialog";
 import type { CandidateReviewEntry } from "@/features/gallery/lib/candidateReview";
 import type { QuickActionOverlayState } from "@/features/quickAction/hooks/useQuickActionHost";
@@ -38,6 +39,7 @@ type GalleryOverlayState = {
   onNext: () => void;
   onGoTo: (index: number) => void;
   onDeleted?: (path: string) => void;
+  onRenamed?: (path: string, renamedPath: string) => void;
   onMoved?: (paths: string[]) => void | Promise<void>;
   onCopied?: () => void | Promise<void>;
   onResolveIssue?: (item: GalleryItem) => void;
@@ -138,6 +140,7 @@ export type AppOverlaysProps = {
   automation: AutomationDialogsState;
   fileImport: FileImportOverlayState;
   createFolder: CreateFolderOverlayState | null;
+  renameFolder: RenameFolderOverlayState | null;
   deleteFolder: DeleteFolderOverlayState | null;
   settings: SettingsOverlayState;
   shortcuts: ShortcutsOverlayState;

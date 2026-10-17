@@ -18,6 +18,7 @@ import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStat
 import {
   deleteMedia,
   openMediaInViewer,
+  renameMedia,
   type MediaTransferMode,
 } from "@/features/gallery/api/media";
 import { galleryItemMediaUrl, galleryItemWaveformUrl } from "@/features/gallery/lib/thumbnail";
@@ -57,9 +58,11 @@ import {
   iconX,
   iconExpand,
   iconMinimize,
+  iconPencilLine,
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
+import { splitFileName } from "@/features/gallery/lib/fileName";
 import { isDuplicateItem } from "@/features/gallery/lib/duplicates";
 import {
   isAudio,
@@ -85,6 +88,7 @@ import { classNames } from "@/shared/lib/classNames";
 import { buildCaptionVocabulary } from "@/features/gallery/lib/captionVocabulary";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { RenameDialog } from "@/shared/ui/RenameDialog";
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
 import { CaptionSaveStatus } from "./CaptionSaveStatus";
 import { MediaInfoBar } from "./MediaInfoBar";
@@ -135,6 +139,8 @@ interface GalleryItemModalProps {
   onGoTo?: (index: number) => void;
   onCaptionSaved: (path: string, update: CaptionSaveResponse) => void;
   onDeleted?: (path: string) => void;
+  /** Renaming stays hidden without it. */
+  onRenamed?: (path: string, renamedPath: string) => void;
   onMoved?: (paths: string[]) => void | Promise<void>;
   onCopied?: () => void | Promise<void>;
   onResolveIssue?: (item: GalleryItem) => void;
@@ -161,6 +167,7 @@ export function GalleryItemModal({
   onGoTo,
   onCaptionSaved,
   onDeleted,
+  onRenamed,
   onMoved,
   onCopied,
   onResolveIssue,
@@ -193,6 +200,9 @@ export function GalleryItemModal({
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [openingInViewer, setOpeningInViewer] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
   // Owned here so next/prev keeps capture across videos and GIFs; per-hook flags dropped it.
@@ -279,7 +289,7 @@ export function GalleryItemModal({
   const gifToMp4 = useGifToMp4({ item, onConverted: onCopied });
 
   const { transferPicker, overwritePrompt, transferring } = transfer;
-  const otherWorkBusy = deleting || transferring !== null || gifToMp4.converting;
+  const otherWorkBusy = deleting || renaming || transferring !== null || gifToMp4.converting;
   const busy = otherWorkBusy || frameCapture.saving || videoEdit.applying || imageEdit.applying;
   const leave = useCallback(
     async (action: WorkspaceAction) => {
@@ -312,6 +322,7 @@ export function GalleryItemModal({
   const childOverlayOpen =
     suspended ||
     deleteConfirmOpen ||
+    renameOpen ||
     revertConfirmOpen ||
     comfyWorkflowOpen ||
     transfer.transferDialogOpen ||
@@ -322,6 +333,9 @@ export function GalleryItemModal({
   useEffect(() => {
     setDeleteConfirmOpen(false);
     setDeleting(false);
+    setRenameOpen(false);
+    setRenaming(false);
+    setRenameError(null);
     setOpeningInViewer(false);
     setViewerError(null);
     setComfyWorkflowOpen(false);
@@ -377,6 +391,44 @@ export function GalleryItemModal({
     if (deleting) return;
     setDeleteConfirmOpen(false);
   }, [deleting]);
+
+  const openRename = useCallback(() => {
+    if (busy) return;
+    setRenameError(null);
+    setRenameOpen(true);
+  }, [busy]);
+
+  const cancelRename = useCallback(() => {
+    if (renaming) return;
+    setRenameOpen(false);
+    setRenameError(null);
+  }, [renaming]);
+
+  const confirmRename = useCallback(
+    async (name: string) => {
+      if (!item || renaming) return;
+
+      setRenaming(true);
+      setRenameError(null);
+      // A caption saved after the rename would write a file under the old name.
+      if (!(await flushPendingSave())) {
+        setRenaming(false);
+        setRenameOpen(false);
+        return;
+      }
+
+      try {
+        const result = await renameMedia(item.path, name);
+        setRenameOpen(false);
+        onRenamed?.(item.path, result.destination);
+      } catch (error) {
+        setRenameError(formatApiError(error));
+      } finally {
+        setRenaming(false);
+      }
+    },
+    [flushPendingSave, item, onRenamed, renaming],
+  );
 
   const handleResolveIssue = useCallback(() => {
     if (!item || busy || !onResolveIssue) return;
@@ -541,6 +593,7 @@ export function GalleryItemModal({
   if (!item) return null;
 
   const mediaLabel = mediaLabelFor(item);
+  const nameParts = splitFileName(item.name);
   const resolution = getResolution(item);
   const captionDisplay = getGalleryItemCaptionDisplay(item, mediaLabel);
   const copyContent = caption;
@@ -776,6 +829,19 @@ export function GalleryItemModal({
                   </button>
                 </Tooltip>
               </>
+            )}
+            {onRenamed && (
+              <Tooltip content={"Rename file"}>
+                <button
+                  type="button"
+                  className="gallery-item-modal__rename"
+                  onClick={openRename}
+                  disabled={busy}
+                  aria-label={`Rename ${item.name}`}
+                >
+                  <Icon icon={iconPencilLine} />
+                </button>
+              </Tooltip>
             )}
             <Tooltip content={"Delete file"}>
               <button
@@ -1233,6 +1299,32 @@ export function GalleryItemModal({
             void confirmDelete();
           }}
           onCancel={cancelDeleteConfirm}
+        />
+      )}
+
+      {renameOpen && (
+        <RenameDialog
+          title="Rename file"
+          description={
+            <span>
+              Renames <strong>{item.name}</strong> together with its captions and other related
+              files.
+              {nameParts.extension && (
+                <>
+                  {" "}
+                  The extension <strong>{nameParts.extension}</strong> stays.
+                </>
+              )}
+            </span>
+          }
+          fieldLabel="File name"
+          initialName={nameParts.stem}
+          busy={renaming}
+          error={renameError}
+          onConfirm={(name) => {
+            void confirmRename(name);
+          }}
+          onCancel={cancelRename}
         />
       )}
 

@@ -6,6 +6,7 @@ import type {
   MediaTransferPreviewResponse,
   MediaTransferRequest,
   MediaTransferResponse,
+  RenameResponse,
 } from "@/shared/types";
 
 export type MediaTransferMode = "move" | "copy";
@@ -18,6 +19,12 @@ export async function openMediaInViewer(mediaPath: string): Promise<MediaOpenRes
 export async function deleteMedia(mediaPath: string): Promise<MediaDeleteResponse> {
   const params = new URLSearchParams({ path: mediaPath });
   return requestJson<MediaDeleteResponse>(`/api/media?${params}`, { method: "DELETE" });
+}
+
+/** `name` replaces the file name before its extension, which the file keeps. */
+export async function renameMedia(mediaPath: string, name: string): Promise<RenameResponse> {
+  const params = new URLSearchParams({ path: mediaPath, name });
+  return requestJson<RenameResponse>(`/api/media/rename?${params}`, { method: "POST" });
 }
 
 export type DeleteSelectedMediaResult = {

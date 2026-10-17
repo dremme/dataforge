@@ -83,6 +83,38 @@ describe("useGalleryItemModal", () => {
     expect(result.current.modalItems).toHaveLength(2);
   });
 
+  it("follows a renamed item in place once the listing carries the new name", () => {
+    const renamed = { ...images[1], name: "dusk.png", path: "C:\\Photos\\dusk.png" };
+    const { result, rerender } = renderHook(({ list }) => useGalleryItemModal(list, list), {
+      initialProps: { list: images },
+      wrapper,
+    });
+
+    act(() => result.current.openGalleryItem(images[1].path));
+    // One batch, as the gallery session does it: the listing never lacks the open item.
+    act(() => {
+      result.current.renameGalleryItem(images[1].path, renamed.path);
+      rerender({ list: [images[0], renamed, images[2]] });
+    });
+
+    expect(result.current.selectedPath).toBe(renamed.path);
+    expect(result.current.selectedIndex).toBe(1);
+    expect(result.current.modalItems.map((entry) => entry.name)).toEqual([
+      "beach.jpg",
+      "dusk.png",
+      "waves.mp4",
+    ]);
+  });
+
+  it("leaves the selection alone when a different item is renamed", () => {
+    const { result } = renderModal();
+
+    act(() => result.current.openGalleryItem(images[2].path));
+    act(() => result.current.renameGalleryItem(images[0].path, "C:\\Photos\\shore.jpg"));
+
+    expect(result.current.selectedPath).toBe(images[2].path);
+  });
+
   it("closes the modal once the last item is removed", () => {
     const { result } = renderHook(() => useGalleryItemModal([images[0]], [images[0]]), { wrapper });
 

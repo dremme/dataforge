@@ -1236,6 +1236,13 @@ class MediaDeleteResponse(BaseModel):
     deleted: list[str] = Field(default_factory=list)
 
 
+class RenameResponse(BaseModel):
+    """Answers renaming a media file or a folder alike."""
+
+    source: str
+    destination: str
+
+
 # Move and copy share these shapes; only the endpoint decides whether the source survives.
 class MediaTransferPreviewRequest(BaseModel):
     paths: list[str] = Field(default_factory=list)

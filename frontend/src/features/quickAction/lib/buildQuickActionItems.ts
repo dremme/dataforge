@@ -46,6 +46,7 @@ import {
   iconListChecks,
   iconMessageWarning,
   iconMoon,
+  iconPencilLine,
   iconRefresh,
   iconScanSquare,
   iconSettings,
@@ -246,7 +247,8 @@ export interface FolderCommandOptions {
   /** Whether the open folder is a favorite now, which picks the toggle row offered. */
   isFavorite: boolean;
   onCreateFolder: () => void;
-  /** Set only while the open folder is empty, which is when the row appears. */
+  /** Set only while the open folder is empty, which is when the rows appear. */
+  onRenameFolder?: () => void;
   onDeleteFolder?: () => void;
   onToggleFavorite: () => void;
   onRefresh: () => void;
@@ -256,6 +258,7 @@ export function buildFolderCommandItems({
   folderFound,
   isFavorite,
   onCreateFolder,
+  onRenameFolder,
   onDeleteFolder,
   onToggleFavorite,
   onRefresh,
@@ -283,6 +286,19 @@ export function buildFolderCommandItems({
       shortcut: "newFolder",
       run: onCreateFolder,
     },
+    ...(onRenameFolder
+      ? [
+          {
+            id: "cmd:rename-folder",
+            section: "commands",
+            label: "Rename folder",
+            detail: "Give this empty folder another name",
+            icon: iconPencilLine,
+            keywords: "name relabel change directory",
+            run: onRenameFolder,
+          } satisfies QuickActionItem,
+        ]
+      : []),
     ...(onDeleteFolder
       ? [
           {
@@ -683,6 +699,7 @@ export interface CommandOptions {
   /** Whether the open folder is a favorite now. */
   isFavorite: boolean;
   onCreateFolder: () => void;
+  onRenameFolder?: () => void;
   onDeleteFolder?: () => void;
   onToggleFavorite: () => void;
   onRefresh: () => void;
@@ -704,6 +721,7 @@ export function buildCommandItems({
   onNavigate,
   isFavorite,
   onCreateFolder,
+  onRenameFolder,
   onDeleteFolder,
   onToggleFavorite,
   onRefresh,
@@ -733,6 +751,7 @@ export function buildCommandItems({
       folderFound,
       isFavorite,
       onCreateFolder,
+      onRenameFolder,
       onDeleteFolder,
       onToggleFavorite,
       onRefresh,

@@ -8,7 +8,9 @@ import { useFolderChangeDetection } from "@/features/folder/hooks/useFolderChang
 import { useFolderFileDrop } from "@/features/folder/hooks/useFolderFileDrop";
 import { useFolderNavigation } from "@/features/folder/hooks/useFolderNavigation";
 import { useFolderScrollPosition } from "@/features/folder/hooks/useFolderScrollPosition";
+import { useRenameFolderDialog } from "@/features/folder/hooks/useRenameFolderDialog";
 import { useSubfolderStats } from "@/features/folder/hooks/useSubfolderStats";
+import { folderLeafName } from "@/features/folder/lib/folderPath";
 import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useGallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
@@ -94,17 +96,26 @@ export function useAppWorkspace() {
 
   useSubfolderStats(folder?.path, folder?.fingerprint, subfolders, !folderNotFound);
 
+  // The backend still refuses a folder holding files the gallery does not list.
+  const folderIsEmpty =
+    Boolean(folder?.parent) &&
+    !folderNotFound &&
+    !loading &&
+    items.length === 0 &&
+    subfolders.length === 0;
+
   const deleteFolder = useDeleteFolderDialog({
     folderPath: folder?.path,
     folderLabel,
-    // The backend still refuses a folder holding files the gallery does not list.
-    enabled:
-      Boolean(folder?.parent) &&
-      !folderNotFound &&
-      !loading &&
-      items.length === 0 &&
-      subfolders.length === 0,
+    enabled: folderIsEmpty,
     onDeleted: navigateTo,
+  });
+
+  const renameFolder = useRenameFolderDialog({
+    folderPath: folder?.path,
+    folderName: folder ? folderLeafName(folder.path) : "",
+    enabled: folderIsEmpty,
+    onRenamed: navigateTo,
   });
 
   useDocumentTitle(folder?.path, folder?.breadcrumbs ?? []);
@@ -305,6 +316,7 @@ export function useAppWorkspace() {
     navigateTo,
     refreshFolder: refreshFolderAndCounts,
     onCreateFolder: createFolder.openDialog,
+    onRenameFolder: renameFolder.openDialog,
     onDeleteFolder: deleteFolder.openDialog,
     panel: automation.actions,
     selection: selectionActions,
@@ -333,6 +345,7 @@ export function useAppWorkspace() {
     items,
     navigateTo,
     createFolder,
+    renameFolder,
     deleteFolder,
     fileDrop,
     gallery,

@@ -11,7 +11,6 @@ from testing_fixtures import isolate_test_database
 isolate_test_database()
 
 from automation.rename_media import (
-    _rename_media_group,
     build_target_name,
     list_rename_media,
     normalize_name_stem,
@@ -31,6 +30,7 @@ from comfy_candidates import (
 )
 from constants import CAPTION_BACKUP_DIR_NAME, STAGING_DIR_NAME
 from edit_sidecars import render_slot
+from media_rename import rename_media_group
 from schemas import ComfyCandidateSidecar
 from testing_fixtures import (
     TempMediaFolder,
@@ -502,7 +502,7 @@ class RenameMediaInterruptionTests(unittest.TestCase):
             media = write_media(root, "photo.png")
             write_txt_caption(media, "Caption one.")
 
-            _rename_media_group(media, media)
+            rename_media_group(media, media)
 
             self.assertEqual(
                 media.with_suffix(".txt").read_text(encoding="utf-8").strip(), "Caption one."

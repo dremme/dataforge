@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { folderLeafName } from "@/features/folder/lib/folderPath";
-import { iconFilter, iconFilterX, iconScanSquare, iconTrash2 } from "@/shared/icons";
+import {
+  iconFilter,
+  iconFilterX,
+  iconPencilLine,
+  iconScanSquare,
+  iconTrash2,
+} from "@/shared/icons";
 import type { ExternalOstrisJob, Job } from "@/shared/types";
 import type { QuickActionItem, QuickActionSection } from "../types";
 import {
@@ -157,6 +163,28 @@ describe("buildFolderCommandItems", () => {
     expect(row?.icon).toBe(iconTrash2);
     row?.run();
     expect(onDeleteFolder).toHaveBeenCalledOnce();
+  });
+
+  it("offers renaming the folder only while a rename handler is set", () => {
+    const options = {
+      folderFound: true,
+      isFavorite: false,
+      onCreateFolder: vi.fn(),
+      onToggleFavorite: vi.fn(),
+      onRefresh: vi.fn(),
+    };
+    const onRenameFolder = vi.fn();
+
+    expect(buildFolderCommandItems(options).map((item) => item.id)).not.toContain(
+      "cmd:rename-folder",
+    );
+
+    const items = buildFolderCommandItems({ ...options, onRenameFolder });
+    expect(idsFor(items, "relabel")).toEqual(["cmd:rename-folder"]);
+    const row = items.find((item) => item.id === "cmd:rename-folder");
+    expect(row?.icon).toBe(iconPencilLine);
+    row?.run();
+    expect(onRenameFolder).toHaveBeenCalledOnce();
   });
 });
 

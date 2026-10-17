@@ -100,3 +100,11 @@ def remove_folder_favorite(path: str) -> list[dict[str, str]]:
     paths = [entry for entry in get_folder_favorite_paths() if entry != folder_str]
     _save_paths(paths)
     return list_folder_favorites()
+
+
+def rename_folder_favorite(path: str, renamed: str) -> None:
+    """Points a favorite at its folder's new path, keeping its place in the list."""
+    folder_str = str(normalize_user_path(path))
+    paths = get_folder_favorite_paths()
+    if folder_str in paths:
+        _save_paths([renamed if entry == folder_str else entry for entry in paths])

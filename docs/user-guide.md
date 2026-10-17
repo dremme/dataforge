@@ -27,7 +27,7 @@ Press `Ctrl+P` for **Quick actions**: search for jobs, commands, filters, and fo
 
 **Select** enters selection mode; `Ctrl+A` selects every media file shown by the current search and filters. `Ctrl+click` toggles one file. The Media count shows how many visible files are selected; the selection bar has actions to invert or clear the selection, copy, move, or delete. Tools in the toolbar then run on the selection. Files hidden by filters are retained in the selection but excluded from actions until visible again. Copy and move preview conflicts and ask before overwriting destination files.
 
-**Rename** assigns sequential numbered names and has no undo. Files being rendered or having a ComfyUI result accepted cannot be renamed. You can also create subfolders and drag supported media and `.txt` captions into the app to import them.
+**Rename** assigns sequential numbered names and has no undo. Files being rendered or having a ComfyUI result accepted cannot be renamed. To rename a single file, use the pencil button in the item viewer; the extension stays and the related files follow. An empty folder can be renamed from its empty view or Quick actions. You can also create subfolders and drag supported media and `.txt` captions into the app to import them.
 
 File operations in DataForge carry captions, findings, edit originals, caption backups, and staged ComfyUI results with their media. Folder instructions stay with the folder. On Windows, deletion uses the Recycle Bin; on other platforms it is permanent after confirmation.
 

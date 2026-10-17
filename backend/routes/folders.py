@@ -8,11 +8,13 @@ from filesystem import (
     list_child_folders,
     list_folder_roots,
     open_folder_in_file_manager,
+    rename_empty_folder,
 )
 from folder_favorites import (
     add_folder_favorite,
     list_folder_favorites,
     remove_folder_favorite,
+    rename_folder_favorite,
     reorder_folder_favorites,
 )
 from media_delete import deletes_to_trash
@@ -25,6 +27,7 @@ from schemas import (
     FolderFavoritesResponse,
     FolderOpenResponse,
     FolderRootsResponse,
+    RenameResponse,
 )
 
 router = APIRouter()
@@ -108,3 +111,14 @@ def delete_folder(
         parent=str(parent),
         deletes_to_trash=deletes_to_trash(),
     )
+
+
+@router.post("/folders/rename", response_model=RenameResponse)
+def rename_folder(
+    path: str = Query(..., description="Absolute path to an empty folder"),
+    name: str = Query(..., description="New name for the folder"),
+) -> RenameResponse:
+    folder = resolve_folder(path)
+    renamed = rename_empty_folder(folder, name)
+    rename_folder_favorite(str(folder), str(renamed))
+    return RenameResponse(source=str(folder), destination=str(renamed))

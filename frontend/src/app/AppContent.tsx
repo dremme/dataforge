@@ -34,6 +34,7 @@ export function AppContent() {
     items,
     navigateTo,
     createFolder,
+    renameFolder,
     deleteFolder,
     fileDrop,
     gallery,
@@ -195,6 +196,7 @@ export function AppContent() {
                 subfolders={subfolders}
                 filteredSubfolders={filteredSubfolders}
                 onNavigate={navigateTo}
+                onRenameFolder={renameFolder.openDialog}
                 onDeleteFolder={deleteFolder.openDialog}
                 items={items}
                 filteredItems={query.filteredItems}
@@ -256,6 +258,7 @@ export function AppContent() {
                 onNext: gallery.goToNext,
                 onGoTo: gallery.goToIndex,
                 onDeleted: gallery.onGalleryItemDeleted,
+                onRenamed: gallery.onGalleryItemRenamed,
                 onMoved: onGalleryItemsMoved,
                 onCopied: onGalleryItemsCopied,
                 onResolveIssue: gallery.onResolveGalleryItemIssue,
@@ -292,6 +295,7 @@ export function AppContent() {
                 onCancel: fileDrop.dismissOverwritePrompt,
               }}
               createFolder={createFolder.overlay}
+              renameFolder={renameFolder.overlay}
               deleteFolder={deleteFolder.overlay}
               settings={{ open: settings.open, onClose: settings.closeSettings }}
               shortcuts={{ open: shortcuts.open, onClose: shortcuts.closeShortcuts }}

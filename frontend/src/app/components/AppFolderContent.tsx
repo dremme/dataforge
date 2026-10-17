@@ -9,7 +9,7 @@ import { GallerySelectionControls } from "@/features/gallery/components/GalleryS
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import type { FilterEmptyState } from "@/features/gallery/lib/filters";
 import type { FolderError } from "@/shared/api/http";
-import { iconCheck, iconFolderOpen, iconImages, iconTrash2 } from "@/shared/icons";
+import { iconCheck, iconFolderOpen, iconImages, iconPencilLine, iconTrash2 } from "@/shared/icons";
 import { useUiSettings } from "@/shared/preferences/uiPreferences";
 import type { FolderResponse, GalleryDisplayMode, GalleryItem, Subfolder } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
@@ -27,6 +27,7 @@ type AppFolderContentProps = {
   filteredSubfolders: Subfolder[];
   onNavigate: (path: string) => void;
   /** Set only while the open folder has no media and no subfolders. */
+  onRenameFolder?: () => void;
   onDeleteFolder?: () => void;
   items: GalleryItem[];
   filteredItems: GalleryItem[];
@@ -59,6 +60,7 @@ export function AppFolderContent({
   subfolders,
   filteredSubfolders,
   onNavigate,
+  onRenameFolder,
   onDeleteFolder,
   items,
   filteredItems,
@@ -158,16 +160,28 @@ export function AppFolderContent({
                       description={emptyFolderDescription}
                       variant="muted"
                       action={
-                        onDeleteFolder && (
-                          <button
-                            type="button"
-                            className="workspace-button"
-                            onClick={onDeleteFolder}
-                          >
-                            <Icon icon={iconTrash2} />
-                            Delete folder
-                          </button>
-                        )
+                        <>
+                          {onRenameFolder && (
+                            <button
+                              type="button"
+                              className="workspace-button"
+                              onClick={onRenameFolder}
+                            >
+                              <Icon icon={iconPencilLine} />
+                              Rename folder
+                            </button>
+                          )}
+                          {onDeleteFolder && (
+                            <button
+                              type="button"
+                              className="workspace-button"
+                              onClick={onDeleteFolder}
+                            >
+                              <Icon icon={iconTrash2} />
+                              Delete folder
+                            </button>
+                          )}
+                        </>
                       }
                     />
                   ) : showFilterEmptyState ? (

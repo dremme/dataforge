@@ -16,6 +16,7 @@ import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
 import { SettingsModal } from "@/features/settings/components/SettingsModal";
 import { ShortcutsDialog } from "@/features/shortcuts/components/ShortcutsDialog";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { RenameDialog } from "@/shared/ui/RenameDialog";
 import type { AppOverlaysProps } from "./overlays";
 
 export function AppOverlays({
@@ -37,6 +38,7 @@ export function AppOverlays({
   automation,
   fileImport,
   createFolder,
+  renameFolder,
   deleteFolder,
   settings,
   shortcuts,
@@ -120,6 +122,7 @@ export function AppOverlays({
           onGoTo={gallery.onGoTo}
           onCaptionSaved={onCaptionSaved}
           onDeleted={gallery.onDeleted}
+          onRenamed={gallery.onRenamed}
           onMoved={gallery.onMoved}
           onCopied={gallery.onCopied}
           onResolveIssue={gallery.onResolveIssue}
@@ -167,6 +170,23 @@ export function AppOverlays({
           error={createFolder.error}
           onConfirm={createFolder.onConfirm}
           onCancel={createFolder.onCancel}
+        />
+      )}
+
+      {renameFolder && (
+        <RenameDialog
+          title="Rename folder"
+          description={
+            <>
+              Give the empty folder <strong>{renameFolder.folderName}</strong> another name.
+            </>
+          }
+          fieldLabel="Folder name"
+          initialName={renameFolder.folderName}
+          busy={renameFolder.busy}
+          error={renameFolder.error}
+          onConfirm={renameFolder.onConfirm}
+          onCancel={renameFolder.onCancel}
         />
       )}
 

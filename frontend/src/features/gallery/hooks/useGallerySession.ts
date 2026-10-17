@@ -13,6 +13,7 @@ import { useGalleryOverlays } from "@/features/gallery/hooks/useGalleryOverlays"
 import { useGalleryQuery } from "@/features/gallery/hooks/useGalleryQuery";
 import type { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useIssueResolverOverlay } from "@/features/gallery/hooks/useIssueResolverOverlay";
+import { applyFolderItemRename } from "@/features/gallery/lib/applyFolderItemRename";
 import { jobEligibleItems, jobEligiblePaths } from "@/features/gallery/lib/itemKind";
 import { countResolvableIssues, isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import { instructionApplies, type InstructionKind } from "@/shared/api/folderInstructions";
@@ -104,6 +105,7 @@ export function useGallerySession({
     goToNext,
     goToIndex,
     removeGalleryItem,
+    renameGalleryItem,
     openSysPrompt,
     closeInstructions,
     instructionsOpen,
@@ -168,6 +170,28 @@ export function useGallerySession({
       void refreshFolder();
     },
     [removeGalleryItem, refreshFolder],
+  );
+
+  const onGalleryItemRenamed = useCallback(
+    (path: string, renamedPath: string) => {
+      // The old path is gone, so the open item and the selection follow before the reload.
+      setFolder((current) => current && applyFolderItemRename(current, path, renamedPath));
+      renameGalleryItem(path, renamedPath);
+      if (selectedPaths.has(path)) {
+        replaceSelectedPaths(
+          selectedPathsList.map((entry) => (entry === path ? renamedPath : entry)),
+        );
+      }
+      void refreshFolder();
+    },
+    [
+      refreshFolder,
+      renameGalleryItem,
+      replaceSelectedPaths,
+      selectedPaths,
+      selectedPathsList,
+      setFolder,
+    ],
   );
 
   const onGalleryItemsDeleted = useCallback(
@@ -279,6 +303,7 @@ export function useGallerySession({
     onCaptionSaved,
     onInstructionsSaved,
     onGalleryItemDeleted,
+    onGalleryItemRenamed,
     onGalleryItemsDeleted,
     onGalleryItemsMoved,
     onGalleryItemsCopied,

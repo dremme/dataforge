@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { EMPTY_PATH, HOME_PATH, VACATION_PATH, homeFolder } from "@/test/fixtures";
-import { touchRecentFolder } from "@/features/folder/lib/folderPreferences";
+import { readRecentFolderPaths, touchRecentFolder } from "@/features/folder/lib/folderPreferences";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
@@ -379,5 +379,55 @@ describe("App: folder navigation", () => {
     expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Empty/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete folder" })).not.toBeInTheDocument();
+  });
+
+  it("renames an empty folder from its empty state and opens it under the new name", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", `/?path=${encodeURIComponent(EMPTY_PATH)}`);
+    installMockBackend();
+    touchRecentFolder(EMPTY_PATH);
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Rename folder" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Rename folder" });
+    const input = within(dialog).getByLabelText("Folder name");
+    expect(input).toHaveValue("Empty");
+    await user.clear(input);
+    await user.type(input, "Archive");
+    await user.click(within(dialog).getByRole("button", { name: "Rename" }));
+
+    const renamedPath = `${HOME_PATH}\\Archive`;
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).get("path")).toBe(renamedPath);
+    });
+    expect(screen.queryByRole("alertdialog", { name: "Rename folder" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Rename folder" })).toBeInTheDocument();
+    expect(readRecentFolderPaths()).not.toContain(EMPTY_PATH);
+    expect(readRecentFolderPaths()).toContain(renamedPath);
+  });
+
+  it("keeps the rename dialog open with the reason when the folder name is taken", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", `/?path=${encodeURIComponent(EMPTY_PATH)}`);
+    installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Rename folder" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Rename folder" });
+    const input = within(dialog).getByLabelText("Folder name");
+    await user.clear(input);
+    await user.type(input, "vacation");
+    await user.click(within(dialog).getByRole("button", { name: "Rename" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Folder already exists");
+    expect(new URLSearchParams(window.location.search).get("path")).toBe(EMPTY_PATH);
+  });
+
+  it("offers renaming only for an empty folder", async () => {
+    installMockBackend();
+    await renderApp();
+
+    await screen.findByRole("button", { name: "View sunset.png" });
+    expect(screen.queryByRole("button", { name: "Rename folder" })).not.toBeInTheDocument();
   });
 });

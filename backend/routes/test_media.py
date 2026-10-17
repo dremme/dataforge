@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.parse import quote
 
+from edit_sidecars import render_slot
 from gif_frames import clear_gif_caches_for_tests
 from routes._test_client import client
 from testing_fixtures import (
@@ -210,6 +212,118 @@ class MediaEndpointTests(unittest.TestCase):
                 response.json()["detail"],
                 "Default viewer is not available on this system",
             )
+
+
+def rename_media(media: object, name: str):
+    return client.post(f"/api/media/rename?path={quote(str(media))}&name={quote(name)}")
+
+
+class MediaRenameEndpointTests(unittest.TestCase):
+    def test_renames_the_file_and_its_sidecars_keeping_the_extension(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.PNG")
+            write_txt_caption(media, "Golden hour.")
+
+            response = rename_media(media, "dusk")
+
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(
+                response.json(), {"source": str(media), "destination": str(root / "dusk.PNG")}
+            )
+            self.assertEqual(sorted(os.listdir(root)), ["dusk.PNG", "dusk.txt"])
+            caption = (root / "dusk.txt").read_text(encoding="utf-8")
+            self.assertEqual(caption.strip(), "Golden hour.")
+
+    def test_renames_audio(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_wav(root, "voice.wav")
+
+            self.assertEqual(rename_media(media, "greeting").status_code, 200)
+
+            self.assertEqual(os.listdir(root), ["greeting.wav"])
+
+    def test_changes_only_the_case_of_a_name_and_keeps_the_sidecars(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "Kept.")
+
+            response = rename_media(media, "Photo")
+
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(sorted(os.listdir(root)), ["Photo.png", "Photo.txt"])
+            self.assertEqual((root / "Photo.txt").read_text(encoding="utf-8").strip(), "Kept.")
+
+    def test_answers_an_unchanged_name_without_touching_the_files(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "Kept.")
+
+            response = rename_media(media, "photo")
+
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(sorted(os.listdir(root)), ["photo.png", "photo.txt"])
+
+    def test_a_sibling_keeps_the_caption_it_shared(self) -> None:
+        with TempMediaFolder() as root:
+            jpg = write_media(root, "pair.jpg")
+            write_media(root, "pair.png")
+            write_txt_caption(jpg, "Shared.")
+
+            self.assertEqual(rename_media(jpg, "solo").status_code, 200)
+
+            self.assertEqual(
+                sorted(os.listdir(root)), ["pair.png", "pair.txt", "solo.jpg", "solo.txt"]
+            )
+
+    def test_refuses_a_name_another_file_already_has(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "a.png")
+            write_media(root, "b.png")
+
+            response = rename_media(media, "b")
+
+            self.assertEqual(response.status_code, 409)
+            self.assertIn('"b.png" already exists', response.json()["detail"])
+            self.assertEqual(sorted(os.listdir(root)), ["a.png", "b.png"])
+
+    def test_refuses_a_name_a_sidecar_would_land_on(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "a.png")
+            write_txt_caption(media, "Caption.")
+            (root / "b.txt").write_text("Other caption.", encoding="utf-8")
+
+            response = rename_media(media, "b")
+
+            self.assertEqual(response.status_code, 409)
+            self.assertIn('"b.txt" already exists', response.json()["detail"])
+            self.assertEqual(sorted(os.listdir(root)), ["a.png", "a.txt", "b.txt"])
+
+    def test_refuses_a_file_that_is_being_edited(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+
+            with render_slot(media):
+                response = rename_media(media, "portrait")
+
+            self.assertEqual(response.status_code, 409)
+            self.assertIn("being edited or reviewed", response.json()["detail"])
+            self.assertTrue(media.is_file())
+
+    def test_rejects_an_invalid_name(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+
+            for name in ("bad/name", " portrait", "", "CON", ".."):
+                with self.subTest(name=name):
+                    response = rename_media(media, name)
+
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(response.json()["detail"], "Invalid file name")
+            self.assertEqual(os.listdir(root), ["photo.png"])
+
+    def test_returns_404_for_missing_media(self) -> None:
+        with TempMediaFolder() as root:
+            self.assertEqual(rename_media(root / "missing.png", "portrait").status_code, 404)
 
 
 class MediaMoveEndpointTests(unittest.TestCase):

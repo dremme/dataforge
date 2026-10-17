@@ -323,6 +323,54 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse({ path: folderPath, parent: parentPath, deletes_to_trash: true });
     }
 
+    if (url.pathname === "/api/folders/rename" && method === "POST") {
+      const folderPath = normalizeFolderKey(url.searchParams.get("path"));
+      const folderName = url.searchParams.get("name") ?? "";
+      const target = folderPath ? folderResponses[folderPath] : undefined;
+      if (!folderPath || !target) {
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
+      }
+      if (!folderName || /[<>:"/\\|?*]/.test(folderName)) {
+        return jsonResponse({ detail: "Invalid folder name" }, 400);
+      }
+      if (target.items.length > 0 || target.subfolders.length > 0) {
+        return jsonResponse({ detail: "Folder is not empty" }, 409);
+      }
+
+      const parentPath = target.parent ?? "";
+      const parentFolder = folderResponses[parentPath];
+      const taken = parentFolder?.subfolders.some(
+        (entry) =>
+          normalizeFolderKey(entry.path) !== folderPath &&
+          entry.name.toLowerCase() === folderName.toLowerCase(),
+      );
+      if (taken) {
+        return jsonResponse({ detail: "Folder already exists" }, 409);
+      }
+
+      const renamedPath = `${parentPath.replace(/[/\\]+$/, "")}\\${folderName}`;
+      if (parentFolder) {
+        parentFolder.subfolders = parentFolder.subfolders
+          .map((entry) =>
+            normalizeFolderKey(entry.path) === folderPath
+              ? { ...entry, name: folderName, path: renamedPath }
+              : entry,
+          )
+          .sort((left, right) =>
+            left.name.localeCompare(right.name, "en", { sensitivity: "base" }),
+          );
+      }
+      delete folderResponses[folderPath];
+      folderResponses[renamedPath] = {
+        ...target,
+        path: renamedPath,
+        breadcrumbs: [...target.breadcrumbs.slice(0, -1), { name: folderName, path: renamedPath }],
+        fingerprint: `${renamedPath}-empty`,
+      };
+
+      return jsonResponse({ source: folderPath, destination: renamedPath });
+    }
+
     if (url.pathname === "/api/folders/roots") {
       return jsonResponse({
         home: homeFolder.home,
@@ -848,6 +896,28 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       }
 
       return jsonResponse({ transferred, skipped, failed });
+    }
+
+    if (url.pathname === "/api/media/rename" && method === "POST") {
+      const path = url.searchParams.get("path") ?? "";
+      const stem = url.searchParams.get("name") ?? "";
+
+      for (const folderData of Object.values(folderResponses)) {
+        const item = folderData?.items.find((entry) => entry.path === path);
+        if (!folderData || !item) continue;
+
+        const renamedName = `${stem}${item.name.slice(item.name.lastIndexOf("."))}`;
+        if (folderData.items.some((entry) => entry !== item && entry.name === renamedName)) {
+          return jsonResponse({ detail: `"${renamedName}" already exists in this folder.` }, 409);
+        }
+
+        const renamedPath = `${path.slice(0, path.length - item.name.length)}${renamedName}`;
+        item.name = renamedName;
+        item.path = renamedPath;
+        return jsonResponse({ source: path, destination: renamedPath });
+      }
+
+      return jsonResponse({ detail: "Media file not found" }, 404);
     }
 
     if (url.pathname === "/api/media") {
