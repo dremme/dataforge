@@ -51,6 +51,19 @@ class LoadTrainingTemplateTests(unittest.TestCase):
         self.assertEqual(process["sample"]["guidance_scale"], 4)
         self.assertEqual(process["sample"]["sample_steps"], 25)
 
+    def test_loads_the_shipped_moss_image_template(self) -> None:
+        process = load_training_template("moss_image_sft")["config"]["process"][0]
+        model = process["model"]
+
+        self.assertEqual(model["name_or_path"], "OpenMOSS-Team/MOSS-Image-SFT")
+        self.assertEqual(model["arch"], "moss_image")
+        self.assertEqual((model["qtype"], model["qtype_te"]), ("convrot8", "convrot8"))
+        # Sampling CFG skips block 22 on the negative branch, so the LoRA must stay off it.
+        self.assertEqual(model["model_kwargs"]["uncond_skip_layers"], [22])
+        self.assertEqual(process["network"]["network_kwargs"]["ignore_if_contains"], ["layers.22."])
+        self.assertEqual(process["sample"]["guidance_scale"], 3)
+        self.assertEqual(process["sample"]["sample_steps"], 30)
+
     def test_loads_the_shipped_qwen_image_2_turbo_template(self) -> None:
         process = load_training_template("qwen_image_2_turbo")["config"]["process"][0]
         model = process["model"]

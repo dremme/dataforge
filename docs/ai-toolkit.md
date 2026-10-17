@@ -34,6 +34,7 @@ Environment changes require a restart. A saved URL in Settings takes precedence 
    | ------------------------ | ------ | ---------------------------------------------------------------------- |
    | **Krea 2 Raw**           | Images | [`krea2_raw.yml`](../ostris_templates/krea2_raw.yml)                   |
    | **Krea 2 Turbo**         | Images | [`krea2_turbo.yml`](../ostris_templates/krea2_turbo.yml)               |
+   | **MOSS-Image SFT**       | Images | [`moss_image_sft.yml`](../ostris_templates/moss_image_sft.yml)                 |
    | **Qwen Image 2.1**       | Images | [`qwen_image_2.yml`](../ostris_templates/qwen_image_2.yml)             |
    | **Qwen Image 2.1 Turbo** | Images | [`qwen_image_2_turbo.yml`](../ostris_templates/qwen_image_2_turbo.yml) |
    | **MiniMax H3**           | Videos | [`h3_fl2va.yml`](../ostris_templates/h3_fl2va.yml)                     |

@@ -453,6 +453,7 @@ class TrainingTemplateEndpointTests(unittest.TestCase):
     def test_returns_the_new_image_model_templates(self) -> None:
         for model, architecture in (
             ("krea2_raw", "krea2"),
+            ("moss_image_sft", "moss_image"),
             ("qwen_image_2_turbo", "qwen_image_2:turbo"),
         ):
             with self.subTest(model=model):

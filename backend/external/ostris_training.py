@@ -31,6 +31,7 @@ DEFAULT_TRAINING_MODEL = "krea2_turbo"
 TRAINING_TEMPLATES: dict[str, str] = {
     "krea2_raw": "krea2_raw.yml",
     "krea2_turbo": "krea2_turbo.yml",
+    "moss_image_sft": "moss_image_sft.yml",
     "qwen_image_2": "qwen_image_2.yml",
     "qwen_image_2_turbo": "qwen_image_2_turbo.yml",
     "h3_fl2va": "h3_fl2va.yml",

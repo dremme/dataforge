@@ -7,6 +7,7 @@ const TRAINING_MODEL_ENTRIES: Record<
 > = {
   krea2_raw: { title: "Krea 2 Raw", group: "Image" },
   krea2_turbo: { title: "Krea 2 Turbo", group: "Image" },
+  moss_image_sft: { title: "MOSS-Image SFT", group: "Image" },
   qwen_image_2: { title: "Qwen Image 2.1", group: "Image" },
   qwen_image_2_turbo: { title: "Qwen Image 2.1 Turbo", group: "Image" },
   h3_fl2va: { title: "MiniMax H3", group: "Video" },

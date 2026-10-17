@@ -98,6 +98,7 @@ describe("TrainLoraDialog", () => {
   it.each([
     ["qwen_image_2", "Qwen Image 2.1"],
     ["krea2_raw", "Krea 2 Raw"],
+    ["moss_image_sft", "MOSS-Image SFT"],
     ["qwen_image_2_turbo", "Qwen Image 2.1 Turbo"],
   ])("submits %s and names it in the description", async (model, title) => {
     const user = userEvent.setup();
@@ -126,7 +127,10 @@ describe("TrainLoraDialog", () => {
           .map((option) => option.textContent),
       ]),
     ).toEqual([
-      ["Image", ["Krea 2 Raw", "Krea 2 Turbo", "Qwen Image 2.1", "Qwen Image 2.1 Turbo"]],
+      [
+        "Image",
+        ["Krea 2 Raw", "Krea 2 Turbo", "MOSS-Image SFT", "Qwen Image 2.1", "Qwen Image 2.1 Turbo"],
+      ],
       ["Video", ["MiniMax H3", "MiniMax H3 Ref2VA"]],
     ]);
   });
