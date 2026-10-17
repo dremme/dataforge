@@ -265,9 +265,11 @@
     }
   }
 
+  // The row keeps the buttons' height while the shorter saving status replaces them.
   &__actions {
     display: flex;
     flex-shrink: 0;
+    min-height: var(--control-height-sm);
     margin-left: auto;
     align-items: center;
     gap: 0.375rem;
