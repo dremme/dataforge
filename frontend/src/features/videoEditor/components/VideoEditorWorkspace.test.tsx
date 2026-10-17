@@ -49,7 +49,9 @@ function clip(id: string, track: string, kind: VideoProjectClip["kind"]): VideoP
     gain: 1,
     fade_in: 0,
     fade_out: 0,
+    fade_curve: "equal_power",
     title: null,
+    keyframes: { x: [], y: [], scale: [], rotation: [], opacity: [], gain: [] },
   };
 }
 
@@ -61,6 +63,8 @@ const track = (id: string, kind: "video" | "audio", name: string) => ({
   hidden: false,
   muted: false,
   solo: false,
+  gain: 1,
+  speech: false,
 });
 
 function startingDocument(): VideoProjectDocument {
@@ -101,6 +105,7 @@ function startingDocument(): VideoProjectDocument {
       ],
       clips: [clip("video", "v1", "video"), clip("sound", "a1", "audio")],
       transitions: [],
+      mix: { master_gain: 1, duck_gain: 0.25 },
       export: {
         filename: "",
         size: "source",
@@ -163,7 +168,7 @@ describe("VideoEditorWorkspace", () => {
       ).toBeInTheDocument();
     }
     expect(clips()).toHaveLength(2);
-    expect(screen.getByRole("status", { name: "" })).toHaveTextContent(/Not saved yet/);
+    expect(screen.getByText(/Not saved yet/).closest("[role=status]")).not.toBeNull();
   });
 
   it("deletes a clip with its linked sound, not while typing, and undoes it", async () => {

@@ -25,7 +25,11 @@ function renderInspector(overrides: Partial<ComponentProps<typeof ClipInspector>
     project: projectWith([video, sound]),
     selection: [],
     transitionId: null,
+    time: 0,
+    onSeek: vi.fn(),
     onEdit: vi.fn(),
+    onTrackEdit: vi.fn(),
+    onMixEdit: vi.fn(),
     onSpeed: vi.fn(),
     onStart: vi.fn(),
     onSourceIn: vi.fn(),
@@ -49,6 +53,39 @@ describe("ClipInspector", () => {
   beforeEach(() => {
     installMockBackend();
     window.localStorage.clear();
+  });
+
+  it("keys a property at the playhead and then edits that keyframe", () => {
+    const still = makeClip("still-clip", "v1", 1, 4);
+    const first = renderInspector({ project: projectWith([still]), selection: [still], time: 2 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a keyframe for Scale" }));
+    const added = vi.mocked(first.onEdit).mock.calls[0][0];
+    expect(added.keyframes?.scale).toEqual([{ time: 1, value: 1, easing: "linear" }]);
+    first.unmount();
+
+    const keyed = { ...still, keyframes: added.keyframes ?? still.keyframes };
+    const second = renderInspector({ project: projectWith([keyed]), selection: [keyed], time: 4 });
+    fireEvent.change(screen.getByLabelText("Scale"), { target: { value: "2" } });
+    expect(vi.mocked(second.onEdit).mock.calls[0][0].keyframes?.scale).toEqual([
+      { time: 1, value: 1, easing: "linear" },
+      { time: 3, value: 2, easing: "linear" },
+    ]);
+    // The playhead sits on no keyframe, so there is nothing to shape; the bar steps back to one.
+    expect(screen.getByLabelText("Easing to the next keyframe")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Previous keyframe" }));
+    expect(second.onSeek).toHaveBeenCalledWith(2);
+  });
+
+  it("sets track levels, speech and the master in the mix while nothing is selected", () => {
+    const { onTrackEdit, onMixEdit } = renderInspector();
+
+    fireEvent.click(screen.getByRole("button", { name: "A1 is speech" }));
+    expect(onTrackEdit).toHaveBeenCalledWith("a1", { speech: true }, true);
+    fireEvent.change(screen.getByLabelText("A2"), { target: { value: "0.5" } });
+    expect(onTrackEdit).toHaveBeenCalledWith("a2", { gain: 0.5 }, false);
+    fireEvent.change(screen.getByLabelText("Master"), { target: { value: "1.5" } });
+    expect(onMixEdit).toHaveBeenCalledWith({ master_gain: 1.5 }, false);
   });
 
   it("sums up the project and lists the main keys while nothing is selected", () => {
@@ -114,7 +151,11 @@ describe("ClipInspector", () => {
       false,
     );
     expect(onEdit).toHaveBeenLastCalledWith(
-      { transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, fit: "fit" },
+      {
+        transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+        fit: "fit",
+        keyframes: video.keyframes,
+      },
       true,
     );
     expect(onUnlink).toHaveBeenCalled();

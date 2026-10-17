@@ -34,10 +34,13 @@ function document(path: string | null = null): VideoProjectDocument {
           hidden: false,
           muted: false,
           solo: false,
+          gain: 1,
+          speech: false,
         },
       ],
       clips: [],
       transitions: [],
+      mix: { master_gain: 1, duck_gain: 0.25 },
       export: {
         filename: "",
         size: "source",

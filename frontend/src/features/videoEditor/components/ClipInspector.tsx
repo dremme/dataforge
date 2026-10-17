@@ -17,7 +17,7 @@ import { SHORTCUTS, type ShortcutDefinition } from "@/shared/lib/shortcuts";
 import { Icon } from "@/shared/ui/Icon";
 import { ShortcutKeys } from "@/shared/ui/ShortcutKeys";
 import { AUTO_ADJUST_DEFAULT_AMOUNT } from "@/shared/constants";
-import type { ColorAdjust, VideoProjectTitleAlign } from "@/shared/types";
+import type { ColorAdjust, VideoProjectFadeCurve, VideoProjectTitleAlign } from "@/shared/types";
 import {
   adjustRange,
   formatAdjustValue,
@@ -40,9 +40,19 @@ import {
   type Clip,
   type Project,
 } from "@/features/videoEditor/lib/timeline";
+import { TRANSFORM_PROPERTIES } from "@/features/videoEditor/lib/keyframes";
 import { FontPicker } from "./FontPicker";
 import { GradePresets } from "./GradePresets";
-import { InspectorHeader, Panel, ResetButton, SectionMemory, Slider } from "./InspectorParts";
+import {
+  InspectorHeader,
+  Panel,
+  ResetButton,
+  SectionMemory,
+  Slider,
+  type ClipEdit,
+} from "./InspectorParts";
+import { KeyedSlider, KeyframeBar } from "./KeyframeControls";
+import { MixPanel, type MixEdit, type TrackEdit } from "./MixPanel";
 import { MultiClipInspector, type BatchEdit } from "./MultiClipInspector";
 import { TimecodeField } from "./TimecodeField";
 
@@ -118,14 +128,16 @@ function firstChord(shortcut: ShortcutDefinition): ShortcutDefinition {
   return { ...shortcut, chords: shortcut.chords.slice(0, 1) };
 }
 
-/** ``final`` is false while a control is still being dragged; only the final edit is recorded. */
-export type ClipEdit = (patch: Partial<Clip>, final: boolean) => void;
-
 interface ClipInspectorProps {
   project: Project;
   selection: Clip[];
   transitionId: string | null;
+  /** The playhead: animated values are shown, and keyed, there. */
+  time: number;
+  onSeek: (time: number) => void;
   onEdit: ClipEdit;
+  onTrackEdit: TrackEdit;
+  onMixEdit: MixEdit;
   onSpeed: (speed: number) => void;
   /** Exact timing of the one selected clip: where it starts, its in point, and its length. */
   onStart: (seconds: number) => void;
@@ -160,7 +172,11 @@ function InspectorContent({
   project,
   selection,
   transitionId,
+  time,
+  onSeek,
   onEdit,
+  onTrackEdit,
+  onMixEdit,
   onSpeed,
   onStart,
   onSourceIn,
@@ -249,6 +265,7 @@ function InspectorContent({
         <p className="video-editor__inspector-empty">
           Select a clip on the timeline to adjust it, or drag files from Media onto a track.
         </p>
+        <MixPanel project={project} onTrackEdit={onTrackEdit} onMixEdit={onMixEdit} />
         <Panel title="Keys">
           <ul className="video-editor__quick-keys">
             {QUICK_KEYS.map((item) => (
@@ -425,72 +442,120 @@ function InspectorContent({
       </Panel>
 
       {clip.kind === "audio" && (
-        <Panel title="Audio" changed={clip.gain !== 1}>
-          <Slider
+        <Panel title="Audio" changed={clip.gain !== 1 || clip.keyframes.gain.length > 0}>
+          <KeyframeBar
+            clip={clip}
+            properties={["gain"]}
+            time={time}
+            onEdit={onEdit}
+            onSeek={onSeek}
+          />
+          <KeyedSlider
+            clip={clip}
+            property="gain"
+            time={time}
             label="Gain"
-            value={clip.gain}
             resting={1}
             min={0}
             max={2}
             step={0.01}
             format={(value) => `${Math.round(value * 100)}%`}
-            onChange={(value, final) => onEdit({ gain: value }, final)}
+            onEdit={onEdit}
           />
+          <div className="video-editor__field">
+            <span id={`curve-${clip.id}`} title="The shape of its fades and crossfades">
+              Fades
+            </span>
+            <div
+              className="video-editor__segmented"
+              role="radiogroup"
+              aria-labelledby={`curve-${clip.id}`}
+            >
+              {FADE_CURVES.map((curve) => (
+                <button
+                  key={curve.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={clip.fade_curve === curve.value}
+                  title={curve.hint}
+                  className={classNames(
+                    "video-editor__segment",
+                    clip.fade_curve === curve.value && "video-editor__segment--on",
+                  )}
+                  onClick={() => onEdit({ fade_curve: curve.value }, true)}
+                >
+                  {curve.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </Panel>
       )}
 
       {clip.kind === "title" && clip.title && <TitlePanel clip={clip} onEdit={onEdit} />}
 
-      {visual && clip.kind !== "title" && (
+      {visual && (
         <Panel
           title="Transform"
-          changed={!sameTransform(clip.transform, RESTING_TRANSFORM) || clip.fit !== "fit"}
+          changed={
+            !sameTransform(clip.transform, RESTING_TRANSFORM) ||
+            clip.fit !== "fit" ||
+            TRANSFORM_PROPERTIES.some((property) => clip.keyframes[property].length > 0)
+          }
           action={
             <ResetButton
               label="Reset transform"
-              onClick={() => onEdit({ transform: RESTING_TRANSFORM, fit: "fit" }, true)}
+              onClick={() =>
+                onEdit(
+                  {
+                    transform: RESTING_TRANSFORM,
+                    fit: "fit",
+                    keyframes: {
+                      ...clip.keyframes,
+                      x: [],
+                      y: [],
+                      scale: [],
+                      rotation: [],
+                      opacity: [],
+                    },
+                  },
+                  true,
+                )
+              }
             />
           }
         >
-          <div
-            className="video-editor__segmented video-editor__segmented--wide"
-            role="radiogroup"
-            aria-label="Fit"
-          >
-            {(["fit", "fill"] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                role="radio"
-                aria-checked={clip.fit === mode}
-                className={classNames(
-                  "video-editor__segment",
-                  clip.fit === mode && "video-editor__segment--on",
-                )}
-                onClick={() => onEdit({ fit: mode }, true)}
-              >
-                {mode === "fit" ? "Fit" : "Fill"}
-              </button>
-            ))}
-          </div>
-          <TransformSliders clip={clip} onEdit={onEdit} />
-        </Panel>
-      )}
-
-      {clip.kind === "title" && (
-        <Panel title="Opacity" changed={clip.transform.opacity !== 1}>
-          <Slider
-            label="Opacity"
-            value={clip.transform.opacity}
-            resting={1}
-            min={0}
-            max={1}
-            step={0.01}
-            format={(value) => `${Math.round(value * 100)}%`}
-            onChange={(value, final) =>
-              onEdit({ transform: { ...clip.transform, opacity: value } }, final)
-            }
+          {clip.kind !== "title" && (
+            <div
+              className="video-editor__segmented video-editor__segmented--wide"
+              role="radiogroup"
+              aria-label="Fit"
+            >
+              {(["fit", "fill"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={clip.fit === mode}
+                  className={classNames(
+                    "video-editor__segment",
+                    clip.fit === mode && "video-editor__segment--on",
+                  )}
+                  onClick={() => onEdit({ fit: mode }, true)}
+                >
+                  {mode === "fit" ? "Fit" : "Fill"}
+                </button>
+              ))}
+            </div>
+          )}
+          <KeyframeBar
+            clip={clip}
+            properties={TRANSFORM_PROPERTIES}
+            time={time}
+            onEdit={onEdit}
+            onSeek={onSeek}
           />
+          <TransformSliders clip={clip} time={time} onEdit={onEdit} />
         </Panel>
       )}
 
@@ -544,61 +609,69 @@ function sameTransform(a: Clip["transform"], b: Clip["transform"]): boolean {
   );
 }
 
-function TransformSliders({ clip, onEdit }: { clip: Clip; onEdit: ClipEdit }) {
-  const set = (patch: Partial<Clip["transform"]>, final: boolean) =>
-    onEdit({ transform: { ...clip.transform, ...patch } }, final);
+const FADE_CURVES: { value: VideoProjectFadeCurve; label: string; hint: string }[] = [
+  {
+    value: "equal_power",
+    label: "Equal power",
+    hint: "Keeps a crossfade's loudness steady; best for music and ambience",
+  },
+  { value: "linear", label: "Linear", hint: "A straight ramp; dips in the middle of a crossfade" },
+];
+
+function TransformSliders({ clip, time, onEdit }: { clip: Clip; time: number; onEdit: ClipEdit }) {
   const percent = (value: number) => `${Math.round(value * 100)}%`;
+  const common = { clip, time, onEdit };
   return (
     <>
-      <Slider
+      <KeyedSlider
+        {...common}
+        property="x"
         label="Position X"
-        value={clip.transform.x}
         resting={0}
         min={-1}
         max={1}
         step={0.005}
         format={percent}
-        onChange={(x, f) => set({ x }, f)}
       />
-      <Slider
+      <KeyedSlider
+        {...common}
+        property="y"
         label="Position Y"
-        value={clip.transform.y}
         resting={0}
         min={-1}
         max={1}
         step={0.005}
         format={percent}
-        onChange={(y, f) => set({ y }, f)}
       />
-      <Slider
+      <KeyedSlider
+        {...common}
+        property="scale"
         label="Scale"
-        value={clip.transform.scale}
         resting={1}
         min={0.05}
         max={4}
         step={0.01}
         format={percent}
-        onChange={(scale, f) => set({ scale }, f)}
       />
-      <Slider
+      <KeyedSlider
+        {...common}
+        property="rotation"
         label="Rotation"
-        value={clip.transform.rotation}
         resting={0}
         min={-180}
         max={180}
         step={1}
         format={(value) => `${Math.round(value)}°`}
-        onChange={(rotation, f) => set({ rotation }, f)}
       />
-      <Slider
+      <KeyedSlider
+        {...common}
+        property="opacity"
         label="Opacity"
-        value={clip.transform.opacity}
         resting={1}
         min={0}
         max={1}
         step={0.01}
         format={percent}
-        onChange={(opacity, f) => set({ opacity }, f)}
       />
     </>
   );

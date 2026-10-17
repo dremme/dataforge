@@ -30,9 +30,15 @@ import { filmstripUrl, waveformUrl } from "@/features/videoEditor/api/videoProje
 import { usePlayheadTime } from "@/features/videoEditor/hooks/usePlayhead";
 import type { PreviewEngine, SourceLocation } from "@/features/videoEditor/lib/previewEngine";
 import {
+  clipValueAt,
+  keyframeTimes,
+  type AnimatedProperty,
+} from "@/features/videoEditor/lib/keyframes";
+import {
   clipEnd,
   clipLabel,
   clipTrackKind,
+  EPSILON,
   formatTimecode,
   moveClipsFlush,
   moveTrack,
@@ -619,6 +625,16 @@ export function Timeline({
                       }}
                     />
                   ))}
+                {track.kind === "audio" &&
+                  crossfadesOn(project, track.id).map(({ id, start, end }) => (
+                    <span
+                      key={id}
+                      className="video-timeline__crossfade"
+                      style={{ left: at(start), width: (end - start) * pxPerSecond }}
+                      title={`Crossfade, ${(end - start).toFixed(2)} seconds`}
+                      aria-hidden="true"
+                    />
+                  ))}
                 {project.transitions
                   .map((transition) => ({
                     transition,
@@ -940,6 +956,17 @@ function TimelineClip({
           <span className="video-timeline__clip-text">{clip.title.text}</span>
         )}
       </span>
+      {clip.kind === "audio" && clip.keyframes.gain.length > 0 && (
+        <GainEnvelope clip={clip} width={width} />
+      )}
+      {keyframeTimes(clip, ANIMATED_PROPERTIES).map((time) => (
+        <span
+          key={time}
+          className="video-timeline__keyframe"
+          style={{ left: (time - clip.start) * pxPerSecond }}
+          aria-hidden="true"
+        />
+      ))}
       {clip.fade_in > 0 && (
         <span
           className="video-timeline__fade video-timeline__fade--in"
@@ -965,6 +992,31 @@ function TimelineClip({
         aria-hidden="true"
       />
     </div>
+  );
+}
+
+const ANIMATED_PROPERTIES: AnimatedProperty[] = ["x", "y", "scale", "rotation", "opacity", "gain"];
+
+/** Pixels between the envelope line's samples; eased segments need more points than keys. */
+const ENVELOPE_STEP_PX = 4;
+
+/** The gain envelope as a line over the clip: full height is the top of the gain range, 200%. */
+function GainEnvelope({ clip, width }: { clip: Clip; width: number }) {
+  const steps = Math.max(2, Math.min(400, Math.ceil(width / ENVELOPE_STEP_PX)));
+  const points = Array.from({ length: steps + 1 }, (_, index) => {
+    const x = (index / steps) * width;
+    const gain = clipValueAt(clip, "gain", clip.start + (index / steps) * clip.duration);
+    return `${x.toFixed(1)},${(100 - gain * 50).toFixed(1)}`;
+  });
+  return (
+    <svg
+      className="video-timeline__envelope"
+      viewBox={`0 0 ${Math.max(1, width)} 100`}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <polyline points={points.join(" ")} vectorEffect="non-scaling-stroke" />
+    </svg>
   );
 }
 
@@ -1031,4 +1083,15 @@ function ClipPicture({
     );
   }
   return null;
+}
+
+/** Where sound on an audio track overlaps the next clip, and so cross-fades into it. */
+function crossfadesOn(project: Project, trackId: string) {
+  const ordered = project.clips
+    .filter((clip) => clip.track_id === trackId)
+    .sort((a, b) => a.start - b.start);
+  return ordered.slice(1).flatMap((clip, index) => {
+    const end = clipEnd(ordered[index]);
+    return end - clip.start > EPSILON ? [{ id: clip.id, start: clip.start, end }] : [];
+  });
 }

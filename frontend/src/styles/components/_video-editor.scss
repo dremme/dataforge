@@ -1662,6 +1662,37 @@ $lane-inset: 4px;
     }
   }
 
+  // A slider with a trailing toggle: a keyframe diamond, or a track's speech mark.
+  &__keyed {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  &__key-btn {
+    @include icon-btn-xs;
+    color: var(--text-subtle);
+
+    &--animated {
+      color: var(--accent);
+    }
+
+    &--on {
+      color: var(--accent);
+
+      svg {
+        fill: currentColor;
+      }
+    }
+  }
+
+  &__keyframe-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
   &__field {
     display: flex;
     align-items: center;
@@ -2759,6 +2790,59 @@ $lane-inset: 4px;
     opacity: 1;
   }
 
+  // A keyframe's diamond sits on the clip's lower edge; the inspector edits it.
+  &__keyframe {
+    position: absolute;
+    bottom: 3px;
+    z-index: 1;
+    width: 7px;
+    height: 7px;
+    margin-left: -3.5px;
+    border: 1px solid var(--media-outline);
+    background: var(--clip-color);
+    transform: rotate(45deg);
+    pointer-events: none;
+  }
+
+  &__envelope {
+    position: absolute;
+    top: $clip-head-height;
+    left: 0;
+    width: 100%;
+    height: calc(100% - #{$clip-head-height});
+    overflow: visible;
+    pointer-events: none;
+
+    polyline {
+      fill: none;
+      stroke: var(--text);
+      stroke-width: 1.5;
+    }
+  }
+
+  // Overlapping sound cross-fades; the mark only shows where.
+  &__crossfade {
+    position: absolute;
+    top: $lane-inset;
+    bottom: $lane-inset;
+    z-index: 2;
+    border-radius: 0.25rem;
+    background:
+      linear-gradient(
+        to top right,
+        transparent calc(50% - 0.75px),
+        var(--media-outline) calc(50% - 0.75px) calc(50% + 0.75px),
+        transparent calc(50% + 0.75px)
+      ),
+      linear-gradient(
+        to bottom right,
+        transparent calc(50% - 0.75px),
+        var(--media-outline) calc(50% - 0.75px) calc(50% + 0.75px),
+        transparent calc(50% + 0.75px)
+      );
+    pointer-events: none;
+  }
+
   &__dissolve {
     position: absolute;
     top: $lane-inset;
@@ -3330,6 +3414,7 @@ $lane-inset: 4px;
 }
 
 .video-editor__grades-select,
+.video-editor__easing-select,
 .video-editor__grades-name {
   flex: 1;
   min-width: 0;

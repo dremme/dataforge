@@ -54,7 +54,9 @@ function clip(
     gain: 1,
     fade_in: 0,
     fade_out: 0,
+    fade_curve: "equal_power",
     title: null,
+    keyframes: { x: [], y: [], scale: [], rotation: [], opacity: [], gain: [] },
     ...extra,
   };
 }
@@ -94,6 +96,8 @@ function project(clips: Clip[]): Project {
         hidden: false,
         muted: false,
         solo: false,
+        gain: 1,
+        speech: false,
       },
       {
         id: "v1",
@@ -103,6 +107,8 @@ function project(clips: Clip[]): Project {
         hidden: false,
         muted: false,
         solo: false,
+        gain: 1,
+        speech: false,
       },
       {
         id: "a1",
@@ -112,6 +118,8 @@ function project(clips: Clip[]): Project {
         hidden: false,
         muted: false,
         solo: false,
+        gain: 1,
+        speech: false,
       },
       {
         id: "a2",
@@ -121,10 +129,13 @@ function project(clips: Clip[]): Project {
         hidden: false,
         muted: false,
         solo: false,
+        gain: 1,
+        speech: false,
       },
     ],
     clips,
     transitions: [],
+    mix: { master_gain: 1, duck_gain: 0.25 },
     export: {
       filename: "",
       size: "source",

@@ -32,6 +32,8 @@ function project(duration: number): Project {
         hidden: false,
         muted: false,
         solo: false,
+        gain: 1,
+        speech: false,
       },
     ],
     clips: [
@@ -52,10 +54,13 @@ function project(duration: number): Project {
         gain: 1,
         fade_in: 0,
         fade_out: 0,
+        fade_curve: "equal_power",
         title: null,
+        keyframes: { x: [], y: [], scale: [], rotation: [], opacity: [], gain: [] },
       },
     ],
     transitions: [],
+    mix: { master_gain: 1, duck_gain: 0.25 },
     export: {
       filename: "",
       size: "source",

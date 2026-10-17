@@ -1,3 +1,4 @@
+from itertools import pairwise
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
@@ -10,6 +11,7 @@ from constants import (
     DEFAULT_RESIZE_MULTIPLE,
     MAX_RESIZE_MEGAPIXELS,
     MAX_RESIZE_MULTIPLE,
+    VIDEO_PROJECT_MAX_KEYFRAMES,
     VIDEO_PROJECT_MAX_TRACKS,
     VIDEO_PROJECT_MIN_CLIP_SECONDS,
     VIDEO_PROJECT_TIME_EPSILON,
@@ -1550,6 +1552,10 @@ type VideoProjectAudioLevel = Literal["unchanged", "limit", "normalize"]
 #: ``changed`` means the file's size or modification time no longer matches the recorded one.
 type VideoProjectSourceState = Literal["ok", "missing", "changed"]
 type VideoProjectExportStatus = Literal["running", "completed", "failed", "cancelled"]
+#: How a keyframe travels to the next one; ``hold`` keeps its value until the next one starts.
+type VideoProjectEasing = Literal["linear", "ease_in", "ease_out", "ease_in_out", "hold"]
+#: ``equal_power`` keeps the sum of a crossfade's two sides at a steady loudness.
+type VideoProjectFadeCurve = Literal["linear", "equal_power"]
 
 MAX_PROJECT_CLIPS = 1000
 MAX_PROJECT_DIMENSION = 7680
@@ -1588,6 +1594,10 @@ class VideoProjectTrack(BaseModel):
     #: Audio tracks only.
     muted: bool = False
     solo: bool = False
+    #: Audio tracks only: multiplies every clip on the track.
+    gain: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
+    #: Audio tracks only: while one of its clips sounds, the other tracks are ducked.
+    speech: bool = False
 
 
 class VideoProjectTransform(BaseModel):
@@ -1600,6 +1610,56 @@ class VideoProjectTransform(BaseModel):
     #: Clockwise degrees.
     rotation: float = Field(0.0, ge=-360.0, le=360.0)
     opacity: float = Field(1.0, ge=0.0, le=1.0)
+
+
+class VideoProjectKeyframe(BaseModel):
+    """A value at a time in timeline seconds from the clip's start. The time may lie outside the
+    clip, as after a split or a trim, so the part still shown keeps its motion."""
+
+    time: float = Field(ge=-86400.0, le=86400.0)
+    value: float
+    #: Shapes the way from this keyframe to the next one.
+    easing: VideoProjectEasing = "linear"
+
+
+type KeyframeList = Annotated[
+    list[VideoProjectKeyframe], Field(max_length=VIDEO_PROJECT_MAX_KEYFRAMES)
+]
+
+#: The range each animated property accepts, as its static value does.
+KEYFRAME_RANGES: dict[str, tuple[float, float]] = {
+    "x": (-2.0, 2.0),
+    "y": (-2.0, 2.0),
+    "scale": (0.05, 8.0),
+    "rotation": (-360.0, 360.0),
+    "opacity": (0.0, 1.0),
+    "gain": (MIN_EDIT_VOLUME, MAX_EDIT_VOLUME),
+}
+
+
+class VideoProjectKeyframes(BaseModel):
+    """A clip's animation, in time order per property. A property with keyframes follows them
+    and ignores its static value: before the first it holds the first value, after the last the
+    last one."""
+
+    x: KeyframeList = Field(default_factory=list)
+    y: KeyframeList = Field(default_factory=list)
+    scale: KeyframeList = Field(default_factory=list)
+    rotation: KeyframeList = Field(default_factory=list)
+    opacity: KeyframeList = Field(default_factory=list)
+    #: Audio clips only: the gain envelope.
+    gain: KeyframeList = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check(self) -> "VideoProjectKeyframes":
+        for name, (low, high) in KEYFRAME_RANGES.items():
+            keys: list[VideoProjectKeyframe] = getattr(self, name)
+            for before, after in pairwise(keys):
+                if after.time <= before.time + VIDEO_PROJECT_TIME_EPSILON:
+                    raise ValueError(f"{name} keyframes must be apart and in time order")
+            if any(not low <= key.value <= high for key in keys):
+                raise ValueError(f"{name} keyframes must lie between {low} and {high}")
+        return self
 
 
 class VideoProjectFont(BaseModel):
@@ -1654,7 +1714,10 @@ class VideoProjectClip(BaseModel):
     gain: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
     fade_in: float = Field(0.0, ge=0.0)
     fade_out: float = Field(0.0, ge=0.0)
+    #: Audio clips only: the shape of its fades and of the crossfades it takes part in.
+    fade_curve: VideoProjectFadeCurve = "equal_power"
     title: VideoProjectTitle | None = None
+    keyframes: VideoProjectKeyframes = Field(default_factory=VideoProjectKeyframes)
 
     @property
     def end(self) -> float:
@@ -1670,6 +1733,12 @@ class VideoProjectClip(BaseModel):
             raise ValueError(f"A {self.kind} clip needs a source")
         if self.fade_in + self.fade_out > self.duration + VIDEO_PROJECT_TIME_EPSILON:
             raise ValueError("A clip's fades cannot be longer than the clip")
+        keys = self.keyframes
+        if self.kind == "audio":
+            if keys.x or keys.y or keys.scale or keys.rotation or keys.opacity:
+                raise ValueError("Only pictures and titles animate a transform")
+        elif keys.gain:
+            raise ValueError("Only sound clips carry a gain envelope")
         return self
 
 
@@ -1692,6 +1761,13 @@ class VideoProjectExportSettings(BaseModel):
     audio_level: VideoProjectAudioLevel = "limit"
 
 
+class VideoProjectMix(BaseModel):
+    #: Multiplies the whole mix before the export's level stage.
+    master_gain: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
+    #: What tracks other than speech are multiplied by while speech sounds; 1 turns it off.
+    duck_gain: float = Field(0.25, ge=0.0, le=1.0)
+
+
 class VideoProject(BaseModel):
     """Everything needed to rebuild an edit. Tracks are listed top to bottom as displayed: a
     video track composites above every video track listed after it."""
@@ -1712,6 +1788,7 @@ class VideoProject(BaseModel):
     tracks: list[VideoProjectTrack] = Field(min_length=1, max_length=VIDEO_PROJECT_MAX_TRACKS)
     clips: list[VideoProjectClip] = Field(default_factory=list, max_length=MAX_PROJECT_CLIPS)
     transitions: list[VideoProjectTransition] = Field(default_factory=list)
+    mix: VideoProjectMix = Field(default_factory=VideoProjectMix)
     export: VideoProjectExportSettings = Field(default_factory=VideoProjectExportSettings)
 
     @model_validator(mode="after")
@@ -1737,8 +1814,9 @@ def _unique(ids: list[str], what: str) -> None:
 
 
 def validate_project_structure(project: VideoProject) -> None:
-    """References resolve, clips sit on tracks of their kind, and nothing on a track overlaps
-    except the two clips of a dissolve and their linked audio."""
+    """References resolve, clips sit on tracks of their kind, and nothing on a video track
+    overlaps except the two clips of a dissolve. Sound may overlap as a crossfade; see
+    ``check_crossfades``."""
     _unique([source.id for source in project.sources], "sources")
     _unique([track.id for track in project.tracks], "tracks")
     _unique([clip.id for clip in project.clips], "clips")
@@ -1777,14 +1855,15 @@ def validate_project_structure(project: VideoProject) -> None:
         if second.end <= first.end:
             raise ValueError("A dissolve's second clip must run past the first")
         paired.add(frozenset({first.id, second.id}))
-        for partner in linked_audio_pairs(project, first, second):
-            paired.add(partner)
 
     by_track: dict[str, list[VideoProjectClip]] = {}
     for clip in project.clips:
         by_track.setdefault(clip.track_id, []).append(clip)
-    for track_clips in by_track.values():
+    for track_id, track_clips in by_track.items():
         ordered = sorted(track_clips, key=lambda clip: clip.start)
+        if tracks[track_id].kind == "audio":
+            check_crossfades(ordered, tracks[track_id].name)
+            continue
         for index, clip in enumerate(ordered):
             for later in ordered[index + 1 :]:
                 if later.start >= clip.end - VIDEO_PROJECT_TIME_EPSILON:
@@ -1794,20 +1873,17 @@ def validate_project_structure(project: VideoProject) -> None:
                     raise ValueError(f"Two clips overlap on {track.name}")
 
 
-def linked_audio_pairs(
-    project: VideoProject, first: VideoProjectClip, second: VideoProjectClip
-) -> list[frozenset[str]]:
-    """Audio clips linked to a dissolve's two clips that share a track: they cross-fade too."""
-    if first.link_id is None or second.link_id is None:
-        return []
-    first_audio = [c for c in project.clips if c.link_id == first.link_id and c.kind == "audio"]
-    second_audio = [c for c in project.clips if c.link_id == second.link_id and c.kind == "audio"]
-    return [
-        frozenset({a.id, b.id})
-        for a in first_audio
-        for b in second_audio
-        if a.track_id == b.track_id
-    ]
+def check_crossfades(ordered: list[VideoProjectClip], track_name: str) -> None:
+    """Sound clips on one track, in start order, may overlap the next one and cross-fade over the
+    overlap, but never cover a clip whole or sound three at once."""
+    for index, clip in enumerate(ordered):
+        for later in ordered[index + 1 :]:
+            if later.start >= clip.end - VIDEO_PROJECT_TIME_EPSILON:
+                break
+            if later is not ordered[index + 1]:
+                raise ValueError(f"Three clips overlap on {track_name}")
+            if later.start <= clip.start + VIDEO_PROJECT_TIME_EPSILON or later.end <= clip.end:
+                raise ValueError(f"A clip on {track_name} covers another one whole")
 
 
 class VideoProjectSourceStatus(BaseModel):

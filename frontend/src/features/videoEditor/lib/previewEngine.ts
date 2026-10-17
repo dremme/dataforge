@@ -610,7 +610,7 @@ export class PreviewEngine {
     fidelity: PreviewFidelity,
   ): void {
     const { clip } = layer;
-    const place = placement(project, clip);
+    const place = placement(project, clip, pictureTime(project, this.time));
     const width = place.width * scale;
     const height = place.height * scale;
     context.save();

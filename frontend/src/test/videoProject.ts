@@ -14,6 +14,8 @@ export function makeTrack(
     hidden: false,
     muted: false,
     solo: false,
+    gain: 1,
+    speech: false,
     ...patch,
   };
 }
@@ -43,7 +45,9 @@ export function makeClip(
     gain: 1,
     fade_in: 0,
     fade_out: 0,
+    fade_curve: "equal_power",
     title: null,
+    keyframes: { x: [], y: [], scale: [], rotation: [], opacity: [], gain: [] },
     ...patch,
   };
 }
@@ -91,6 +95,7 @@ export function makeProject(patch: Partial<Project> = {}): Project {
     ],
     clips: [makeClip("first", "v1", 0, 2), makeClip("second", "v1", 3, 2)],
     transitions: [],
+    mix: { master_gain: 1, duck_gain: 0.25 },
     export: {
       filename: "",
       size: "source",

@@ -9,6 +9,7 @@ import {
   type Project,
   type Track,
 } from "./timeline";
+import { clipValueAt, duckLevel, transformAt } from "./keyframes";
 
 /**
  * The preview's half of `video_project_render.py`: which layers show at a time, how opaque, and
@@ -70,30 +71,35 @@ export function estimateExportBytes(
   return (bitsPerSecond * projectDuration(project)) / 8;
 }
 
-/** Seconds each clip fades in or out over because of a dissolve, linked sound included. */
+/**
+ * Seconds each clip fades in or out over: a dissolve's incoming picture, and both sides of each
+ * sound overlap on an audio track, a dissolve's linked sound among them.
+ */
 export function transitionFades(project: Project): {
   fadeIn: Map<string, number>;
   fadeOut: Map<string, number>;
 } {
   const fadeIn = new Map<string, number>();
   const fadeOut = new Map<string, number>();
+  const raise = (map: Map<string, number>, id: string, seconds: number) =>
+    map.set(id, Math.max(map.get(id) ?? 0, seconds));
   const byId = new Map(project.clips.map((clip) => [clip.id, clip]));
-  const linkedAudio = (clip: Clip) =>
-    clip.link_id
-      ? project.clips.filter((other) => other.link_id === clip.link_id && other.kind === "audio")
-      : [];
   for (const transition of project.transitions) {
     const first = byId.get(transition.from_clip_id);
     const second = byId.get(transition.to_clip_id);
     if (!first || !second) continue;
-    const overlap = clipEnd(first) - second.start;
-    fadeIn.set(second.id, Math.max(fadeIn.get(second.id) ?? 0, overlap));
-    for (const into of linkedAudio(second)) {
-      for (const out of linkedAudio(first)) {
-        if (into.track_id !== out.track_id) continue;
-        fadeIn.set(into.id, Math.max(fadeIn.get(into.id) ?? 0, overlap));
-        fadeOut.set(out.id, Math.max(fadeOut.get(out.id) ?? 0, overlap));
-      }
+    raise(fadeIn, second.id, clipEnd(first) - second.start);
+  }
+  for (const track of project.tracks) {
+    if (track.kind !== "audio") continue;
+    const ordered = project.clips
+      .filter((clip) => clip.track_id === track.id)
+      .sort((a, b) => a.start - b.start);
+    for (let index = 0; index + 1 < ordered.length; index += 1) {
+      const overlap = clipEnd(ordered[index]) - ordered[index + 1].start;
+      if (overlap <= EPSILON) continue;
+      raise(fadeOut, ordered[index].id, overlap);
+      raise(fadeIn, ordered[index + 1].id, overlap);
     }
   }
   return { fadeIn, fadeOut };
@@ -101,15 +107,23 @@ export function transitionFades(project: Project): {
 
 export type Fades = ReturnType<typeof transitionFades>;
 
-/** 0..1 at ``time``: the fade in and out ramps, a dissolve counted as a fade in. */
+/** A ramp's level for ``progress`` 0..1; equal power is ffmpeg's quarter sine, ``qsin``. */
+function fadeShape(clip: Clip, progress: number): number {
+  const level = Math.min(1, Math.max(0, progress));
+  return clip.kind === "audio" && clip.fade_curve === "equal_power"
+    ? Math.sin((level * Math.PI) / 2)
+    : level;
+}
+
+/** 0..1 at ``time``: the fade in and out ramps, a dissolve or crossfade counted as a fade. */
 export function fadeLevel(clip: Clip, time: number, fades: Fades): number {
   const fadeIn = Math.min(clip.duration, Math.max(clip.fade_in, fades.fadeIn.get(clip.id) ?? 0));
   const fadeOut = Math.min(clip.duration, Math.max(clip.fade_out, fades.fadeOut.get(clip.id) ?? 0));
   const into = time - clip.start;
   const left = clipEnd(clip) - time;
   let level = 1;
-  if (fadeIn > EPSILON) level = Math.min(level, Math.max(0, into / fadeIn));
-  if (fadeOut > EPSILON) level = Math.min(level, Math.max(0, left / fadeOut));
+  if (fadeIn > EPSILON) level = Math.min(level, fadeShape(clip, into / fadeIn));
+  if (fadeOut > EPSILON) level = Math.min(level, fadeShape(clip, left / fadeOut));
   return level;
 }
 
@@ -152,7 +166,7 @@ export function layersAt(
       .filter((clip) => clip.track_id === track.id && isActiveAt(clip, time))
       .sort((a, b) => a.start - b.start);
     for (const clip of clips) {
-      const alpha = clip.transform.opacity * fadeLevel(clip, time, fades);
+      const alpha = clipValueAt(clip, "opacity", time) * fadeLevel(clip, time, fades);
       layers.push({ clip, track, alpha });
     }
   }
@@ -173,15 +187,44 @@ export interface Voice {
   gain: number;
 }
 
+/** Where speech sounds: the clips on audible speech tracks, as the export reads them. */
+export function speechSpans(project: Project, audible = audibleTrackIds(project)) {
+  const speech = new Set(
+    project.tracks.filter((track) => track.speech && audible.has(track.id)).map((t) => t.id),
+  );
+  return project.clips
+    .filter((clip) => clip.kind === "audio" && speech.has(clip.track_id) && sounds(clip))
+    .map((clip): [number, number] => [clip.start, clipEnd(clip)])
+    .sort((a, b) => a[0] - b[0]);
+}
+
+function sounds(clip: Clip): boolean {
+  const keys = clip.keyframes.gain;
+  return keys.length > 0 ? keys.some((key) => key.value > 0) : clip.gain > 0;
+}
+
+/** Each clip's gain at ``time``: its envelope, fades, track gain, ducking and the master. */
 export function voicesAt(
   project: Project,
   time: number,
   fades = transitionFades(project),
 ): Voice[] {
   const audible = audibleTrackIds(project);
+  const spans = speechSpans(project, audible);
+  const duck = spans.length > 0 ? duckLevel(spans, project.mix.duck_gain, time) : 1;
+  const tracks = new Map(project.tracks.map((track) => [track.id, track]));
   return project.clips
     .filter((clip) => clip.kind === "audio" && audible.has(clip.track_id) && isActiveAt(clip, time))
-    .map((clip) => ({ clip, gain: clip.gain * fadeLevel(clip, time, fades) }));
+    .map((clip) => {
+      const track = tracks.get(clip.track_id);
+      const level =
+        clipValueAt(clip, "gain", time) *
+        fadeLevel(clip, time, fades) *
+        (track?.gain ?? 1) *
+        (track?.speech ? 1 : duck) *
+        project.mix.master_gain;
+      return { clip, gain: level };
+    });
 }
 
 export interface Size {
@@ -211,26 +254,20 @@ export interface Placement {
   rotation: number;
 }
 
-/** Fit or fill the canvas, then the clip's own scale and offset. Titles cover the canvas. */
-export function placement(project: Project, clip: Clip): Placement {
-  if (clip.kind === "title") {
-    return {
-      centerX: project.width / 2,
-      centerY: project.height / 2,
-      width: project.width,
-      height: project.height,
-      rotation: 0,
-    };
-  }
+/**
+ * Fit or fill the canvas, then the clip's own scale and offset at ``time``. A title is drawn at
+ * the canvas size, so it fits it exactly before its own transform.
+ */
+export function placement(project: Project, clip: Clip, time: number): Placement {
+  const transform = transformAt(clip, time);
   const frame = croppedSize(project, clip);
   const pick = clip.fit === "fit" ? Math.min : Math.max;
-  const factor =
-    pick(project.width / frame.width, project.height / frame.height) * clip.transform.scale;
+  const factor = pick(project.width / frame.width, project.height / frame.height) * transform.scale;
   return {
-    centerX: project.width / 2 + clip.transform.x * project.width,
-    centerY: project.height / 2 + clip.transform.y * project.height,
+    centerX: project.width / 2 + transform.x * project.width,
+    centerY: project.height / 2 + transform.y * project.height,
     width: Math.max(2, Math.round(frame.width * factor)),
     height: Math.max(2, Math.round(frame.height * factor)),
-    rotation: clip.transform.rotation,
+    rotation: transform.rotation,
   };
 }

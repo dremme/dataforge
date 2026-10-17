@@ -14,6 +14,7 @@ import type {
   VideoProjectTrackKind,
   VideoProjectTransition,
 } from "@/shared/types";
+import { noKeyframes, scaleKeyframes, shiftKeyframes } from "./keyframes";
 
 export type Project = VideoProject;
 export type Clip = VideoProjectClip;
@@ -95,26 +96,37 @@ export function lockedMessage(track: Track): string {
   return `${track.name} is locked. Unlock it to change its clips.`;
 }
 
-/** Pairs allowed to overlap: a dissolve's two clips, and their linked audio on one track. */
+/** Pictures allowed to overlap: a dissolve's two clips. Sound follows `crossfadeProblem`. */
 function overlapPairs(project: Project): Set<string> {
-  const pairs = new Set<string>();
-  const byId = new Map(project.clips.map((clip) => [clip.id, clip]));
-  const linkedAudio = (clip: Clip) =>
-    clip.link_id
-      ? project.clips.filter((other) => other.link_id === clip.link_id && other.kind === "audio")
-      : [];
-  for (const transition of project.transitions) {
-    const first = byId.get(transition.from_clip_id);
-    const second = byId.get(transition.to_clip_id);
-    if (!first || !second) continue;
-    pairs.add(pairKey(first.id, second.id));
-    for (const a of linkedAudio(first)) {
-      for (const b of linkedAudio(second)) {
-        if (a.track_id === b.track_id) pairs.add(pairKey(a.id, b.id));
+  return new Set(
+    project.transitions.map((transition) =>
+      pairKey(transition.from_clip_id, transition.to_clip_id),
+    ),
+  );
+}
+
+/**
+ * Sound on one track may overlap the next clip and cross-fade over the overlap, but never cover
+ * a clip whole or sound three at once. ``clips`` are in start order.
+ */
+function crossfadeProblem(project: Project, track: Track, clips: Clip[]): string | null {
+  for (let index = 0; index < clips.length; index += 1) {
+    for (let later = index + 1; later < clips.length; later += 1) {
+      if (clips[later].start >= clipEnd(clips[index]) - EPSILON) break;
+      const first = clipLabel(project, clips[index]);
+      const second = clipLabel(project, clips[later]);
+      if (later !== index + 1) {
+        return `Three clips would sound at once on ${track.name}. A crossfade joins two clips.`;
+      }
+      if (
+        clips[later].start <= clips[index].start + EPSILON ||
+        clipEnd(clips[later]) <= clipEnd(clips[index])
+      ) {
+        return `${first} and ${second} would cover each other on ${track.name}. Overlapping sound cross-fades, so each clip must start and end on its own.`;
       }
     }
   }
-  return pairs;
+  return null;
 }
 
 function pairKey(a: string, b: string): string {
@@ -139,6 +151,11 @@ export function placementProblem(project: Project): string | null {
     const clips = project.clips
       .filter((clip) => clip.track_id === track.id)
       .sort((a, b) => a.start - b.start);
+    if (track.kind === "audio") {
+      const problem = crossfadeProblem(project, track, clips);
+      if (problem) return problem;
+      continue;
+    }
     for (let index = 0; index < clips.length; index += 1) {
       for (let later = index + 1; later < clips.length; later += 1) {
         if (clips[later].start >= clipEnd(clips[index]) - EPSILON) break;
@@ -314,15 +331,18 @@ export function trimClip(project: Project, id: string, edge: TrimEdge, time: num
     if (!ids.has(clip.id)) continue;
     const trimmed =
       edge === "start"
-        ? {
-            ...clip,
-            start: clip.start + delta,
-            duration: clip.duration - delta,
-            source_in:
-              clip.kind === "video" || clip.kind === "audio"
-                ? Math.max(0, clip.source_in + delta * clip.speed)
-                : clip.source_in,
-          }
+        ? shiftKeyframes(
+            {
+              ...clip,
+              start: clip.start + delta,
+              duration: clip.duration - delta,
+              source_in:
+                clip.kind === "video" || clip.kind === "audio"
+                  ? Math.max(0, clip.source_in + delta * clip.speed)
+                  : clip.source_in,
+            },
+            delta,
+          )
         : { ...clip, duration: clip.duration + delta };
     changed.set(clip.id, clampFades(trimmed));
   }
@@ -361,18 +381,23 @@ export function trimClipFlush(
 function splitOne(clip: Clip, time: number, rightId: string, rightLink: string | null) {
   const offset = time - clip.start;
   const left: Clip = clampFades({ ...clip, duration: offset, fade_out: 0 });
-  const right: Clip = clampFades({
-    ...clip,
-    id: rightId,
-    link_id: rightLink,
-    start: time,
-    duration: clip.duration - offset,
-    source_in:
-      clip.kind === "video" || clip.kind === "audio"
-        ? clip.source_in + offset * clip.speed
-        : clip.source_in,
-    fade_in: 0,
-  });
+  const right: Clip = clampFades(
+    shiftKeyframes(
+      {
+        ...clip,
+        id: rightId,
+        link_id: rightLink,
+        start: time,
+        duration: clip.duration - offset,
+        source_in:
+          clip.kind === "video" || clip.kind === "audio"
+            ? clip.source_in + offset * clip.speed
+            : clip.source_in,
+        fade_in: 0,
+      },
+      offset,
+    ),
+  );
   return { left, right };
 }
 
@@ -528,12 +553,17 @@ export function rippleDelete(project: Project, range: TimeRange): EditResult {
       clips.push(clampFades({ ...clip, duration: start - clipStart }));
     } else if (clipStart >= start - EPSILON) {
       clips.push(
-        clampFades({
-          ...clip,
-          start,
-          duration: clipStop - end,
-          source_in: shiftSource(clip, end - clipStart),
-        }),
+        clampFades(
+          shiftKeyframes(
+            {
+              ...clip,
+              start,
+              duration: clipStop - end,
+              source_in: shiftSource(clip, end - clipStart),
+            },
+            end - clipStart,
+          ),
+        ),
       );
     } else {
       let link: string | null = null;
@@ -543,15 +573,20 @@ export function rippleDelete(project: Project, range: TimeRange): EditResult {
       }
       clips.push(clampFades({ ...clip, duration: start - clipStart, fade_out: 0 }));
       clips.push(
-        clampFades({
-          ...clip,
-          id: newId(),
-          link_id: link,
-          start,
-          duration: clipStop - end,
-          source_in: shiftSource(clip, end - clipStart),
-          fade_in: 0,
-        }),
+        clampFades(
+          shiftKeyframes(
+            {
+              ...clip,
+              id: newId(),
+              link_id: link,
+              start,
+              duration: clipStop - end,
+              source_in: shiftSource(clip, end - clipStart),
+              fade_in: 0,
+            },
+            end - clipStart,
+          ),
+        ),
       );
     }
   }
@@ -568,7 +603,10 @@ export function setClipSpeed(project: Project, id: string, speed: number): EditR
   for (const clip of project.clips) {
     if (!ids.has(clip.id) || (clip.kind !== "video" && clip.kind !== "audio")) continue;
     const duration = (clip.duration * clip.speed) / speed;
-    changed.set(clip.id, clampFades({ ...clip, speed, duration }));
+    changed.set(
+      clip.id,
+      clampFades(scaleKeyframes({ ...clip, speed, duration }, clip.speed / speed)),
+    );
   }
   const result = finish(replaceClips(project, changed));
   return result.error
@@ -849,7 +887,9 @@ export function placeSource(
     gain: 1,
     fade_in: 0,
     fade_out: 0,
+    fade_curve: "equal_power",
     title: null,
+    keyframes: noKeyframes(),
   };
   const clips = [main];
   if (link) {
@@ -919,6 +959,8 @@ export function addTitle(
     gain: 1,
     fade_in: 0,
     fade_out: 0,
+    fade_curve: "equal_power",
+    keyframes: noKeyframes(),
     title: {
       text: "Title",
       size: 0.08,
@@ -975,6 +1017,8 @@ export function addTrack(project: Project, kind: VideoProjectTrackKind): EditRes
     hidden: false,
     muted: false,
     solo: false,
+    gain: 1,
+    speech: false,
   };
   const tracks = kind === "video" ? [track, ...project.tracks] : [...project.tracks, track];
   return { project: { ...project, tracks } };

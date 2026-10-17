@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type CSSProperties,
 } from "react";
 import {
@@ -48,7 +49,7 @@ import {
 import { withAuto, withoutAuto } from "@/features/gallery/lib/autoAdjust";
 import type { VideoEditorRequest } from "@/features/videoEditor/context/VideoEditorContext";
 import { EDITOR_ROUTE } from "@/features/videoEditor/lib/editorLocation";
-import { useMediaProblems } from "@/features/videoEditor/hooks/usePlayhead";
+import { useMediaProblems, usePlayheadTime } from "@/features/videoEditor/hooks/usePlayhead";
 import { useVideoExports } from "@/features/videoEditor/hooks/useVideoExports";
 import { VIDEO_PROJECTS_QUERY_KEY } from "@/features/videoEditor/hooks/useVideoProjectList";
 import {
@@ -76,6 +77,7 @@ import {
 } from "@/features/videoEditor/lib/clipboard";
 import { setEditorClipboard, useEditorClipboard } from "@/features/videoEditor/lib/clipboardStore";
 import { editorMediaKind } from "@/features/videoEditor/lib/mediaKinds";
+import { transformPatchAt } from "@/features/videoEditor/lib/keyframes";
 import { PreviewEngine, type SourceLocation } from "@/features/videoEditor/lib/previewEngine";
 import {
   addDissolve,
@@ -97,6 +99,7 @@ import {
   splitClips,
   unlinkClips,
   updateClip,
+  updateTrack,
   type Clip,
   type EditResult,
   type Project,
@@ -1054,7 +1057,10 @@ function EditorSession({
             project={project}
             selectedClip={selectedClips.length === 1 ? selectedClips[0] : null}
             onTransform={(clip, transform, final) =>
-              applyTransient(updateClip(project, clip.id, { transform }), final)
+              applyTransient(
+                updateClip(project, clip.id, transformPatchAt(clip, engine.currentTime, transform)),
+                final,
+              )
             }
             sourceItem={sourceItem}
             sourceRange={sourceRange}
@@ -1104,10 +1110,21 @@ function EditorSession({
                   <span className="video-editor__pane-title">Inspector</span>
                 </div>
                 <div className="video-editor__inspector-scroll" data-scroll-lock-allow>
-                  <ClipInspector
+                  <InspectorAtPlayhead
+                    engine={engine}
                     project={project}
                     selection={selectedClips}
                     transitionId={transitionId}
+                    onSeek={seekTimeline}
+                    onTrackEdit={(trackId, patch, final) =>
+                      applyTransient(updateTrack(project, trackId, patch), final)
+                    }
+                    onMixEdit={(patch, final) =>
+                      applyTransient(
+                        { project: { ...project, mix: { ...project.mix, ...patch } } },
+                        final,
+                      )
+                    }
                     onEdit={(patch, final) => {
                       if (selectedClips.length === 1) {
                         applyTransient(updateClip(project, selectedClips[0].id, patch), final);
@@ -1341,4 +1358,13 @@ function EditorSession({
 
 function clampSize(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
+}
+
+/** The inspector reads animated values at the playhead, so it redraws with the readouts. */
+function InspectorAtPlayhead({
+  engine,
+  ...props
+}: Omit<ComponentProps<typeof ClipInspector>, "time"> & { engine: PreviewEngine }) {
+  const time = usePlayheadTime(engine);
+  return <ClipInspector {...props} time={time} />;
 }

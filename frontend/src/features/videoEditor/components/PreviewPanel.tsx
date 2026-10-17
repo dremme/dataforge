@@ -41,6 +41,7 @@ import {
   usePreviewFidelity,
 } from "@/features/videoEditor/hooks/usePlayhead";
 import { placement } from "@/features/videoEditor/lib/composition";
+import { transformAt } from "@/features/videoEditor/lib/keyframes";
 import { MAX_ADJUST_WIDTH, type PreviewEngine } from "@/features/videoEditor/lib/previewEngine";
 import { rangeFill } from "@/features/videoEditor/lib/rangeFill";
 import {
@@ -304,6 +305,7 @@ function TimelinePreview({
               clip={selectedClip}
               project={project}
               scale={box.width / project.width}
+              time={time}
               onTransform={onTransform}
             />
           )}
@@ -445,11 +447,14 @@ function TransformHandles({
   clip,
   project,
   scale,
+  time,
   onTransform,
 }: {
   clip: Clip;
   project: Project;
   scale: number;
+  /** The playhead: a keyframed clip is drawn, and dragged, where it is then. */
+  time: number;
   onTransform: (clip: Clip, next: Clip["transform"], final: boolean) => void;
 }) {
   const dragRef = useRef<{
@@ -461,7 +466,7 @@ function TransformHandles({
     centerY: number;
   } | null>(null);
   if (clip.kind === "title") return null;
-  const place = placement(project, clip);
+  const place = placement(project, clip, time);
   const width = place.width * scale;
   const height = place.height * scale;
 
@@ -476,7 +481,7 @@ function TransformHandles({
       kind,
       x: event.clientX,
       y: event.clientY,
-      start: clip.transform,
+      start: transformAt(clip, time),
       centerX: (parent?.left ?? 0) + place.centerX * scale,
       centerY: (parent?.top ?? 0) + place.centerY * scale,
     };

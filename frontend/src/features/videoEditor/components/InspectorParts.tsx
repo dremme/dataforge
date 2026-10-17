@@ -17,6 +17,9 @@ import type { Clip } from "@/features/videoEditor/lib/timeline";
 
 const SECTIONS_KEY = "video-editor-inspector-sections";
 
+/** ``final`` is false while a control is still being dragged; only the final edit is recorded. */
+export type ClipEdit = (patch: Partial<Clip>, final: boolean) => void;
+
 /** Collapsed or open per section title, remembered across clips and sessions. */
 const SectionContext = createContext<{
   isOpen: (title: string, fallback: boolean) => boolean;

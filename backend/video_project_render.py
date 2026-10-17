@@ -3,8 +3,14 @@
 Layers stack bottom up: the lowest video track first, and within a track later clips above
 earlier ones, which is what makes a dissolve's incoming clip fade in over the outgoing one.
 Every clip is offset onto the timeline with ``setpts`` and overlaid with ``eof_action=pass``, so
-gaps stay black. Audio clips are delayed to their place and mixed over silence of the full length,
-then limited, and normalized first when asked, by the export's audio level setting.
+gaps stay black. Audio clips are delayed to their place and summed per track, where the track's
+gain and ducking apply, then the tracks are mixed over silence of the full length with the master
+gain, then limited, and normalized first when asked, by the export's audio level setting.
+
+Keyframed properties become expressions of each frame's time (see ``video_project_animation``):
+scale is evaluated per frame and padded to a fixed box, because overlay and rotate expect frames
+of one size, and opacity is set per frame by ``sendcmd``, since ``colorchannelmixer`` takes no
+expression.
 
 Titles and stills are drawn by Pillow into the render's workspace: the preview shows the same
 title image, and a still's EXIF orientation is applied the way the gallery shows it.
@@ -16,6 +22,7 @@ import math
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont
@@ -26,6 +33,7 @@ from constants import (
     VIDEO_PROJECT_LOUDNESS_TARGET_LUFS,
     VIDEO_PROJECT_MIN_CLIP_SECONDS,
     VIDEO_PROJECT_QUALITY_PRESETS,
+    VIDEO_PROJECT_TIME_EPSILON,
     VIDEO_PROJECT_TRUE_PEAK_CEILING_DB,
 )
 from image_io import displayed_image
@@ -36,6 +44,7 @@ from schemas import (
     VideoProjectClip,
     VideoProjectExportSettings,
     VideoProjectFont,
+    VideoProjectKeyframe,
     VideoProjectSource,
     VideoProjectTitle,
     VideoProjectTrack,
@@ -49,6 +58,12 @@ from video_edit import (
     definition_links,
 )
 from video_project import project_duration
+from video_project_animation import (
+    duck_expression,
+    is_animated,
+    keyframe_expression,
+    speech_spans,
+)
 
 #: Short side of the fixed-size presets; their long side is 16:9 of it.
 SIZE_PRESET_SHORT_SIDES = {"720p": 720, "1080p": 1080}
@@ -59,6 +74,10 @@ AUDIO_SAMPLE_RATE = 48000
 LIMITER_OVERSAMPLING = 4
 
 GRAPH_FILE_NAME = "graph.txt"
+#: Animated sound is re-evaluated this many samples apart: about 5 ms at 48 kHz.
+ENVELOPE_SAMPLES = 256
+#: ``sendcmd`` intervals need an end; no project runs this long.
+COMMAND_INTERVAL_END = "86400"
 
 
 #: Line spacing of a multi-line title, as a fraction of its size.
@@ -162,7 +181,8 @@ def audible_tracks(project: VideoProject) -> list[VideoProjectTrack]:
 
 
 def transition_overlaps(project: VideoProject) -> tuple[dict[str, float], dict[str, float]]:
-    """Seconds of dissolve each clip fades in or out over, linked audio included."""
+    """Seconds each clip fades in or out over: a dissolve's incoming picture, and both sides of
+    each sound overlap on an audio track, a dissolve's linked sound among them."""
     clips = {clip.id: clip for clip in project.clips}
     fade_in: dict[str, float] = {}
     fade_out: dict[str, float] = {}
@@ -171,18 +191,24 @@ def transition_overlaps(project: VideoProject) -> tuple[dict[str, float], dict[s
         second = clips[transition.to_clip_id]
         overlap = first.end - second.start
         fade_in[second.id] = max(fade_in.get(second.id, 0.0), overlap)
-        for audio_in in _linked_audio(project, second):
-            for audio_out in _linked_audio(project, first):
-                if audio_in.track_id == audio_out.track_id:
-                    fade_in[audio_in.id] = max(fade_in.get(audio_in.id, 0.0), overlap)
-                    fade_out[audio_out.id] = max(fade_out.get(audio_out.id, 0.0), overlap)
+    for track in project.tracks:
+        if track.kind != "audio":
+            continue
+        ordered = sorted(
+            (clip for clip in project.clips if clip.track_id == track.id),
+            key=lambda clip: clip.start,
+        )
+        for first, second in pairwise(ordered):
+            overlap = first.end - second.start
+            if overlap > VIDEO_PROJECT_TIME_EPSILON:
+                fade_out[first.id] = max(fade_out.get(first.id, 0.0), overlap)
+                fade_in[second.id] = max(fade_in.get(second.id, 0.0), overlap)
     return fade_in, fade_out
 
 
-def _linked_audio(project: VideoProject, clip: VideoProjectClip) -> list[VideoProjectClip]:
-    if clip.link_id is None:
-        return []
-    return [c for c in project.clips if c.link_id == clip.link_id and c.kind == "audio"]
+def constant_value(keys: list[VideoProjectKeyframe], fallback: float) -> float:
+    """A property that does not change over the clip: its one keyed value, or the static one."""
+    return keys[0].value if keys else fallback
 
 
 def effective_fades(
@@ -205,14 +231,18 @@ def cropped_size(source_size: tuple[int, int], clip: VideoProjectClip) -> tuple[
     return _even_part(width, clip.crop.width), _even_part(height, clip.crop.height)
 
 
-def placed_size(
-    frame: tuple[int, int], canvas: tuple[int, int], clip: VideoProjectClip
-) -> tuple[int, int]:
-    """Fit or fill the canvas, then the clip's own scale. The preview uses the same rule."""
-    width, height = frame
+def fit_factor(frame: tuple[int, int], canvas: tuple[int, int], clip: VideoProjectClip) -> float:
+    """Fit or fill the canvas. A title is drawn at the canvas size, so it is 1 for a title."""
     pick = min if clip.fit == "fit" else max
-    factor = pick(canvas[0] / width, canvas[1] / height) * clip.transform.scale
-    return max(2, round(width * factor)), max(2, round(height * factor))
+    return pick(canvas[0] / frame[0], canvas[1] / frame[1])
+
+
+def placed_size(
+    frame: tuple[int, int], canvas: tuple[int, int], clip: VideoProjectClip, scale: float
+) -> tuple[int, int]:
+    """Fit or fill, then ``scale``, the clip's own. The preview uses the same rule."""
+    factor = fit_factor(frame, canvas, clip) * scale
+    return max(2, round(frame[0] * factor)), max(2, round(frame[1] * factor))
 
 
 @dataclass(slots=True)
@@ -289,19 +319,47 @@ def _visual_chain(
         tail += stage.tail
 
     canvas = (project.width, project.height)
-    if clip.kind == "title":
-        tail.append(f"scale={canvas[0]}:{canvas[1]}")
-    else:
-        width, height = placed_size(cropped_size(frame, clip), canvas, clip)
-        tail.append(f"scale={width}:{height}:flags=lanczos")
-    tail.append("format=rgba")
-
     transform = clip.transform
-    if clip.kind != "title" and abs(transform.rotation) > IDENTITY_EPSILON:
-        radians = f"{math.radians(transform.rotation):.8f}"
-        tail.append(f"rotate=a={radians}:ow=rotw({radians}):oh=roth({radians}):c=none")
-    if transform.opacity < 1.0 - IDENTITY_EPSILON:
-        tail.append(f"colorchannelmixer=aa={transform.opacity:.6f}")
+    keys = clip.keyframes
+    shown = cropped_size(frame, clip)
+    if is_animated(keys.scale):
+        factor = f"{fit_factor(shown, canvas, clip):.9f}*({keyframe_expression(keys.scale, 't')})"
+        box = placed_size(shown, canvas, clip, max(key.value for key in keys.scale))
+        tail += [
+            "format=rgba",
+            f"scale=w='max(2,round(iw*{factor}))':h='max(2,round(ih*{factor}))'"
+            ":eval=frame:flags=lanczos",
+            f"pad=w={box[0]}:h={box[1]}:x='(ow-iw)/2':y='(oh-ih)/2':color=black@0:eval=frame",
+            "format=rgba",
+        ]
+    else:
+        width, height = placed_size(
+            shown, canvas, clip, constant_value(keys.scale, transform.scale)
+        )
+        tail += [f"scale={width}:{height}:flags=lanczos", "format=rgba"]
+
+    if is_animated(keys.rotation):
+        # Clear corners: with c=none the turning layer would leave its last frames behind.
+        angle = f"({keyframe_expression(keys.rotation, 't')})*PI/180"
+        tail.append(f"rotate=a='{angle}':ow='hypot(iw,ih)':oh=ow:c=black@0")
+    else:
+        rotation = constant_value(keys.rotation, transform.rotation)
+        if abs(rotation) > IDENTITY_EPSILON:
+            radians = f"{math.radians(rotation):.8f}"
+            tail.append(f"rotate=a={radians}:ow=rotw({radians}):oh=roth({radians}):c=none")
+    if is_animated(keys.opacity):
+        # sendcmd sits right before the mixer, so each command lands on the frame it was read for.
+        commands = f"opacity{index}.cmd"
+        expression = keyframe_expression(keys.opacity, "T")
+        (workspace / commands).write_text(
+            f"0-{COMMAND_INTERVAL_END} [expr] colorchannelmixer@opacity{index} aa '{expression}';\n",
+            encoding="utf-8",
+        )
+        tail += [f"sendcmd=f={commands}", f"colorchannelmixer@opacity{index}=aa=1"]
+    else:
+        opacity = constant_value(keys.opacity, transform.opacity)
+        if opacity < 1.0 - IDENTITY_EPSILON:
+            tail.append(f"colorchannelmixer=aa={opacity:.6f}")
     fade_in, fade_out = fades
     if fade_in > IDENTITY_EPSILON:
         tail.append(f"fade=t=in:st=0:d={_seconds(fade_in)}:alpha=1")
@@ -316,12 +374,30 @@ def _visual_chain(
     return links
 
 
-def _overlay_position(clip: VideoProjectClip, project: VideoProject) -> tuple[str, str]:
-    if clip.kind == "title":
-        return "0", "0"
-    dx = clip.transform.x * project.width
-    dy = clip.transform.y * project.height
-    return f"(W-w)/2+{dx:.3f}", f"(H-h)/2+{dy:.3f}"
+def _overlay_position(clip: VideoProjectClip) -> tuple[str, str]:
+    """Centred plus the offset; a keyed offset is read on the overlay's clock, the timeline's."""
+
+    def offset(keys: list[VideoProjectKeyframe], static: float, size: str) -> str:
+        if is_animated(keys):
+            return f"{size}*({keyframe_expression(keys, f'(t-{_seconds(clip.start)})')})"
+        return f"{size}*{constant_value(keys, static):.6f}"
+
+    keys = clip.keyframes
+    return (
+        f"(W-w)/2+{offset(keys.x, clip.transform.x, 'W')}",
+        f"(H-h)/2+{offset(keys.y, clip.transform.y, 'H')}",
+    )
+
+
+#: ``qsin`` is a quarter sine; faded out it is a quarter cosine, so the two sides keep power.
+FADE_CURVES = {"linear": "tri", "equal_power": "qsin"}
+
+
+def is_silent(clip: VideoProjectClip) -> bool:
+    keys = clip.keyframes.gain
+    if keys:
+        return all(key.value <= IDENTITY_EPSILON for key in keys)
+    return clip.gain <= IDENTITY_EPSILON
 
 
 def _audio_chain(
@@ -337,14 +413,23 @@ def _audio_chain(
         filters.append(atempo_chain(clip.speed))
     filters.append(f"atrim=duration={_seconds(clip.duration)}")
     filters.append("asetpts=PTS-STARTPTS")
-    if abs(clip.gain - 1.0) > IDENTITY_EPSILON:
-        filters.append(f"volume={clip.gain:.6f}")
+    envelope = clip.keyframes.gain
+    if is_animated(envelope):
+        filters += [
+            f"asetnsamples=n={ENVELOPE_SAMPLES}:p=0",
+            f"volume=volume='{keyframe_expression(envelope, 't')}':eval=frame",
+        ]
+    else:
+        gain = constant_value(envelope, clip.gain)
+        if abs(gain - 1.0) > IDENTITY_EPSILON:
+            filters.append(f"volume={gain:.6f}")
     fade_in, fade_out = fades
+    curve = FADE_CURVES[clip.fade_curve]
     if fade_in > IDENTITY_EPSILON:
-        filters.append(f"afade=t=in:st=0:d={_seconds(fade_in)}")
+        filters.append(f"afade=t=in:st=0:d={_seconds(fade_in)}:curve={curve}")
     if fade_out > IDENTITY_EPSILON:
         start = max(0.0, clip.duration - fade_out)
-        filters.append(f"afade=t=out:st={_seconds(start)}:d={_seconds(fade_out)}")
+        filters.append(f"afade=t=out:st={_seconds(start)}:d={_seconds(fade_out)}:curve={curve}")
     delay = round(clip.start * 1000)
     if delay > 0:
         filters.append(f"adelay=delays={delay}:all=1")
@@ -418,8 +503,10 @@ def _picture_links(
                 color,
                 workspace,
             )
-            x, y = _overlay_position(clip, project)
-            links.append(f"[{base}][layer{layer}]overlay=x={x}:y={y}:eof_action=pass[stack{layer}]")
+            x, y = _overlay_position(clip)
+            links.append(
+                f"[{base}][layer{layer}]overlay=x='{x}':y='{y}':eof_action=pass[stack{layer}]"
+            )
             base = f"stack{layer}"
             layer += 1
     return links, base
@@ -428,32 +515,62 @@ def _picture_links(
 def _mix_links(
     project: VideoProject, folder: Path, inputs: RenderInputs, *, duration: float
 ) -> tuple[list[str], str]:
-    """Every audible clip summed as it is, over silence of the full length."""
+    """Every audible clip summed per track, the tracks summed over silence of the full length.
+    Sums are plain, so a gain of 1 everywhere leaves each clip as it is."""
     sources = {source.id: source for source in project.sources}
-    tracks = {track.id: track for track in project.tracks}
     overlaps = transition_overlaps(project)
     links = [
         f"anullsrc=r={AUDIO_SAMPLE_RATE}:cl=stereo,atrim=duration={_seconds(duration)}[silence]"
     ]
+    audible = audible_tracks(project)
+    spans = speech_spans(project, {track.id for track in audible})
+    ducking = bool(spans) and project.mix.duck_gain < 1.0 - IDENTITY_EPSILON
     mixed = ["silence"]
-    audible = {track.id for track in audible_tracks(project)}
-    for clip in project.clips:
-        if clip.kind != "audio" or clip.track_id not in audible or clip.gain <= IDENTITY_EPSILON:
+    count = 0
+    for track in audible:
+        if track.gain <= IDENTITY_EPSILON:
             continue
-        if tracks[clip.track_id].kind != "audio":
+        voices: list[str] = []
+        for clip in sorted(
+            (clip for clip in project.clips if clip.track_id == track.id),
+            key=lambda clip: clip.start,
+        ):
+            if clip.kind != "audio" or is_silent(clip):
+                continue
+            source = sources[clip.source_id or ""]
+            index = _audio_input(inputs, folder / source.name, clip)
+            links.append(_audio_chain(clip, count, f"{index}:a", effective_fades(clip, overlaps)))
+            voices.append(f"aud{count}")
+            count += 1
+        if not voices:
             continue
-        source = sources[clip.source_id or ""]
-        index = _audio_input(inputs, folder / source.name, clip)
-        label = len(mixed)
-        links.append(_audio_chain(clip, label, f"{index}:a", effective_fades(clip, overlaps)))
-        mixed.append(f"aud{label}")
+        stages = [
+            f"amix=inputs={len(voices)}:duration=longest:dropout_transition=0:normalize=0"
+            if len(voices) > 1
+            else "anull"
+        ]
+        if abs(track.gain - 1.0) > IDENTITY_EPSILON:
+            stages.append(f"volume={track.gain:.6f}")
+        if ducking and not track.speech:
+            # The track's sum starts at 00:00, so its clock is the timeline's.
+            stages += [
+                f"asetnsamples=n={ENVELOPE_SAMPLES}:p=0",
+                f"volume=volume='{duck_expression(spans, project.mix.duck_gain)}':eval=frame",
+            ]
+        label = f"track{len(mixed)}"
+        links.append(f"{''.join(f'[{voice}]' for voice in voices)}{','.join(stages)}[{label}]")
+        mixed.append(label)
+    master = project.mix.master_gain
+    finish = [f"atrim=duration={_seconds(duration)}"]
+    if abs(master - 1.0) > IDENTITY_EPSILON:
+        finish.insert(0, f"volume={master:.6f}")
     if len(mixed) == 1:
-        links.append("[silence]anull[mix]")
+        links.append(f"[silence]{','.join(finish)}[mix]")
     else:
         streams = "".join(f"[{name}]" for name in mixed)
         links.append(
             f"{streams}amix=inputs={len(mixed)}:duration=first:dropout_transition=0:normalize=0,"
-            f"atrim=duration={_seconds(duration)}[mix]"
+            f"{','.join(finish)}[mix]"
         )
     return links, "mix"
 

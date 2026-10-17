@@ -150,10 +150,10 @@ export type AttributeGroup = "color" | "transform" | "crop" | "fades" | "audio" 
 
 export const ATTRIBUTE_LABELS: Record<AttributeGroup, string> = {
   color: "Color adjustments",
-  transform: "Transform and fit",
+  transform: "Transform, fit and animation",
   crop: "Crop",
   fades: "Fades",
-  audio: "Gain",
+  audio: "Gain and envelope",
   title: "Title style",
 };
 
@@ -167,16 +167,26 @@ function attributePatch(group: AttributeGroup, donor: Clip, target: Clip): Parti
         : null;
     case "crop":
       return pictured(donor) && pictured(target) ? { crop: donor.crop } : null;
-    case "transform":
+    case "transform": {
       if (donor.kind === "audio" || target.kind === "audio") return null;
-      // A title is drawn over the whole canvas; only its opacity carries over.
+      const { x, y, scale, rotation, opacity } = donor.keyframes;
+      const moved = {
+        transform: donor.transform,
+        keyframes: { ...target.keyframes, x, y, scale, rotation, opacity },
+      };
+      // A title fits the canvas exactly, so it has no fit to give or take.
       return donor.kind === "title" || target.kind === "title"
-        ? { transform: { ...target.transform, opacity: donor.transform.opacity } }
-        : { transform: donor.transform, fit: donor.fit };
+        ? moved
+        : { ...moved, fit: donor.fit };
+    }
     case "fades":
-      return { fade_in: donor.fade_in, fade_out: donor.fade_out };
+      return donor.kind === "audio" && target.kind === "audio"
+        ? { fade_in: donor.fade_in, fade_out: donor.fade_out, fade_curve: donor.fade_curve }
+        : { fade_in: donor.fade_in, fade_out: donor.fade_out };
     case "audio":
-      return donor.kind === "audio" && target.kind === "audio" ? { gain: donor.gain } : null;
+      return donor.kind === "audio" && target.kind === "audio"
+        ? { gain: donor.gain, keyframes: { ...target.keyframes, gain: donor.keyframes.gain } }
+        : null;
     case "title":
       return donor.title && target.title
         ? { title: { ...donor.title, text: target.title.text } }
