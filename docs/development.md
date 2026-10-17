@@ -84,7 +84,7 @@ Before finishing code changes, run the checks for the affected scope:
 
 Use `--scope backend` or `--scope frontend` for isolated changes; omit scope for shared tooling or cross-stack changes. Documentation-only changes need a content/diff review. See [AGENTS.md](../AGENTS.md) for verification requirements.
 
-This generates API files and runs formatting, lint, type checks, comment/theme/transition checks, and backend/frontend tests. Backend tools include Ruff and ty; frontend tools include ESLint, Prettier, TypeScript, and Vitest. Tool configuration and pins live in the respective project manifests.
+This generates API files and runs formatting, lint, type checks, comment/theme/transition checks, and backend/frontend tests. Backend tools include Ruff and ty; frontend tools include oxlint, Prettier, TypeScript, and Vitest. Tool configuration and pins live in the respective project manifests.
 
 `--fix` applies formatting/lint fixes. If it changes files, the runner completes checks but returns a failure requiring review; rerun after reviewing the changes. Failed steps print their output and stop the run; successful steps show a compact result. `--lint-only` skips tests but still checks types. `--e2e` also runs the end-to-end tests after the frontend tests; it cannot be combined with `--lint-only` or `--scope backend`. `--scope backend` or `--scope frontend` narrows checks; frontend checks still need the backend venv for generation. CI uses this runner for each side separately.
 

@@ -21,7 +21,7 @@ export function useDialogFocus(
     }
 
     if (focusOnMount) (initialFocusRef?.current ?? panel)?.focus({ preventScroll: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per overlay
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- run once per overlay
   }, [focusOnMount]);
 
   // Passive, not layout: layout cleanup still sees the overlay and would misfire the hand-off.

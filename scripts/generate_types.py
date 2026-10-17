@@ -223,7 +223,7 @@ def _render_interface(name: str, schema: dict[str, Any], *, is_response: bool) -
 
     properties = schema.get("properties", {})
     if not properties:
-        # ESLint rejects the empty `interface {}`; `Record<string, never>` means a fieldless model.
+        # The linter rejects the empty `interface {}`; `Record<string, never>` means a fieldless model.
         lines.append(f"export type {_ts_name(name)} = Record<string, never>;")
         return "\n".join(lines)
 

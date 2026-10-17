@@ -423,7 +423,7 @@ def _check_steps(
         # Grouped with static checks for the same reason as the frontend typecheck below.
         steps.append(Step("Backend typecheck", [str(python), str(SCRIPTS / "run_typecheck.py")]))
     if npm is not None:
-        steps.append(Step("Frontend ESLint", [npm, "run", "lint"], FRONTEND))
+        steps.append(Step("Frontend oxlint", [npm, "run", "lint"], FRONTEND))
         steps.append(Step("Frontend Prettier", [npm, "run", "format:check"], FRONTEND))
         # Grouped with static checks so ``--lint-only`` still catches type errors; vitest does not.
         steps.append(Step("Frontend typecheck", [npm, "run", "typecheck"], FRONTEND))

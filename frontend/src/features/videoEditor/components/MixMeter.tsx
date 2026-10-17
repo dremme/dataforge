@@ -56,7 +56,7 @@ export function MixMeter({ engine }: { engine: PreviewEngine }) {
       for (const ref of barRefs) if (ref.current) ref.current.style.width = "0%";
     };
     // The refs are stable; listing them would only restart the loop for nothing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, playing]);
 
   const description =

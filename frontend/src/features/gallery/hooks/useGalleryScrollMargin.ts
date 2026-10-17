@@ -49,7 +49,7 @@ export function useGalleryScrollMargin(
 
   useLayoutEffect(() => {
     remeasureRef.current?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- caller controls when layout remeasures
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- caller controls when layout remeasures
   }, deps);
 
   return { scrollElement, scrollMargin };

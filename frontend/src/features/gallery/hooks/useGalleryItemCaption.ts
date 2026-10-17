@@ -159,7 +159,7 @@ export function useGalleryItemCaption({
 
     return cancelDeferredCaptionLoad;
     // itemPath only, not item: onCaptionSaved replaces the item object and would retrigger.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- isCurrent/next/item omitted on purpose
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- isCurrent/next/item omitted on purpose
   }, [
     applyCaptionFromItem,
     autoSave,

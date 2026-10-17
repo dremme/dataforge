@@ -24,7 +24,9 @@ describe("createQueryClient retries", () => {
     const client = createQueryClient();
     const queryFn = vi.fn().mockRejectedValue(new ApiError(404, "Folder not found"));
 
-    await expect(client.fetchQuery({ queryKey: ["gone"], queryFn })).rejects.toThrow();
+    await expect(client.fetchQuery({ queryKey: ["gone"], queryFn })).rejects.toThrow(
+      "Folder not found",
+    );
     expect(queryFn).toHaveBeenCalledTimes(1);
   });
 });
