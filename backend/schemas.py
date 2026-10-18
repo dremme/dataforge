@@ -698,7 +698,11 @@ class ReplaceCaptionsJobSettings(BaseModel):
 
 
 class ReplaceCaptionsStartRequest(JobSelectionRequest, ReplaceCaptionsJobSettings):
-    pass
+    # Never remembered: persisting it would make "no backup" sticky.
+    backup: bool = Field(
+        default=True,
+        description="Copy each caption into .backup before overwriting it.",
+    )
 
 
 class ReplaceCaptionsPreviewRequest(JobSelectionRequest, ReplaceCaptionsJobSettings):
@@ -760,15 +764,11 @@ class BatchRenameStartRequest(JobSelectionRequest, BatchRenameJobSettings):
 
 
 class BackupCaptionsJobSettings(BaseModel):
-    """``overwrite`` is never remembered; registered so every dialog job travels the same path."""
+    """Registered so every dialog job travels the same path, with no settings to remember."""
 
 
 class BackupCaptionsStartRequest(JobSelectionRequest, BackupCaptionsJobSettings):
-    # Never remembered: replacing existing backups must be re-chosen every run.
-    overwrite: bool = Field(
-        default=False,
-        description="Replace sidecars already in the backup folder instead of keeping them.",
-    )
+    pass
 
 
 class RestoreCaptionsStartRequest(JobSelectionRequest):

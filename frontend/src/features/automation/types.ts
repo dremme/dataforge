@@ -35,10 +35,7 @@ export type AutomationDialogsState = {
     folderPath: string;
     selectedPaths?: string[];
   };
-  backupCaptions: FolderBusyDialogState<
-    (overwrite: boolean) => void,
-    JobSettingsByType["backup_captions"]
-  >;
+  backupCaptions: FolderBusyDialogState<() => void, JobSettingsByType["backup_captions"]>;
   autoCaption: FolderBusyDialogState<
     (
       mode: AutoCaptionMode,

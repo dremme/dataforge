@@ -2,6 +2,7 @@ import { useCallback, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { previewCaptionEdits } from "@/features/automation/api/jobs";
 import { CaptionPreviewSample } from "@/features/automation/components/CaptionPreviewSample";
+import { CaptionBackupOption } from "@/features/automation/components/CaptionBackupOption";
 import {
   AutomationModeSelector,
   type AutomationMode,
@@ -50,14 +51,12 @@ export function EditCaptionsDialog({
     initialSettings.reasoning_effort,
   );
   const [preserveThinking, setPreserveThinking] = useState(initialSettings.preserve_thinking);
-  // Never restored: this is the safety net, and the dangerous state is the unticked one.
-  // A remembered "no backup" would be both sticky and invisible.
+  // Reset on every open so opting out only applies to the current run.
   const [backup, setBackup] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const instructionRef = useRef<HTMLTextAreaElement>(null);
   const instructionId = useId();
   const preserveThinkingId = useId();
-  const backupId = useId();
   const errorId = useId();
 
   const request = {
@@ -176,23 +175,7 @@ export function EditCaptionsDialog({
             <p className="dialog__hint">Keeps earlier reasoning in the prompt.</p>
           </div>
 
-          <div>
-            <label className="dialog__checkbox" htmlFor={backupId}>
-              <input
-                id={backupId}
-                type="checkbox"
-                className="dialog__checkbox-input"
-                checked={backup}
-                onChange={(event) => setBackup(event.target.checked)}
-                disabled={controlsBusy}
-              />
-              <span className="dialog__checkbox-box" aria-hidden="true" />
-              <span className="dialog__checkbox-label">Back up captions first</span>
-            </label>
-            <p className="dialog__hint">
-              Originals go to <strong>.backup</strong>, ready for Restore captions.
-            </p>
-          </div>
+          <CaptionBackupOption checked={backup} disabled={controlsBusy} onChange={setBackup} />
         </div>
 
         <div className="dialog__field">

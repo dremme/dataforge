@@ -84,7 +84,7 @@ Choose **Reasoning** to let the model think before answering, or **Instruct** fo
 | **Additional context** | Verify captions                              | Optional dataset facts for the checker                                                                                         |
 | **Edit instruction**   | Edit captions                                | Required text describing the rewrite                                                                                           |
 
-**Back up captions first** in Edit captions starts enabled every run and is not remembered. Set captions, Backup captions, and Watermark also require overwrite permission anew.
+**Back up captions first** in Edit captions and Find & replace starts enabled every run and is not remembered. It refreshes existing backups before editing. Backup captions always overwrites existing copies. Set captions requires overwrite permission anew. Watermark always overwrites existing output files in `watermarked/`.
 
 Auto-adjust's **Replace earlier adjustments** and **Reset all color adjustments to zero** start off every run.
 

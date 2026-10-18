@@ -27,7 +27,7 @@ test("previews caption edits without writes, then starts the normal backed-up jo
   await page.setViewportSize({ width: 1024, height: 720 });
   await page.goto(`/?path=${encodeURIComponent(folder)}`);
   await expect(page.getByText("one.png")).toBeVisible();
-  await page.getByRole("button", { name: "Tools" }).click();
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
   await page.getByRole("menuitem", { name: /Edit captions/ }).click();
   const dialog = page.getByRole("alertdialog", { name: "Start edit captions?" });
   await dialog.getByLabel("Edit instruction").fill("Rewrite in present tense.");

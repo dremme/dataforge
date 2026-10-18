@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
+from automation.backup_captions import back_up_caption_sidecars, caption_backup_dir
 from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from captions import CAPTION_READ_ERROR, load_reference_caption, save_caption
@@ -192,6 +193,7 @@ def run_replace_captions_job(
     replacement: str = "",
     use_regex: bool = False,
     case_sensitive: bool = False,
+    backup: bool = True,
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
@@ -205,6 +207,13 @@ def run_replace_captions_job(
         case_sensitive=case_sensitive,
     )
     media_files = filter_media_list(list_replace_captions_media(folder), selected_paths)
+
+    backup_dir = caption_backup_dir(folder)
+    if backup:
+        try:
+            backup_dir.mkdir(exist_ok=True)
+        except OSError as exc:
+            raise ValueError(f"Could not create the {backup_dir.name} folder: {exc}") from exc
 
     def process(media_path: Path) -> FileOutcome:
         text, status = load_reference_caption(media_path)
@@ -220,6 +229,12 @@ def run_replace_captions_job(
 
         if edited is None:
             return FileOutcome.counted("skipped", "No match")
+
+        if backup:
+            try:
+                back_up_caption_sidecars(media_path, backup_dir)
+            except OSError as exc:
+                return FileOutcome.counted("write_error", f"Could not back up the caption: {exc}")
 
         try:
             save_caption(media_path, edited)

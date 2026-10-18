@@ -1,14 +1,14 @@
-import { useCallback, useId, useState } from "react";
+import { useCallback } from "react";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
+import { CAPTION_BACKUP_DIR_NAME } from "@/shared/constants";
 
 interface BackupCaptionsDialogProps {
   scope: DialogScopeInfo;
-  /** No field survives the destructive-field rule; taken so every dialog is alike. */
   initialSettings: JobSettingsByType["backup_captions"];
   busy?: boolean;
-  onConfirm: (overwrite: boolean) => void;
+  onConfirm: () => void;
   onCancel: () => void;
 }
 
@@ -18,15 +18,10 @@ export function BackupCaptionsDialog({
   onConfirm,
   onCancel,
 }: BackupCaptionsDialogProps) {
-  // Never restored: replacing existing backups is destructive, so it is re-chosen
-  // every run however the last one was started.
-  const [overwrite, setOverwrite] = useState(false);
-  const overwriteId = useId();
-
   const handleConfirm = useCallback(() => {
     if (busy) return;
-    onConfirm(overwrite);
-  }, [busy, onConfirm, overwrite]);
+    onConfirm();
+  }, [busy, onConfirm]);
 
   return (
     <Dialog
@@ -34,8 +29,8 @@ export function BackupCaptionsDialog({
       title="Back up captions?"
       description={
         <>
-          Copies each caption into <strong>.backup</strong>. Copies already in the backup are kept,
-          and other files there are left untouched.
+          Copies the current captions into <strong>{CAPTION_BACKUP_DIR_NAME}</strong>. Existing
+          backups are overwritten.
         </>
       }
       panelClassName="backup-captions-dialog"
@@ -51,25 +46,6 @@ export function BackupCaptionsDialog({
           onCancel={onCancel}
         />
       }
-    >
-      <div className="dialog__field">
-        <label className="dialog__checkbox" htmlFor={overwriteId}>
-          <input
-            id={overwriteId}
-            type="checkbox"
-            className="dialog__checkbox-input"
-            checked={overwrite}
-            onChange={(event) => setOverwrite(event.target.checked)}
-            disabled={busy}
-          />
-          <span className="dialog__checkbox-box" aria-hidden="true" />
-          <span className="dialog__checkbox-label">Overwrite captions already in the backup</span>
-        </label>
-        <p className="dialog__hint">
-          Replaces the stored copies with the current captions, so an earlier backup of the same
-          files is lost.
-        </p>
-      </div>
-    </Dialog>
+    />
   );
 }

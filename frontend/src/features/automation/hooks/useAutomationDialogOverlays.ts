@@ -140,11 +140,12 @@ export function useAutomationDialogOverlays({
             replacement: edit.replacement,
             use_regex: edit.useRegex,
             case_sensitive: edit.caseSensitive,
+            backup: edit.backup,
           }),
       },
       backupCaptions: {
         ...shared("backup_captions"),
-        onConfirm: (overwrite: boolean) => startJobFromDialog("backup_captions", { overwrite }),
+        onConfirm: () => startJobFromDialog("backup_captions"),
       },
       autoCaption: {
         ...shared("auto_caption"),

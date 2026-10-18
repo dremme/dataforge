@@ -82,9 +82,10 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
             "replacement": "river",
             "use_regex": True,
             "case_sensitive": True,
+            "backup": False,
         },
     ),
-    "backup_captions": ("backup-captions", {"overwrite": True}),
+    "backup_captions": ("backup-captions", {}),
     "verify_captions": (
         "verify-captions",
         {
@@ -220,6 +221,23 @@ class JobRunEndpointTests(unittest.TestCase):
 
     def setUp(self) -> None:
         reset_job_manager()
+
+    def test_backup_captions_always_refreshes_existing_copies(self) -> None:
+        for body in (None, {"overwrite": False}):
+            with self.subTest(body=body), TempMediaFolder() as root:
+                media = _write_captioned_folder(root)
+                run_backup_captions_job(root)
+                write_txt_caption(media, "A new caption.")
+
+                response = _post("backup-captions", root, body)
+                self.assertEqual(response.status_code, 200, response.text)
+                job = wait_for_job(response.json()["id"])
+
+                self.assertEqual(job.status, "completed")
+                self.assertEqual(job.stats["success"], 1)
+                self.assertEqual(
+                    (root / ".backup" / "photo.txt").read_text(encoding="utf-8"), "A new caption."
+                )
 
     def test_auto_adjust_resets_only_the_selected_files_color(self) -> None:
         with TempMediaFolder() as root:
@@ -621,12 +639,11 @@ class JobSettingsPersistenceTests(unittest.TestCase):
                 },
             )
 
-    def test_a_run_that_set_overwrite_still_reads_back_without_it(self) -> None:
-        for job_type in ("set_captions", "backup_captions"):
-            with self.subTest(job_type=job_type), TempMediaFolder() as root:
-                self._run(job_type, root)
+    def test_set_captions_overwrite_is_not_remembered(self) -> None:
+        with TempMediaFolder() as root:
+            self._run("set_captions", root)
 
-                self.assertNotIn("overwrite", _stored_settings(root)[job_type])
+            self.assertNotIn("overwrite", _stored_settings(root)["set_captions"])
 
 
 if __name__ == "__main__":

@@ -149,6 +149,60 @@ class ReplaceCaptionsValidationTests(unittest.TestCase):
 
 
 class ReplaceCaptionsJobTests(unittest.TestCase):
+    def test_backs_up_original_bytes_by_default_in_every_mode(self) -> None:
+        for mode in ("replace", "prepend", "append"):
+            with self.subTest(mode=mode), TempMediaFolder() as root:
+                media = write_media(root, "photo.png")
+                original = b"\xef\xbb\xbfa dog\r\nin a field\r\n"
+                media.with_suffix(".txt").write_bytes(original)
+
+                result = run_replace_captions_job(root, mode=mode, search="dog", replacement="cat")
+
+                self.assertEqual(result["stats"]["success"], 1)
+                self.assertEqual((root / ".backup" / "photo.txt").read_bytes(), original)
+
+    def test_backup_can_be_disabled(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "a dog")
+
+            result = run_replace_captions_job(root, search="dog", replacement="cat", backup=False)
+
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertFalse((root / ".backup").exists())
+
+    def test_refreshes_existing_backup_before_each_edit(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "a dog")
+            run_replace_captions_job(root, search="dog", replacement="cat")
+            before_second_edit = media.with_suffix(".txt").read_bytes()
+            run_replace_captions_job(root, search="cat", replacement="bird")
+
+            self.assertEqual((root / ".backup" / "photo.txt").read_bytes(), before_second_edit)
+            self.assertEqual(
+                media.with_suffix(".txt").read_text(encoding="utf-8").strip(), "a bird"
+            )
+
+    def test_failed_backup_preserves_caption_and_continues(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "a.png")
+            second = write_media(root, "b.png")
+            for media in (first, second):
+                write_txt_caption(media, "a dog")
+            (root / ".backup").mkdir()
+            (root / ".backup" / "a.txt").mkdir()
+
+            result = run_replace_captions_job(root, search="dog", replacement="cat")
+
+            self.assertEqual(result["stats"]["write_error"], 1)
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertIn("Could not back up", result["results"][0]["message"])
+            self.assertEqual(first.with_suffix(".txt").read_text(encoding="utf-8"), "a dog")
+            self.assertEqual(
+                second.with_suffix(".txt").read_text(encoding="utf-8").strip(), "a cat"
+            )
+
     def test_replaces_text_in_txt_sidecars(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")
@@ -205,6 +259,7 @@ class ReplaceCaptionsJobTests(unittest.TestCase):
             self.assertEqual(result["stats"]["skipped"], 1)
             self.assertEqual(result["stats"]["success"], 0)
             self.assertEqual(sidecar.stat().st_mtime_ns, before)
+            self.assertFalse((root / ".backup" / "photo.txt").exists())
 
     def test_media_without_a_caption_is_counted_separately(self) -> None:
         with TempMediaFolder() as root:
@@ -230,6 +285,8 @@ class ReplaceCaptionsJobTests(unittest.TestCase):
             )
 
             self.assertEqual(result["total"], 1)
+            self.assertTrue((root / ".backup" / "one.txt").is_file())
+            self.assertFalse((root / ".backup" / "two.txt").exists())
             self.assertEqual(
                 second.with_suffix(".txt").read_text(encoding="utf-8").strip(), "a dog"
             )

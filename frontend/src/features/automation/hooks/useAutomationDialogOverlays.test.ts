@@ -98,9 +98,18 @@ describe("useAutomationDialogOverlays scope", () => {
         replacement: "river",
         useRegex: false,
         caseSensitive: false,
+        backup: false,
       }),
     );
     expect(startJob.mock.calls[0][3]).toEqual(["C:\\Photos\\one.png"]);
+    expect(startJob.mock.calls[0][2]).toEqual({
+      mode: "replace",
+      search: "lake",
+      replacement: "river",
+      use_regex: false,
+      case_sensitive: false,
+      backup: false,
+    });
   });
 
   it("does not open an ordinary bulk dialog for an empty target", async () => {

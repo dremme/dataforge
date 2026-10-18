@@ -30,6 +30,15 @@ def caption_sidecars(media_path: Path) -> list[Path]:
     return [path for path in candidates if path.is_file()]
 
 
+def back_up_caption_sidecars(media_path: Path, backup_dir: Path) -> None:
+    """Refresh each sidecar backup with the current caption before an edit."""
+    for sidecar in caption_sidecars(media_path):
+        target = backup_dir / sidecar.name
+        if target.exists() and not target.is_file():
+            raise OSError(f"Caption backup path is not a file: {target.name}")
+        copy_file_atomic(sidecar, target)
+
+
 def list_backup_sidecars(folder: Path) -> list[Path]:
     """Caption files sitting in the folder's `.backup` directory."""
     return list_folder_media(
@@ -94,7 +103,6 @@ def validate_restore_captions_folder(folder: Path) -> None:
 def run_backup_captions_job(
     folder: Path,
     *,
-    overwrite: bool = False,
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
@@ -114,27 +122,15 @@ def run_backup_captions_job(
         if not sidecars:
             return FileOutcome.counted("skipped", "No sidecar to back up")
 
-        pending = (
-            sidecars
-            if overwrite
-            else [sidecar for sidecar in sidecars if not (backup_dir / sidecar.name).exists()]
-        )
-        if not pending:
-            return FileOutcome.counted("already_backed_up", "Already in the backup")
-
         try:
-            copied = 0
-            for sidecar in pending:
-                copied += copy_file_atomic(sidecar, backup_dir / sidecar.name, overwrite=overwrite)
+            for sidecar in sidecars:
+                copy_file_atomic(sidecar, backup_dir / sidecar.name)
         except OSError as exc:
             return FileOutcome.counted("write_error", exc)
 
-        if not copied:
-            return FileOutcome.counted("already_backed_up", "Already in the backup")
-
         return FileOutcome(
             status="success",
-            stats={"success": 1, "sidecars": copied},
+            stats={"success": 1, "sidecars": len(sidecars)},
         )
 
     return run_media_job(
@@ -144,7 +140,6 @@ def run_backup_captions_job(
             "total": len(media_files),
             "success": 0,
             "sidecars": 0,
-            "already_backed_up": 0,
             "skipped": 0,
             "write_error": 0,
             "cancelled": 0,
@@ -152,7 +147,7 @@ def run_backup_captions_job(
         process=process,
         on_progress=on_progress,
         should_cancel=should_cancel,
-        processed_stat_keys=("success", "already_backed_up", "skipped", "write_error"),
+        processed_stat_keys=("success", "skipped", "write_error"),
     )
 
 

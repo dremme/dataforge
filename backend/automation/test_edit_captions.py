@@ -319,8 +319,7 @@ class EditCaptionsBackupTests(unittest.TestCase):
             backed_up = root / ".backup" / "photo.txt"
             self.assertEqual(backed_up.read_text(encoding="utf-8-sig").strip(), ORIGINAL)
 
-    def test_a_second_run_keeps_the_original_from_before_the_first_edit(self) -> None:
-        # The first copy is the one worth restoring; burying it would defeat the undo.
+    def test_a_second_run_backs_up_the_caption_before_the_latest_edit(self) -> None:
         with TempMediaFolder() as root:
             _captioned(root, "photo.png")
 
@@ -330,7 +329,7 @@ class EditCaptionsBackupTests(unittest.TestCase):
                 _run(root, backup=True)
 
             backed_up = root / ".backup" / "photo.txt"
-            self.assertEqual(backed_up.read_text(encoding="utf-8-sig").strip(), ORIGINAL)
+            self.assertEqual(backed_up.read_text(encoding="utf-8-sig").strip(), EDITED)
 
     def test_backup_off_creates_no_backup_folder(self) -> None:
         with TempMediaFolder() as root:
@@ -375,6 +374,18 @@ class EditCaptionsBackupTests(unittest.TestCase):
                 _run(root, backup=True)
 
             self.assertEqual(list((root / ".backup").glob("*.txt")), [])
+
+    def test_a_directory_cannot_count_as_a_caption_backup(self) -> None:
+        with TempMediaFolder() as root:
+            media = _captioned(root, "photo.png")
+            (root / ".backup" / "photo.txt").mkdir(parents=True)
+
+            with patch("automation.edit_captions.edit_caption", return_value=EDITED):
+                result = _run(root)
+
+            self.assertEqual(_caption_text(media), ORIGINAL)
+            self.assertEqual(result["stats"]["write_error"], 1)
+            self.assertIn("Could not back up", result["results"][0]["message"])
 
     def test_an_unusable_backup_folder_fails_the_whole_job(self) -> None:
         with TempMediaFolder() as root:

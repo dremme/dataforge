@@ -2,6 +2,7 @@ import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from "r
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { previewCaptionReplacements } from "@/features/automation/api/jobs";
 import { CaptionPreviewSample } from "@/features/automation/components/CaptionPreviewSample";
+import { CaptionBackupOption } from "@/features/automation/components/CaptionBackupOption";
 import { folderKey } from "@/features/folder/lib/folderPath";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { classNames } from "@/shared/lib/classNames";
@@ -25,6 +26,7 @@ export interface ReplaceCaptionsSettings {
   replacement: string;
   useRegex: boolean;
   caseSensitive: boolean;
+  backup: boolean;
 }
 
 interface ReplaceCaptionsDialogProps {
@@ -59,6 +61,8 @@ export function ReplaceCaptionsDialog({
   const [replacement, setReplacement] = useState(initialSettings.replacement);
   const [useRegex, setUseRegex] = useState(initialSettings.use_regex);
   const [caseSensitive, setCaseSensitive] = useState(initialSettings.case_sensitive);
+  // Reset on every open so opting out only applies to the current run.
+  const [backup, setBackup] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const searchRef = useRef<HTMLTextAreaElement>(null);
@@ -103,7 +107,7 @@ export function ReplaceCaptionsDialog({
       }
     : null;
   const previewPending = previewable && (asked !== request || previewQuery.isFetching);
-  const previewError = preview?.error ?? null;
+  const previewError = previewPending ? null : (preview?.error ?? null);
 
   const handleConfirm = useCallback(() => {
     if (busy) return;
@@ -122,8 +126,9 @@ export function ReplaceCaptionsDialog({
     }
 
     setError(null);
-    onConfirm({ mode, search, replacement, useRegex, caseSensitive });
+    onConfirm({ mode, search, replacement, useRegex, caseSensitive, backup });
   }, [
+    backup,
     busy,
     caseSensitive,
     isReplace,
@@ -266,6 +271,10 @@ export function ReplaceCaptionsDialog({
         </div>
 
         {hint && <p className="dialog__hint">{hint}</p>}
+
+        <div className="dialog__field">
+          <CaptionBackupOption checked={backup} disabled={busy} onChange={setBackup} />
+        </div>
 
         <ReplacePreview preview={preview} pending={previewPending} />
 

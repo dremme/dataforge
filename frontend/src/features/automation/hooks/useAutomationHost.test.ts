@@ -77,15 +77,10 @@ describe("useAutomationHost", () => {
     expect(startJob).not.toHaveBeenCalled();
 
     await act(async () => {
-      result.current.dialogs.backupCaptions.onConfirm(true);
+      result.current.dialogs.backupCaptions.onConfirm();
     });
 
-    expect(startJob).toHaveBeenCalledWith(
-      "backup_captions",
-      "C:\\Photos",
-      { overwrite: true },
-      undefined,
-    );
+    expect(startJob).toHaveBeenCalledWith("backup_captions", "C:\\Photos", undefined, undefined);
     expect(result.current.dialogs.backupCaptions.open).toBe(false);
   });
 

@@ -61,7 +61,21 @@ describe("ReplaceCaptionsDialog", () => {
       replacement: "cat",
       useRegex: false,
       caseSensitive: true,
+      backup: true,
     });
+  });
+
+  it("enables backup by default and submits an explicit opt-out", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog();
+    const backup = screen.getByRole("checkbox", { name: "Back up captions first" });
+
+    expect(backup).toBeChecked();
+    await user.click(backup);
+    await user.type(screen.getByLabelText("Search for"), "dog");
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ backup: false }));
   });
 
   it("takes several lines in both fields, where Enter adds a line instead of submitting", async () => {
@@ -106,6 +120,7 @@ describe("ReplaceCaptionsDialog", () => {
       replacement: ", high quality",
       useRegex: false,
       caseSensitive: false,
+      backup: true,
     });
   });
 
@@ -163,10 +178,33 @@ describe("ReplaceCaptionsDialog", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent("Invalid regular expression");
+      expect(screen.getByRole("status")).not.toHaveAttribute("aria-busy");
     });
 
     await user.click(screen.getByRole("button", { name: "Replace" }));
 
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("does not block a corrected search with an outdated preview error", async () => {
+    const user = userEvent.setup();
+    preview.mockResolvedValueOnce({
+      folder: "C:/datasets/photos",
+      total: 1,
+      matched: 0,
+      samples: [],
+      error: "Invalid regular expression",
+    });
+    preview.mockImplementationOnce(() => new Promise(() => {}));
+    const onConfirm = renderDialog(vi.fn(), { search: "(", use_regex: true });
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Invalid regular expression");
+    });
+
+    await user.clear(screen.getByLabelText("Search for"));
+    await user.type(screen.getByLabelText("Search for"), "dog");
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ search: "dog" }));
   });
 });

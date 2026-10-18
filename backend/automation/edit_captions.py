@@ -5,7 +5,7 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
-from automation.backup_captions import caption_backup_dir, caption_sidecars
+from automation.backup_captions import back_up_caption_sidecars, caption_backup_dir
 from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.llm import (
     ModelOutcome,
@@ -25,7 +25,6 @@ from captions import (
     save_caption,
 )
 from constants import CAPTION_EDIT_PREVIEW_LIMIT, MEDIA_EXTENSIONS
-from file_write import copy_file_atomic
 from openai_settings import (
     DEFAULT_PRESERVE_THINKING,
     DEFAULT_REASONING_EFFORT,
@@ -277,12 +276,6 @@ def preview_caption_edits(
                 break
 
     return EditCaptionsPreviewResponse(samples=samples)
-
-
-def back_up_caption_sidecars(media_path: Path, backup_dir: Path) -> None:
-    for sidecar in caption_sidecars(media_path):
-        target = backup_dir / sidecar.name
-        copy_file_atomic(sidecar, target, overwrite=False)
 
 
 def _initial_job_stats(total: int) -> dict[str, int]:

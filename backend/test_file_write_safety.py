@@ -87,7 +87,7 @@ class CaptionBackupWriteSafetyTests(unittest.TestCase):
             before = _snapshot(root)
 
             with patch("shutil.copy2", _failed_copy):
-                result = run_backup_captions_job(root, overwrite=True)
+                result = run_backup_captions_job(root)
 
             self.assertEqual(result["stats"]["write_error"], 1)
             self.assertEqual(_snapshot(root), before)

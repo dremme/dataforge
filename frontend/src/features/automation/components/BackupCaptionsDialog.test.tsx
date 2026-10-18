@@ -3,12 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { BackupCaptionsDialog } from "./BackupCaptionsDialog";
 
-const OVERWRITE_LABEL = "Overwrite captions already in the backup";
-
 describe("BackupCaptionsDialog", () => {
-  it("leaves overwrite off until it is ticked", async () => {
+  it("explains that existing backups are overwritten without offering a checkbox", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn<(overwrite: boolean) => void>();
+    const onConfirm = vi.fn<() => void>();
 
     render(
       <BackupCaptionsDialog
@@ -19,35 +17,17 @@ describe("BackupCaptionsDialog", () => {
       />,
     );
 
-    expect(screen.getByLabelText(OVERWRITE_LABEL)).not.toBeChecked();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Existing backups are overwritten.");
 
     await user.click(screen.getByRole("button", { name: "Back up captions" }));
 
-    expect(onConfirm).toHaveBeenCalledWith(false);
-  });
-
-  it("submits the overwrite choice", async () => {
-    const user = userEvent.setup();
-    const onConfirm = vi.fn<(overwrite: boolean) => void>();
-
-    render(
-      <BackupCaptionsDialog
-        scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
-        initialSettings={{}}
-        onConfirm={onConfirm}
-        onCancel={vi.fn<() => void>()}
-      />,
-    );
-
-    await user.click(screen.getByLabelText(OVERWRITE_LABEL));
-    await user.click(screen.getByRole("button", { name: "Back up captions" }));
-
-    expect(onConfirm).toHaveBeenCalledWith(true);
+    expect(onConfirm).toHaveBeenCalledWith();
   });
 
   it("does not start while a start is already in flight", async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn<(overwrite: boolean) => void>();
+    const onConfirm = vi.fn<() => void>();
 
     render(
       <BackupCaptionsDialog

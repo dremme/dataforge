@@ -126,7 +126,29 @@ class BackupCaptionsJobTests(unittest.TestCase):
             )
             self.assertEqual(result["stats"]["skipped"], 1)
 
-    def test_backing_up_again_keeps_the_stored_copy(self) -> None:
+    def test_refreshes_only_selected_backups(self) -> None:
+        with TempMediaFolder() as root:
+            chosen = write_media(root, "sunset.png")
+            other = write_media(root, "harbor.png")
+            write_txt_caption(chosen, "First caption.")
+            write_txt_caption(other, "Original harbor.")
+            run_backup_captions_job(root)
+
+            write_txt_caption(chosen, "Second caption.")
+            write_txt_caption(other, "Updated harbor.")
+            result = run_backup_captions_job(root, selected_paths=[chosen])
+
+            self.assertEqual(
+                caption_backup_dir(root).joinpath("sunset.txt").read_text(encoding="utf-8"),
+                "Second caption.",
+            )
+            self.assertEqual(
+                caption_backup_dir(root).joinpath("harbor.txt").read_text(encoding="utf-8"),
+                "Original harbor.",
+            )
+            self.assertEqual(result["stats"]["success"], 1)
+
+    def test_backing_up_again_refreshes_the_stored_copy(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             write_txt_caption(media, "First caption.")
@@ -137,28 +159,11 @@ class BackupCaptionsJobTests(unittest.TestCase):
 
             self.assertEqual(
                 caption_backup_dir(root).joinpath("sunset.txt").read_text(encoding="utf-8"),
-                "First caption.",
-            )
-            self.assertEqual(result["stats"]["already_backed_up"], 1)
-            self.assertEqual(result["stats"]["success"], 0)
-
-    def test_backing_up_with_overwrite_refreshes_the_stored_copy(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "sunset.png")
-            write_txt_caption(media, "First caption.")
-            run_backup_captions_job(root)
-
-            write_txt_caption(media, "Second caption.")
-            result = run_backup_captions_job(root, overwrite=True)
-
-            self.assertEqual(
-                caption_backup_dir(root).joinpath("sunset.txt").read_text(encoding="utf-8"),
                 "Second caption.",
             )
             self.assertEqual(result["stats"]["success"], 1)
-            self.assertEqual(result["stats"]["already_backed_up"], 0)
 
-    def test_backs_up_only_the_sidecars_that_are_missing(self) -> None:
+    def test_refreshes_caption_backup_without_copying_leftover_json(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             write_txt_caption(media, "First caption.")
@@ -174,13 +179,12 @@ class BackupCaptionsJobTests(unittest.TestCase):
             backup_dir = caption_backup_dir(root)
             self.assertEqual(
                 backup_dir.joinpath("sunset.txt").read_text(encoding="utf-8"),
-                "First caption.",
+                "Second caption.",
             )
             self.assertFalse(backup_dir.joinpath("sunset.json").exists())
-            self.assertEqual(result["stats"]["already_backed_up"], 1)
-            self.assertEqual(result["stats"]["success"], 0)
+            self.assertEqual(result["stats"]["success"], 1)
 
-    def test_reports_an_already_backed_up_file_separately_from_an_uncaptioned_one(self) -> None:
+    def test_reports_refreshed_captions_separately_from_uncaptioned_files(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             write_txt_caption(media, "A plain caption.")
@@ -189,10 +193,11 @@ class BackupCaptionsJobTests(unittest.TestCase):
 
             result = run_backup_captions_job(root)
 
-            messages = {entry["name"]: entry["message"] for entry in result["results"]}
-            self.assertEqual(messages["sunset.png"], "Already in the backup")
+            statuses = {entry["name"]: entry["status"] for entry in result["results"]}
+            messages = {entry["name"]: entry.get("message") for entry in result["results"]}
+            self.assertEqual(statuses["sunset.png"], "success")
             self.assertEqual(messages["harbor.png"], "No sidecar to back up")
-            self.assertEqual(result["stats"]["already_backed_up"], 1)
+            self.assertEqual(result["stats"]["success"], 1)
             self.assertEqual(result["stats"]["skipped"], 1)
 
     def test_honours_a_media_selection(self) -> None:
