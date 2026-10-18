@@ -191,7 +191,7 @@ describe("App video projects", () => {
     ).toBeInTheDocument();
     expect(save).toHaveBeenCalled();
     await waitFor(() => expect(at()).toEqual({ pathname: "/editor/project", path: DRAFT_PATH }));
-    // The dialog hides the editor from the accessibility tree; its edit is still there.
+    // The modal hides the editor from the accessibility tree; its edit is still there.
     expect(screen.getByRole("textbox", { name: "Project name", hidden: true })).toHaveValue(
       "Lake trip 2",
     );

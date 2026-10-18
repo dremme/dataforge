@@ -25,7 +25,7 @@ async function pressQwertz(page: Page, letter: "z" | "y") {
 
 test("edits a video into a saved project, reopens it from the gallery and deletes it", async ({
   page,
-}) => {
+}, testInfo) => {
   await openWorkspace(page);
   await page.getByRole("button", { name: "View clip.mp4", exact: true }).click();
   await page.getByRole("button", { name: "Open clip.mp4 in the video editor" }).click();
@@ -60,6 +60,17 @@ test("edits a video into a saved project, reopens it from the gallery and delete
   };
   expect(saved.name).toBe("E2E cut");
   expect(saved.clips.map((clip) => clip.kind).sort()).toEqual(["title", "video"]);
+
+  await page.getByRole("button", { name: "Project actions" }).click();
+  await page.getByRole("menuitem", { name: /^Versions/ }).click();
+  const versions = page.getByRole("dialog", { name: "Project versions" });
+  await expect(versions).toBeVisible();
+  await expect(versions.getByRole("button", { name: "Close", exact: true })).toHaveCount(1);
+  await page.screenshot({
+    path: testInfo.outputPath("versions-modal.png"),
+    animations: "disabled",
+  });
+  await versions.getByRole("button", { name: "Close", exact: true }).click();
 
   // The editor is a route: its address names the saved draft, so a reload reopens it, Back
   // returns to the gallery and Forward comes back.

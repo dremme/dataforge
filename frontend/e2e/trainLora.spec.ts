@@ -21,16 +21,16 @@ for (const [model, title, architecture] of [
     await openWorkspace(page);
     await page.getByRole("button", { name: "Tools", exact: true }).click();
     await page.getByRole("menuitem", { name: /^Quick LoRA training/ }).click();
-    const dialog = page.getByRole("alertdialog", { name: "Start LoRA training?" });
-    await dialog.getByRole("combobox", { name: "Model" }).selectOption(model);
-    await expect(dialog).toContainText(`Trains a ${title} LoRA`);
-    await dialog.getByLabel("LoRA name", { exact: true }).fill("sample_train_v1");
+    const modal = page.getByRole("alertdialog", { name: "Start LoRA training?" });
+    await modal.getByRole("combobox", { name: "Model" }).selectOption(model);
+    await expect(modal).toContainText(`Trains a ${title} LoRA`);
+    await modal.getByLabel("LoRA name", { exact: true }).fill("sample_train_v1");
     await page.screenshot({
-      path: testInfo.outputPath("training-dialog.png"),
+      path: testInfo.outputPath("training-modal.png"),
       animations: "disabled",
     });
 
-    await dialog.getByRole("button", { name: "Edit template" }).click();
+    await modal.getByRole("button", { name: "Edit template" }).click();
     const editor = page.getByRole("dialog", { name: `Edit the ${title} training template` });
     await editor.locator(".cm-scroller").evaluate((element) => {
       element.scrollTop = element.scrollHeight;
@@ -50,7 +50,7 @@ for (const [model, title, architecture] of [
       (request) =>
         request.method() === "POST" && request.url().includes("/api/automation/train-lora?"),
     );
-    await dialog.getByRole("button", { name: "Start training", exact: true }).click();
+    await modal.getByRole("button", { name: "Start training", exact: true }).click();
     expect((await submitted).postDataJSON()).toMatchObject({
       model,
       lora_name: "sample_train_v1",

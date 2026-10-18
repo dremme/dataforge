@@ -178,9 +178,9 @@ function MapTip({
 function MapLabel({ node }: { node: ComfyMapNode }) {
   const { head, tail } = splitLabel(node.label, isFileName(node));
   return (
-    <span className="comfy-workflow-dialog__map-label">
-      <span className="comfy-workflow-dialog__map-label-head">{head}</span>
-      {tail && <span className="comfy-workflow-dialog__map-label-tail">{tail}</span>}
+    <span className="comfy-workflow-modal__map-label">
+      <span className="comfy-workflow-modal__map-label-head">{head}</span>
+      {tail && <span className="comfy-workflow-modal__map-label-tail">{tail}</span>}
     </span>
   );
 }
@@ -238,34 +238,34 @@ export function ComfyWorkflowMap({
   }, []);
 
   return (
-    <div className="comfy-workflow-dialog__group">
-      <span className="comfy-workflow-dialog__group-label">Workflow map</span>
+    <div className="comfy-workflow-modal__group">
+      <span className="comfy-workflow-modal__group-label">Workflow map</span>
       <div
         ref={mapRef}
         className={classNames(
-          "comfy-workflow-dialog__map",
-          trace !== null && "comfy-workflow-dialog__map--tracing",
+          "comfy-workflow-modal__map",
+          trace !== null && "comfy-workflow-modal__map--tracing",
         )}
         style={{ aspectRatio: `${layout.width} / ${layout.height}` }}
         role="group"
         aria-label="Workflow map"
       >
         <svg
-          className="comfy-workflow-dialog__map-wires"
+          className="comfy-workflow-modal__map-wires"
           viewBox={`0 0 ${layout.width} ${layout.height}`}
           aria-hidden="true"
         >
           <defs>
             {/* The dotted canvas of a node editor. */}
             <pattern id={gridId} width="12" height="12" patternUnits="userSpaceOnUse">
-              <circle className="comfy-workflow-dialog__map-dot" cx="6" cy="6" r="0.7" />
+              <circle className="comfy-workflow-modal__map-dot" cx="6" cy="6" r="0.7" />
             </pattern>
             {/* One arrowhead per hue: a marker cannot take its colour from the edge it ends. */}
             {TONES.map((edgeTone) => (
               <marker
                 key={edgeTone}
                 id={arrowId(edgeTone)}
-                className={`comfy-workflow-dialog__map-tone--${edgeTone}`}
+                className={`comfy-workflow-modal__map-tone--${edgeTone}`}
                 viewBox="0 0 6 6"
                 refX="5.5"
                 refY="3"
@@ -275,14 +275,14 @@ export function ComfyWorkflowMap({
                 orient="auto"
               >
                 <path
-                  className="comfy-workflow-dialog__map-arrow"
+                  className="comfy-workflow-modal__map-arrow"
                   d="M 0.5 0.5 L 5.5 3 L 0.5 5.5 z"
                 />
               </marker>
             ))}
           </defs>
           <rect
-            className="comfy-workflow-dialog__map-canvas"
+            className="comfy-workflow-modal__map-canvas"
             width={layout.width}
             height={layout.height}
             rx="10"
@@ -293,21 +293,21 @@ export function ComfyWorkflowMap({
             <g
               key={`${edge.from}>${edge.to}`}
               className={classNames(
-                "comfy-workflow-dialog__map-edge",
-                `comfy-workflow-dialog__map-tone--${tones.get(edge.from)}`,
-                !edge.ran && "comfy-workflow-dialog__map-edge--skipped",
-                litEdge(edge) && "comfy-workflow-dialog__map-edge--lit",
+                "comfy-workflow-modal__map-edge",
+                `comfy-workflow-modal__map-tone--${tones.get(edge.from)}`,
+                !edge.ran && "comfy-workflow-modal__map-edge--skipped",
+                litEdge(edge) && "comfy-workflow-modal__map-edge--lit",
               )}
               onMouseEnter={() => setTrace({ from: edge.from, to: edge.to })}
               onMouseLeave={() => setTrace(null)}
             >
               <path
-                className="comfy-workflow-dialog__map-line"
+                className="comfy-workflow-modal__map-line"
                 d={edge.path}
                 markerEnd={`url(#${arrowId(tones.get(edge.from)!)})`}
               />
               {/* A wide, invisible stroke so a thin line is easy to point at. */}
-              <path className="comfy-workflow-dialog__map-hit" d={edge.path} />
+              <path className="comfy-workflow-modal__map-hit" d={edge.path} />
             </g>
           ))}
         </svg>
@@ -324,16 +324,16 @@ export function ComfyWorkflowMap({
             height: percent(height, layout.height),
           };
           const className = classNames(
-            "comfy-workflow-dialog__map-node",
-            `comfy-workflow-dialog__map-node--${node.kind}`,
-            `comfy-workflow-dialog__map-tone--${tones.get(node.id)}`,
-            !ran && "comfy-workflow-dialog__map-node--skipped",
-            litNodes.has(node.id) && "comfy-workflow-dialog__map-node--lit",
+            "comfy-workflow-modal__map-node",
+            `comfy-workflow-modal__map-node--${node.kind}`,
+            `comfy-workflow-modal__map-tone--${tones.get(node.id)}`,
+            !ran && "comfy-workflow-modal__map-node--skipped",
+            litNodes.has(node.id) && "comfy-workflow-modal__map-node--lit",
           );
           const body = (
             <>
-              <span className="comfy-workflow-dialog__map-chip" aria-hidden="true">
-                {Glyph ? <Icon icon={Glyph} className="comfy-workflow-dialog__map-icon" /> : number}
+              <span className="comfy-workflow-modal__map-chip" aria-hidden="true">
+                {Glyph ? <Icon icon={Glyph} className="comfy-workflow-modal__map-icon" /> : number}
               </span>
               <MapLabel node={node} />
             </>
@@ -347,7 +347,7 @@ export function ComfyWorkflowMap({
           return (
             <Tooltip
               key={node.id}
-              className="comfy-workflow-dialog__map-slot"
+              className="comfy-workflow-modal__map-slot"
               bubbleClassName="workflow-map-tip-bubble"
               style={slot}
               content={

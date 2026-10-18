@@ -51,10 +51,10 @@ describe("TrainingSampleModal", () => {
   it("shows the sample's step, position and prompt", () => {
     renderModal();
 
-    const dialog = screen.getByRole("dialog", { name: "Training sample 2 of 3" });
-    expect(within(dialog).getByText("Sample at step 200")).toBeInTheDocument();
-    expect(within(dialog).getByText("2 / 3")).toBeInTheDocument();
-    expect(within(dialog).getByText("a red hatchback on a wet street")).toBeInTheDocument();
+    const modal = screen.getByRole("dialog", { name: "Training sample 2 of 3" });
+    expect(within(modal).getByText("Sample at step 200")).toBeInTheDocument();
+    expect(within(modal).getByText("2 / 3")).toBeInTheDocument();
+    expect(within(modal).getByText("a red hatchback on a wet street")).toBeInTheDocument();
   });
 
   it("shows the full-size media rather than a thumbnail", () => {
@@ -75,14 +75,14 @@ describe("TrainingSampleModal", () => {
       />,
     );
 
-    const dialog = screen.getByRole("dialog");
-    const video = dialog.querySelector("video");
+    const modal = screen.getByRole("dialog");
+    const video = modal.querySelector("video");
     expect(video).not.toBeNull();
     expect(video).toHaveAttribute("src", expect.stringContaining("/api/media?"));
     expect(video?.getAttribute("src")).not.toContain("/api/thumbnail");
     expect(video).toHaveAttribute("aria-label", "a red hatchback on a wet street");
-    expect(within(dialog).queryByRole("img")).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: /Zoom in/ })).not.toBeInTheDocument();
+    expect(within(modal).queryByRole("img")).not.toBeInTheDocument();
+    expect(within(modal).queryByRole("button", { name: /Zoom in/ })).not.toBeInTheDocument();
 
     unmount();
   });
@@ -192,8 +192,8 @@ describe("TrainingSampleModal", () => {
   it("offers no actions beyond viewing, navigation and closing", () => {
     renderModal();
 
-    const dialog = screen.getByRole("dialog");
-    const labels = within(dialog)
+    const modal = screen.getByRole("dialog");
+    const labels = within(modal)
       .getAllByRole("button")
       .map((button) => button.getAttribute("aria-label"));
 
@@ -203,16 +203,16 @@ describe("TrainingSampleModal", () => {
       "Zoom in a red hatchback on a wet street",
       "Next sample",
     ]);
-    expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(within(modal).queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("keeps the backdrop outside the dialog", () => {
+  it("keeps the backdrop outside the modal", () => {
     renderModal();
 
-    // Backdrop is a sibling of the panel; putting it in the dialog would lead every screen-reader pass.
-    const dialog = screen.getByRole("dialog");
+    // Backdrop is a sibling of the panel; putting it in the modal would lead every screen-reader pass.
+    const modal = screen.getByRole("dialog");
     expect(screen.getByRole("button", { name: "Close sample viewer" })).toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "Close sample viewer" })).toBeNull();
+    expect(within(modal).queryByRole("button", { name: "Close sample viewer" })).toBeNull();
   });
 
   it("returns focus to the trigger when it closes", async () => {

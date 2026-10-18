@@ -29,7 +29,7 @@ export function CaptionPreviewSample({
           {diff.suffix}
         </p>
       )}
-      {error && <p className="dialog__error">{error}</p>}
+      {error && <p className="modal__error">{error}</p>}
     </li>
   );
 }

@@ -75,7 +75,7 @@ export function AboutSection({ settings, visible }: AboutSectionProps) {
 
   if (aboutQuery.isError) {
     return (
-      <p className="dialog__error" role="alert">
+      <p className="modal__error" role="alert">
         {formatApiError(aboutQuery.error)}
       </p>
     );

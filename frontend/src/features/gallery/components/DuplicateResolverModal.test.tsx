@@ -170,7 +170,7 @@ describe("DuplicateResolverModal", () => {
     expect(screen.getByRole("button", { name: "Resolve" })).toBeInTheDocument();
   });
 
-  it("deletes without a dialog where the Recycle Bin catches the files", async () => {
+  it("deletes without a modal where the Recycle Bin catches the files", async () => {
     const user = userEvent.setup();
     renderModal();
 
@@ -186,14 +186,14 @@ describe("DuplicateResolverModal", () => {
 
     await user.click(screen.getByRole("button", { name: "Resolve" }));
 
-    // Nothing is deleted until the dialog is answered.
+    // Nothing is deleted until the modal is answered.
     expect(resolveGroup).not.toHaveBeenCalled();
-    const dialog = await screen.findByRole("alertdialog");
-    expect(dialog).toHaveTextContent("Delete 1 file?");
-    expect(dialog).toHaveTextContent("small.png");
-    expect(dialog).toHaveTextContent("cannot be undone");
+    const modal = await screen.findByRole("alertdialog");
+    expect(modal).toHaveTextContent("Delete 1 file?");
+    expect(modal).toHaveTextContent("small.png");
+    expect(modal).toHaveTextContent("cannot be undone");
 
-    await user.click(within(dialog).getByRole("button", { name: "Delete permanently" }));
+    await user.click(within(modal).getByRole("button", { name: "Delete permanently" }));
 
     await waitFor(() => expect(resolveGroup).toHaveBeenCalled());
   });
@@ -203,8 +203,8 @@ describe("DuplicateResolverModal", () => {
     renderModal({ deletesToTrash: false });
 
     await user.click(screen.getByRole("button", { name: "Resolve" }));
-    const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    const modal = await screen.findByRole("alertdialog");
+    await user.click(within(modal).getByRole("button", { name: "Cancel" }));
 
     expect(resolveGroup).not.toHaveBeenCalled();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

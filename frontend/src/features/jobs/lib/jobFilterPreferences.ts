@@ -1,5 +1,5 @@
 import { readStoredJson, writeStoredJson } from "@/shared/lib/storage";
-import type { JobsDrawerFilters } from "@/shared/types";
+import type { JobsDrawerFilters as JobsModalFilters } from "@/shared/types";
 import {
   DEFAULT_JOB_FILTERS,
   JOB_FOLDER_FILTER_OPTIONS,
@@ -42,7 +42,7 @@ export function cacheJobFilters(filters: JobFilters): void {
 }
 
 /** Runs the server copy through the same parser, so types this build does not know drop out. */
-export function jobFiltersFromWire(filters: JobsDrawerFilters): JobFilters {
+export function jobFiltersFromWire(filters: JobsModalFilters): JobFilters {
   return (
     parseStoredJobFilters({
       jobTypes: filters.job_types,
@@ -52,6 +52,6 @@ export function jobFiltersFromWire(filters: JobsDrawerFilters): JobFilters {
   );
 }
 
-export function jobFiltersToWire(filters: JobFilters): JobsDrawerFilters {
+export function jobFiltersToWire(filters: JobFilters): JobsModalFilters {
   return { job_types: filters.jobTypes, status: filters.status, folder: filters.folder };
 }

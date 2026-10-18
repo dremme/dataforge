@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { BulkScopeKind } from "@/features/automation/lib/bulkScope";
 import type { AutomationActions } from "@/features/automation/lib/automationActions";
-import { useAutomationDialogOverlays } from "@/features/automation/hooks/useAutomationDialogOverlays";
+import { useAutomationModalOverlays } from "@/features/automation/hooks/useAutomationModalOverlays";
 import type { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
 import { useJobStartConfirmation } from "@/features/jobs/hooks/useJobStartConfirmation";
 import {
@@ -13,7 +13,7 @@ import {
 import { quickActionRunJobId } from "@/features/quickAction/lib/buildQuickActionItems";
 import { touchRecentAction } from "@/features/quickAction/lib/quickActionHistory";
 import type { Breadcrumb, GalleryItem, JobType } from "@/shared/types";
-import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { ModalScopeInfo } from "@/shared/ui/ModalScope";
 import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
 
 type FolderAutomation = ReturnType<typeof useFolderAutomation>;
@@ -70,13 +70,13 @@ export function useAutomationHost({
   const jobPaths = getJobPaths();
   const scopeKind = jobScopeKind ?? (jobPaths !== undefined ? "selected" : "folder");
   const jobItemCount = jobPaths?.length ?? items.length;
-  const liveScope = useMemo<DialogScopeInfo>(
+  const liveScope = useMemo<ModalScopeInfo>(
     () => ({ itemCount: jobItemCount, folderLabel: jobStart.folderLabel, kind: scopeKind }),
     [jobItemCount, jobStart.folderLabel, scopeKind],
   );
-  const [pendingScope, setPendingScope] = useState<DialogScopeInfo | null>(null);
+  const [pendingScope, setPendingScope] = useState<ModalScopeInfo | null>(null);
 
-  const dialogs = useAutomationDialogOverlays({
+  const modals = useAutomationModalOverlays({
     folderPath: folder,
     folderLabel: jobStart.folderLabel,
     startingJobType: automation.startingJobType,
@@ -94,7 +94,7 @@ export function useAutomationHost({
     confirmPendingJobStart,
     cancelPendingJobStart,
   } = jobStart;
-  const { openDialogForJobType, dialogs: automationDialogs } = dialogs;
+  const { openModalForJobType, modals: automationModals } = modals;
 
   const jobAvailability = useMemo<JobAvailability>(
     () => ({ hasCaptionBackup, ostrisAvailable, comfyPresetsAvailable }),
@@ -140,7 +140,7 @@ export function useAutomationHost({
           requestJobStart(jobType, paths);
           return;
         }
-        openDialogForJobType(jobType, { scope: targetScope, paths });
+        openModalForJobType(jobType, { scope: targetScope, paths });
       };
       if (requestTransition) void requestTransition(open);
       else open();
@@ -149,7 +149,7 @@ export function useAutomationHost({
       getJobPaths,
       items.length,
       liveScope,
-      openDialogForJobType,
+      openModalForJobType,
       requestJobStart,
       requestTransition,
       startContext,
@@ -193,7 +193,7 @@ export function useAutomationHost({
     ],
   );
 
-  const confirmScope = useMemo<DialogScopeInfo>(
+  const confirmScope = useMemo<ModalScopeInfo>(
     () => pendingScope ?? { itemCount: jobItemCount, folderLabel, kind: scopeKind },
     [folderLabel, jobItemCount, pendingScope, scopeKind],
   );
@@ -201,7 +201,7 @@ export function useAutomationHost({
   return {
     actions,
     requestStart,
-    dialogs: automationDialogs,
+    modals: automationModals,
     jobStartConfirm: {
       pending: pendingJobStart,
       scope: confirmScope,

@@ -86,11 +86,11 @@ describe("useScrollLock", () => {
     const addSpy = vi.spyOn(document, "addEventListener");
 
     const first = renderHook(() => useScrollLock(true, "gallery-item-modal-open"));
-    const second = renderHook(() => useScrollLock(true, "confirm-dialog-open"));
+    const second = renderHook(() => useScrollLock(true, "confirm-modal-open"));
 
     const wheelAdds = addSpy.mock.calls.filter(([eventName]) => eventName === "wheel");
     expect(wheelAdds).toHaveLength(1);
-    expect(document.documentElement.classList.contains("confirm-dialog-open")).toBe(true);
+    expect(document.documentElement.classList.contains("confirm-modal-open")).toBe(true);
 
     second.unmount();
     expect(document.documentElement.classList.contains("gallery-item-modal-open")).toBe(true);

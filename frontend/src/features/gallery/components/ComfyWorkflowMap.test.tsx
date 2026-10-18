@@ -58,7 +58,7 @@ function renderMap(onSelect?: (nodeId: string) => void) {
 
 /** The box whose visible label is ``label``. */
 function box(label: string): HTMLElement {
-  return screen.getByText(label).closest(".comfy-workflow-dialog__map-node") as HTMLElement;
+  return screen.getByText(label).closest(".comfy-workflow-modal__map-node") as HTMLElement;
 }
 
 describe("ComfyWorkflowMap", () => {
@@ -78,38 +78,38 @@ describe("ComfyWorkflowMap", () => {
   it("traces a box's edges on hover and dims the rest until the pointer leaves", () => {
     const { container } = renderMap();
     const map = screen.getByRole("group", { name: "Workflow map" });
-    const edges = container.querySelectorAll(".comfy-workflow-dialog__map-edge");
+    const edges = container.querySelectorAll(".comfy-workflow-modal__map-edge");
     const edge = (from: string, to: string) => edges[EDGES.indexOf(`${from}>${to}`)];
     const lit = (element: Element) =>
-      element.classList.contains("comfy-workflow-dialog__map-edge--lit");
+      element.classList.contains("comfy-workflow-modal__map-edge--lit");
 
     fireEvent.mouseEnter(box("FaceDetailer"));
 
-    expect(map).toHaveClass("comfy-workflow-dialog__map--tracing");
+    expect(map).toHaveClass("comfy-workflow-modal__map--tracing");
     expect([lit(edge("4", "6")), lit(edge("6", "7")), lit(edge("4", "7"))]).toEqual([
       true,
       true,
       false,
     ]);
-    expect(box("KSampler")).toHaveClass("comfy-workflow-dialog__map-node--lit");
-    expect(box("landscape")).not.toHaveClass("comfy-workflow-dialog__map-node--lit");
+    expect(box("KSampler")).toHaveClass("comfy-workflow-modal__map-node--lit");
+    expect(box("landscape")).not.toHaveClass("comfy-workflow-modal__map-node--lit");
     fireEvent.mouseLeave(box("FaceDetailer"));
-    expect(map).not.toHaveClass("comfy-workflow-dialog__map--tracing");
+    expect(map).not.toHaveClass("comfy-workflow-modal__map--tracing");
   });
 
   it("traces a single edge on hover until the pointer leaves", () => {
     const { container } = renderMap();
     const map = screen.getByRole("group", { name: "Workflow map" });
-    const edges = container.querySelectorAll(".comfy-workflow-dialog__map-edge");
+    const edges = container.querySelectorAll(".comfy-workflow-modal__map-edge");
     const edge = (from: string, to: string) => edges[EDGES.indexOf(`${from}>${to}`)];
 
     fireEvent.mouseEnter(edge("4", "6"));
 
-    expect(map).toHaveClass("comfy-workflow-dialog__map--tracing");
-    expect(edge("4", "6")).toHaveClass("comfy-workflow-dialog__map-edge--lit");
-    expect(edge("6", "7")).not.toHaveClass("comfy-workflow-dialog__map-edge--lit");
+    expect(map).toHaveClass("comfy-workflow-modal__map--tracing");
+    expect(edge("4", "6")).toHaveClass("comfy-workflow-modal__map-edge--lit");
+    expect(edge("6", "7")).not.toHaveClass("comfy-workflow-modal__map-edge--lit");
     fireEvent.mouseLeave(edge("4", "6"));
-    expect(map).not.toHaveClass("comfy-workflow-dialog__map--tracing");
+    expect(map).not.toHaveClass("comfy-workflow-modal__map--tracing");
   });
 
   it("shows a pass's kind, state and leading settings in a tooltip", async () => {
@@ -231,7 +231,7 @@ describe("ComfyWorkflowMap", () => {
       />,
     );
 
-    const output = container.querySelector(".comfy-workflow-dialog__map-node--output");
+    const output = container.querySelector(".comfy-workflow-modal__map-node--output");
     expect(output?.querySelector("svg")).toHaveClass("lucide-video");
   });
 
@@ -256,7 +256,7 @@ describe("ComfyWorkflowMap", () => {
       />,
     );
 
-    expect(screen.getByText("0High")).toHaveClass("comfy-workflow-dialog__map-label-tail");
+    expect(screen.getByText("0High")).toHaveClass("comfy-workflow-modal__map-label-tail");
   });
 
   it("names a generated input by its stage and prompt, and a loaded one by its file", async () => {
@@ -295,7 +295,7 @@ describe("ComfyWorkflowMap", () => {
 
     // A prompt is prose, so it is cut at its end, not split like a file name.
     const generated = box(prompt);
-    expect(generated.querySelector(".comfy-workflow-dialog__map-label-tail")).toBeNull();
+    expect(generated.querySelector(".comfy-workflow-modal__map-label-tail")).toBeNull();
     await user.hover(generated);
     const tip = await screen.findByRole("tooltip");
     expect(tip).toHaveTextContent("Generated image");

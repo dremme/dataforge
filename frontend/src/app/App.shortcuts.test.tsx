@@ -48,8 +48,8 @@ describe("App: keyboard shortcuts", () => {
 
     await user.keyboard("{Alt>}n{/Alt}");
 
-    const dialog = await screen.findByRole("alertdialog", { name: "New folder" });
-    expect(within(dialog).getByRole("textbox")).toHaveValue("");
+    const modal = await screen.findByRole("alertdialog", { name: "New folder" });
+    expect(within(modal).getByRole("textbox")).toHaveValue("");
   });
 
   it("leaves Alt+N to a text field", async () => {
@@ -61,7 +61,7 @@ describe("App: keyboard shortcuts", () => {
     expect(screen.queryByRole("alertdialog", { name: "New folder" })).not.toBeInTheDocument();
   });
 
-  it("does not navigate from behind an open dialog", async () => {
+  it("does not navigate from behind an open modal", async () => {
     const user = await renderAt(VACATION_PATH);
 
     await user.keyboard("?");
@@ -76,11 +76,11 @@ describe("App: keyboard shortcuts", () => {
 
     await user.keyboard("?");
 
-    const dialog = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
-    const global = within(dialog).getByRole("region", { name: "Global" });
+    const modal = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+    const global = within(modal).getByRole("region", { name: "Global" });
     expect(within(global).getByText("Open the command palette")).toBeInTheDocument();
     expect(within(global).getByText("Ctrl+P")).toBeInTheDocument();
-    expect(within(dialog).getByRole("region", { name: "Review queues" })).toBeInTheDocument();
+    expect(within(modal).getByRole("region", { name: "Review queues" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     await waitFor(() =>

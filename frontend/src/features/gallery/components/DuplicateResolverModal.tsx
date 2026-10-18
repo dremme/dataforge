@@ -17,8 +17,8 @@ import {
 } from "@/shared/lib/format";
 import { classNames } from "@/shared/lib/classNames";
 import { iconCheck, iconTrash2, iconTriangleAlert, iconX } from "@/shared/icons";
-import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { DialogButton } from "@/shared/ui/Dialog";
+import { ConfirmModal } from "@/shared/ui/ConfirmModal";
+import { ModalButton } from "@/shared/ui/Modal";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import type { DuplicateGroup, GalleryItem } from "@/shared/types";
@@ -222,19 +222,19 @@ export function DuplicateResolverModal({
         </div>
 
         <footer className="duplicate-resolver-modal__footer">
-          <DialogButton
+          <ModalButton
             label="Back"
             variant="secondary"
             disabled={busy || index === 0}
             onClick={() => goTo(index - 1)}
           />
-          <DialogButton
+          <ModalButton
             label="Skip"
             variant="secondary"
             disabled={busy || index === queue.length - 1}
             onClick={() => goTo(index + 1)}
           />
-          <DialogButton
+          <ModalButton
             label={pending === "dismiss" ? "Clearing..." : "Not duplicates"}
             variant="warning"
             busy={pending === "dismiss"}
@@ -243,7 +243,7 @@ export function DuplicateResolverModal({
               void handleDismiss();
             }}
           />
-          <DialogButton
+          <ModalButton
             label={pending === "resolve" ? "Deleting..." : "Resolve"}
             variant="primary"
             busy={pending === "resolve"}
@@ -254,7 +254,7 @@ export function DuplicateResolverModal({
       </ModalShell>
 
       {confirmOpen && (
-        <ConfirmDialog
+        <ConfirmModal
           title={`Delete ${discard.length} ${discard.length === 1 ? "file" : "files"}?`}
           description={`${discard
             .map((member) => member.name)

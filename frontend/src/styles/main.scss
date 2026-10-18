@@ -19,8 +19,8 @@
 @use "components/caption-save-status";
 @use "components/code-editor";
 @use "components/comfy-process-log";
-@use "components/comfy-workflow-dialog";
-@use "components/confirm-dialog";
+@use "components/comfy-workflow-modal";
+@use "components/confirm-modal";
 @use "components/crop-overlay";
 @use "components/duplicate-resolver-modal";
 @use "components/empty-state";
@@ -38,7 +38,7 @@
 @use "components/issue-resolver-modal";
 @use "components/job-file-results";
 @use "components/kbd";
-@use "components/jobs-drawer";
+@use "components/jobs-modal";
 @use "components/mask-overlay";
 @use "components/messages";
 @use "components/modal-panel";
@@ -48,7 +48,7 @@
 @use "components/ruler-dial";
 @use "components/sections";
 @use "components/settings-modal";
-@use "components/stats-drawer";
+@use "components/stats-modal";
 @use "components/folder-instructions-modal";
 @use "components/toolbar";
 @use "components/tooltip";

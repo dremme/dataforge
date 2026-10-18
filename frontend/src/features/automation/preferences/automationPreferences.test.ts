@@ -16,7 +16,7 @@ const request = vi.mocked(requestJson);
 
 const FOLDER = "C:\\Photos";
 
-/** A fresh client per read, as an opening dialog would have; no retries for the offline case. */
+/** A fresh client per read, as an opening modal would have; no retries for the offline case. */
 const loadAutomationSettings = (folderPath: string) =>
   loadWith(folderPath, createTestQueryClient({ retry: false }));
 

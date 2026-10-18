@@ -18,7 +18,7 @@ export function StatsButton({ open, onToggle }: StatsButtonProps) {
         aria-label="Open dataset statistics"
         aria-expanded={open}
         // Points at the drawer from outside it, so the id is a fixed string.
-        aria-controls={open ? "stats-drawer-panel" : undefined}
+        aria-controls={open ? "stats-modal-panel" : undefined}
       >
         <Icon icon={iconChartBar} className="stats-button__icon" />
       </button>

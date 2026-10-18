@@ -34,7 +34,7 @@ import {
   useThemePreference,
 } from "@/shared/theme/theme";
 import type { AppSettingKey, AppSettingsResponse, ProbedService } from "@/shared/types";
-import { DialogButton } from "@/shared/ui/Dialog";
+import { ModalButton } from "@/shared/ui/Modal";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { ShortcutKeys } from "@/shared/ui/ShortcutKeys";
@@ -563,7 +563,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     }
     if (state.status === "failed") {
       return (
-        <p className="dialog__error" role="alert">
+        <p className="modal__error" role="alert">
           {state.message}
         </p>
       );
@@ -693,8 +693,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 : "Changes apply right away, without a restart."}
           </p>
           <div className="settings-modal__actions">
-            <DialogButton label="Cancel" variant="secondary" disabled={saving} onClick={onClose} />
-            <DialogButton
+            <ModalButton label="Cancel" variant="secondary" disabled={saving} onClick={onClose} />
+            <ModalButton
               label={saving ? "Saving..." : "Save"}
               variant="primary"
               busy={saving}

@@ -50,7 +50,7 @@ Templates define architecture, resolution, steps, optimizer, learning rate, samp
 
 The Qwen Image 2.1 Turbo template includes its training adapter and uses 8-step samples at guidance scale 1. Krea 2 Raw uses the base model without a training adapter. AI-Toolkit must support the selected model and adapter.
 
-Dialog edits apply to that run only; switching models restores the selected model's stock template. The files in `ostris_templates/` are unchanged. DataForge validates YAML and requires a `config.process` list whose first entry contains dataset and sample sections. It fills in the name, training folder, first dataset's path, trigger word, and sample prompts; other template values remain yours.
+Modal edits apply to that run only; switching models restores the selected model's stock template. The files in `ostris_templates/` are unchanged. DataForge validates YAML and requires a `config.process` list whose first entry contains dataset and sample sections. It fills in the name, training folder, first dataset's path, trigger word, and sample prompts; other template values remain yours.
 
 DataForge sends the path and configuration, not the media. AI-Toolkit reads the dataset and writes checkpoints/samples to its configured training folder.
 

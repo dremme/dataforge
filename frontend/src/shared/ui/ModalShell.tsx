@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { useDialogFocus } from "@/shared/hooks/useDialogFocus";
+import { useModalFocus } from "@/shared/hooks/useModalFocus";
 import { useEditorOverlayEscape } from "@/shared/hooks/useEditorOverlayEscape";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
@@ -85,9 +85,9 @@ export function ModalShell({
   const backdropClass =
     nested === undefined ? depthBackdropClass : overlayBackdropClass(`${block}__backdrop`, nested);
 
-  useScrollLock(!inline && scrollLock !== undefined, scrollLock ?? "confirm-dialog-open");
+  useScrollLock(!inline && scrollLock !== undefined, scrollLock ?? "confirm-modal-open");
   useFocusTrap(resolvedPanelRef, !inline && !suspended);
-  useDialogFocus(resolvedPanelRef, initialFocusRef, !inline);
+  useModalFocus(resolvedPanelRef, initialFocusRef, !inline);
 
   const dismissible = !busy && !suspended && !closing;
 
@@ -103,7 +103,12 @@ export function ModalShell({
   // Both hooks stay mounted for stable order; the editor listener stops capture-phase
   // propagation and must stay detached in bubble mode.
   useEscapeKey(onClose, !inline && escape === "bubble" && dismissible);
-  useEditorOverlayEscape(resolvedPanelRef, onClose, !inline && dismissible, escape === "editor");
+  useEditorOverlayEscape(
+    resolvedPanelRef,
+    onClose,
+    dismissible,
+    !inline && !suspended && escape === "editor",
+  );
 
   const Panel = panelAs as "div";
 

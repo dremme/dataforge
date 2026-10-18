@@ -1,12 +1,12 @@
-import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { ModalScopeInfo } from "@/shared/ui/ModalScope";
 
 export type BulkScopeKind = "selected" | "visible" | "folder";
 
 export interface BulkScopeSnapshot {
-  scope: DialogScopeInfo;
+  scope: ModalScopeInfo;
   paths: string[] | undefined;
 }
 
-export function snapshotBulkScope(scope: DialogScopeInfo, paths?: string[]): BulkScopeSnapshot {
+export function snapshotBulkScope(scope: ModalScopeInfo, paths?: string[]): BulkScopeSnapshot {
   return { scope: { ...scope }, paths: paths ? [...paths] : undefined };
 }

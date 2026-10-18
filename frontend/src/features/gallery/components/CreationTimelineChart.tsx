@@ -41,26 +41,26 @@ export function CreationTimelineChart({
   return (
     <figure
       ref={chartRef}
-      className="stats-drawer__timeline"
+      className="stats-modal__timeline"
       aria-label="Distribution by media creation date"
     >
-      <div className="stats-drawer__timeline-body">
-        <div className="stats-drawer__timeline-y-axis" aria-hidden="true">
+      <div className="stats-modal__timeline-body">
+        <div className="stats-modal__timeline-y-axis" aria-hidden="true">
           {ticks.map((tick) => (
             <span key={tick}>{countFormatter.format(tick)}</span>
           ))}
         </div>
-        <div className="stats-drawer__timeline-viewport">
-          <div className="stats-drawer__timeline-plot">
-            <div className="stats-drawer__timeline-grid" aria-hidden="true">
+        <div className="stats-modal__timeline-viewport">
+          <div className="stats-modal__timeline-plot">
+            <div className="stats-modal__timeline-grid" aria-hidden="true">
               {ticks.map((tick) => (
                 <span key={tick} style={{ bottom: `${(tick / maximum) * 100}%` }} />
               ))}
             </div>
             <dl
               className={classNames(
-                "stats-drawer__timeline-columns",
-                buckets.length > 12 && "stats-drawer__timeline-columns--dense",
+                "stats-modal__timeline-columns",
+                buckets.length > 12 && "stats-modal__timeline-columns--dense",
               )}
               style={{ gridTemplateColumns: `repeat(${buckets.length}, minmax(0, 1fr))` }}
             >
@@ -74,44 +74,44 @@ export function CreationTimelineChart({
                   (index % labelStep === 0 && buckets.length - 1 - index > labelStep / 2);
                 const countLabel = `${bucket.count} ${bucket.count === 1 ? "file" : "files"}`;
                 return (
-                  <div key={bucket.label} className="stats-drawer__timeline-column">
+                  <div key={bucket.label} className="stats-modal__timeline-column">
                     <dt
                       className={classNames(
-                        "stats-drawer__timeline-label",
-                        buckets.length > 12 && index === 0 && "stats-drawer__timeline-label--first",
+                        "stats-modal__timeline-label",
+                        buckets.length > 12 && index === 0 && "stats-modal__timeline-label--first",
                         buckets.length > 12 &&
                           index === buckets.length - 1 &&
-                          "stats-drawer__timeline-label--last",
+                          "stats-modal__timeline-label--last",
                       )}
                       title={bucket.label}
                     >
-                      <span className="stats-drawer__timeline-full-label">{bucket.label}</span>
+                      <span className="stats-modal__timeline-full-label">{bucket.label}</span>
                       {showLabel && <span aria-hidden="true">{label}</span>}
                     </dt>
-                    <dd className="stats-drawer__timeline-value">
+                    <dd className="stats-modal__timeline-value">
                       {bucket.count > 0 ? (
                         <Tooltip
                           content={`${bucket.label}: ${countLabel}`}
                           delay={0}
                           placement="top"
-                          className="stats-drawer__timeline-bar"
+                          className="stats-modal__timeline-bar"
                           style={{ height: `${(bucket.count / maximum) * progress}%` }}
                         >
                           <span
-                            className="stats-drawer__timeline-fill"
+                            className="stats-modal__timeline-fill"
                             tabIndex={0}
                             role="img"
                             aria-label={countLabel}
                           >
                             {buckets.length <= 12 && (
-                              <span className="stats-drawer__timeline-count">
+                              <span className="stats-modal__timeline-count">
                                 {countFormatter.format(Math.round((bucket.count * progress) / 100))}
                               </span>
                             )}
                           </span>
                         </Tooltip>
                       ) : (
-                        <span className="stats-drawer__timeline-zero">0 files</span>
+                        <span className="stats-modal__timeline-zero">0 files</span>
                       )}
                     </dd>
                   </div>
@@ -121,13 +121,13 @@ export function CreationTimelineChart({
           </div>
         </div>
       </div>
-      <figcaption className="stats-drawer__timeline-caption">
-        <div className="stats-drawer__timeline-navigation">
-          {peak === 0 && <p className="stats-drawer__note">No media created in this period.</p>}
+      <figcaption className="stats-modal__timeline-caption">
+        <div className="stats-modal__timeline-navigation">
+          {peak === 0 && <p className="stats-modal__note">No media created in this period.</p>}
           {grouping !== "year" && (
             <button
               type="button"
-              className="stats-drawer__timeline-step"
+              className="stats-modal__timeline-step"
               aria-label={`Previous ${navigationUnit}`}
               onClick={() => onNavigatePeriod(-1)}
             >
@@ -140,7 +140,7 @@ export function CreationTimelineChart({
           {grouping !== "year" && (
             <button
               type="button"
-              className="stats-drawer__timeline-step"
+              className="stats-modal__timeline-step"
               aria-label={`Next ${navigationUnit}`}
               onClick={() => onNavigatePeriod(1)}
             >

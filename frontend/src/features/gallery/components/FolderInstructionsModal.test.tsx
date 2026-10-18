@@ -85,8 +85,8 @@ function editor(kind: InstructionKind) {
 }
 
 function closeButton() {
-  const dialog = screen.getByRole("dialog", { name: "Folder instructions" });
-  return within(dialog).getByRole("button", { name: "Close" });
+  const modal = screen.getByRole("dialog", { name: "Folder instructions" });
+  return within(modal).getByRole("button", { name: "Close" });
 }
 
 describe("FolderInstructionsModal", () => {
@@ -222,6 +222,21 @@ describe("FolderInstructionsModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("returns to the edited draft when Escape dismisses the discard confirmation", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn<() => void>();
+    renderModal({ onClose });
+
+    await user.type(await editor("sysprompt"), " edited");
+    await user.click(closeButton());
+    await screen.findByRole("alertdialog", { name: "Discard changes?" });
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(await editor("sysprompt")).toHaveValue(`${PROMPT} edited`);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("keeps the draft on screen when the save fails", async () => {
     const user = userEvent.setup();
     saveInstructionFile.mockRejectedValue(new Error("disk is read-only"));
@@ -291,8 +306,8 @@ describe("FolderInstructionsModal", () => {
       const user = userEvent.setup();
       renderModal();
 
-      const dialog = screen.getByRole("dialog", { name: "Folder instructions" });
-      const heading = within(dialog).getByRole("heading", { name: "Folder instructions" });
+      const modal = screen.getByRole("dialog", { name: "Folder instructions" });
+      const heading = within(modal).getByRole("heading", { name: "Folder instructions" });
       const explanation = heading.nextElementSibling?.textContent;
       expect(explanation).toMatch(/system prompt/i);
       expect(explanation).toMatch(/caption rules/i);

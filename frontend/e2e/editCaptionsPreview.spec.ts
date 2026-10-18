@@ -29,14 +29,12 @@ test("previews caption edits without writes, then starts the normal backed-up jo
   await expect(page.getByText("one.png")).toBeVisible();
   await page.getByRole("button", { name: "Tools", exact: true }).click();
   await page.getByRole("menuitem", { name: /Edit captions/ }).click();
-  const dialog = page.getByRole("alertdialog", { name: "Start edit captions?" });
-  await dialog.getByLabel("Edit instruction").fill("Rewrite in present tense.");
-  const preview = dialog
-    .locator(".confirm-dialog__actions")
-    .getByRole("button", { name: "Dry run" });
+  const modal = page.getByRole("alertdialog", { name: "Start edit captions?" });
+  await modal.getByLabel("Edit instruction").fill("Rewrite in present tense.");
+  const preview = modal.locator(".confirm-modal__actions").getByRole("button", { name: "Dry run" });
   await preview.focus();
   await preview.press("Enter");
-  const samples = dialog.getByRole("status");
+  const samples = modal.getByRole("status");
   await expect(samples.getByRole("listitem")).toHaveCount(3, { timeout: 30_000 });
   await expect(samples).toContainText("four.png");
   await expect(samples).toContainText("one.png");
@@ -54,16 +52,16 @@ test("previews caption edits without writes, then starts the normal backed-up jo
     expect(imageParts(request)).toHaveLength(0);
   }
   await samples.getByRole("listitem").last().scrollIntoViewIfNeeded();
-  await expect(dialog.getByRole("button", { name: "Start edit captions" })).toBeInViewport();
+  await expect(modal.getByRole("button", { name: "Start edit captions" })).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath("preview-1024.png") });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await dialog.getByLabel("Edit instruction").scrollIntoViewIfNeeded();
+  await modal.getByLabel("Edit instruction").scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("preview-1440.png") });
 
-  await dialog.getByLabel("Edit instruction").fill("Remove colour words.");
+  await modal.getByLabel("Edit instruction").fill("Remove colour words.");
   await expect(samples.getByRole("listitem")).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Start edit captions" }).click();
-  await expect(dialog).not.toBeVisible();
+  await modal.getByRole("button", { name: "Start edit captions" }).click();
+  await expect(modal).not.toBeVisible();
   await expectJobCompleted(page, "Edit captions", 30_000);
   for (const name of names) {
     expect(fs.readFileSync(path.join(folder, `${name}.txt`), "utf-8")).not.toBe(original);

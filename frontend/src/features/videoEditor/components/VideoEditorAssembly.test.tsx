@@ -175,9 +175,9 @@ describe("VideoEditorWorkspace assembly", () => {
 
     await select("still\\.png");
     fireEvent.keyDown(document.body, { key: "V", ctrlKey: true, shiftKey: true });
-    const dialog = await screen.findByRole("dialog", { name: "Paste attributes" });
-    await user.click(within(dialog).getByRole("checkbox", { name: "Fades" }));
-    await user.click(within(dialog).getByRole("button", { name: "Paste" }));
+    const modal = await screen.findByRole("dialog", { name: "Paste attributes" });
+    await user.click(within(modal).getByRole("checkbox", { name: "Fades" }));
+    await user.click(within(modal).getByRole("button", { name: "Paste" }));
 
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Paste attributes" })).not.toBeInTheDocument(),

@@ -43,7 +43,7 @@ $z-index-drawer: 1050;
 $z-index-modal: 1000;
 // Opens from inside the jobs drawer, so it has to clear it.
 $z-index-lightbox: 1075;
-// A whole workspace over the gallery; its own dialogs (confirm level) still open above it.
+// A whole workspace over the gallery; its own modals (confirm level) still open above it.
 $z-index-video-editor: 1080;
 // Background exports in the gallery: under every overlay, over the page.
 $z-index-export-tracker: 990;

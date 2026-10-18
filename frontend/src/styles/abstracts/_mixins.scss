@@ -579,17 +579,17 @@
   color: inherit;
 }
 
-@mixin dialog-btn {
+@mixin modal-btn {
   @include pill-btn(0.4rem);
   padding: 0 0.9375rem;
   @include btn-disabled;
 }
 
-@mixin dialog-form-field {
+@mixin modal-form-field {
   margin-top: 1.125rem;
 }
 
-@mixin dialog-form-label {
+@mixin modal-form-label {
   display: block;
   font-size: var(--text-xs);
   font-weight: var(--font-semibold);
@@ -599,7 +599,7 @@
   text-transform: uppercase;
 }
 
-@mixin dialog-form-input($min-height: 2.75rem, $resize: null) {
+@mixin modal-form-input($min-height: 2.75rem, $resize: null) {
   display: block;
   width: 100%;
   min-height: $min-height;
@@ -627,7 +627,7 @@
   }
 }
 
-@mixin dialog-option-tile {
+@mixin modal-option-tile {
   flex: 1;
   display: flex;
   align-items: flex-start;
@@ -903,7 +903,7 @@
   transform: translateY(-50%);
 }
 
-/// Bordered header/footer bars. `.confirm-dialog` is a padded card and does not use these.
+/// Bordered header/footer bars. `.confirm-modal` is a padded card and does not use these.
 @mixin modal-chrome-frame {
   display: flex;
   flex-shrink: 0;

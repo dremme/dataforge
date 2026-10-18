@@ -31,15 +31,12 @@ describe("Tooltip", () => {
 
   it("puts extra classes on the hover wrapper", () => {
     render(
-      <Tooltip content=".png" className="stats-drawer__mix-cell">
+      <Tooltip content=".png" className="stats-modal__mix-cell">
         <span>slice</span>
       </Tooltip>,
     );
 
-    expect(screen.getByText("slice").parentElement).toHaveClass(
-      "tooltip",
-      "stats-drawer__mix-cell",
-    );
+    expect(screen.getByText("slice").parentElement).toHaveClass("tooltip", "stats-modal__mix-cell");
   });
 
   it("renders the bubble outside the trigger, so no ancestor can clip it", () => {

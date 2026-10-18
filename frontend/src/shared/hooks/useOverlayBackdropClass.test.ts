@@ -13,22 +13,20 @@ describe("overlayBackdropClass", () => {
   });
 
   it("returns the base class when not nested", () => {
-    expect(overlayBackdropClass("confirm-dialog__backdrop", false)).toBe(
-      "confirm-dialog__backdrop",
-    );
+    expect(overlayBackdropClass("confirm-modal__backdrop", false)).toBe("confirm-modal__backdrop");
   });
 
   it("adds the nested modifier when nested", () => {
-    expect(overlayBackdropClass("confirm-dialog__backdrop", true)).toBe(
-      "confirm-dialog__backdrop confirm-dialog__backdrop--nested",
+    expect(overlayBackdropClass("confirm-modal__backdrop", true)).toBe(
+      "confirm-modal__backdrop confirm-modal__backdrop--nested",
     );
   });
 
   it("detects nesting from scroll-lock depth at mount time", () => {
     const handle = acquireScrollLock("gallery-item-modal-open");
 
-    expect(overlayBackdropClass("confirm-dialog__backdrop", getScrollLockDepth() > 0)).toBe(
-      "confirm-dialog__backdrop confirm-dialog__backdrop--nested",
+    expect(overlayBackdropClass("confirm-modal__backdrop", getScrollLockDepth() > 0)).toBe(
+      "confirm-modal__backdrop confirm-modal__backdrop--nested",
     );
 
     releaseScrollLock(handle);

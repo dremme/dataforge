@@ -97,7 +97,7 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
 
     const onBlurRef = useLatestRef(onBlur);
 
-    // First Escape dismisses a completion list or the find panel; host dialogs must not see it.
+    // First Escape dismisses a completion list or the find panel; host modals must not see it.
     const handleKeyDownCapture = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
       if (event.key !== "Escape") return;
 

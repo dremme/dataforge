@@ -29,8 +29,8 @@ import {
   formatMegapixels,
 } from "@/shared/lib/format";
 import { iconArrowRight, iconTriangleAlert, iconX } from "@/shared/icons";
-import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { DialogButton } from "@/shared/ui/Dialog";
+import { ConfirmModal } from "@/shared/ui/ConfirmModal";
+import { ModalButton } from "@/shared/ui/Modal";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
@@ -226,30 +226,30 @@ export function CandidateReviewModal({
 
         <CompareMeta entry={entry} details={details} />
         <footer className="candidate-review-modal__footer">
-          <label className="dialog__checkbox candidate-review-modal__keep-metadata">
+          <label className="modal__checkbox candidate-review-modal__keep-metadata">
             <input
               type="checkbox"
-              className="dialog__checkbox-input"
+              className="modal__checkbox-input"
               checked={keepMetadata}
               onChange={(event) => setKeepMetadata(event.target.checked)}
               disabled={busy}
             />
-            <span className="dialog__checkbox-box" aria-hidden="true" />
-            <span className="dialog__checkbox-label">Keep original metadata</span>
+            <span className="modal__checkbox-box" aria-hidden="true" />
+            <span className="modal__checkbox-label">Keep original metadata</span>
           </label>
-          <DialogButton
+          <ModalButton
             label="Back"
             variant="secondary"
             disabled={busy || index === 0}
             onClick={() => goTo(index - 1)}
           />
-          <DialogButton
+          <ModalButton
             label="Skip"
             variant="secondary"
             disabled={busy || index === queue.length - 1}
             onClick={() => goTo(index + 1)}
           />
-          <DialogButton
+          <ModalButton
             label={pending === "reject" ? "Discarding..." : "Reject"}
             variant="warning"
             busy={pending === "reject"}
@@ -258,7 +258,7 @@ export function CandidateReviewModal({
               void settle("reject");
             }}
           />
-          <DialogButton
+          <ModalButton
             label={pending === "accept" ? "Accepting..." : "Accept"}
             variant="primary"
             busy={pending === "accept"}
@@ -269,7 +269,7 @@ export function CandidateReviewModal({
       </ModalShell>
 
       {confirmingDiscard && entry && (
-        <ConfirmDialog
+        <ConfirmModal
           title="Discard the edit and accept?"
           description={
             <>

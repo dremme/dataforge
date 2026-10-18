@@ -146,7 +146,7 @@ export function AppContent() {
             hasInstructions={Boolean(folder?.has_sysprompt || folder?.has_caption_rules)}
             onEditInstructions={gallery.openSysPrompt}
             onNavigate={navigateTo}
-            onCreateFolder={createFolder.openDialog}
+            onCreateFolder={createFolder.openModal}
             onOpenSettings={settings.openSettings}
             onOpenVideoEditor={() => folder && openEditor({ kind: "new", path: folder.path })}
             videoEditorDisabled={!folder || folderNotFound}
@@ -208,8 +208,8 @@ export function AppContent() {
                 subfolders={subfolders}
                 filteredSubfolders={filteredSubfolders}
                 onNavigate={navigateTo}
-                onRenameFolder={renameFolder.openDialog}
-                onDeleteFolder={deleteFolder.openDialog}
+                onRenameFolder={renameFolder.openModal}
+                onDeleteFolder={deleteFolder.openModal}
                 items={items}
                 filteredItems={query.filteredItems}
                 filterEmptyState={query.filterEmptyState}
@@ -298,7 +298,7 @@ export function AppContent() {
               duplicateResolver={duplicateResolver.overlay}
               candidateReview={candidateReview.overlay}
               jobStart={automation.jobStartConfirm}
-              automation={automation.dialogs}
+              automation={automation.modals}
               fileImport={{
                 overwritePrompt: fileDrop.overwritePrompt,
                 busy: fileDrop.importing,

@@ -371,8 +371,8 @@ describe("App: folder navigation", () => {
     await renderApp();
 
     await user.click(await screen.findByRole("button", { name: "Delete folder" }));
-    const dialog = await screen.findByRole("alertdialog", { name: "Delete this folder?" });
-    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    const modal = await screen.findByRole("alertdialog", { name: "Delete this folder?" });
+    await user.click(within(modal).getByRole("button", { name: "Delete" }));
 
     await screen.findByRole("button", { name: "View sunset.png" });
     expect(new URLSearchParams(window.location.search).get("path")).toBe(HOME_PATH);
@@ -389,12 +389,12 @@ describe("App: folder navigation", () => {
     await renderApp();
 
     await user.click(await screen.findByRole("button", { name: "Rename folder" }));
-    const dialog = await screen.findByRole("alertdialog", { name: "Rename folder" });
-    const input = within(dialog).getByLabelText("Folder name");
+    const modal = await screen.findByRole("alertdialog", { name: "Rename folder" });
+    const input = within(modal).getByLabelText("Folder name");
     expect(input).toHaveValue("Empty");
     await user.clear(input);
     await user.type(input, "Archive");
-    await user.click(within(dialog).getByRole("button", { name: "Rename" }));
+    await user.click(within(modal).getByRole("button", { name: "Rename" }));
 
     const renamedPath = `${HOME_PATH}\\Archive`;
     await waitFor(() => {
@@ -406,20 +406,20 @@ describe("App: folder navigation", () => {
     expect(readRecentFolderPaths()).toContain(renamedPath);
   });
 
-  it("keeps the rename dialog open with the reason when the folder name is taken", async () => {
+  it("keeps the rename modal open with the reason when the folder name is taken", async () => {
     const user = userEvent.setup();
     window.history.replaceState(null, "", `/?path=${encodeURIComponent(EMPTY_PATH)}`);
     installMockBackend();
     await renderApp();
 
     await user.click(await screen.findByRole("button", { name: "Rename folder" }));
-    const dialog = await screen.findByRole("alertdialog", { name: "Rename folder" });
-    const input = within(dialog).getByLabelText("Folder name");
+    const modal = await screen.findByRole("alertdialog", { name: "Rename folder" });
+    const input = within(modal).getByLabelText("Folder name");
     await user.clear(input);
     await user.type(input, "vacation");
-    await user.click(within(dialog).getByRole("button", { name: "Rename" }));
+    await user.click(within(modal).getByRole("button", { name: "Rename" }));
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Folder already exists");
+    expect(await within(modal).findByRole("alert")).toHaveTextContent("Folder already exists");
     expect(new URLSearchParams(window.location.search).get("path")).toBe(EMPTY_PATH);
   });
 

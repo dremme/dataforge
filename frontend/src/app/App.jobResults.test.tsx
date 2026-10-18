@@ -67,8 +67,8 @@ describe("App: job results", () => {
     await user.click(await screen.findByRole("button", { name: /1 failed/ }));
     await user.click(await screen.findByRole("button", { name: "Retry 1 failed" }));
 
-    const dialog = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
-    expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent(
+    const modal = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
+    expect(modal.querySelector(".modal-scope__line")).toHaveTextContent(
       "1 selected file in Photos",
     );
   });

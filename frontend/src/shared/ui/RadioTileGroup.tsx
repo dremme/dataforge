@@ -13,7 +13,7 @@ interface RadioTileGroupProps<T extends string> {
   options: ReadonlyArray<RadioTileOption<T>>;
   /** Field label above the tiles. */
   label: string;
-  /** Radio group name; unique per group so two groups in one dialog stay independent. */
+  /** Radio group name; unique per group so two groups in one modal stay independent. */
   name: string;
   /** Accessible name for the group, e.g. "Watermark size". */
   groupLabel: string;
@@ -34,9 +34,9 @@ export function RadioTileGroup<T extends string>({
   const idPrefix = useId();
 
   return (
-    <div className="dialog__field">
-      <div className="dialog__label">{label}</div>
-      <div className="dialog__options" role="radiogroup" aria-label={groupLabel}>
+    <div className="modal__field">
+      <div className="modal__label">{label}</div>
+      <div className="modal__options" role="radiogroup" aria-label={groupLabel}>
         {options.map((option) => {
           const inputId = `${idPrefix}-${option.value}`;
 
@@ -44,8 +44,8 @@ export function RadioTileGroup<T extends string>({
             <label
               key={option.value}
               className={classNames(
-                "dialog__option",
-                value === option.value && "dialog__option--selected",
+                "modal__option",
+                value === option.value && "modal__option--selected",
               )}
               htmlFor={inputId}
             >
@@ -53,17 +53,17 @@ export function RadioTileGroup<T extends string>({
                 id={inputId}
                 type="radio"
                 name={name}
-                className="dialog__radio-input"
+                className="modal__radio-input"
                 value={option.value}
                 checked={value === option.value}
                 onChange={() => onChange(option.value)}
                 disabled={disabled}
               />
-              <span className="dialog__radio" aria-hidden="true" />
-              <div className="dialog__option-content">
-                <span className="dialog__option-title">{option.title}</span>
+              <span className="modal__radio" aria-hidden="true" />
+              <div className="modal__option-content">
+                <span className="modal__option-title">{option.title}</span>
                 {option.description && (
-                  <span className="dialog__option-desc">{option.description}</span>
+                  <span className="modal__option-desc">{option.description}</span>
                 )}
               </div>
             </label>

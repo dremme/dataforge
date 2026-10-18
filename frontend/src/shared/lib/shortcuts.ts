@@ -38,8 +38,8 @@ export const SHORTCUTS = {
   },
   settings: { group: "global", label: "Open settings", chords: [{ key: ",", mod: true }] },
   shortcuts: { group: "global", label: "Show keyboard shortcuts", chords: [{ key: "?" }] },
-  confirm: { group: "global", label: "Confirm a dialog", chords: [{ key: "Enter" }] },
-  close: { group: "global", label: "Close a dialog or viewer", chords: [{ key: "Escape" }] },
+  confirm: { group: "global", label: "Confirm a modal", chords: [{ key: "Enter" }] },
+  close: { group: "global", label: "Close a modal or viewer", chords: [{ key: "Escape" }] },
 
   parentFolder: {
     group: "folders",

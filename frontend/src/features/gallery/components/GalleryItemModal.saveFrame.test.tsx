@@ -109,11 +109,11 @@ describe("GalleryItemModal", () => {
     }
 
     async function openFrameMode(user: ReturnType<typeof userEvent.setup>) {
-      const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
       // Metadata never lands on its own in jsdom, so the slider stays disabled without this.
-      fireEvent.loadedMetadata(dialog.querySelector("video")!);
-      await user.click(within(dialog).getByRole("button", { name: "Save a frame from clip.mp4" }));
-      return dialog;
+      fireEvent.loadedMetadata(modal.querySelector("video")!);
+      await user.click(within(modal).getByRole("button", { name: "Save a frame from clip.mp4" }));
+      return modal;
     }
 
     it("is not offered for a still image", async () => {
@@ -129,18 +129,18 @@ describe("GalleryItemModal", () => {
         />,
       );
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
       expect(
-        within(dialog).queryByRole("button", { name: /save a frame/i }),
+        within(modal).queryByRole("button", { name: /save a frame/i }),
       ).not.toBeInTheDocument();
     });
 
     it("stays hidden without a destination folder", async () => {
       renderVideoModal({ currentFolder: undefined });
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
       expect(
-        within(dialog).queryByRole("button", { name: /save a frame/i }),
+        within(modal).queryByRole("button", { name: /save a frame/i }),
       ).not.toBeInTheDocument();
     });
 
@@ -148,26 +148,24 @@ describe("GalleryItemModal", () => {
       const user = userEvent.setup();
       renderVideoModal();
 
-      const dialog = await openFrameMode(user);
-      expect(within(dialog).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
+      const modal = await openFrameMode(user);
+      expect(within(modal).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
 
-      const toggle = within(dialog).getByRole("button", {
+      const toggle = within(modal).getByRole("button", {
         name: "Exit frame capture for clip.mp4",
       });
       expect(toggle).toHaveAttribute("aria-pressed", "true");
 
       await user.click(toggle);
-      expect(
-        within(dialog).queryByRole("group", { name: "Frame capture" }),
-      ).not.toBeInTheDocument();
+      expect(within(modal).queryByRole("group", { name: "Frame capture" })).not.toBeInTheDocument();
     });
 
     it("writes the frame beside the video and refreshes the folder", async () => {
       const user = userEvent.setup();
       const { onCopied } = renderVideoModal();
 
-      const dialog = await openFrameMode(user);
-      await user.click(within(dialog).getByRole("button", { name: "Save frame" }));
+      const modal = await openFrameMode(user);
+      await user.click(within(modal).getByRole("button", { name: "Save frame" }));
 
       await waitFor(() => expect(importFilesMock).toHaveBeenCalledTimes(1));
       const [folder, files, overwrite] = importFilesMock.mock.calls[0];
@@ -185,8 +183,8 @@ describe("GalleryItemModal", () => {
       importFilesMock.mockRejectedValueOnce(new Error("Permission denied"));
       const { onCopied } = renderVideoModal();
 
-      const dialog = await openFrameMode(user);
-      await user.click(within(dialog).getByRole("button", { name: "Save frame" }));
+      const modal = await openFrameMode(user);
+      await user.click(within(modal).getByRole("button", { name: "Save frame" }));
 
       expect(
         await screen.findByText(`Could not save ${SAVED_FRAME_NAME}: Permission denied`),
@@ -203,8 +201,8 @@ describe("GalleryItemModal", () => {
       });
       const { onCopied } = renderVideoModal();
 
-      const dialog = await openFrameMode(user);
-      await user.click(within(dialog).getByRole("button", { name: "Save frame" }));
+      const modal = await openFrameMode(user);
+      await user.click(within(modal).getByRole("button", { name: "Save frame" }));
 
       expect(
         await screen.findByText(
@@ -219,8 +217,8 @@ describe("GalleryItemModal", () => {
       seekVideoToMock.mockRejectedValueOnce(new Error("The video did not seek in time."));
       renderVideoModal();
 
-      const dialog = await openFrameMode(user);
-      await user.click(within(dialog).getByRole("button", { name: "Save frame" }));
+      const modal = await openFrameMode(user);
+      await user.click(within(modal).getByRole("button", { name: "Save frame" }));
 
       // No frame was ever presented, so the name falls back to the requested time.
       expect(
@@ -233,16 +231,16 @@ describe("GalleryItemModal", () => {
       const user = userEvent.setup();
       const { onNext, onPrevious } = renderVideoModal();
 
-      const dialog = await openFrameMode(user);
+      const modal = await openFrameMode(user);
 
       await user.keyboard("{ArrowRight}");
       await user.keyboard("{ArrowLeft}");
 
       expect(onNext).toHaveBeenCalledTimes(1);
       expect(onPrevious).toHaveBeenCalledTimes(1);
-      expect(within(dialog).getByRole("button", { name: "Next item" })).toBeEnabled();
-      expect(within(dialog).getByRole("button", { name: "Previous item" })).toBeEnabled();
-      expect(within(dialog).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
+      expect(within(modal).getByRole("button", { name: "Next item" })).toBeEnabled();
+      expect(within(modal).getByRole("button", { name: "Previous item" })).toBeEnabled();
+      expect(within(modal).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
     });
 
     it("keeps frame capture on when moving to another video", async () => {
@@ -270,21 +268,19 @@ describe("GalleryItemModal", () => {
 
       renderWithProviders(<StickyFrameModal />);
 
-      const firstDialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
-      fireEvent.loadedMetadata(firstDialog.querySelector("video")!);
+      const firstModal = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      fireEvent.loadedMetadata(firstModal.querySelector("video")!);
       await user.click(
-        within(firstDialog).getByRole("button", { name: "Save a frame from clip.mp4" }),
+        within(firstModal).getByRole("button", { name: "Save a frame from clip.mp4" }),
       );
-      expect(within(firstDialog).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
+      expect(within(firstModal).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
 
-      await user.click(within(firstDialog).getByRole("button", { name: "Next item" }));
+      await user.click(within(firstModal).getByRole("button", { name: "Next item" }));
 
-      const secondDialog = await screen.findByRole("dialog", { name: "Viewing reel.mp4" });
+      const secondModal = await screen.findByRole("dialog", { name: "Viewing reel.mp4" });
+      expect(within(secondModal).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
       expect(
-        within(secondDialog).getByRole("group", { name: "Frame capture" }),
-      ).toBeInTheDocument();
-      expect(
-        within(secondDialog).getByRole("button", { name: "Exit frame capture for reel.mp4" }),
+        within(secondModal).getByRole("button", { name: "Exit frame capture for reel.mp4" }),
       ).toHaveAttribute("aria-pressed", "true");
     });
 
@@ -310,21 +306,21 @@ describe("GalleryItemModal", () => {
 
       renderWithProviders(<StickyFrameModal />);
 
-      const firstDialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
-      fireEvent.loadedMetadata(firstDialog.querySelector("video")!);
+      const firstModal = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      fireEvent.loadedMetadata(firstModal.querySelector("video")!);
       await user.click(
-        within(firstDialog).getByRole("button", { name: "Save a frame from clip.mp4" }),
+        within(firstModal).getByRole("button", { name: "Save a frame from clip.mp4" }),
       );
-      expect(within(firstDialog).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
+      expect(within(firstModal).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
 
       await user.keyboard("{ArrowRight}");
 
-      const secondDialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const secondModal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
       expect(
-        within(secondDialog).queryByRole("group", { name: "Frame capture" }),
+        within(secondModal).queryByRole("group", { name: "Frame capture" }),
       ).not.toBeInTheDocument();
       expect(
-        within(secondDialog).queryByRole("button", { name: /save a frame/i }),
+        within(secondModal).queryByRole("button", { name: /save a frame/i }),
       ).not.toBeInTheDocument();
     });
 
@@ -332,13 +328,13 @@ describe("GalleryItemModal", () => {
       const user = userEvent.setup();
       const { onClose } = renderVideoModal();
 
-      const dialog = await openFrameMode(user);
+      const modal = await openFrameMode(user);
       await user.keyboard("{Escape}");
 
       expect(onClose).not.toHaveBeenCalled();
       await waitFor(() =>
         expect(
-          within(dialog).queryByRole("group", { name: "Frame capture" }),
+          within(modal).queryByRole("group", { name: "Frame capture" }),
         ).not.toBeInTheDocument(),
       );
     });
@@ -356,17 +352,17 @@ describe("GalleryItemModal", () => {
 
       const { onClose, onCopied } = renderVideoModal();
 
-      const dialog = await openFrameMode(user);
-      await user.click(within(dialog).getByRole("button", { name: "Save frame" }));
+      const modal = await openFrameMode(user);
+      await user.click(within(modal).getByRole("button", { name: "Save frame" }));
 
       await waitFor(() =>
-        expect(within(dialog).getByRole("button", { name: "Saving" })).toHaveAttribute(
+        expect(within(modal).getByRole("button", { name: "Saving" })).toHaveAttribute(
           "aria-busy",
           "true",
         ),
       );
-      expect(within(dialog).getByRole("button", { name: "Delete clip.mp4" })).toBeDisabled();
-      expect(within(dialog).getByRole("button", { name: "Close" })).toBeDisabled();
+      expect(within(modal).getByRole("button", { name: "Delete clip.mp4" })).toBeDisabled();
+      expect(within(modal).getByRole("button", { name: "Close" })).toBeDisabled();
 
       await user.keyboard("{Escape}");
       expect(onClose).not.toHaveBeenCalled();

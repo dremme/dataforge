@@ -8,7 +8,7 @@ test.afterEach(async ({ request }) => {
   await request.post(`/api/media/image-edit/revert?path=${encodeURIComponent(media)}`);
 });
 
-test("resets only color adjustments through the auto-adjust dialog", async ({ page }, testInfo) => {
+test("resets only color adjustments through the auto-adjust modal", async ({ page }, testInfo) => {
   const media = path.join(WORKSPACE, "photo.png");
   const editUrl = `/api/media/image-edit?path=${encodeURIComponent(media)}`;
   const crop = { x: 0, y: 0, width: 0.5, height: 1 };
@@ -25,21 +25,21 @@ test("resets only color adjustments through the auto-adjust dialog", async ({ pa
   await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
   await page.getByRole("button", { name: "Tools", exact: true }).click();
   await page.getByRole("menuitem", { name: /^Auto-adjust / }).click();
-  const dialog = page.getByRole("alertdialog");
-  const replace = dialog.getByRole("checkbox", { name: "Replace earlier adjustments" });
-  const reset = dialog.getByRole("checkbox", { name: "Reset all color adjustments to zero" });
+  const modal = page.getByRole("alertdialog");
+  const replace = modal.getByRole("checkbox", { name: "Replace earlier adjustments" });
+  const reset = modal.getByRole("checkbox", { name: "Reset all color adjustments to zero" });
   await expect(reset).not.toBeChecked();
   await page.screenshot({ path: testInfo.outputPath("auto-adjust.png"), animations: "disabled" });
-  await dialog.getByText("Replace earlier adjustments", { exact: true }).click();
+  await modal.getByText("Replace earlier adjustments", { exact: true }).click();
   await expect(replace).toBeChecked();
-  await dialog.getByText("Reset all color adjustments to zero", { exact: true }).click();
+  await modal.getByText("Reset all color adjustments to zero", { exact: true }).click();
   await expect(reset).toBeChecked();
   await expect(replace).toBeDisabled();
-  await expect(dialog).toHaveAccessibleName("Reset color adjustments?");
+  await expect(modal).toHaveAccessibleName("Reset color adjustments?");
   await page.screenshot({ path: testInfo.outputPath("reset-color.png"), animations: "disabled" });
 
   const queued = page.waitForRequest("**/api/automation/auto-adjust?**");
-  await dialog.getByRole("button", { name: "Reset color adjustments", exact: true }).click();
+  await modal.getByRole("button", { name: "Reset color adjustments", exact: true }).click();
   expect((await queued).postDataJSON()).toMatchObject({
     replace_adjustments: false,
     reset_adjustments: true,

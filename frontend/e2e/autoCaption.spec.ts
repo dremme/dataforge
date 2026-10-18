@@ -25,8 +25,8 @@ test("auto-captions a still and a clip, and shows both captions back", async ({ 
   await expect(page.getByText("clip.mp4")).toBeVisible();
 
   await page.getByRole("button", { name: "Auto-caption", exact: true }).click();
-  const dialog = page.getByRole("alertdialog", { name: "Start auto-caption?" });
-  await dialog.getByRole("button", { name: "Start auto-caption" }).click();
+  const modal = page.getByRole("alertdialog", { name: "Start auto-caption?" });
+  await modal.getByRole("button", { name: "Start auto-caption" }).click();
 
   // Two real decodes and two model round trips; the poll that reports it is on its own clock.
   await expectJobCompleted(page, "Auto-caption", 90_000);

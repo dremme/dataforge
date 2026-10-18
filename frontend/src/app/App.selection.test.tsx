@@ -255,8 +255,8 @@ describe("App: selection actions keep the mode", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Delete selected files" }));
-    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
-    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+    const confirmModal = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmModal).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

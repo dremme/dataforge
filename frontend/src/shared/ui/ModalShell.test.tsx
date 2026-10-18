@@ -34,10 +34,10 @@ describe("ModalShell", () => {
     resetScrollLockManagerForTests();
   });
 
-  it("keeps the backdrop outside the dialog", () => {
+  it("keeps the backdrop outside the modal", () => {
     renderShell({ backdropLabel: "Close test modal" });
 
-    // Inside the dialog the backdrop would be announced as content: a stray
+    // Inside the modal the backdrop would be announced as content: a stray
     // close button ahead of everything the overlay actually says.
     const backdrop = screen.getByRole("button", { name: "Close test modal" });
     expect(backdrop).toBeInTheDocument();

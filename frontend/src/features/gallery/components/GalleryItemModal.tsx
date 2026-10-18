@@ -87,17 +87,17 @@ import { GIF_MP4_FRAME_RATE } from "@/shared/constants";
 import { classNames } from "@/shared/lib/classNames";
 import { buildCaptionVocabulary } from "@/features/gallery/lib/captionVocabulary";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
-import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { RenameDialog } from "@/shared/ui/RenameDialog";
-import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
+import { ConfirmModal } from "@/shared/ui/ConfirmModal";
+import { RenameModal } from "@/shared/ui/RenameModal";
+import { FileImportOverwriteModal } from "@/features/folder/components/FileImportOverwriteModal";
 import { CaptionSaveStatus } from "./CaptionSaveStatus";
 import { MediaInfoBar } from "./MediaInfoBar";
 import { MediaTagList } from "./MediaTagList";
 import { Icon } from "@/shared/ui/Icon";
 import { TokenEstimate } from "@/shared/ui/TokenEstimate";
 import { Tooltip } from "@/shared/ui/Tooltip";
-import { ComfyWorkflowDialog } from "./ComfyWorkflowDialog";
-import { TransferMediaDialog } from "./TransferMediaDialog";
+import { ComfyWorkflowModal } from "./ComfyWorkflowModal";
+import { TransferMediaModal } from "./TransferMediaModal";
 import { FrameCaptureBar } from "./FrameCaptureBar";
 import { CropOverlay } from "./CropOverlay";
 import { AdjustCanvas } from "./AdjustCanvas";
@@ -326,7 +326,7 @@ export function GalleryItemModal({
     renameOpen ||
     revertConfirmOpen ||
     comfyWorkflowOpen ||
-    transfer.transferDialogOpen ||
+    transfer.transferModalOpen ||
     gifToMp4.conflict !== null;
   const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
 
@@ -1281,7 +1281,7 @@ export function GalleryItemModal({
       </ModalShell>
 
       {deleteConfirmOpen && (
-        <ConfirmDialog
+        <ConfirmModal
           title="Delete file?"
           description={
             <span>
@@ -1303,7 +1303,7 @@ export function GalleryItemModal({
       )}
 
       {renameOpen && (
-        <RenameDialog
+        <RenameModal
           title="Rename file"
           description={
             <span>
@@ -1329,7 +1329,7 @@ export function GalleryItemModal({
       )}
 
       {revertConfirmOpen && (
-        <ConfirmDialog
+        <ConfirmModal
           title="Restore the original?"
           description={
             <span>
@@ -1350,7 +1350,7 @@ export function GalleryItemModal({
       )}
 
       {gifToMp4.conflict && (
-        <ConfirmDialog
+        <ConfirmModal
           title="Replace the existing MP4?"
           description={
             <span>
@@ -1366,7 +1366,7 @@ export function GalleryItemModal({
       )}
 
       {comfyWorkflowOpen && (
-        <ComfyWorkflowDialog
+        <ComfyWorkflowModal
           mediaPath={item.path}
           mediaName={item.name}
           onClose={() => setComfyWorkflowOpen(false)}
@@ -1374,7 +1374,7 @@ export function GalleryItemModal({
       )}
 
       {transferPicker && currentFolder && (
-        <TransferMediaDialog
+        <TransferMediaModal
           mode={transferPicker}
           currentFolder={currentFolder}
           selectedCount={1}
@@ -1392,7 +1392,7 @@ export function GalleryItemModal({
       )}
 
       {overwritePrompt && (
-        <FileImportOverwriteDialog
+        <FileImportOverwriteModal
           conflicts={overwritePrompt.conflicts}
           busy={transferring !== null}
           descriptionSuffix={

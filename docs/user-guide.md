@@ -64,7 +64,7 @@ Both checks write `.issue.json` findings and leave captions unchanged. Model and
 
 ### Caption rules
 
-Linting needs no model. Edit the rules in the folder-instructions dialog, run **Lint captions**, then use **With issues** or the resolver to inspect hits. Try the rules supplied in [`sample_media/`](../sample_media/).
+Linting needs no model. Edit the rules in the folder-instructions modal, run **Lint captions**, then use **With issues** or the resolver to inspect hits. Try the rules supplied in [`sample_media/`](../sample_media/).
 
 Example `.captionrules`:
 
@@ -103,9 +103,9 @@ Lint captions skips missing caption files; an existing empty caption is checked.
 
 Back up before a bulk rewrite you may want to undo. **Backup captions** copies `.txt` files into `.backup/`, always overwriting existing copies. **Edit captions** and **Find & replace** also start with **Back up captions first** enabled; each backup holds the caption immediately before the latest edit. **Restore captions** asks before overwriting current captions, skips files whose media is gone, and keeps the backup files. Neither backup nor restore changes issue findings.
 
-In **Edit captions**, enter an instruction and click **Dry run** in the dialog actions to test it before
+In **Edit captions**, enter an instruction and click **Dry run** in the modal actions to test it before
 starting the job. The preview uses up to three readable captions in filename order from the
-dialog's frozen matching results or selection, with the same model settings as the job. It highlights removed and
+modal's frozen matching results or selection, with the same model settings as the job. It highlights removed and
 added text, marks unchanged captions, and reports model failures without changing files or
 backups. Changing the instruction or model controls clears the preview. The full job generates
 fresh results, so its wording may differ from the samples.
@@ -158,7 +158,7 @@ Use the [Video editor guide](video-editor.md) to combine videos, stills, audio, 
 
 ## Jobs
 
-**Scope:** ordinary bulk tools use visible selected files when present; otherwise they use the current search and filter results. The dialog shows its target count and freezes the paths when opened, including for previews. An empty scope cannot start a job. **Quick LoRA training** always uses the whole folder; its dialog explicitly shows that exception.
+**Scope:** ordinary bulk tools use visible selected files when present; otherwise they use the current search and filter results. The modal shows its target count and freezes the paths when opened, including for previews. An empty scope cannot start a job. **Quick LoRA training** always uses the whole folder; its modal explicitly shows that exception.
 
 Jobs run in the background. While a job runs, **Cancel job** replaces Auto-caption and Tools, and the activity strip under the toolbar shows progress, the current file, and the remaining time. After a job fails, is cancelled, warns, or leaves failed files, the strip keeps its message until you dismiss it; a cleanly finished job leaves no strip. **Job details** opens the Jobs drawer for warnings, history, logs, per-file results, and training samples. **Retry N failed** retries failures; **Run again** uses the current visible results. Cancelling keeps completed writes. A new job replaces the previous history entry for the same job type and folder.
 
@@ -182,7 +182,7 @@ Strip metadata keeps image color/density information and video/audio streams; it
 
 ## Settings
 
-Open the toolbar gear or press `Ctrl+,` to change appearance, model connections and input budgets, integration URLs, cache limits, and history retention. **Save** applies field changes; **Reset**, then Save, returns a field to its environment/default value. **Clear** actions take effect immediately, even if you cancel the dialog.
+Open the toolbar gear or press `Ctrl+,` to change appearance, model connections and input budgets, integration URLs, cache limits, and history retention. **Save** applies field changes; **Reset**, then Save, returns a field to its environment/default value. **Clear** actions take effect immediately, even if you cancel the modal.
 
 For model recommendations, setup, all variables, and troubleshooting, see [Configuration](configuration.md).
 
@@ -244,8 +244,8 @@ Press `?` outside a text field to see the shortcut list in the app. On macOS, us
 | `Alt+↑`         | Go to the parent folder                               |
 | `Alt+Home`      | Go to the home folder                                 |
 | `Alt+N`         | Create a folder                                       |
-| `Enter`         | Confirm a dialog                                      |
-| `Escape`        | Close a dialog or viewer                              |
+| `Enter`         | Confirm a modal                                      |
+| `Escape`        | Close a modal or viewer                              |
 
 In Quick actions, use `↑`, `↓`, `Home`, and `End` to choose an action, then `Enter` to run it.
 
@@ -290,4 +290,4 @@ See the [video editor keyboard shortcuts](video-editor.md#keyboard-shortcuts).
 
 ### Focus and availability
 
-Shortcuts depend on focus. Text editors keep their own search, selection, deletion, and completion keys. Plain-key navigation is ignored while typing; focused video controls use arrow keys to seek. Enter does not confirm from a multi-line field, and busy dialogs suppress actions that would interrupt their operation. Escape can close a menu or editor overlay before the surrounding dialog.
+Shortcuts depend on focus. Text editors keep their own search, selection, deletion, and completion keys. Plain-key navigation is ignored while typing; focused video controls use arrow keys to seek. Enter does not confirm from a multi-line field, and busy modals suppress actions that would interrupt their operation. Escape can close a menu or editor overlay before the surrounding modal.

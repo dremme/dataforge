@@ -4,7 +4,7 @@
   @include truncate;
 }
 
-.confirm-dialog .confirm-dialog__description strong {
+.confirm-modal .confirm-modal__description strong {
   font-weight: var(--font-semibold);
   color: var(--text);
 }

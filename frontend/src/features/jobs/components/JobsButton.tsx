@@ -40,7 +40,7 @@ export function JobsButton() {
         onClick={toggleDrawer}
         aria-label={label}
         aria-expanded={drawerOpen}
-        aria-controls={drawerOpen ? "jobs-drawer-panel" : undefined}
+        aria-controls={drawerOpen ? "jobs-modal-panel" : undefined}
       >
         {/* Running animates the robot; the only badge is the count of unseen finished jobs. */}
         <Icon icon={iconBot} className="jobs-button__icon" />

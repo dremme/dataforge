@@ -2,13 +2,13 @@ import { useCallback, useInsertionEffect, useMemo, useRef } from "react";
 import { useAutomationHost } from "@/features/automation/hooks/useAutomationHost";
 import { useComfyPresetsAvailable } from "@/features/automation/hooks/useComfyPresets";
 import { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
-import { useCreateFolderDialog } from "@/features/folder/hooks/useCreateFolderDialog";
-import { useDeleteFolderDialog } from "@/features/folder/hooks/useDeleteFolderDialog";
+import { useCreateFolderModal } from "@/features/folder/hooks/useCreateFolderModal";
+import { useDeleteFolderModal } from "@/features/folder/hooks/useDeleteFolderModal";
 import { useFolderChangeDetection } from "@/features/folder/hooks/useFolderChangeDetection";
 import { useFolderFileDrop } from "@/features/folder/hooks/useFolderFileDrop";
 import { useFolderNavigation } from "@/features/folder/hooks/useFolderNavigation";
 import { useFolderScrollPosition } from "@/features/folder/hooks/useFolderScrollPosition";
-import { useRenameFolderDialog } from "@/features/folder/hooks/useRenameFolderDialog";
+import { useRenameFolderModal } from "@/features/folder/hooks/useRenameFolderModal";
 import { useSubfolderStats } from "@/features/folder/hooks/useSubfolderStats";
 import { folderLeafName } from "@/features/folder/lib/folderPath";
 import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
@@ -25,9 +25,9 @@ import {
 } from "@/features/gallery/lib/duplicates";
 import { jobEligibleItems } from "@/features/gallery/lib/itemKind";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
-import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
+import { useStatsModal } from "@/features/gallery/hooks/useStatsModal";
 import { useSettingsModal } from "@/features/settings/hooks/useSettingsModal";
-import { useShortcutsDialog } from "@/features/shortcuts/hooks/useShortcutsDialog";
+import { useShortcutsModal } from "@/features/shortcuts/hooks/useShortcutsModal";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionHost";
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
@@ -75,7 +75,7 @@ export function useAppWorkspace() {
   // Kept running while the folder is missing, so it recovers when a drive or folder comes back.
   const { syncBaseline } = useFolderChangeDetection(folder?.path);
 
-  const createFolder = useCreateFolderDialog({
+  const createFolder = useCreateFolderModal({
     parentFolder: folder?.path,
     parentLabel: folderLabel,
     enabled: Boolean(folder?.path) && !folderNotFound,
@@ -104,14 +104,14 @@ export function useAppWorkspace() {
     items.length === 0 &&
     subfolders.length === 0;
 
-  const deleteFolder = useDeleteFolderDialog({
+  const deleteFolder = useDeleteFolderModal({
     folderPath: folder?.path,
     folderLabel,
     enabled: folderIsEmpty,
     onDeleted: navigateTo,
   });
 
-  const renameFolder = useRenameFolderDialog({
+  const renameFolder = useRenameFolderModal({
     folderPath: folder?.path,
     folderName: folder ? folderLeafName(folder.path) : "",
     enabled: folderIsEmpty,
@@ -163,9 +163,9 @@ export function useAppWorkspace() {
     onSwept: refreshFolder,
   });
 
-  const statsDrawer = useStatsDrawer();
+  const statsDrawer = useStatsModal();
   const settings = useSettingsModal();
-  const shortcuts = useShortcutsDialog();
+  const shortcuts = useShortcutsModal();
 
   // Refresh on close: per-deletion reloads race the watcher's push against the frozen queue.
   const duplicateResolverOverlay = useDuplicateResolverOverlay(
@@ -317,9 +317,9 @@ export function useAppWorkspace() {
     folderNotFound,
     navigateTo,
     refreshFolder: refreshFolderAndCounts,
-    onCreateFolder: createFolder.openDialog,
-    onRenameFolder: renameFolder.openDialog,
-    onDeleteFolder: deleteFolder.openDialog,
+    onCreateFolder: createFolder.openModal,
+    onRenameFolder: renameFolder.openModal,
+    onDeleteFolder: deleteFolder.openModal,
     panel: automation.actions,
     selection: selectionActions,
     selectedCount: gallery.visibleSelectedCount,

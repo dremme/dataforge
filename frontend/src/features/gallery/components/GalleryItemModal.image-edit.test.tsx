@@ -93,12 +93,12 @@ describe("GalleryItemModal", () => {
     }
 
     async function openEditMode(user: ReturnType<typeof userEvent.setup>, name = "sunset.png") {
-      const dialog = await screen.findByRole("dialog", { name: `Viewing ${name}` });
-      await user.click(within(dialog).getByRole("button", { name: `Edit ${name}` }));
+      const modal = await screen.findByRole("dialog", { name: `Viewing ${name}` });
+      await user.click(within(modal).getByRole("button", { name: `Edit ${name}` }));
       // jsdom decodes nothing, so `load` never fires on its own - and the panel stays
       // locked until the image has reported a size.
-      fireEvent.load(dialog.querySelector("img")!);
-      return dialog;
+      fireEvent.load(modal.querySelector("img")!);
+      return modal;
     }
 
     describe("the toggle", () => {
@@ -107,8 +107,8 @@ describe("GalleryItemModal", () => {
         async (name) => {
           renderModal(makeItem(name));
 
-          const dialog = await screen.findByRole("dialog", { name: `Viewing ${name}` });
-          expect(within(dialog).getByRole("button", { name: `Edit ${name}` })).toBeInTheDocument();
+          const modal = await screen.findByRole("dialog", { name: `Viewing ${name}` });
+          expect(within(modal).getByRole("button", { name: `Edit ${name}` })).toBeInTheDocument();
         },
       );
 
@@ -119,9 +119,9 @@ describe("GalleryItemModal", () => {
       ])("is withheld for %s", async (_label, item) => {
         renderModal(item);
 
-        const dialog = await screen.findByRole("dialog", { name: `Viewing ${item.name}` });
+        const modal = await screen.findByRole("dialog", { name: `Viewing ${item.name}` });
         expect(
-          within(dialog).queryByRole("button", { name: `Edit ${item.name}` }),
+          within(modal).queryByRole("button", { name: `Edit ${item.name}` }),
         ).not.toBeInTheDocument();
       });
 
@@ -129,10 +129,10 @@ describe("GalleryItemModal", () => {
         const user = userEvent.setup();
         renderModal(imageItem());
 
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
         expect(
-          within(dialog).getByRole("button", { name: "Exit image editing for sunset.png" }),
+          within(modal).getByRole("button", { name: "Exit image editing for sunset.png" }),
         ).toHaveAttribute("aria-pressed", "true");
       });
     });
@@ -142,19 +142,19 @@ describe("GalleryItemModal", () => {
         const user = userEvent.setup();
         renderModal(imageItem());
 
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
-        expect(within(dialog).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
-        expect(dialog.querySelector("img")?.getAttribute("src")).toContain("original=1");
+        expect(within(modal).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
+        expect(modal.querySelector("img")?.getAttribute("src")).toContain("original=1");
       });
 
       it("widens the stage so the crop handles clear the next and previous buttons", async () => {
         const user = userEvent.setup();
         renderModal(imageItem());
 
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
-        expect(dialog.querySelector(".gallery-item-modal__stage")).toHaveClass(
+        expect(modal.querySelector(".gallery-item-modal__stage")).toHaveClass(
           "gallery-item-modal__stage--editing",
         );
       });
@@ -163,12 +163,12 @@ describe("GalleryItemModal", () => {
         const user = userEvent.setup();
         renderModal(imageItem());
 
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
         await user.click(
-          within(dialog).getByRole("button", { name: "Exit image editing for sunset.png" }),
+          within(modal).getByRole("button", { name: "Exit image editing for sunset.png" }),
         );
 
-        expect(dialog.querySelector(".gallery-item-modal__stage")).not.toHaveClass(
+        expect(modal.querySelector(".gallery-item-modal__stage")).not.toHaveClass(
           "gallery-item-modal__stage--editing",
         );
       });
@@ -178,23 +178,23 @@ describe("GalleryItemModal", () => {
         const user = userEvent.setup();
         renderModal(imageItem());
 
-        const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-        expect(within(dialog).getByRole("button", { name: /^Zoom in/ })).toBeInTheDocument();
+        const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+        expect(within(modal).getByRole("button", { name: /^Zoom in/ })).toBeInTheDocument();
 
-        await user.click(within(dialog).getByRole("button", { name: "Edit sunset.png" }));
+        await user.click(within(modal).getByRole("button", { name: "Edit sunset.png" }));
 
-        expect(within(dialog).queryByRole("button", { name: /^Zoom in/ })).not.toBeInTheDocument();
+        expect(within(modal).queryByRole("button", { name: /^Zoom in/ })).not.toBeInTheDocument();
       });
 
       it("turns the picture with the draft", async () => {
         const user = userEvent.setup();
         renderModal(imageItem());
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
-        await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
+        await user.click(within(modal).getByRole("button", { name: /^Rotate$/ }));
+        await user.click(within(modal).getByRole("button", { name: "Rotate right" }));
 
-        expect(dialog.querySelector(".image-edit-stage__canvas")).toHaveStyle({
+        expect(modal.querySelector(".image-edit-stage__canvas")).toHaveStyle({
           "--edit-rotate": "90deg",
         });
       });
@@ -203,29 +203,29 @@ describe("GalleryItemModal", () => {
         // Stage measures nothing: a rotated img lays out upright, so sizing from that box loops.
         const user = userEvent.setup();
         renderModal(imageItem());
-        const dialog = await openEditMode(user);
-        const stage = dialog.querySelector(".image-edit-stage")!;
+        const modal = await openEditMode(user);
+        const stage = modal.querySelector(".image-edit-stage")!;
 
         expect(stage).not.toHaveClass("image-edit-stage--turned");
 
-        await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
+        await user.click(within(modal).getByRole("button", { name: /^Rotate$/ }));
+        await user.click(within(modal).getByRole("button", { name: "Rotate right" }));
         expect(stage).toHaveClass("image-edit-stage--turned");
 
         // A half turn leaves the frame the way up it started.
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
+        await user.click(within(modal).getByRole("button", { name: "Rotate right" }));
         expect(stage).not.toHaveClass("image-edit-stage--turned");
       });
 
       it("mirrors the picture with the draft", async () => {
         const user = userEvent.setup();
         renderModal(imageItem());
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
-        await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Flip horizontal" }));
+        await user.click(within(modal).getByRole("button", { name: /^Rotate$/ }));
+        await user.click(within(modal).getByRole("button", { name: "Flip horizontal" }));
 
-        expect(dialog.querySelector(".image-edit-stage__canvas")).toHaveStyle({
+        expect(modal.querySelector(".image-edit-stage__canvas")).toHaveStyle({
           "--edit-flip-x": "-1",
         });
       });
@@ -233,15 +233,15 @@ describe("GalleryItemModal", () => {
       it("puts the caption and metadata away, and brings them back on exit", async () => {
         const user = userEvent.setup();
         renderModal(imageItem());
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
-        expect(within(dialog).queryByLabelText(/^Caption for/)).not.toBeInTheDocument();
+        expect(within(modal).queryByLabelText(/^Caption for/)).not.toBeInTheDocument();
 
         await user.click(
-          within(dialog).getByRole("button", { name: "Exit image editing for sunset.png" }),
+          within(modal).getByRole("button", { name: "Exit image editing for sunset.png" }),
         );
 
-        expect(within(dialog).getByLabelText(/^Caption for/)).toBeInTheDocument();
+        expect(within(modal).getByLabelText(/^Caption for/)).toBeInTheDocument();
       });
     });
 
@@ -253,10 +253,10 @@ describe("GalleryItemModal", () => {
         const docked = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
 
         await user.click(within(docked).getByRole("button", { name: "Edit sunset.png" }));
-        const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-        fireEvent.load(dialog.querySelector("img")!);
+        const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+        fireEvent.load(modal.querySelector("img")!);
         await user.click(
-          within(dialog).getByRole("button", { name: "Exit image editing for sunset.png" }),
+          within(modal).getByRole("button", { name: "Exit image editing for sunset.png" }),
         );
 
         expect(
@@ -279,10 +279,10 @@ describe("GalleryItemModal", () => {
         await user.click(within(docked).getByRole("button", { name: "Edit sunset.png" }));
         expect(onEditExpandedChange).toHaveBeenLastCalledWith(true);
 
-        const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-        fireEvent.load(dialog.querySelector("img")!);
+        const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+        fireEvent.load(modal.querySelector("img")!);
         await user.click(
-          within(dialog).getByRole("button", { name: "Exit image editing for sunset.png" }),
+          within(modal).getByRole("button", { name: "Exit image editing for sunset.png" }),
         );
         expect(onEditExpandedChange).toHaveBeenLastCalledWith(false);
       });
@@ -292,12 +292,12 @@ describe("GalleryItemModal", () => {
       it("steps out of the mode on Escape before it closes the modal", async () => {
         const user = userEvent.setup();
         const { props } = renderModal(imageItem());
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
         await user.keyboard("{Escape}");
 
         expect(props.onClose).not.toHaveBeenCalled();
-        expect(within(dialog).getByLabelText(/^Caption for/)).toBeInTheDocument();
+        expect(within(modal).getByLabelText(/^Caption for/)).toBeInTheDocument();
       });
 
       it("turns frame capture off when a GIF is left for an image", async () => {
@@ -306,10 +306,8 @@ describe("GalleryItemModal", () => {
         const gif = makeItem("loop.gif", { media_type: "gif" });
         const { rerender, props } = renderModal(gif);
 
-        const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
-        await user.click(
-          within(dialog).getByRole("button", { name: "Save a frame from loop.gif" }),
-        );
+        const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+        await user.click(within(modal).getByRole("button", { name: "Save a frame from loop.gif" }));
 
         rerender(<GalleryItemModal {...props} items={[imageItem()]} />);
 
@@ -327,9 +325,9 @@ describe("GalleryItemModal", () => {
           <GalleryItemModal {...props} items={[makeItem("loop.gif", { media_type: "gif" })]} />,
         );
 
-        const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+        const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
         expect(
-          within(dialog).queryByRole("group", { name: "Image editing" }),
+          within(modal).queryByRole("group", { name: "Image editing" }),
         ).not.toBeInTheDocument();
       });
 
@@ -340,8 +338,8 @@ describe("GalleryItemModal", () => {
 
         rerender(<GalleryItemModal {...props} items={[makeItem("beach.jpg")]} />);
 
-        const dialog = await screen.findByRole("dialog", { name: "Viewing beach.jpg" });
-        expect(within(dialog).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
+        const modal = await screen.findByRole("dialog", { name: "Viewing beach.jpg" });
+        expect(within(modal).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
       });
     });
 
@@ -349,11 +347,11 @@ describe("GalleryItemModal", () => {
       it("posts the drafted spec and leaves the mode so the result is visible", async () => {
         const user = userEvent.setup();
         const { props } = renderModal(imageItem());
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
-        await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
-        await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+        await user.click(within(modal).getByRole("button", { name: /^Rotate$/ }));
+        await user.click(within(modal).getByRole("button", { name: "Rotate right" }));
+        await user.click(within(modal).getByRole("button", { name: "Apply" }));
 
         await waitFor(() => expect(applyMock).toHaveBeenCalled());
         expect(applyMock.mock.calls[0][0]).toBe(PHOTO);
@@ -371,8 +369,8 @@ describe("GalleryItemModal", () => {
         await waitFor(() => expect(props.onCopied).toHaveBeenCalled());
         // Nothing about the surface changes: the editor was already showing the original,
         // which the spec is expressed against, so there is nothing to swap back to.
-        expect(within(dialog).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
-        expect(dialog.querySelector("img")?.getAttribute("src")).toContain("original=1");
+        expect(within(modal).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
+        expect(modal.querySelector("img")?.getAttribute("src")).toContain("original=1");
       });
 
       it("locks the rest of the modal while a render is in flight", async () => {
@@ -384,20 +382,20 @@ describe("GalleryItemModal", () => {
         );
         const user = userEvent.setup();
         renderModal(imageItem());
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
-        await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
-        await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+        await user.click(within(modal).getByRole("button", { name: /^Rotate$/ }));
+        await user.click(within(modal).getByRole("button", { name: "Rotate right" }));
+        await user.click(within(modal).getByRole("button", { name: "Apply" }));
 
         await waitFor(() =>
-          expect(within(dialog).getByRole("button", { name: /^Delete /i })).toBeDisabled(),
+          expect(within(modal).getByRole("button", { name: /^Delete /i })).toBeDisabled(),
         );
-        expect(within(dialog).getByRole("button", { name: "Close" })).toBeDisabled();
+        expect(within(modal).getByRole("button", { name: "Close" })).toBeDisabled();
 
         release(EDITED);
         await waitFor(() =>
-          expect(within(dialog).getByRole("button", { name: "Close" })).toBeEnabled(),
+          expect(within(modal).getByRole("button", { name: "Close" })).toBeEnabled(),
         );
       });
 
@@ -405,14 +403,14 @@ describe("GalleryItemModal", () => {
         applyMock.mockRejectedValue(new Error("Truncated file"));
         const user = userEvent.setup();
         renderModal(imageItem());
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
-        await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
-        await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+        await user.click(within(modal).getByRole("button", { name: /^Rotate$/ }));
+        await user.click(within(modal).getByRole("button", { name: "Rotate right" }));
+        await user.click(within(modal).getByRole("button", { name: "Apply" }));
 
         expect(await screen.findByText(/Could not edit sunset.png/)).toBeInTheDocument();
-        expect(within(dialog).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
+        expect(within(modal).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
       });
     });
 
@@ -433,9 +431,9 @@ describe("GalleryItemModal", () => {
           },
         });
         renderModal(imageItem({ has_backup: true }));
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
-        await user.click(await within(dialog).findByRole("button", { name: "Revert original" }));
+        await user.click(await within(modal).findByRole("button", { name: "Revert original" }));
         expect(revertMock).not.toHaveBeenCalled();
 
         await user.click(await screen.findByRole("button", { name: "Restore" }));
@@ -459,9 +457,9 @@ describe("GalleryItemModal", () => {
           },
         });
         renderModal(imageItem({ has_backup: true }));
-        const dialog = await openEditMode(user);
+        const modal = await openEditMode(user);
 
-        await user.click(await within(dialog).findByRole("button", { name: "Revert original" }));
+        await user.click(await within(modal).findByRole("button", { name: "Revert original" }));
         await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
         expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument();

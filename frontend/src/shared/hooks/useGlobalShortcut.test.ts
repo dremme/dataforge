@@ -70,7 +70,7 @@ describe("useGlobalShortcut", () => {
         useGlobalShortcut(SHORTCUT, handler, { whenLocked }),
       { initialProps: { whenLocked: false } },
     );
-    const lock = acquireScrollLock("confirm-dialog-open");
+    const lock = acquireScrollLock("confirm-modal-open");
 
     try {
       expect(press().defaultPrevented).toBe(false);

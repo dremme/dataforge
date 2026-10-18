@@ -71,9 +71,9 @@ All fields below except `OPENAI_TIMEOUT` are under **Settings > Vision model > S
 
 **Clear** actions apply immediately and are not undone by Cancel. They clear app history/cache, not dataset media or captions. Finish or cancel a running AI job before retuning: it retains its connection, while other settings can change during processing.
 
-## Job dialog options
+## Job modal options
 
-Choose **Reasoning** to let the model think before answering, or **Instruct** for a direct response. These and the options below are dialog choices, not environment variables. Most are remembered per folder, with the latest choices as the starting point for a new folder.
+Choose **Reasoning** to let the model think before answering, or **Instruct** for a direct response. These and the options below are modal choices, not environment variables. Most are remembered per folder, with the latest choices as the starting point for a new folder.
 
 | Option                 | Jobs                                         | Default / behavior                                                                                                             |
 | ---------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -226,6 +226,6 @@ AI-Toolkit must be able to read the supplied dataset path. Its configuration con
 
 **Captions are empty, cut off, or fail on long clips.** Check both server logs and per-file job results. Empty content can indicate exhausted GPU memory/context or unsupported thinking output. Shrink media budgets first; adjust response/context limits for truncated answers. Reload the model server if needed.
 
-**A setting change has no effect.** Save UI changes. For `.env` changes, restart DataForge and check for a saved override, an OS/shell override, or a root `.env` hiding `backend/.env`. Check spelling and value ranges. Dialog options are separate from environment settings. See [precedence](#how-settings-are-loaded).
+**A setting change has no effect.** Save UI changes. For `.env` changes, restart DataForge and check for a saved override, an OS/shell override, or a root `.env` hiding `backend/.env`. Check spelling and value ranges. Modal options are separate from environment settings. See [precedence](#how-settings-are-loaded).
 
 For integration failures, see [ComfyUI](comfyui.md#troubleshooting) or [AI-Toolkit](ai-toolkit.md#troubleshooting).

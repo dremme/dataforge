@@ -108,8 +108,8 @@ describe("Workspace tools", () => {
     expect(onCancelJob).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Cancel job" }));
-    const dialog = screen.getByRole("alertdialog", { name: "Cancel auto-caption job?" });
-    await user.click(within(dialog).getByRole("button", { name: "Cancel job" }));
+    const modal = screen.getByRole("alertdialog", { name: "Cancel auto-caption job?" });
+    await user.click(within(modal).getByRole("button", { name: "Cancel job" }));
     expect(onCancelJob).toHaveBeenCalledTimes(1);
   });
 

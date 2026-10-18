@@ -325,14 +325,14 @@ test("sends only filtered media paths to bulk tools", async ({ page }, testInfo)
     .getByRole("menu", { name: "Tools" })
     .getByRole("menuitem", { name: /^Set captions/ })
     .click();
-  const dialog = page.getByRole("alertdialog", { name: "Set captions?" });
-  await expect(dialog.locator(".dialog-scope__line")).toContainText("Matching 1 file");
+  const modal = page.getByRole("alertdialog", { name: "Set captions?" });
+  await expect(modal.locator(".modal-scope__line")).toContainText("Matching 1 file");
   let submitted: { paths?: string[] } | undefined;
   await page.route("**/api/automation/set-captions?**", async (route) => {
     submitted = route.request().postDataJSON();
     await route.fulfill({ status: 400, json: { detail: "Captured request" } });
   });
-  await dialog.getByRole("textbox").fill("A dataset caption");
-  await dialog.getByRole("button", { name: "Set captions", exact: true }).click();
+  await modal.getByRole("textbox").fill("A dataset caption");
+  await modal.getByRole("button", { name: "Set captions", exact: true }).click();
   await expect.poll(() => submitted?.paths).toEqual([path.join(WORKSPACE, "photo.png")]);
 });

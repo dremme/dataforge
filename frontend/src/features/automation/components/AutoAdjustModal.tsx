@@ -1,0 +1,95 @@
+import { useCallback, useId, useState } from "react";
+import { Modal, ModalActions } from "@/shared/ui/Modal";
+import type { ModalScopeInfo } from "@/shared/ui/ModalScope";
+
+interface AutoAdjustModalProps {
+  scope: ModalScopeInfo;
+  busy?: boolean;
+  onConfirm: (replaceAdjustments: boolean, resetAdjustments: boolean) => void;
+  onCancel: () => void;
+}
+
+export function AutoAdjustModal({
+  scope,
+  busy = false,
+  onConfirm,
+  onCancel,
+}: AutoAdjustModalProps) {
+  // Never restored: discarding earlier adjustments is destructive, so it is re-chosen every run.
+  const [replace, setReplace] = useState(false);
+  const [reset, setReset] = useState(false);
+  const replaceId = useId();
+  const resetId = useId();
+
+  const handleConfirm = useCallback(() => {
+    if (busy) return;
+    onConfirm(!reset && replace, reset);
+  }, [busy, onConfirm, replace, reset]);
+
+  return (
+    <Modal
+      scope={scope}
+      title={reset ? "Reset color adjustments?" : "Auto-adjust media?"}
+      description={
+        reset ? (
+          <>Resets color adjustments on each image and video. All other edits are kept.</>
+        ) : (
+          <>
+            Applies the Adjust wand to each image and MP4. Crops, masks and trims are kept, and each
+            original is stored so the editor can revert it.
+          </>
+        )
+      }
+      panelClassName="auto-adjust-modal"
+      busy={busy}
+      onConfirm={handleConfirm}
+      onClose={onCancel}
+      footer={
+        <ModalActions
+          confirmLabel={reset ? "Reset color adjustments" : "Start auto-adjust"}
+          busyLabel="Starting..."
+          busy={busy}
+          onConfirm={handleConfirm}
+          onCancel={onCancel}
+        />
+      }
+    >
+      <div className="modal__field">
+        <label className="modal__checkbox" htmlFor={replaceId}>
+          <input
+            id={replaceId}
+            type="checkbox"
+            className="modal__checkbox-input"
+            checked={replace}
+            onChange={(event) => setReplace(event.target.checked)}
+            disabled={busy || reset}
+          />
+          <span className="modal__checkbox-box" aria-hidden="true" />
+          <span className="modal__checkbox-label">Replace earlier adjustments</span>
+        </label>
+        <p className="modal__hint">
+          When ticked, every adjust tool goes back to zero first, discarding changes made by hand.
+          When unticked, those changes stay and the wand's result is added on top.
+        </p>
+      </div>
+      <div className="modal__field">
+        <label className="modal__checkbox" htmlFor={resetId}>
+          <input
+            id={resetId}
+            type="checkbox"
+            className="modal__checkbox-input"
+            checked={reset}
+            onChange={(event) => setReset(event.target.checked)}
+            disabled={busy}
+          />
+          <span className="modal__checkbox-box" aria-hidden="true" />
+          <span className="modal__checkbox-label">Reset all color adjustments to zero</span>
+        </label>
+        <p className="modal__hint">
+          Clears manual and automatic color adjustments without applying the wand. Crops, masks and
+          all other edits are kept.
+        </p>
+      </div>
+    </Modal>
+  );
+}

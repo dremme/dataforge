@@ -1,12 +1,12 @@
 @use "../abstracts/mixins" as *;
 
-html.confirm-dialog-open,
+html.confirm-modal-open,
 html.gallery-item-modal-open,
 html.duplicate-resolver-modal-open,
 html.issue-resolver-modal-open,
-html.jobs-drawer-open,
+html.jobs-modal-open,
 html.quick-action-open,
-html.stats-drawer-open,
+html.stats-modal-open,
 html.folder-instructions-modal-open,
 html.training-sample-modal-open,
 html.settings-modal-open,

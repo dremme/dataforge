@@ -400,8 +400,8 @@
     flex-direction: column;
     gap: 0.875rem;
 
-    // Dialog fields space themselves for a dialog's flow layout; the gap spaces them here.
-    .dialog__field {
+    // Modal fields space themselves for a modal's flow layout; the gap spaces them here.
+    .modal__field {
       margin-top: 0;
     }
   }
@@ -469,7 +469,7 @@
   }
 
   &__input {
-    @include dialog-form-input(2.5rem);
+    @include modal-form-input(2.5rem);
     background: var(--bg-elevated);
     font-variant-numeric: tabular-nums;
 

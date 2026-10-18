@@ -92,10 +92,10 @@ describe("App: gallery item modal", () => {
 
     await user.click(screen.getByRole("button", { name: "View sunset.png" }));
 
-    const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
-    expect(within(dialog).getByRole("heading", { name: "sunset.png" })).toBeInTheDocument();
+    const modal = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+    expect(within(modal).getByRole("heading", { name: "sunset.png" })).toBeInTheDocument();
 
-    await user.click(within(dialog).getAllByRole("button", { name: "Close" })[0]);
+    await user.click(within(modal).getAllByRole("button", { name: "Close" })[0]);
 
     await waitFor(() => {
       expect(
@@ -115,12 +115,12 @@ describe("App: gallery item modal", () => {
 
     await user.click(screen.getByRole("button", { name: "View sunset.png" }));
 
-    const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
-    await user.click(within(dialog).getByRole("button", { name: "Delete sunset.png" }));
+    const modal = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+    await user.click(within(modal).getByRole("button", { name: "Delete sunset.png" }));
 
-    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
-    expect(confirmDialog).toBeVisible();
-    expect(within(confirmDialog).getByText("sunset.png")).toBeVisible();
+    const confirmModal = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    expect(confirmModal).toBeVisible();
+    expect(within(confirmModal).getByText("sunset.png")).toBeVisible();
   });
 
   it("moves a file to another folder from the gallery item modal", async () => {
@@ -134,9 +134,9 @@ describe("App: gallery item modal", () => {
 
     await user.click(screen.getByRole("button", { name: "View sunset.png" }));
 
-    const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+    const modal = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     await user.click(
-      within(dialog).getByRole("button", { name: "Move sunset.png to another folder" }),
+      within(modal).getByRole("button", { name: "Move sunset.png to another folder" }),
     );
 
     const picker = await screen.findByRole("dialog", { name: "Move to folder" });
@@ -152,8 +152,8 @@ describe("App: gallery item modal", () => {
     await renderApp();
 
     await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
-    const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
-    await user.click(within(dialog).getByRole("button", { name: "Rename sunset.png" }));
+    const modal = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+    await user.click(within(modal).getByRole("button", { name: "Rename sunset.png" }));
 
     const rename = await screen.findByRole("alertdialog", { name: "Rename file" });
     expect(within(rename).getByText(".png")).toBeVisible();
@@ -177,7 +177,7 @@ describe("App: gallery item modal", () => {
     expect(screen.queryByRole("button", { name: "View sunset.png" })).not.toBeInTheDocument();
   });
 
-  it("keeps the rename dialog open with the reason when the new name is taken", async () => {
+  it("keeps the rename modal open with the reason when the new name is taken", async () => {
     const user = userEvent.setup();
     const taken: FolderResponse = {
       ...homeFolder,
@@ -188,8 +188,8 @@ describe("App: gallery item modal", () => {
     await renderApp();
 
     await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
-    const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
-    await user.click(within(dialog).getByRole("button", { name: "Rename sunset.png" }));
+    const modal = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+    await user.click(within(modal).getByRole("button", { name: "Rename sunset.png" }));
 
     const rename = await screen.findByRole("alertdialog", { name: "Rename file" });
     const input = within(rename).getByLabelText("File name");

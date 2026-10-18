@@ -8,7 +8,7 @@ export function useQuickAction() {
 
   const close = useCallback(() => setOpen(false), []);
 
-  // Swallowed even under another overlay: the browser's print dialog is never the intent here.
+  // Swallowed even under another overlay: the browser's print modal is never the intent here.
   useGlobalShortcut(
     SHORTCUTS.commandPalette,
     // Open is checked before the lock depth; this palette holds a lock of its own.

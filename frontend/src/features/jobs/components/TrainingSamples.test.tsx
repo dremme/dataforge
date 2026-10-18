@@ -106,8 +106,8 @@ describe("TrainingSamples", () => {
 
     await user.click(screen.getByRole("button", { name: "View training sample 2 of 3" }));
 
-    const dialog = screen.getByRole("dialog", { name: "Training sample 2 of 3" });
-    expect(within(dialog).getByText("a red hatchback on a wet street")).toBeInTheDocument();
+    const modal = screen.getByRole("dialog", { name: "Training sample 2 of 3" });
+    expect(within(modal).getByText("a red hatchback on a wet street")).toBeInTheDocument();
   });
 
   it("reports the lightbox opening and closing, but not on mount", async () => {

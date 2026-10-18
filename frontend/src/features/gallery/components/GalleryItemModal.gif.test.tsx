@@ -101,40 +101,40 @@ describe("GalleryItemModal", () => {
     it("renders through an img rather than a video element", async () => {
       renderGifModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
       // A GIF handed to a <video> shows nothing, so gif is its own media type.
-      expect(dialog.querySelector("video")).toBeNull();
-      expect(within(dialog).getByRole("img", { name: "loop.gif" })).toBeInTheDocument();
+      expect(modal.querySelector("video")).toBeNull();
+      expect(within(modal).getByRole("img", { name: "loop.gif" })).toBeInTheDocument();
     });
 
     it("hides the OS image preview the way a video does", async () => {
       renderGifModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
       expect(
-        within(dialog).queryByRole("button", { name: "Open in image preview" }),
+        within(modal).queryByRole("button", { name: "Open in image preview" }),
       ).not.toBeInTheDocument();
     });
 
     it("keeps frame timing out of the meta strip", async () => {
       renderGifModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
       // The frame count is fetched for the capture bar, and shown only there.
-      expect(within(dialog).queryByText("fps")).not.toBeInTheDocument();
-      expect(within(dialog).queryByText("Frames")).not.toBeInTheDocument();
+      expect(within(modal).queryByText("fps")).not.toBeInTheDocument();
+      expect(within(modal).queryByText("Frames")).not.toBeInTheDocument();
     });
 
     it("scrubs by frame index and writes an indexed sibling JPG", async () => {
       const user = userEvent.setup();
       const { onCopied } = renderGifModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
       await user.click(
-        await within(dialog).findByRole("button", { name: "Save a frame from loop.gif" }),
+        await within(modal).findByRole("button", { name: "Save a frame from loop.gif" }),
       );
 
-      const bar = within(dialog).getByRole("group", { name: "Frame capture" });
+      const bar = within(modal).getByRole("group", { name: "Frame capture" });
       const slider = within(bar).getByRole("slider", { name: "Frame position" });
       // 24 frames means indices 0..23, and whole-frame steps.
       expect(slider).toHaveAttribute("max", "23");
@@ -154,11 +154,11 @@ describe("GalleryItemModal", () => {
       const user = userEvent.setup();
       renderGifModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
       await user.click(
-        await within(dialog).findByRole("button", { name: "Save a frame from loop.gif" }),
+        await within(modal).findByRole("button", { name: "Save a frame from loop.gif" }),
       );
-      await user.click(within(dialog).getByRole("button", { name: "Save frame" }));
+      await user.click(within(modal).getByRole("button", { name: "Save frame" }));
 
       await waitFor(() => expect(importFilesMock).toHaveBeenCalledTimes(1));
       // The GIF path fetches the decoded frame from the server; the canvas route
@@ -170,9 +170,9 @@ describe("GalleryItemModal", () => {
     it("stays hidden without a destination folder", async () => {
       renderGifModal({ currentFolder: undefined });
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
       expect(
-        within(dialog).queryByRole("button", { name: /save a frame/i }),
+        within(modal).queryByRole("button", { name: /save a frame/i }),
       ).not.toBeInTheDocument();
     });
   });
@@ -213,8 +213,8 @@ describe("GalleryItemModal", () => {
       const user = userEvent.setup();
       const { onCopied } = renderModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
-      await user.click(within(dialog).getByRole("button", { name: "Convert loop.gif to MP4" }));
+      const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      await user.click(within(modal).getByRole("button", { name: "Convert loop.gif to MP4" }));
 
       await waitFor(() => expect(convertGifToMp4Mock).toHaveBeenCalledWith(GIF_PATH, false));
       const notifications = await screen.findByLabelText("Notifications");
@@ -233,8 +233,8 @@ describe("GalleryItemModal", () => {
       });
       renderModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
-      await user.click(within(dialog).getByRole("button", { name: "Convert loop.gif to MP4" }));
+      const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      await user.click(within(modal).getByRole("button", { name: "Convert loop.gif to MP4" }));
 
       const prompt = await screen.findByRole("alertdialog", { name: "Replace the existing MP4?" });
       expect(within(prompt).getByText("loop.mp4")).toBeInTheDocument();
@@ -248,16 +248,16 @@ describe("GalleryItemModal", () => {
     it("offers nothing to convert on a still", async () => {
       renderModal({ items: [makeItem("sunset.png")] });
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-      expect(within(dialog).queryByRole("button", { name: /convert/i })).not.toBeInTheDocument();
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      expect(within(modal).queryByRole("button", { name: /convert/i })).not.toBeInTheDocument();
     });
 
     it("stays available without a destination folder, since it writes in place", async () => {
       renderModal({ currentFolder: undefined });
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
       expect(
-        within(dialog).getByRole("button", { name: "Convert loop.gif to MP4" }),
+        within(modal).getByRole("button", { name: "Convert loop.gif to MP4" }),
       ).toBeInTheDocument();
     });
   });

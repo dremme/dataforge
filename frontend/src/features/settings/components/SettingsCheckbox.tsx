@@ -18,20 +18,20 @@ export function SettingsCheckbox({
   const id = useId();
 
   return (
-    <div className="dialog__field">
-      <label className="dialog__checkbox" htmlFor={id}>
+    <div className="modal__field">
+      <label className="modal__checkbox" htmlFor={id}>
         <input
           id={id}
           type="checkbox"
-          className="dialog__checkbox-input"
+          className="modal__checkbox-input"
           checked={checked}
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
-        <span className="dialog__checkbox-box" aria-hidden="true" />
-        <span className="dialog__checkbox-label">{label}</span>
+        <span className="modal__checkbox-box" aria-hidden="true" />
+        <span className="modal__checkbox-label">{label}</span>
       </label>
-      {hint && <p className="dialog__hint">{hint}</p>}
+      {hint && <p className="modal__hint">{hint}</p>}
     </div>
   );
 }

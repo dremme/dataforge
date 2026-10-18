@@ -96,9 +96,9 @@ describe("GalleryItemModal", () => {
       user: ReturnType<typeof userEvent.setup>,
       mode: "Move" | "Copy",
     ) {
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
       await user.click(
-        within(dialog).getByRole("button", { name: `${mode} sunset.png to another folder` }),
+        within(modal).getByRole("button", { name: `${mode} sunset.png to another folder` }),
       );
 
       const picker = await screen.findByRole("dialog", { name: `${mode} to folder` });
@@ -172,9 +172,9 @@ describe("GalleryItemModal", () => {
       const user = userEvent.setup();
       renderTransferModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
       await user.click(
-        within(dialog).getByRole("button", { name: "Move sunset.png to another folder" }),
+        within(modal).getByRole("button", { name: "Move sunset.png to another folder" }),
       );
 
       const picker = await screen.findByRole("dialog", { name: "Move to folder" });
@@ -199,12 +199,12 @@ describe("GalleryItemModal", () => {
 
       await pickDestination(user, "Move");
 
-      const overwriteDialog = await screen.findByRole("alertdialog", {
+      const overwriteModal = await screen.findByRole("alertdialog", {
         name: "Replace existing files?",
       });
-      expect(within(overwriteDialog).getByText(/move only new files/i)).toBeInTheDocument();
+      expect(within(overwriteModal).getByText(/move only new files/i)).toBeInTheDocument();
 
-      await user.click(within(overwriteDialog).getByRole("button", { name: "Replace existing" }));
+      await user.click(within(overwriteModal).getByRole("button", { name: "Replace existing" }));
 
       await waitFor(() => {
         expect(transferSelectedMediaMock).toHaveBeenCalledWith(
@@ -232,10 +232,10 @@ describe("GalleryItemModal", () => {
       renderTransferModal();
 
       await pickDestination(user, "Move");
-      const overwriteDialog = await screen.findByRole("alertdialog", {
+      const overwriteModal = await screen.findByRole("alertdialog", {
         name: "Replace existing files?",
       });
-      await user.click(within(overwriteDialog).getByRole("button", { name: "Skip existing" }));
+      await user.click(within(overwriteModal).getByRole("button", { name: "Skip existing" }));
 
       await waitFor(() => {
         expect(transferSelectedMediaMock).toHaveBeenCalledWith(
@@ -306,9 +306,9 @@ describe("GalleryItemModal", () => {
         />,
       );
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
       await user.click(
-        within(dialog).getByRole("button", { name: "Move sunset.png to another folder" }),
+        within(modal).getByRole("button", { name: "Move sunset.png to another folder" }),
       );
       await screen.findByRole("dialog", { name: "Move to folder" });
 
@@ -339,18 +339,18 @@ describe("GalleryItemModal", () => {
 
       await pickDestination(user, "Move");
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-      const moveButton = within(dialog).getByRole("button", {
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const moveButton = within(modal).getByRole("button", {
         name: "Move sunset.png to another folder",
       });
 
       await waitFor(() => expect(moveButton).toHaveAttribute("aria-busy", "true"));
       expect(moveButton).toBeDisabled();
       expect(
-        within(dialog).getByRole("button", { name: "Copy sunset.png to another folder" }),
+        within(modal).getByRole("button", { name: "Copy sunset.png to another folder" }),
       ).toBeDisabled();
-      expect(within(dialog).getByRole("button", { name: "Delete sunset.png" })).toBeDisabled();
-      expect(within(dialog).getByRole("button", { name: "Close" })).toBeDisabled();
+      expect(within(modal).getByRole("button", { name: "Delete sunset.png" })).toBeDisabled();
+      expect(within(modal).getByRole("button", { name: "Close" })).toBeDisabled();
 
       // The panel must stay put: the grid is about to mutate under it.
       await user.keyboard("{Escape}");
@@ -374,12 +374,12 @@ describe("GalleryItemModal", () => {
         />,
       );
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
       expect(
-        within(dialog).queryByRole("button", { name: "Move sunset.png to another folder" }),
+        within(modal).queryByRole("button", { name: "Move sunset.png to another folder" }),
       ).not.toBeInTheDocument();
       expect(
-        within(dialog).queryByRole("button", { name: "Copy sunset.png to another folder" }),
+        within(modal).queryByRole("button", { name: "Copy sunset.png to another folder" }),
       ).not.toBeInTheDocument();
     });
   });

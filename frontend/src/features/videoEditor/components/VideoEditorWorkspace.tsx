@@ -21,7 +21,7 @@ import { formatApiError } from "@/shared/api/http";
 import { isEditableTarget, isTextEntryTarget } from "@/shared/lib/isEditableTarget";
 import { matchesShortcut, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { readStoredJson, writeStored } from "@/shared/lib/storage";
-import { Dialog, DialogButton } from "@/shared/ui/Dialog";
+import { Modal, ModalButton } from "@/shared/ui/Modal";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import type {
@@ -110,23 +110,23 @@ import {
   type TimeRange,
 } from "@/features/videoEditor/lib/timeline";
 import { ClipInspector } from "./ClipInspector";
-import { DeleteVideoProjectDialog } from "./DeleteVideoProjectDialog";
+import { DeleteVideoProjectModal } from "./DeleteVideoProjectModal";
 import { EditorTopBar } from "./EditorTopBar";
-import { ExportDialog } from "./ExportDialog";
+import { ExportModal } from "./ExportModal";
 import { MediaBrowser, type MediaView } from "./MediaBrowser";
 import { MediaProblems } from "./MediaProblems";
-import { PasteAttributesDialog } from "./PasteAttributesDialog";
+import { PasteAttributesModal } from "./PasteAttributesModal";
 import {
   PreviewPanel,
   type PreviewMode,
   type SourceRange,
   type SourceTransport,
 } from "./PreviewPanel";
-import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
+import { ProjectSettingsModal } from "./ProjectSettingsModal";
 import { SourceIssues } from "./SourceIssues";
 import { Splitter } from "./Splitter";
 import { Timeline, TIMELINE_ORIGIN_PX, TRACK_HEADER_PX, type TimelineTool } from "./Timeline";
-import { VersionsDialog } from "./VersionsDialog";
+import { VersionsModal } from "./VersionsModal";
 import { MAX_PX_PER_SECOND, MIN_PX_PER_SECOND, TimelineToolbar } from "./TimelineToolbar";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
 import { useChanged } from "@/shared/hooks/useChanged";
@@ -349,7 +349,7 @@ function EditorSession({
   const mediaProblems = useMediaProblems(engine);
 
   const clipboard = useEditorClipboard();
-  const dialogOpen =
+  const modalOpen =
     exportOpen || settingsOpen || leaveOpen || deleteOpen || versionsOpen || attributesOpen;
   const locations = useMemo(
     () => sourceLocations(state.sources, project.sources),
@@ -901,10 +901,10 @@ function EditorSession({
     [engine, project.frame_rate],
   );
 
-  // Keys reach the editor only outside form controls and while none of its dialogs is open.
+  // Keys reach the editor only outside form controls and while none of its modals is open.
   // Undo and redo also reach it from sliders and the like, which have no history of their own.
   const keysRef = useLatestRef((event: KeyboardEvent) => {
-    if (dialogOpen || menuOpen || event.defaultPrevented) return;
+    if (modalOpen || menuOpen || event.defaultPrevented) return;
     const run = (action: () => void) => {
       event.preventDefault();
       action();
@@ -1027,7 +1027,7 @@ function EditorSession({
       scrollLock="video-editor-open"
       nested={false}
       enterAnimation="none"
-      suspended={dialogOpen || menuOpen}
+      suspended={modalOpen || menuOpen}
     >
       <div className="video-editor__frame" style={gridStyle}>
         <EditorTopBar
@@ -1323,7 +1323,7 @@ function EditorSession({
       </div>
 
       {exportOpen && (
-        <ExportDialog
+        <ExportModal
           project={project}
           range={range}
           selectionSpan={
@@ -1342,7 +1342,7 @@ function EditorSession({
         />
       )}
       {deleteOpen && state.path && (
-        <DeleteVideoProjectDialog
+        <DeleteVideoProjectModal
           name={project.name}
           onClose={() => setDeleteOpen(false)}
           onDelete={async () => {
@@ -1357,7 +1357,7 @@ function EditorSession({
         />
       )}
       {attributesOpen && attributeDonor && (
-        <PasteAttributesDialog
+        <PasteAttributesModal
           donorLabel={clipLabel(project, attributeDonor)}
           targetCount={selectedClips.length}
           groups={attributeGroups}
@@ -1370,14 +1370,14 @@ function EditorSession({
         />
       )}
       {versionsOpen && (
-        <VersionsDialog
+        <VersionsModal
           project={project}
           onRestore={restoreVersion}
           onClose={() => setVersionsOpen(false)}
         />
       )}
       {settingsOpen && (
-        <ProjectSettingsDialog
+        <ProjectSettingsModal
           project={project}
           onCancel={() => setSettingsOpen(false)}
           onSave={(patch) => {
@@ -1387,7 +1387,7 @@ function EditorSession({
         />
       )}
       {leaveOpen && (
-        <Dialog
+        <Modal
           title="Your latest changes are not saved"
           description={
             <>
@@ -1398,13 +1398,9 @@ function EditorSession({
           onClose={() => setLeaveOpen(false)}
           footer={
             <>
-              <DialogButton label="Exit" variant="danger" onClick={onExit} />
-              <DialogButton
-                label="Cancel"
-                variant="secondary"
-                onClick={() => setLeaveOpen(false)}
-              />
-              <DialogButton
+              <ModalButton label="Exit" variant="danger" onClick={onExit} />
+              <ModalButton label="Cancel" variant="secondary" onClick={() => setLeaveOpen(false)} />
+              <ModalButton
                 label={state.saveState === "conflict" ? "Save as new" : "Retry save"}
                 variant="primary"
                 onClick={() => {

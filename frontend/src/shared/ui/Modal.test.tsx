@@ -1,0 +1,236 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+import { stubModalClock } from "@/test/modalClock";
+import { Modal, ModalActions } from "./Modal";
+
+function renderModal(overrides: Partial<Parameters<typeof Modal>[0]> = {}) {
+  const onConfirm = vi.fn<() => void>();
+  const onClose = vi.fn<() => void>();
+
+  // Stubbed before the render so the modal stamps its open time on this clock.
+  const { passOpenGrace } = stubModalClock();
+
+  render(
+    <Modal
+      title="Start job?"
+      description="Runs over every file in the folder."
+      onConfirm={onConfirm}
+      onClose={onClose}
+      footer={<ModalActions confirmLabel="Start" onConfirm={onConfirm} onCancel={onClose} />}
+      {...overrides}
+    />,
+  );
+
+  return { onConfirm, onClose, passOpenGrace };
+}
+
+describe("Modal", () => {
+  it("wires the accessible name and description to the panel", () => {
+    renderModal();
+
+    const panel = screen.getByRole("alertdialog", { name: "Start job?" });
+    expect(panel).toHaveAccessibleDescription("Runs over every file in the folder.");
+  });
+
+  it("generates unique ids so stacked modals do not collide", () => {
+    render(
+      <>
+        <Modal title="First" description="One" onClose={vi.fn<() => void>()} footer={null} />
+        <Modal title="Second" description="Two" onClose={vi.fn<() => void>()} footer={null} />
+      </>,
+    );
+
+    const [first, second] = screen.getAllByRole("alertdialog");
+    expect(first.getAttribute("aria-labelledby")).not.toBe(second.getAttribute("aria-labelledby"));
+    expect(first).toHaveAccessibleName("First");
+    expect(second).toHaveAccessibleName("Second");
+  });
+
+  it("focuses the panel on open", () => {
+    renderModal();
+
+    expect(screen.getByRole("alertdialog", { name: "Start job?" })).toHaveFocus();
+  });
+
+  it("ignores Enter immediately after opening", async () => {
+    const user = userEvent.setup();
+    const { onConfirm, passOpenGrace } = renderModal();
+
+    await user.keyboard("{Enter}");
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    passOpenGrace();
+    await user.keyboard("{Enter}");
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes on Escape and confirms on Enter", async () => {
+    const user = userEvent.setup();
+    const { onConfirm, onClose, passOpenGrace } = renderModal();
+    passOpenGrace();
+
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await user.keyboard("{Enter}");
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["Cancel", "Close"])("activates the focused %s button on Enter", async (name) => {
+    const user = userEvent.setup();
+    const { onConfirm, onClose, passOpenGrace } = renderModal();
+    passOpenGrace();
+
+    screen.getByRole("button", { name }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("activates a focused confirm button only once", async () => {
+    const user = userEvent.setup();
+    const { onConfirm, passOpenGrace } = renderModal();
+    passOpenGrace();
+
+    screen.getByRole("button", { name: "Start" }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves Enter to a focused select", async () => {
+    const user = userEvent.setup();
+    const { onConfirm, passOpenGrace } = renderModal({
+      children: (
+        <select aria-label="Mode" defaultValue="all">
+          <option value="all">All files</option>
+        </select>
+      ),
+    });
+    passOpenGrace();
+
+    screen.getByRole("combobox", { name: "Mode" }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("confirms from a single-line field", async () => {
+    const user = userEvent.setup();
+    const { onConfirm, passOpenGrace } = renderModal({
+      children: <input aria-label="Name" />,
+    });
+    passOpenGrace();
+
+    await user.click(screen.getByRole("textbox", { name: "Name" }));
+    await user.keyboard("{Enter}");
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not confirm a keypress already handled by a field", async () => {
+    const user = userEvent.setup();
+    const { onConfirm, passOpenGrace } = renderModal({
+      children: <input aria-label="Search" onKeyDown={(event) => event.preventDefault()} />,
+    });
+    passOpenGrace();
+
+    screen.getByRole("textbox", { name: "Search" }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("lets Enter insert a newline inside a textarea", async () => {
+    const user = userEvent.setup();
+    const { onConfirm, passOpenGrace } = renderModal({
+      children: <textarea aria-label="Notes" defaultValue="" />,
+    });
+    passOpenGrace();
+
+    await user.click(screen.getByLabelText("Notes"));
+    await user.keyboard("one{Enter}two");
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Notes")).toHaveValue("one\ntwo");
+  });
+
+  it("ignores Shift+Enter so multiline shortcuts stay available", async () => {
+    const user = userEvent.setup();
+    const { onConfirm, passOpenGrace } = renderModal();
+    passOpenGrace();
+
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("ignores keyboard shortcuts while busy", async () => {
+    const user = userEvent.setup();
+    const { onConfirm, onClose, passOpenGrace } = renderModal({ busy: true });
+    passOpenGrace();
+
+    await user.keyboard("{Escape}");
+    await user.keyboard("{Enter}");
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("focuses a requested field instead of the panel", () => {
+    function WithInput() {
+      const ref = { current: null } as { current: HTMLInputElement | null };
+      return (
+        <Modal title="New folder" onClose={vi.fn<() => void>()} initialFocusRef={ref} footer={null}>
+          <input ref={ref} aria-label="Folder name" />
+        </Modal>
+      );
+    }
+
+    render(<WithInput />);
+
+    expect(screen.getByLabelText("Folder name")).toHaveFocus();
+  });
+
+  it("omits aria-describedby when there is no description", () => {
+    render(<Modal title="Bare" onClose={vi.fn<() => void>()} footer={null} />);
+
+    expect(screen.getByRole("alertdialog")).not.toHaveAttribute("aria-describedby");
+  });
+});
+
+describe("ModalActions", () => {
+  it("swaps in the busy label and disables both buttons", () => {
+    render(
+      <ModalActions
+        confirmLabel="Start detection"
+        busyLabel="Starting..."
+        busy
+        onConfirm={vi.fn<() => void>()}
+        onCancel={vi.fn<() => void>()}
+      />,
+    );
+
+    const confirm = screen.getByRole("button", { name: "Starting..." });
+    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  });
+
+  it("keeps the confirm button disabled when the form is incomplete", () => {
+    render(
+      <ModalActions
+        confirmLabel="Create folder"
+        confirmDisabled
+        onConfirm={vi.fn<() => void>()}
+        onCancel={vi.fn<() => void>()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Create folder" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  });
+});

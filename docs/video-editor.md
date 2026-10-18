@@ -290,7 +290,7 @@ A whole-timeline export also writes its project snapshot beside the video. This 
 
 On macOS, use `⌘` for app shortcuts shown with `Ctrl`.
 
-Outside form controls, the editor uses its own keys; gallery shortcuts stay off while it is open. Editor dialogs and menus suspend these shortcuts.
+Outside form controls, the editor uses its own keys; gallery shortcuts stay off while it is open. Editor modals and menus suspend these shortcuts.
 
 ### Playback and navigation
 

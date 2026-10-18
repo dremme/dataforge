@@ -1,5 +1,5 @@
 .modal-panel {
-  // tabindex="-1" container, not a control: left alone it would draw the browser's default ring around the whole dialog.
+  // tabindex="-1" container, not a control: left alone it would draw the browser's default ring around the whole modal.
   &:focus {
     outline: none;
   }

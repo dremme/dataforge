@@ -32,12 +32,12 @@ function TypeOption({ checked, title, onClick }: OptionProps) {
       role="menuitemcheckbox"
       aria-checked={checked}
       className={classNames(
-        "jobs-drawer__type-option",
-        checked && "jobs-drawer__type-option--checked",
+        "jobs-modal__type-option",
+        checked && "jobs-modal__type-option--checked",
       )}
       onClick={onClick}
     >
-      <Icon icon={iconCheck} className="jobs-drawer__type-option-check" />
+      <Icon icon={iconCheck} className="jobs-modal__type-option-check" />
       {title}
     </button>
   );
@@ -57,18 +57,18 @@ export function JobTypeFilterMenu({ value, onChange }: JobTypeFilterMenuProps) {
   };
 
   return (
-    <div ref={rootRef} className="jobs-drawer__type" onKeyDown={handleKeyDown}>
+    <div ref={rootRef} className="jobs-modal__type" onKeyDown={handleKeyDown}>
       <button
         type="button"
         className={classNames(
-          "jobs-drawer__type-trigger",
-          value.length > 0 && "jobs-drawer__type-trigger--active",
+          "jobs-modal__type-trigger",
+          value.length > 0 && "jobs-modal__type-trigger--active",
         )}
         aria-label={`Type: ${summary}`}
         {...triggerProps}
       >
-        <span className="jobs-drawer__type-trigger-label">{summary}</span>
-        <Icon icon={iconChevronDown} className="jobs-drawer__type-trigger-icon" />
+        <span className="jobs-modal__type-trigger-label">{summary}</span>
+        <Icon icon={iconChevronDown} className="jobs-modal__type-trigger-icon" />
       </button>
 
       <AnchoredLayer
@@ -76,13 +76,13 @@ export function JobTypeFilterMenu({ value, onChange }: JobTypeFilterMenuProps) {
         floatingRef={panelRef}
         open={open}
         id={menuId}
-        className="jobs-drawer__type-panel"
+        className="jobs-modal__type-panel"
         placement="bottom-start"
         role="menu"
         label="Job types"
       >
         <TypeOption checked={value.length === 0} title="All types" onClick={() => onChange([])} />
-        <div className="jobs-drawer__type-divider" role="separator" />
+        <div className="jobs-modal__type-divider" role="separator" />
         {JOB_TYPE_FILTER_OPTIONS.map((option) => (
           <TypeOption
             key={option.value}

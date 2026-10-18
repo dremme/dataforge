@@ -1,13 +1,13 @@
 import { iconFileText, iconSpellCheck2 } from "@/shared/icons";
 import { SPELLCHECK_LANGUAGES, type EditorOptions } from "@/shared/preferences/editorPreferences";
 import type { SpellcheckLanguage } from "@/shared/types";
-import { DialogSelect, type DialogSelectOption } from "@/shared/ui/DialogSelect";
+import { ModalSelect, type ModalSelectOption } from "@/shared/ui/ModalSelect";
 import { SettingsCheckbox } from "./SettingsCheckbox";
 import { SettingsGroup } from "./SettingsGroup";
 
 const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
 
-const LANGUAGE_OPTIONS: DialogSelectOption<SpellcheckLanguage>[] = SPELLCHECK_LANGUAGES.map(
+const LANGUAGE_OPTIONS: ModalSelectOption<SpellcheckLanguage>[] = SPELLCHECK_LANGUAGES.map(
   (code) => ({ value: code, title: languageNames.of(code) ?? code }),
 ).sort((a, b) => a.title.localeCompare(b.title));
 
@@ -55,7 +55,7 @@ export function EditorPreferenceSettings({
             disabled={disabled}
             onChange={(captionSpellcheck) => change({ captionSpellcheck })}
           />
-          <DialogSelect
+          <ModalSelect
             label="Spelling language"
             value={value.captionSpellcheckLanguage}
             options={LANGUAGE_OPTIONS}

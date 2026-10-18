@@ -26,14 +26,14 @@ import {
 } from "@/shared/icons";
 import { buildCaptionVocabulary } from "@/features/gallery/lib/captionVocabulary";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
-import { DialogButton } from "@/shared/ui/Dialog";
+import { ModalButton } from "@/shared/ui/Modal";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { TokenEstimate } from "@/shared/ui/TokenEstimate";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ZoomableImage } from "./ZoomableImage";
 import { MediaInfoBar } from "./MediaInfoBar";
-import { ComfyWorkflowDialog } from "./ComfyWorkflowDialog";
+import { ComfyWorkflowModal } from "./ComfyWorkflowModal";
 import { useChanged } from "@/shared/hooks/useChanged";
 
 interface IssueGroup {
@@ -355,19 +355,19 @@ export function IssueResolverModal({
       </div>
 
       <footer className="issue-resolver-modal__footer">
-        <DialogButton
+        <ModalButton
           label="Back"
           variant="secondary"
           disabled={saving || index === 0}
           onClick={handlePrevious}
         />
-        <DialogButton
+        <ModalButton
           label="Skip"
           variant="secondary"
           disabled={saving || index === queue.length - 1}
           onClick={handleNext}
         />
-        <DialogButton
+        <ModalButton
           label={saving ? "Resolving..." : "Resolve"}
           variant="primary"
           busy={saving}
@@ -377,7 +377,7 @@ export function IssueResolverModal({
         />
       </footer>
       {comfyWorkflowOpen && (
-        <ComfyWorkflowDialog
+        <ComfyWorkflowModal
           mediaPath={item.path}
           mediaName={item.name}
           onClose={() => setComfyWorkflowOpen(false)}

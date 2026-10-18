@@ -36,7 +36,7 @@ const previewMediaTransferMock = vi.mocked(mediaApi.previewMediaTransfer);
 
 const BOTH_SELECTED = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
-/** Real batch-action dialogs; pass visibleSelectedPaths to split on-screen vs selected. */
+/** Real batch-action modals; pass visibleSelectedPaths to split on-screen vs selected. */
 function renderControls(selection: Partial<GallerySelectionValue> = {}, totalCount = 2) {
   const merged = {
     selectionMode: true,
@@ -182,9 +182,9 @@ describe("GallerySelectionControls", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
-    // The dialog promises exactly what the delete will reach, not the whole set.
-    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
-    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+    // The modal promises exactly what the delete will reach, not the whole set.
+    const confirmModal = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmModal).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
       expect(deleteSelectedMediaMock).toHaveBeenCalledWith([visiblePath]);
@@ -207,17 +207,17 @@ describe("GallerySelectionControls", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
-    const confirmDialog = await screen.findByRole("alertdialog", {
+    const confirmModal = await screen.findByRole("alertdialog", {
       name: "Delete selected files?",
     });
     // The scope row says what and where; the description is left the caveats.
-    expect(confirmDialog.querySelector(".dialog-scope__line")).toHaveTextContent(
+    expect(confirmModal.querySelector(".modal-scope__line")).toHaveTextContent(
       "2 selected files in Photos",
     );
-    expect(within(confirmDialog).getByText(/matching caption sidecars/i)).toBeInTheDocument();
-    expect(within(confirmDialog).getByText(/Recycle Bin/i)).toBeInTheDocument();
+    expect(within(confirmModal).getByText(/matching caption sidecars/i)).toBeInTheDocument();
+    expect(within(confirmModal).getByText(/Recycle Bin/i)).toBeInTheDocument();
 
-    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+    await user.click(within(confirmModal).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
       expect(deleteSelectedMediaMock).toHaveBeenCalledWith(Array.from(selectedPaths));
@@ -239,8 +239,8 @@ describe("GallerySelectionControls", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
-    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
-    expect(within(confirmDialog).getByText("sunset.png")).toBeInTheDocument();
+    const confirmModal = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    expect(within(confirmModal).getByText("sunset.png")).toBeInTheDocument();
   });
 
   it("keeps controls disabled with a spinner until deletion and refresh finish", async () => {
@@ -265,14 +265,14 @@ describe("GallerySelectionControls", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
-    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
-    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+    const confirmModal = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmModal).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
-      expect(within(confirmDialog).getByRole("button", { name: "Deleting..." })).toBeDisabled();
+      expect(within(confirmModal).getByRole("button", { name: "Deleting..." })).toBeDisabled();
       expect(onDeleted).toHaveBeenCalled();
     });
-    expect(within(confirmDialog).getByRole("button", { name: "Deleting..." })).toHaveAttribute(
+    expect(within(confirmModal).getByRole("button", { name: "Deleting..." })).toHaveAttribute(
       "aria-busy",
       "true",
     );
@@ -338,7 +338,7 @@ describe("GallerySelectionControls", () => {
 
   it("ignores Ctrl+A entirely while scroll lock is active", () => {
     const selectAllPaths = vi.fn<() => void>();
-    const handle = acquireScrollLock("confirm-dialog-open");
+    const handle = acquireScrollLock("confirm-modal-open");
 
     renderControls({
       selectionMode: false,
@@ -431,7 +431,7 @@ describe("GallerySelectionControls", () => {
   it("ignores Escape entirely while scroll lock is active", () => {
     const exitSelectionMode = vi.fn<() => void>();
     const clearSelectedPaths = vi.fn<() => void>();
-    const handle = acquireScrollLock("confirm-dialog-open");
+    const handle = acquireScrollLock("confirm-modal-open");
 
     renderControls({ exitSelectionMode, clearSelectedPaths });
 
@@ -442,7 +442,7 @@ describe("GallerySelectionControls", () => {
     releaseScrollLock(handle);
   });
 
-  it("ignores Escape entirely while the delete confirm dialog is open", async () => {
+  it("ignores Escape entirely while the delete confirm modal is open", async () => {
     const user = userEvent.setup();
     const exitSelectionMode = vi.fn<() => void>();
     const clearSelectedPaths = vi.fn<() => void>();
@@ -523,12 +523,12 @@ describe("GallerySelectionControls", () => {
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
     await user.click(within(picker).getByRole("button", { name: "Move here" }));
 
-    const overwriteDialog = await screen.findByRole("alertdialog", {
+    const overwriteModal = await screen.findByRole("alertdialog", {
       name: "Replace existing files?",
     });
-    expect(within(overwriteDialog).getByText(/move only new files/i)).toBeInTheDocument();
+    expect(within(overwriteModal).getByText(/move only new files/i)).toBeInTheDocument();
 
-    await user.click(within(overwriteDialog).getByRole("button", { name: "Replace existing" }));
+    await user.click(within(overwriteModal).getByRole("button", { name: "Replace existing" }));
 
     await waitFor(() => {
       expect(transferSelectedMediaMock).toHaveBeenCalledWith(
@@ -640,10 +640,10 @@ describe("GallerySelectionControls", () => {
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
     await user.click(within(picker).getByRole("button", { name: "Move here" }));
 
-    const overwriteDialog = await screen.findByRole("alertdialog", {
+    const overwriteModal = await screen.findByRole("alertdialog", {
       name: "Replace existing files?",
     });
-    await user.click(within(overwriteDialog).getByRole("button", { name: "Skip existing" }));
+    await user.click(within(overwriteModal).getByRole("button", { name: "Skip existing" }));
 
     await waitFor(() => {
       expect(transferSelectedMediaMock).toHaveBeenCalledWith(
@@ -678,12 +678,12 @@ describe("GallerySelectionControls", () => {
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
     await user.click(within(picker).getByRole("button", { name: "Copy here" }));
 
-    const overwriteDialog = await screen.findByRole("alertdialog", {
+    const overwriteModal = await screen.findByRole("alertdialog", {
       name: "Replace existing files?",
     });
-    expect(within(overwriteDialog).getByText(/copy only new files/i)).toBeInTheDocument();
+    expect(within(overwriteModal).getByText(/copy only new files/i)).toBeInTheDocument();
 
-    await user.click(within(overwriteDialog).getByRole("button", { name: "Replace existing" }));
+    await user.click(within(overwriteModal).getByRole("button", { name: "Replace existing" }));
 
     await waitFor(() => {
       expect(transferSelectedMediaMock).toHaveBeenCalledWith(
@@ -738,10 +738,10 @@ describe("GallerySelectionControls", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
-    const confirmDialog = await screen.findByRole("alertdialog", {
+    const confirmModal = await screen.findByRole("alertdialog", {
       name: "Delete selected files?",
     });
-    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+    await user.click(within(confirmModal).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
       expect(onDeleted).toHaveBeenCalledWith([`${HOME_PATH}\\sunset.png`]);
@@ -789,7 +789,7 @@ describe("GallerySelectionControls", () => {
   });
 
   it("ignores Delete entirely while scroll lock is active", () => {
-    const handle = acquireScrollLock("confirm-dialog-open");
+    const handle = acquireScrollLock("confirm-modal-open");
 
     renderControls();
 
@@ -849,8 +849,8 @@ describe("GallerySelectionControls", () => {
 
     pressDelete();
 
-    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
-    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+    const confirmModal = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmModal).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
       expect(deleteSelectedMediaMock).toHaveBeenCalledWith([visiblePath]);

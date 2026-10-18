@@ -53,7 +53,7 @@ export function StorageSection({ visible, disabled, children }: StorageSectionPr
       }
     >
       {statsQuery.isError ? (
-        <p className="dialog__error" role="alert">
+        <p className="modal__error" role="alert">
           {formatApiError(statsQuery.error)}
         </p>
       ) : (

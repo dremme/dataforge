@@ -10,8 +10,8 @@ import { iconCopy, iconFilePlus, iconLoader2, iconX } from "@/shared/icons";
 import type { InstructionFileResponse, JobType } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { formatCount } from "@/shared/lib/format";
-import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { DialogButton } from "@/shared/ui/Dialog";
+import { ConfirmModal } from "@/shared/ui/ConfirmModal";
+import { ModalButton } from "@/shared/ui/Modal";
 import { Icon } from "@/shared/ui/Icon";
 import { MarkdownEditor } from "@/shared/ui/MarkdownEditor";
 import { TokenEstimate } from "@/shared/ui/TokenEstimate";
@@ -308,13 +308,13 @@ export function FolderInstructionsModal({
           )}
         </div>
 
-        <DialogButton
+        <ModalButton
           label="Reset"
           variant="secondary"
           disabled={saving || !editedKinds.includes(tab)}
           onClick={() => setDraft(tab, null)}
         />
-        <DialogButton
+        <ModalButton
           label={saving ? "Saving..." : "Save"}
           variant="primary"
           busy={saving}
@@ -326,7 +326,7 @@ export function FolderInstructionsModal({
       </footer>
 
       {discardOpen && (
-        <ConfirmDialog
+        <ConfirmModal
           title="Discard changes?"
           description={`Your changes to the ${unsavedNames} will be lost. This cannot be undone.`}
           confirmLabel="Discard"

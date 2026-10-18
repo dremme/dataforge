@@ -177,7 +177,7 @@ describe("useSidecarSweep", () => {
     );
   });
 
-  it("closes the dialog and notifies danger when the request fails", async () => {
+  it("closes the modal and notifies danger when the request fails", async () => {
     deleteSidecarsMock.mockRejectedValue(new Error("Permission denied"));
     const onSwept = vi.fn<() => void | Promise<void>>();
     const { result } = renderSweep(onSwept);

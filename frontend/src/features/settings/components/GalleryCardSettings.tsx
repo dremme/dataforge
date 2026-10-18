@@ -4,11 +4,11 @@ import {
   type GalleryCardOptions,
 } from "@/features/gallery/lib/cardOptions";
 import { iconGrid2x2, iconRows3 } from "@/shared/icons";
-import { DialogSelect, type DialogSelectOption } from "@/shared/ui/DialogSelect";
+import { ModalSelect, type ModalSelectOption } from "@/shared/ui/ModalSelect";
 import { SettingsCheckbox } from "./SettingsCheckbox";
 import { SettingsGroup } from "./SettingsGroup";
 
-function lineOptions(counts: readonly number[]): DialogSelectOption<string>[] {
+function lineOptions(counts: readonly number[]): ModalSelectOption<string>[] {
   return counts.map((count) => ({
     value: String(count),
     title: count === 0 ? "Off" : `${count} ${count === 1 ? "line" : "lines"}`,
@@ -31,7 +31,7 @@ export function GalleryCardSettings({ value, disabled, onChange }: GalleryCardSe
     <>
       <SettingsGroup title="Cards" icon={iconGrid2x2}>
         <div className="settings-modal__row">
-          <DialogSelect
+          <ModalSelect
             label="Large card caption"
             value={String(value.largeCaptionLines)}
             options={LARGE_OPTIONS}
@@ -42,7 +42,7 @@ export function GalleryCardSettings({ value, disabled, onChange }: GalleryCardSe
               })
             }
           />
-          <DialogSelect
+          <ModalSelect
             label="Small card caption"
             value={String(value.smallCaptionLines)}
             options={SMALL_OPTIONS}

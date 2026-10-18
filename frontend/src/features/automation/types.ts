@@ -1,10 +1,10 @@
 import type { TrainLoraSettings } from "@/features/automation/api/jobs";
-import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
-import type { ComfyProcessSettings } from "@/features/automation/components/ComfyProcessDialog";
-import type { ReplaceCaptionsSettings } from "@/features/automation/components/ReplaceCaptionsDialog";
-import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
+import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionModal";
+import type { ComfyProcessSettings } from "@/features/automation/components/ComfyProcessModal";
+import type { ReplaceCaptionsSettings } from "@/features/automation/components/ReplaceCaptionsModal";
+import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsModal";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
-import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { ModalScopeInfo } from "@/shared/ui/ModalScope";
 import type {
   AutomationMode,
   DuplicateThreshold,
@@ -14,29 +14,29 @@ import type {
   WatermarkSizeName,
 } from "@/shared/types";
 
-type FolderBusyDialogState<TConfirm, TSettings> = {
+type FolderBusyModalState<TConfirm, TSettings> = {
   open: boolean;
-  scope: DialogScopeInfo;
+  scope: ModalScopeInfo;
   initialSettings: TSettings | null;
   busy?: boolean;
   onConfirm: TConfirm;
   onCancel: () => void;
 };
 
-export type AutomationDialogsState = {
-  setCaptions: FolderBusyDialogState<
+export type AutomationModalsState = {
+  setCaptions: FolderBusyModalState<
     (caption: string, overwrite: boolean) => void,
     JobSettingsByType["set_captions"]
   >;
-  replaceCaptions: FolderBusyDialogState<
+  replaceCaptions: FolderBusyModalState<
     (settings: ReplaceCaptionsSettings) => void,
     JobSettingsByType["replace_captions"]
   > & {
     folderPath: string;
     selectedPaths?: string[];
   };
-  backupCaptions: FolderBusyDialogState<() => void, JobSettingsByType["backup_captions"]>;
-  autoCaption: FolderBusyDialogState<
+  backupCaptions: FolderBusyModalState<() => void, JobSettingsByType["backup_captions"]>;
+  autoCaption: FolderBusyModalState<
     (
       mode: AutoCaptionMode,
       captionAudio: boolean,
@@ -47,7 +47,7 @@ export type AutomationDialogsState = {
   > & {
     folderPath: string;
   };
-  verifyCaptions: FolderBusyDialogState<
+  verifyCaptions: FolderBusyModalState<
     (
       mode: VerifyCaptionsMode,
       context: string,
@@ -56,7 +56,7 @@ export type AutomationDialogsState = {
     ) => void,
     JobSettingsByType["verify_captions"]
   >;
-  editCaptions: FolderBusyDialogState<
+  editCaptions: FolderBusyModalState<
     (
       mode: AutomationMode,
       instruction: string,
@@ -69,19 +69,19 @@ export type AutomationDialogsState = {
     folderPath: string;
     selectedPaths?: string[];
   };
-  findDuplicates: FolderBusyDialogState<
+  findDuplicates: FolderBusyModalState<
     (threshold: DuplicateThreshold) => void,
     JobSettingsByType["find_duplicates"]
   >;
-  batchRename: FolderBusyDialogState<
+  batchRename: FolderBusyModalState<
     (stem: string, startNumber: number) => void,
     JobSettingsByType["batch_rename"]
   >;
-  trainLora: FolderBusyDialogState<
+  trainLora: FolderBusyModalState<
     (settings: TrainLoraSettings) => void,
     JobSettingsByType["train_lora"]
   >;
-  watermark: FolderBusyDialogState<
+  watermark: FolderBusyModalState<
     (
       text: string,
       size: WatermarkSizeName,
@@ -91,24 +91,24 @@ export type AutomationDialogsState = {
     ) => void,
     JobSettingsByType["watermark"]
   >;
-  comfyProcess: FolderBusyDialogState<
+  comfyProcess: FolderBusyModalState<
     (settings: ComfyProcessSettings) => void,
     JobSettingsByType["comfy_process"]
   >;
-  resize: FolderBusyDialogState<
+  resize: FolderBusyModalState<
     (megapixels: number, multiple: number, resetSize: boolean) => void,
     JobSettingsByType["resize"]
   >;
   autoAdjust: {
     open: boolean;
-    scope: DialogScopeInfo;
+    scope: ModalScopeInfo;
     busy: boolean;
     onConfirm: (replaceAdjustments: boolean, resetAdjustments: boolean) => void;
     onCancel: () => void;
   };
   checkCaptionRules: {
     open: boolean;
-    scope: DialogScopeInfo;
+    scope: ModalScopeInfo;
     busy: boolean;
     folderPath: string;
     onConfirm: () => void;

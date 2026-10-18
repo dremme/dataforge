@@ -73,9 +73,9 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
-    expect(within(dialog).queryByText("fps")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("Frames")).not.toBeInTheDocument();
+    const modal = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+    expect(within(modal).queryByText("fps")).not.toBeInTheDocument();
+    expect(within(modal).queryByText("Frames")).not.toBeInTheDocument();
   });
 
   it("lists every tag with its confidence, and says why a file has none", async () => {
@@ -174,11 +174,11 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
     const modifiedLabel = formatModifiedAt("2026-03-15T14:30:00.000Z");
     expect(modifiedLabel).not.toBeNull();
-    expect(within(dialog).getByText("Modified")).toBeInTheDocument();
-    expect(within(dialog).getByText(modifiedLabel!)).toBeInTheDocument();
+    expect(within(modal).getByText("Modified")).toBeInTheDocument();
+    expect(within(modal).getByText(modifiedLabel!)).toBeInTheDocument();
   });
 
   it("shows the file size in the media meta section", async () => {
@@ -193,8 +193,8 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    const meta = within(dialog).getByLabelText("Media details");
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const meta = within(modal).getByLabelText("Media details");
 
     expect(within(meta).getByText("File size")).toBeInTheDocument();
     expect(within(meta).getByText("2.5 MB")).toBeInTheDocument();
@@ -212,8 +212,8 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    const meta = within(dialog).getByLabelText("Media details");
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const meta = within(modal).getByLabelText("Media details");
 
     expect(within(meta).getByText("Aspect ratio")).toBeInTheDocument();
     expect(within(meta).getByText("16:9")).toBeInTheDocument();
@@ -232,13 +232,13 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    const meta = within(dialog).getByLabelText("Media details");
-    const heading = within(dialog).getByText("Caption").parentElement!;
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const meta = within(modal).getByLabelText("Media details");
+    const heading = within(modal).getByText("Caption").parentElement!;
 
     expect(within(heading).getByText("~7 tokens")).toBeInTheDocument();
     expect(meta).not.toHaveTextContent("tokens");
-    expect(dialog).not.toHaveTextContent("Characters");
+    expect(modal).not.toHaveTextContent("Characters");
 
     const captionInput = await screen.findByLabelText("Caption for sunset.png");
     await user.clear(captionInput);
@@ -273,13 +273,13 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
 
     await waitFor(() => {
       expect(onCaptionSaved).toHaveBeenCalledTimes(1);
     });
 
-    const copyButton = within(dialog).getByRole("button", { name: "Copy" });
+    const copyButton = within(modal).getByRole("button", { name: "Copy" });
     expect(copyButton).not.toBeDisabled();
 
     await user.click(copyButton);
@@ -307,8 +307,8 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    const caption = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const caption = within(modal).getByRole("textbox", { name: "Caption for sunset.png" });
 
     await waitFor(() => {
       expect(caption).toHaveValue("Golden hour over the lake");
@@ -346,8 +346,8 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing scene.png" });
-    expect(within(dialog).queryByRole("button", { name: /json caption/i })).not.toBeInTheDocument();
+    const modal = await screen.findByRole("dialog", { name: "Viewing scene.png" });
+    expect(within(modal).queryByRole("button", { name: /json caption/i })).not.toBeInTheDocument();
   });
 
   it("deletes the file after confirmation", async () => {
@@ -370,11 +370,11 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    await user.click(within(dialog).getByRole("button", { name: "Delete sunset.png" }));
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(within(modal).getByRole("button", { name: "Delete sunset.png" }));
 
-    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
-    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+    const confirmModal = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmModal).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
       expect(onDeleted).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`);
@@ -398,11 +398,11 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    await user.click(within(dialog).getByRole("button", { name: "Delete sunset.png" }));
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(within(modal).getByRole("button", { name: "Delete sunset.png" }));
 
-    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
-    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+    const confirmModal = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmModal).getByRole("button", { name: "Delete" }));
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(onDeleted).not.toHaveBeenCalled();
@@ -425,12 +425,12 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    await user.click(within(dialog).getByRole("button", { name: "Open in image preview" }));
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(within(modal).getByRole("button", { name: "Open in image preview" }));
 
     await waitFor(() => {
       expect(
-        within(dialog).getByRole("button", { name: "Open in image preview" }),
+        within(modal).getByRole("button", { name: "Open in image preview" }),
       ).not.toBeDisabled();
     });
   });
@@ -451,9 +451,9 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+    const modal = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
     expect(
-      within(dialog).queryByRole("button", { name: "Open in image preview" }),
+      within(modal).queryByRole("button", { name: "Open in image preview" }),
     ).not.toBeInTheDocument();
   });
 
@@ -470,19 +470,19 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing voice.wav" });
-    const audio = dialog.querySelector("audio")!;
+    const modal = await screen.findByRole("dialog", { name: "Viewing voice.wav" });
+    const audio = modal.querySelector("audio")!;
     expect(audio.getAttribute("src")).toContain("/api/media?");
     expect(audio).toHaveAttribute("controls");
     // Paging through clips must not start sound on its own.
     expect(audio).not.toHaveAttribute("autoplay");
-    expect(dialog.querySelector(".gallery-item-modal__waveform")).not.toBeNull();
-    expect(dialog.querySelector(".gallery-item-modal__img")).toBeNull();
+    expect(modal.querySelector(".gallery-item-modal__waveform")).not.toBeNull();
+    expect(modal.querySelector(".gallery-item-modal__img")).toBeNull();
     expect(
-      within(dialog).queryByRole("button", { name: "Open in image preview" }),
+      within(modal).queryByRole("button", { name: "Open in image preview" }),
     ).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: /Save a frame/ })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
+    expect(within(modal).queryByRole("button", { name: /Save a frame/ })).not.toBeInTheDocument();
+    expect(within(modal).queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
   });
 
   it("navigates within the filtered item list only", async () => {
@@ -509,10 +509,10 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    expect(within(dialog).getByText("1 / 2")).toBeInTheDocument();
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    expect(within(modal).getByText("1 / 2")).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole("button", { name: "Next item" }));
+    await user.click(within(modal).getByRole("button", { name: "Next item" }));
     expect(onNext).toHaveBeenCalledTimes(1);
   });
 
@@ -601,8 +601,8 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    await user.click(within(dialog).getByRole("button", { name: "Delete sunset.png" }));
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(within(modal).getByRole("button", { name: "Delete sunset.png" }));
     await screen.findByRole("alertdialog", { name: "Delete file?" });
 
     await user.keyboard("{ArrowRight}");
@@ -692,13 +692,13 @@ describe("GalleryItemModal", () => {
 
     it("does not page on a key a control inside already handled", async () => {
       const props = renderKeyboardModal();
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
 
       // A focused mask surface nudges on the arrows and removes on Delete this way.
       for (const key of ["ArrowRight", "Delete"]) {
         const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
         event.preventDefault();
-        dialog.dispatchEvent(event);
+        modal.dispatchEvent(event);
       }
 
       expect(props.onNext).not.toHaveBeenCalled();
@@ -722,8 +722,8 @@ describe("GalleryItemModal", () => {
       const saveCaption = vi.spyOn(captionsApi, "saveCaption");
       const props = renderKeyboardModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-      const caption = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const caption = within(modal).getByRole("textbox", { name: "Caption for sunset.png" });
       await waitFor(() => expect(caption).toHaveValue("Golden hour over the lake"));
       await user.click(caption);
       await user.keyboard(" at dusk");
@@ -739,8 +739,8 @@ describe("GalleryItemModal", () => {
     it("moves on with Ctrl+Enter that the caption editor has already claimed", async () => {
       const props = renderKeyboardModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-      const caption = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const caption = within(modal).getByRole("textbox", { name: "Caption for sunset.png" });
       // The real editor prevents the default so CodeMirror inserts no blank line.
       const event = new KeyboardEvent("keydown", {
         key: "Enter",
@@ -768,8 +768,8 @@ describe("GalleryItemModal", () => {
       const user = userEvent.setup();
       renderKeyboardModal();
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-      await user.click(within(dialog).getByRole("textbox", { name: "Caption for sunset.png" }));
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      await user.click(within(modal).getByRole("textbox", { name: "Caption for sunset.png" }));
       await user.keyboard("{Backspace}{Delete}");
 
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -810,8 +810,8 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    const caption = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const caption = within(modal).getByRole("textbox", { name: "Caption for sunset.png" });
     await waitFor(() => expect(caption).toHaveValue("Golden hour over the lake"));
 
     rerender(
@@ -849,12 +849,12 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    await user.click(within(dialog).getByRole("textbox", { name: "Caption for sunset.png" }));
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(within(modal).getByRole("textbox", { name: "Caption for sunset.png" }));
     await user.keyboard(" at dusk");
 
     await waitFor(() =>
-      expect(within(dialog).getByRole("status")).toHaveTextContent("Disk is full"),
+      expect(within(modal).getByRole("status")).toHaveTextContent("Disk is full"),
     );
 
     saveCaption.mockResolvedValue({
@@ -868,9 +868,9 @@ describe("GalleryItemModal", () => {
       has_issue_file: false,
     });
 
-    await user.click(within(dialog).getByRole("button", { name: "Retry" }));
+    await user.click(within(modal).getByRole("button", { name: "Retry" }));
 
-    await waitFor(() => expect(within(dialog).getByRole("status")).toHaveTextContent("Saved"));
+    await waitFor(() => expect(within(modal).getByRole("status")).toHaveTextContent("Saved"));
     expect(saveCaption).toHaveBeenCalledTimes(2);
   });
 
@@ -889,17 +889,17 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    const revert = within(dialog).getByRole("button", {
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const revert = within(modal).getByRole("button", {
       name: "Revert caption changes for sunset.png",
     });
     expect(revert).toBeDisabled();
 
-    const editor = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+    const editor = within(modal).getByRole("textbox", { name: "Caption for sunset.png" });
     await user.click(editor);
     await user.keyboard(" at dusk");
 
-    await waitFor(() => expect(within(dialog).getByRole("status")).toHaveTextContent("Saved"));
+    await waitFor(() => expect(within(modal).getByRole("status")).toHaveTextContent("Saved"));
     expect(revert).toBeEnabled();
 
     await user.click(revert);
@@ -926,9 +926,9 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
     expect(
-      within(dialog).queryByRole("button", { name: /Restore the backed up caption/ }),
+      within(modal).queryByRole("button", { name: /Restore the backed up caption/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -951,8 +951,8 @@ describe("GalleryItemModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    const restore = await within(dialog).findByRole("button", {
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const restore = await within(modal).findByRole("button", {
       name: "Restore the backed up caption for sunset.png",
     });
 

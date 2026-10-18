@@ -90,20 +90,20 @@ describe("GalleryItemModal", () => {
     }
 
     async function openEditMode(user: ReturnType<typeof userEvent.setup>) {
-      const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      const modal = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
       // Metadata never lands on its own in jsdom, so the timeline stays disabled without it.
-      fireEvent.loadedMetadata(dialog.querySelector("video")!);
-      await user.click(within(dialog).getByRole("button", { name: "Edit clip.mp4" }));
+      fireEvent.loadedMetadata(modal.querySelector("video")!);
+      await user.click(within(modal).getByRole("button", { name: "Edit clip.mp4" }));
       // Editing swaps in the original, so the browser mounts a fresh element and reports again.
-      fireEvent.loadedMetadata(dialog.querySelector("video")!);
-      return dialog;
+      fireEvent.loadedMetadata(modal.querySelector("video")!);
+      return modal;
     }
 
     it("offers the toggle for an editable video", async () => {
       renderModal(videoItem());
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
-      expect(within(dialog).getByRole("button", { name: "Edit clip.mp4" })).toBeInTheDocument();
+      const modal = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      expect(within(modal).getByRole("button", { name: "Edit clip.mp4" })).toBeInTheDocument();
     });
 
     it.each([
@@ -114,8 +114,8 @@ describe("GalleryItemModal", () => {
     ])("does not offer the toggle for %s", async (_label, item) => {
       renderModal(item);
 
-      const dialog = await screen.findByRole("dialog", { name: `Viewing ${item.name}` });
-      expect(within(dialog).queryByRole("button", { name: /^Edit /i })).not.toBeInTheDocument();
+      const modal = await screen.findByRole("dialog", { name: `Viewing ${item.name}` });
+      expect(within(modal).queryByRole("button", { name: /^Edit /i })).not.toBeInTheDocument();
     });
 
     it("hands a still image to the image editor rather than this one", async () => {
@@ -123,37 +123,35 @@ describe("GalleryItemModal", () => {
       const user = userEvent.setup();
       renderModal(makeItem("sunset.png"));
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-      await user.click(within(dialog).getByRole("button", { name: "Edit sunset.png" }));
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      await user.click(within(modal).getByRole("button", { name: "Edit sunset.png" }));
 
-      expect(
-        within(dialog).queryByRole("group", { name: "Video editing" }),
-      ).not.toBeInTheDocument();
-      expect(within(dialog).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
+      expect(within(modal).queryByRole("group", { name: "Video editing" })).not.toBeInTheDocument();
+      expect(within(modal).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
     });
 
     it("opens the panel and surrenders the native controls", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
 
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
       expect(
-        within(dialog).getByRole("button", { name: "Exit video editing for clip.mp4" }),
+        within(modal).getByRole("button", { name: "Exit video editing for clip.mp4" }),
       ).toHaveAttribute("aria-pressed", "true");
-      expect(within(dialog).getByRole("group", { name: "Video editing" })).toBeInTheDocument();
-      expect(dialog.querySelector("video")).not.toHaveAttribute("controls");
+      expect(within(modal).getByRole("group", { name: "Video editing" })).toBeInTheDocument();
+      expect(modal.querySelector("video")).not.toHaveAttribute("controls");
     });
 
     it("autoplays the preview muted, looping the trim band rather than the file", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
-      const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
-      expect(dialog.querySelector("video")).toHaveAttribute("loop");
-      fireEvent.loadedMetadata(dialog.querySelector("video")!);
+      const modal = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      expect(modal.querySelector("video")).toHaveAttribute("loop");
+      fireEvent.loadedMetadata(modal.querySelector("video")!);
 
-      await user.click(within(dialog).getByRole("button", { name: "Edit clip.mp4" }));
-      const video = dialog.querySelector("video")!;
+      await user.click(within(modal).getByRole("button", { name: "Edit clip.mp4" }));
+      const video = modal.querySelector("video")!;
       const pause = vi.spyOn(video, "pause");
       fireEvent.loadedMetadata(video);
 
@@ -167,24 +165,24 @@ describe("GalleryItemModal", () => {
     it("puts the caption and metadata away, and brings them back on exit", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      expect(within(dialog).queryByLabelText(/^Caption for/)).not.toBeInTheDocument();
+      expect(within(modal).queryByLabelText(/^Caption for/)).not.toBeInTheDocument();
 
       await user.click(
-        within(dialog).getByRole("button", { name: "Exit video editing for clip.mp4" }),
+        within(modal).getByRole("button", { name: "Exit video editing for clip.mp4" }),
       );
 
-      expect(within(dialog).getByLabelText(/^Caption for/)).toBeInTheDocument();
+      expect(within(modal).getByLabelText(/^Caption for/)).toBeInTheDocument();
     });
 
     it("plays the stored original rather than the current render", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
 
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      expect(dialog.querySelector("video")?.getAttribute("src")).toContain("original=1");
+      expect(modal.querySelector("video")?.getAttribute("src")).toContain("original=1");
     });
 
     it("seeds the panel from the spec stored beside the file", async () => {
@@ -205,27 +203,27 @@ describe("GalleryItemModal", () => {
       });
       renderModal(videoItem({ has_backup: true }));
 
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
       // Half of the stored trim_start: the handles read the retimed result, and speed is 2.
       await waitFor(() => {
-        expect(within(dialog).getByRole("slider", { name: "Trim start" })).toHaveAttribute(
+        expect(within(modal).getByRole("slider", { name: "Trim start" })).toHaveAttribute(
           "aria-valuenow",
           "1",
         );
       });
       // Collapsed, but the tool says it holds a value - that is what makes hiding it safe.
-      expect(within(dialog).getByRole("button", { name: "Speed, changed" })).toBeInTheDocument();
+      expect(within(modal).getByRole("button", { name: "Speed, changed" })).toBeInTheDocument();
     });
 
     it("locks a crop shape, and Free releases it again", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Crop/ }));
-      const square = within(dialog).getByRole("button", { name: "1:1" });
-      const free = within(dialog).getByRole("button", { name: "Free" });
+      await user.click(within(modal).getByRole("button", { name: /^Crop/ }));
+      const square = within(modal).getByRole("button", { name: "1:1" });
+      const free = within(modal).getByRole("button", { name: "Free" });
 
       await user.click(square);
       expect(square).toHaveAttribute("aria-pressed", "true");
@@ -254,14 +252,14 @@ describe("GalleryItemModal", () => {
         onCopied: vi.fn<() => void | Promise<void>>(),
       };
       const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
-      const dialog = await openEditMode(user);
-      const transport = () => within(dialog).getByRole("button", { name: /(Play|Pause) preview/ });
+      const modal = await openEditMode(user);
+      const transport = () => within(modal).getByRole("button", { name: /(Play|Pause) preview/ });
 
-      fireEvent.play(dialog.querySelector("video")!);
+      fireEvent.play(modal.querySelector("video")!);
       expect(transport()).toHaveAccessibleName("Pause preview");
 
       rerender(<GalleryItemModal {...props} index={1} />);
-      const swapped = dialog.querySelector("video")!;
+      const swapped = modal.querySelector("video")!;
       fireEvent.loadedMetadata(swapped);
 
       fireEvent.play(swapped);
@@ -303,27 +301,27 @@ describe("GalleryItemModal", () => {
       }));
 
       const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
-      const dialog = await openEditMode(user);
-      const trimStart = () => within(dialog).getByRole("slider", { name: "Trim start" });
-      const trimEnd = () => within(dialog).getByRole("slider", { name: "Trim end" });
+      const modal = await openEditMode(user);
+      const trimStart = () => within(modal).getByRole("slider", { name: "Trim start" });
+      const trimEnd = () => within(modal).getByRole("slider", { name: "Trim end" });
 
       await waitFor(() => expect(trimStart()).toHaveAttribute("aria-valuenow", "0"));
 
       rerender(<GalleryItemModal {...props} index={1} />);
-      fireEvent.loadedMetadata(dialog.querySelector("video")!);
+      fireEvent.loadedMetadata(modal.querySelector("video")!);
 
       // 3 and 9 of source, halved: this clip's stored spec doubles the speed.
       await waitFor(() => expect(trimStart()).toHaveAttribute("aria-valuenow", "1.5"));
       expect(trimEnd()).toHaveAttribute("aria-valuenow", "4.5");
-      expect(within(dialog).getByRole("button", { name: "Speed, changed" })).toBeInTheDocument();
+      expect(within(modal).getByRole("button", { name: "Speed, changed" })).toBeInTheDocument();
 
       // ...and back the other way: the second clip's values must not follow the first.
       rerender(<GalleryItemModal {...props} index={0} />);
-      fireEvent.loadedMetadata(dialog.querySelector("video")!);
+      fireEvent.loadedMetadata(modal.querySelector("video")!);
 
       await waitFor(() => expect(trimEnd()).toHaveAttribute("aria-valuenow", "12"));
       expect(trimStart()).toHaveAttribute("aria-valuenow", "0");
-      expect(within(dialog).getByRole("button", { name: "Speed" })).toBeInTheDocument();
+      expect(within(modal).getByRole("button", { name: "Speed" })).toBeInTheDocument();
     });
 
     it("restores the shape a stored crop was framed with", async () => {
@@ -344,12 +342,12 @@ describe("GalleryItemModal", () => {
         },
       });
       renderModal(videoItem({ has_backup: true }));
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Crop/ }));
+      await user.click(within(modal).getByRole("button", { name: /^Crop/ }));
 
       await waitFor(() => {
-        expect(within(dialog).getByRole("button", { name: "1:1" })).toHaveAttribute(
+        expect(within(modal).getByRole("button", { name: "1:1" })).toHaveAttribute(
           "aria-pressed",
           "true",
         );
@@ -370,26 +368,26 @@ describe("GalleryItemModal", () => {
         onCopied: vi.fn<() => void | Promise<void>>(),
       };
       const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Crop/ }));
-      await user.click(within(dialog).getByRole("button", { name: "1:1" }));
-      expect(within(dialog).getByRole("button", { name: "1:1" })).toHaveAttribute(
+      await user.click(within(modal).getByRole("button", { name: /^Crop/ }));
+      await user.click(within(modal).getByRole("button", { name: "1:1" }));
+      expect(within(modal).getByRole("button", { name: "1:1" })).toHaveAttribute(
         "aria-pressed",
         "true",
       );
 
       rerender(<GalleryItemModal {...props} index={1} />);
-      fireEvent.loadedMetadata(dialog.querySelector("video")!);
+      fireEvent.loadedMetadata(modal.querySelector("video")!);
 
       // Crop tool still selected: reading "1:1" over an uncropped frame was the bug.
       await waitFor(() => {
-        expect(within(dialog).getByRole("button", { name: "Free" })).toHaveAttribute(
+        expect(within(modal).getByRole("button", { name: "Free" })).toHaveAttribute(
           "aria-pressed",
           "true",
         );
       });
-      expect(within(dialog).getByRole("button", { name: /^Crop/ })).toHaveAccessibleName("Crop");
+      expect(within(modal).getByRole("button", { name: /^Crop/ })).toHaveAccessibleName("Crop");
     });
 
     it("puts the original back when every value is dialled to where it started", async () => {
@@ -410,21 +408,21 @@ describe("GalleryItemModal", () => {
         },
       });
       renderModal(videoItem({ has_backup: true }));
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Speed/ }));
+      await user.click(within(modal).getByRole("button", { name: /^Speed/ }));
       await waitFor(() => {
-        expect(within(dialog).getByRole("button", { name: "2x" })).toHaveAttribute(
+        expect(within(modal).getByRole("button", { name: "2x" })).toHaveAttribute(
           "aria-pressed",
           "true",
         );
       });
-      expect(within(dialog).getByRole("button", { name: "Apply" })).toBeDisabled();
+      expect(within(modal).getByRole("button", { name: "Apply" })).toBeDisabled();
 
-      await user.click(within(dialog).getByRole("button", { name: "1x" }));
+      await user.click(within(modal).getByRole("button", { name: "1x" }));
 
-      expect(within(dialog).getByRole("button", { name: "Apply" })).toBeEnabled();
-      await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+      expect(within(modal).getByRole("button", { name: "Apply" })).toBeEnabled();
+      await user.click(within(modal).getByRole("button", { name: "Apply" }));
 
       // Restored rather than re-encoded: the backup already holds exactly this file.
       await waitFor(() => expect(revertMock).toHaveBeenCalledWith(`${HOME_PATH}\\clip.mp4`));
@@ -434,16 +432,16 @@ describe("GalleryItemModal", () => {
     it("can unmute the preview, which edit mode otherwise leaves no way to hear", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
-      const dialog = await openEditMode(user);
-      const video = dialog.querySelector("video")!;
+      const modal = await openEditMode(user);
+      const video = modal.querySelector("video")!;
 
       expect(video.muted).toBe(true);
 
-      await user.click(within(dialog).getByRole("button", { name: "Unmute preview" }));
+      await user.click(within(modal).getByRole("button", { name: "Unmute preview" }));
 
       expect(video.muted).toBe(false);
 
-      await user.click(within(dialog).getByRole("button", { name: "Mute preview" }));
+      await user.click(within(modal).getByRole("button", { name: "Mute preview" }));
 
       expect(video.muted).toBe(true);
     });
@@ -451,35 +449,31 @@ describe("GalleryItemModal", () => {
     it("turns frame capture off when editing starts, and back the other way", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
-      const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
-      fireEvent.loadedMetadata(dialog.querySelector("video")!);
+      const modal = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      fireEvent.loadedMetadata(modal.querySelector("video")!);
 
-      await user.click(within(dialog).getByRole("button", { name: "Save a frame from clip.mp4" }));
-      await user.click(within(dialog).getByRole("button", { name: "Edit clip.mp4" }));
+      await user.click(within(modal).getByRole("button", { name: "Save a frame from clip.mp4" }));
+      await user.click(within(modal).getByRole("button", { name: "Edit clip.mp4" }));
 
-      expect(
-        within(dialog).queryByRole("group", { name: "Frame capture" }),
-      ).not.toBeInTheDocument();
-      expect(within(dialog).getByRole("group", { name: "Video editing" })).toBeInTheDocument();
+      expect(within(modal).queryByRole("group", { name: "Frame capture" })).not.toBeInTheDocument();
+      expect(within(modal).getByRole("group", { name: "Video editing" })).toBeInTheDocument();
 
-      await user.click(within(dialog).getByRole("button", { name: "Save a frame from clip.mp4" }));
+      await user.click(within(modal).getByRole("button", { name: "Save a frame from clip.mp4" }));
 
-      expect(
-        within(dialog).queryByRole("group", { name: "Video editing" }),
-      ).not.toBeInTheDocument();
-      expect(within(dialog).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
+      expect(within(modal).queryByRole("group", { name: "Video editing" })).not.toBeInTheDocument();
+      expect(within(modal).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
     });
 
     it("steps out of the mode on Escape before it closes the modal", async () => {
       const user = userEvent.setup();
       const props = renderModal(videoItem());
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
       fireEvent.keyDown(window, { key: "Escape" });
 
       await waitFor(() => {
         expect(
-          within(dialog).queryByRole("group", { name: "Video editing" }),
+          within(modal).queryByRole("group", { name: "Video editing" }),
         ).not.toBeInTheDocument();
       });
       expect(props.onClose).not.toHaveBeenCalled();
@@ -491,11 +485,11 @@ describe("GalleryItemModal", () => {
     it("posts the drafted spec and leaves the mode so the result is visible", async () => {
       const user = userEvent.setup();
       const props = renderModal(videoItem());
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Speed/ }));
-      await user.click(within(dialog).getByRole("button", { name: "0.5x" }));
-      await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+      await user.click(within(modal).getByRole("button", { name: /^Speed/ }));
+      await user.click(within(modal).getByRole("button", { name: "0.5x" }));
+      await user.click(within(modal).getByRole("button", { name: "Apply" }));
 
       await waitFor(() => expect(applyMock).toHaveBeenCalled());
       expect(applyMock.mock.calls[0][0]).toBe(`${HOME_PATH}\\clip.mp4`);
@@ -514,22 +508,22 @@ describe("GalleryItemModal", () => {
       await waitFor(() => expect(props.onCopied).toHaveBeenCalled());
       // Nothing about the surface changes: the editor was already playing the original,
       // which the spec is expressed against, so there is nothing to swap back to.
-      expect(within(dialog).getByRole("group", { name: "Video editing" })).toBeInTheDocument();
-      expect(dialog.querySelector("video")?.getAttribute("src")).toContain("original=1");
+      expect(within(modal).getByRole("group", { name: "Video editing" })).toBeInTheDocument();
+      expect(modal.querySelector("video")?.getAttribute("src")).toContain("original=1");
     });
 
     it("posts the adjust tools with the rest of the spec", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Adjust/ }));
-      await user.click(within(dialog).getByRole("tab", { name: "Warmth" }));
-      fireEvent.keyDown(within(dialog).getByRole("slider", { name: "Warmth" }), {
+      await user.click(within(modal).getByRole("button", { name: /^Adjust/ }));
+      await user.click(within(modal).getByRole("tab", { name: "Warmth" }));
+      fireEvent.keyDown(within(modal).getByRole("slider", { name: "Warmth" }), {
         key: "ArrowRight",
         shiftKey: true,
       });
-      await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+      await user.click(within(modal).getByRole("button", { name: "Apply" }));
 
       await waitFor(() => expect(applyMock).toHaveBeenCalled());
       expect(applyMock.mock.calls[0][1]).toMatchObject({
@@ -541,35 +535,35 @@ describe("GalleryItemModal", () => {
     it("leaves the video untouched and says so when the browser cannot preview", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Adjust/ }));
-      fireEvent.keyDown(within(dialog).getByRole("slider", { name: "Exposure" }), {
+      await user.click(within(modal).getByRole("button", { name: /^Adjust/ }));
+      fireEvent.keyDown(within(modal).getByRole("slider", { name: "Exposure" }), {
         key: "ArrowRight",
       });
 
-      expect(dialog.querySelector("video")?.style.filter).toBe("");
-      expect(dialog.querySelector("canvas.adjust-canvas")).toHaveAttribute("hidden");
-      expect(within(dialog).getByText(/no live preview/i)).toBeInTheDocument();
+      expect(modal.querySelector("video")?.style.filter).toBe("");
+      expect(modal.querySelector("canvas.adjust-canvas")).toHaveAttribute("hidden");
+      expect(within(modal).getByText(/no live preview/i)).toBeInTheDocument();
     });
 
     it("goes quiet once the draft matches what it just wrote", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Speed/ }));
-      await user.click(within(dialog).getByRole("button", { name: "0.5x" }));
-      expect(within(dialog).getByRole("button", { name: "Apply" })).toBeEnabled();
+      await user.click(within(modal).getByRole("button", { name: /^Speed/ }));
+      await user.click(within(modal).getByRole("button", { name: "0.5x" }));
+      expect(within(modal).getByRole("button", { name: "Apply" })).toBeEnabled();
 
-      await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+      await user.click(within(modal).getByRole("button", { name: "Apply" }));
 
       await waitFor(() => {
-        expect(within(dialog).getByRole("button", { name: "Apply" })).toBeDisabled();
+        expect(within(modal).getByRole("button", { name: "Apply" })).toBeDisabled();
       });
       // ...and wakes up again for a different edit.
-      await user.click(within(dialog).getByRole("button", { name: "2x" }));
-      expect(within(dialog).getByRole("button", { name: "Apply" })).toBeEnabled();
+      await user.click(within(modal).getByRole("button", { name: "2x" }));
+      expect(within(modal).getByRole("button", { name: "Apply" })).toBeEnabled();
     });
 
     it("survives the listing learning about the backup it just made", async () => {
@@ -587,14 +581,14 @@ describe("GalleryItemModal", () => {
         onCopied: vi.fn<() => void | Promise<void>>(),
       };
       const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
       rerender(<GalleryItemModal {...props} items={[{ ...item, has_backup: true }]} />);
 
       expect(
-        within(dialog).queryByText("The timeline loads with the video."),
+        within(modal).queryByText("The timeline loads with the video."),
       ).not.toBeInTheDocument();
-      expect(within(dialog).getByRole("slider", { name: "Trim start" })).toBeEnabled();
+      expect(within(modal).getByRole("slider", { name: "Trim start" })).toBeEnabled();
     });
 
     it("locks the rest of the modal while a render is in flight", async () => {
@@ -606,16 +600,16 @@ describe("GalleryItemModal", () => {
         }),
       );
       renderModal(videoItem());
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Speed/ }));
-      await user.click(within(dialog).getByRole("button", { name: "2x" }));
-      await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+      await user.click(within(modal).getByRole("button", { name: /^Speed/ }));
+      await user.click(within(modal).getByRole("button", { name: "2x" }));
+      await user.click(within(modal).getByRole("button", { name: "Apply" }));
 
       await waitFor(() => {
-        expect(within(dialog).getByRole("button", { name: "Delete clip.mp4" })).toBeDisabled();
+        expect(within(modal).getByRole("button", { name: "Delete clip.mp4" })).toBeDisabled();
       });
-      expect(within(dialog).getByRole("button", { name: "Close" })).toBeDisabled();
+      expect(within(modal).getByRole("button", { name: "Close" })).toBeDisabled();
 
       release(EDITED);
       await waitFor(() => expect(applyMock).toHaveBeenCalled());
@@ -625,14 +619,14 @@ describe("GalleryItemModal", () => {
       const user = userEvent.setup();
       applyMock.mockRejectedValue(new Error("Invalid filter"));
       renderModal(videoItem());
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Speed/ }));
-      await user.click(within(dialog).getByRole("button", { name: "2x" }));
-      await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+      await user.click(within(modal).getByRole("button", { name: /^Speed/ }));
+      await user.click(within(modal).getByRole("button", { name: "2x" }));
+      await user.click(within(modal).getByRole("button", { name: "Apply" }));
 
       expect(await screen.findByText(/Could not edit clip.mp4/)).toBeInTheDocument();
-      expect(within(dialog).getByRole("group", { name: "Video editing" })).toBeInTheDocument();
+      expect(within(modal).getByRole("group", { name: "Video editing" })).toBeInTheDocument();
     });
 
     it("confirms before restoring the original", async () => {
@@ -643,9 +637,9 @@ describe("GalleryItemModal", () => {
         spec: null,
       });
       renderModal(videoItem({ has_backup: true }));
-      const dialog = await openEditMode(user);
+      const modal = await openEditMode(user);
 
-      await user.click(await within(dialog).findByRole("button", { name: /Revert original/ }));
+      await user.click(await within(modal).findByRole("button", { name: /Revert original/ }));
 
       expect(revertMock).not.toHaveBeenCalled();
       await user.click(screen.getByRole("button", { name: "Restore" }));
@@ -681,10 +675,8 @@ describe("GalleryItemModal", () => {
         />,
       );
 
-      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-      expect(
-        within(dialog).queryByRole("group", { name: "Video editing" }),
-      ).not.toBeInTheDocument();
+      const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      expect(within(modal).queryByRole("group", { name: "Video editing" })).not.toBeInTheDocument();
     });
   });
 });

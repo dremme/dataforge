@@ -15,7 +15,7 @@ beforeEach(() => {
 
 const settingsRequests = (method: string) => backend.requestsTo("/api/settings", method);
 
-async function openDialog(section = "Vision model", onClose = vi.fn<() => void>()) {
+async function openModal(section = "Vision model", onClose = vi.fn<() => void>()) {
   const user = userEvent.setup();
   renderWithProviders(<SettingsModal onClose={onClose} />);
   await screen.findByRole("textbox", { name: "Server URL", hidden: true });
@@ -25,7 +25,7 @@ async function openDialog(section = "Vision model", onClose = vi.fn<() => void>(
 
 describe("SettingsModal", () => {
   it("shows where each value comes from and saves nothing until edited", async () => {
-    await openDialog();
+    await openModal();
 
     expect(screen.getByRole("textbox", { name: "Server URL" })).toHaveValue(
       "http://127.0.0.1:8888/v1",
@@ -66,7 +66,7 @@ describe("SettingsModal", () => {
   });
 
   it("saves only the edited value and closes", async () => {
-    const { onClose, user } = await openDialog("Integrations");
+    const { onClose, user } = await openModal("Integrations");
 
     const comfy = screen.getByRole("textbox", { name: "ComfyUI URL" });
     await user.clear(comfy);
@@ -79,7 +79,7 @@ describe("SettingsModal", () => {
   });
 
   it("marks the section holding an unsaved change", async () => {
-    const { user } = await openDialog();
+    const { user } = await openModal();
 
     await user.type(screen.getByRole("textbox", { name: "Model" }), "-q4");
 
@@ -90,7 +90,7 @@ describe("SettingsModal", () => {
   });
 
   it("refuses a malformed number without asking the server", async () => {
-    const { onClose, user } = await openDialog();
+    const { onClose, user } = await openModal();
 
     await user.type(screen.getByRole("spinbutton", { name: "Draft threshold (chars)" }), ".5");
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -103,7 +103,7 @@ describe("SettingsModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("keeps the dialog open with the server's reason when it refuses a value", async () => {
+  it("keeps the modal open with the server's reason when it refuses a value", async () => {
     const serve = backend.fetchMock.getMockImplementation()!;
     backend.fetchMock.mockImplementation(async (input, init) =>
       String(input) === "/api/settings" && init?.method === "PUT"
@@ -112,7 +112,7 @@ describe("SettingsModal", () => {
           })
         : serve(input, init),
     );
-    const { onClose, user } = await openDialog();
+    const { onClose, user } = await openModal();
 
     await user.type(screen.getByRole("textbox", { name: "Server URL" }), "0");
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -131,7 +131,7 @@ describe("SettingsModal", () => {
       body: JSON.stringify({ vision_model: "model-b" }),
     });
     backend.fetchMock.mockClear();
-    const { user } = await openDialog();
+    const { user } = await openModal();
 
     const model = screen.getByRole("textbox", { name: "Model" });
     expect(model).toHaveValue("model-b");
@@ -149,7 +149,7 @@ describe("SettingsModal", () => {
   });
 
   it("clears the thumbnail cache and moves thumbnails to a new epoch", async () => {
-    const { user } = await openDialog("Storage");
+    const { user } = await openModal("Storage");
     const epoch = getThumbnailEpoch();
 
     const stats = await screen.findByRole("status");
@@ -175,7 +175,7 @@ describe("SettingsModal", () => {
         folder: null,
       },
     });
-    const { user } = await openDialog("Tagging");
+    const { user } = await openModal("Tagging");
 
     const stats = await screen.findByRole("status");
     expect(await within(stats).findByText("Not installed")).toBeInTheDocument();
@@ -193,7 +193,7 @@ describe("SettingsModal", () => {
   });
 
   it("moves between sections with the arrow keys", async () => {
-    const { user } = await openDialog();
+    const { user } = await openModal();
 
     screen.getByRole("tab", { name: /^Vision model/ }).focus();
     await user.keyboard("{ArrowDown}");
@@ -204,7 +204,7 @@ describe("SettingsModal", () => {
   });
 
   it("moves between the vision model's pages with the arrow keys", async () => {
-    const { user } = await openDialog();
+    const { user } = await openModal();
 
     screen.getByRole("tab", { name: "Server" }).focus();
     await user.keyboard("{ArrowRight}");
@@ -215,7 +215,7 @@ describe("SettingsModal", () => {
   });
 
   it("shows the page holding a refused value, wherever the user is", async () => {
-    const { user } = await openDialog();
+    const { user } = await openModal();
     await user.click(screen.getByRole("tab", { name: "Media input" }));
     await user.clear(screen.getByRole("spinbutton", { name: "Max keyframes (per video)" }));
     await user.click(screen.getByRole("tab", { name: "Server" }));

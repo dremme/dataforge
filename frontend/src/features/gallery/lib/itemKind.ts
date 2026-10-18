@@ -50,7 +50,7 @@ export function isAudio(item: GalleryItem): boolean {
   return isAudioName(item.name);
 }
 
-/** The server lists only visual media for jobs; counting audio would overstate every dialog. */
+/** The server lists only visual media for jobs; counting audio would overstate every modal. */
 export function jobEligibleItems(items: readonly GalleryItem[]): GalleryItem[] {
   return items.filter((item) => !isAudio(item));
 }

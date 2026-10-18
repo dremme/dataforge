@@ -66,13 +66,13 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for sunset.png",
     });
 
-    expect(within(dialog).getByText("Suggested changes")).toBeInTheDocument();
+    expect(within(modal).getByText("Suggested changes")).toBeInTheDocument();
     expect(
-      within(dialog)
+      within(modal)
         .getAllByRole("listitem")
         .map((entry) => entry.textContent),
     ).toEqual([
@@ -98,12 +98,12 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for sunset.png",
     });
 
-    expect(within(dialog).getAllByRole("listitem")).toHaveLength(1);
-    expect(dialog).toHaveTextContent('Change "seated" to "kneeling".');
+    expect(within(modal).getAllByRole("listitem")).toHaveLength(1);
+    expect(modal).toHaveTextContent('Change "seated" to "kneeling".');
   });
 
   it("lists rule hits apart from the model's suggested changes", async () => {
@@ -123,12 +123,12 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for balloon.png",
     });
 
-    const suggested = within(dialog).getByText("Suggested changes").closest("section")!;
-    const ruleHits = within(dialog).getByText("Rule hits").closest("section")!;
+    const suggested = within(modal).getByText("Suggested changes").closest("section")!;
+    const ruleHits = within(modal).getByText("Rule hits").closest("section")!;
     expect(suggested).toHaveTextContent('Replace "hills" with "dunes".');
     expect(ruleHits).toHaveTextContent('"floating": check the subject is off the ground');
     await waitFor(() => {
@@ -152,13 +152,13 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for balloon.png",
     });
 
-    expect(within(dialog).getByText("Rule hits")).toBeInTheDocument();
-    expect(within(dialog).queryByText("Suggested changes")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("Error in issue file")).not.toBeInTheDocument();
+    expect(within(modal).getByText("Rule hits")).toBeInTheDocument();
+    expect(within(modal).queryByText("Suggested changes")).not.toBeInTheDocument();
+    expect(within(modal).queryByText("Error in issue file")).not.toBeInTheDocument();
   });
 
   it("falls back to an error line when the issue file carries no fixes", async () => {
@@ -172,12 +172,12 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for sunset.png",
     });
 
-    expect(within(dialog).getByText("Error in issue file")).toBeInTheDocument();
-    expect(within(dialog).queryByRole("listitem")).not.toBeInTheDocument();
+    expect(within(modal).getByText("Error in issue file")).toBeInTheDocument();
+    expect(within(modal).queryByRole("listitem")).not.toBeInTheDocument();
   });
 
   it("shows resolution and aspect ratio in the meta row", async () => {
@@ -191,10 +191,10 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for sunset.png",
     });
-    const meta = within(dialog).getByRole("group", { name: "Media details" });
+    const meta = within(modal).getByRole("group", { name: "Media details" });
 
     expect(meta).toHaveTextContent("2.1 MP");
     expect(meta).toHaveTextContent("1,920×1,080px");
@@ -251,14 +251,14 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for sunset.png",
     });
 
-    expect(within(dialog).getByRole("group", { name: "Media details" })).toHaveTextContent(
+    expect(within(modal).getByRole("group", { name: "Media details" })).toHaveTextContent(
       "Media details unavailable",
     );
-    expect(dialog).toHaveTextContent(/~\d+ tokens/);
+    expect(modal).toHaveTextContent(/~\d+ tokens/);
   });
 
   it("shows a live token estimate beside the caption label", async () => {
@@ -275,7 +275,7 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for sunset.png",
     });
 
@@ -283,10 +283,10 @@ describe("IssueResolverModal", () => {
       expect(screen.getByLabelText("Caption for sunset.png")).toHaveValue(caption);
     });
 
-    const heading = within(dialog).getByText("Caption").parentElement!;
+    const heading = within(modal).getByText("Caption").parentElement!;
     // Five words over 25 characters: the character rule wins here, so ~7.
     expect(within(heading).getByText("~7 tokens")).toBeInTheDocument();
-    expect(dialog).not.toHaveTextContent("characters");
+    expect(modal).not.toHaveTextContent("characters");
 
     const captionInput = screen.getByLabelText("Caption for sunset.png");
     await user.clear(captionInput);
@@ -296,7 +296,7 @@ describe("IssueResolverModal", () => {
     await waitFor(() => {
       expect(within(heading).getByText("~2 tokens")).toBeInTheDocument();
     });
-    expect(dialog).not.toHaveTextContent("~7 tokens");
+    expect(modal).not.toHaveTextContent("~7 tokens");
   });
 
   it("opens images in the image preview", async () => {
@@ -312,14 +312,14 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for sunset.png",
     });
-    await user.click(within(dialog).getByRole("button", { name: "Open in image preview" }));
+    await user.click(within(modal).getByRole("button", { name: "Open in image preview" }));
 
     await waitFor(() => {
       expect(
-        within(dialog).getByRole("button", { name: "Open in image preview" }),
+        within(modal).getByRole("button", { name: "Open in image preview" }),
       ).not.toBeDisabled();
     });
   });
@@ -339,11 +339,11 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for clip.mp4",
     });
     expect(
-      within(dialog).queryByRole("button", { name: "Open in image preview" }),
+      within(modal).queryByRole("button", { name: "Open in image preview" }),
     ).not.toBeInTheDocument();
   });
 
@@ -362,10 +362,10 @@ describe("IssueResolverModal", () => {
       />,
     );
 
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for clip.mp4",
     });
-    const video = dialog.querySelector("video");
+    const video = modal.querySelector("video");
 
     expect(video).not.toBeNull();
     expect(video).toHaveAttribute("autoplay");
@@ -741,15 +741,15 @@ describe("IssueResolverModal", () => {
     await user.click(screen.getByRole("button", { name: "Back" }));
 
     // The frozen queue still carries the fixes; they now read as work done.
-    const dialog = await screen.findByRole("dialog", {
+    const modal = await screen.findByRole("dialog", {
       name: "Resolve caption issue for car.png",
     });
-    expect(within(dialog).getByText("Applied changes")).toBeInTheDocument();
-    expect(within(dialog).queryByText("Suggested changes")).not.toBeInTheDocument();
-    expect(dialog.querySelector(".issue-resolver-modal__issue-card--resolved")).toBeInTheDocument();
+    expect(within(modal).getByText("Applied changes")).toBeInTheDocument();
+    expect(within(modal).queryByText("Suggested changes")).not.toBeInTheDocument();
+    expect(modal.querySelector(".issue-resolver-modal__issue-card--resolved")).toBeInTheDocument();
 
     // Still editable and re-savable — going back is what makes a bad fix fixable.
-    expect(within(dialog).getByRole("button", { name: "Resolve" })).toBeEnabled();
+    expect(within(modal).getByRole("button", { name: "Resolve" })).toBeEnabled();
   });
 
   it("closes after resolving the final issue", async () => {
