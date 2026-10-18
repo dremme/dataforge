@@ -25,7 +25,11 @@ import { readStoredJson, writeStored } from "@/shared/lib/storage";
 import { Modal, ModalButton } from "@/shared/ui/Modal";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
-import { ModalNavigationPendingContext } from "@/shared/ui/modalNavigationContext";
+import {
+  ModalNavigationContext,
+  ModalNavigationPendingContext,
+} from "@/shared/ui/modalNavigationContext";
+import { useModalNavigationDraft } from "@/shared/hooks/useModalNavigationDraft";
 import type {
   GalleryItem,
   VideoProjectDocument,
@@ -340,6 +344,19 @@ function EditorSession({
   const [attributesOpen, setAttributesOpen] = useState(false);
   const [converting, setConverting] = useState<ReadonlySet<string>>(new Set());
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaveRetrying, setLeaveRetrying] = useState(false);
+  const leaveRetryIdRef = useRef(0);
+  const cancelLeave = useCallback(() => {
+    leaveRetryIdRef.current++;
+    setLeaveRetrying(false);
+    setLeaveOpen(false);
+  }, []);
+  useEffect(
+    () => () => {
+      leaveRetryIdRef.current++;
+    },
+    [],
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [autoPending, setAutoPending] = useState<Set<string>>(new Set());
@@ -352,6 +369,7 @@ function EditorSession({
 
   const clipboard = useEditorClipboard();
   const navigationPending = useContext(ModalNavigationPendingContext);
+  const navigation = useContext(ModalNavigationContext);
   const modalOpen =
     exportOpen || settingsOpen || leaveOpen || deleteOpen || versionsOpen || attributesOpen;
   const locations = useMemo(
@@ -721,15 +739,27 @@ function EditorSession({
   // Back, Forward or any other way out saves first; a failed save asks before going. A reload
   // or a closed tab cannot wait for a save, so the browser asks while one is owed.
   const owesSaveRef = useLatestRef(state.saveState !== "new" && state.saveState !== "saved");
+  useModalNavigationDraft({
+    unsavedChanges: false,
+    blocked: leaveOpen,
+    beforeLeave: confirmLeave,
+  });
   useBlocker({
-    shouldBlockFn: async ({ next }) => next.routeId !== EDITOR_ROUTE && !(await confirmLeave()),
+    shouldBlockFn: ({ next, action }) => {
+      if (
+        next.routeId === EDITOR_ROUTE ||
+        (navigation && action !== "PUSH" && action !== "REPLACE")
+      )
+        return false;
+      return confirmLeave().then((saved) => !saved);
+    },
     enableBeforeUnload: () => owesSaveRef.current,
   });
 
   const draftPath = state.path;
   useEffect(() => {
-    if (draftPath) onRelocate?.({ kind: "project", path: draftPath });
-  }, [draftPath, onRelocate]);
+    if (draftPath && !navigationPending) onRelocate?.({ kind: "project", path: draftPath });
+  }, [draftPath, navigationPending, onRelocate]);
 
   const openDraft = useCallback(
     async (path: string) => {
@@ -1400,17 +1430,30 @@ function EditorSession({
               editor, or leave and lose the changes made since the last save.
             </>
           }
-          onClose={() => setLeaveOpen(false)}
+          onClose={cancelLeave}
           footer={
             <>
-              <ModalButton label="Exit" variant="danger" onClick={onExit} />
-              <ModalButton label="Cancel" variant="secondary" onClick={() => setLeaveOpen(false)} />
+              <ModalButton
+                label="Exit"
+                variant="danger"
+                onClick={() => {
+                  cancelLeave();
+                  onExit();
+                }}
+              />
+              <ModalButton label="Cancel" variant="secondary" onClick={cancelLeave} />
               <ModalButton
                 label={state.saveState === "conflict" ? "Save as new" : "Retry save"}
                 variant="primary"
+                busy={leaveRetrying}
                 onClick={() => {
+                  if (leaveRetrying) return;
+                  const requestId = ++leaveRetryIdRef.current;
+                  setLeaveRetrying(true);
                   const save = state.saveState === "conflict" ? state.saveAsCopy() : state.flush();
                   void save.then((saved) => {
+                    if (requestId !== leaveRetryIdRef.current) return;
+                    setLeaveRetrying(false);
                     if (saved) onExit();
                   });
                 }}

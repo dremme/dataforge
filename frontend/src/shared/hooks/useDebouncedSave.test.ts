@@ -98,6 +98,35 @@ describe("useDebouncedSave", () => {
     expect(save).toHaveBeenLastCalledWith(payload);
     expect(result.current.hasUnsavedChanges(payload)).toBe(false);
   });
+
+  it("keeps a reverted draft dirty while an older write is outstanding", async () => {
+    let finish!: () => void;
+    const save = vi
+      .fn<() => Promise<void>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    const { result } = setupHook({ save });
+    const original = { path: "photo.png", text: "Original caption" };
+    act(() => {
+      result.current.setBaseline(original);
+      result.current.scheduleSave({ ...original, text: "First draft" });
+      void result.current.flushPendingSave();
+      result.current.scheduleSave(original);
+    });
+    expect(result.current.hasUnsavedChanges(original)).toBe(true);
+    await act(async () => {
+      const restoring = result.current.flushPendingSave();
+      finish();
+      expect(await restoring).toBe(true);
+    });
+    expect(save).toHaveBeenLastCalledWith(original);
+    expect(result.current.hasUnsavedChanges(original)).toBe(false);
+  });
   beforeEach(() => {
     vi.useFakeTimers();
   });

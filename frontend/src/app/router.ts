@@ -6,6 +6,7 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { EDITOR_ROUTE, isEditorKind } from "@/features/videoEditor/lib/editorLocation";
+import { installHistoryPopGate } from "@/shared/lib/historyPopGate";
 
 /**
  * The app's two places: the gallery of a folder, and the video editor over the folder of what it
@@ -41,6 +42,7 @@ function pathParam(search: Record<string, unknown>): string | undefined {
 }
 
 export function createAppRouter(history?: RouterHistory) {
+  if (!history && typeof window !== "undefined") installHistoryPopGate();
   const rootRoute = createRootRoute();
   const galleryRoute = createRoute({
     getParentRoute: () => rootRoute,

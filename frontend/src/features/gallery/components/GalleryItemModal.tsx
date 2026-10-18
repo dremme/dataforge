@@ -201,6 +201,7 @@ export function GalleryItemModal({
     flushPendingSave,
     discardCaptionChanges,
     hasUnsavedChanges: captionDirty,
+    isSaving: isCaptionSaving,
   } = useGalleryItemCaption({ item, onCaptionSaved });
   const backupCaption = useCaptionBackup(item?.path, hasCaptionBackup);
   const captionCompletions = useMemo(() => buildCaptionVocabulary(items), [items]);
@@ -296,7 +297,8 @@ export function GalleryItemModal({
   const gifToMp4 = useGifToMp4({ item, onConverted: onCopied });
 
   const { transferPicker, overwritePrompt, transferring } = transfer;
-  const otherWorkBusy = deleting || renaming || transferring !== null || gifToMp4.converting;
+  const otherWorkBusy =
+    leaving || deleting || renaming || transferring !== null || gifToMp4.converting;
   const busy = otherWorkBusy || frameCapture.saving || videoEdit.applying || imageEdit.applying;
   const navigationPending = useContext(ModalNavigationPendingContext);
   const otherOverlayOpen =
@@ -332,6 +334,10 @@ export function GalleryItemModal({
   const flushAndLeave = useCallback(
     async (action: WorkspaceAction) => {
       if (busy || leavingRef.current) return;
+      if (!captionDirty) {
+        await action();
+        return;
+      }
       leavingRef.current = true;
       setLeaving(true);
       const saved = await flushPendingSave();
@@ -346,7 +352,7 @@ export function GalleryItemModal({
       setLeaveFailed(false);
       await action();
     },
-    [busy, flushPendingSave],
+    [busy, captionDirty, flushPendingSave],
   );
   const resetEditDraft = activeEdit.resetDraft;
   const leave = useCallback(
@@ -663,7 +669,7 @@ export function GalleryItemModal({
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
 
   return (
-    <>
+    <ModalNavigationPendingContext.Provider value={navigationPending || leaving}>
       <ModalShell
         block="gallery-item-modal"
         label={`Viewing ${item.name}`}
@@ -1306,8 +1312,9 @@ export function GalleryItemModal({
                     <button
                       type="button"
                       className="workspace-button"
-                      disabled={leaving}
+                      disabled={leaving || isCaptionSaving()}
                       onClick={() => {
+                        if (isCaptionSaving()) return;
                         const action = pendingActionRef.current;
                         pendingActionRef.current = null;
                         discardCaptionChanges();
@@ -1471,6 +1478,6 @@ export function GalleryItemModal({
           onCancel={transfer.closeOverwritePrompt}
         />
       )}
-    </>
+    </ModalNavigationPendingContext.Provider>
   );
 }

@@ -9,6 +9,7 @@ import {
   type RefObject,
 } from "react";
 import { useRouter } from "@tanstack/react-router";
+import { registerHistoryPopGuard } from "@/shared/lib/historyPopGate";
 import { DiscardChangesModal } from "./Modal";
 import {
   ModalNavigationContext,
@@ -43,6 +44,52 @@ export function ModalNavigationProvider({ children }: { children: ReactNode }) {
   };
 
   useLayoutEffect(() => {
+    let targetIndex: number | null = null;
+    let restoring: Promise<void> | null = null;
+    let finishRestore: (() => void) | null = null;
+    let previousDistance = 0;
+    let rollbackIndex: number | null = null;
+    const finishNavigation = () => {
+      discardRef.current = [];
+      targetIndex = null;
+      phaseRef.current = null;
+      setNavigating(false);
+      // Folder subscribers may invoke the gallery's leave guard during this same transition.
+      queueMicrotask(() => {
+        approvedHrefRef.current = null;
+      });
+    };
+    const holdDestination = (event: PopStateEvent) => {
+      const index = window.history.state?.__TSR_index;
+      if (typeof index !== "number") return;
+      if (rollbackIndex !== null) {
+        if (index === rollbackIndex) {
+          rollbackIndex = null;
+          finishNavigation();
+        }
+        return;
+      }
+      if (targetIndex === null) return;
+      // A second native traversal must not roll the first blocker back to its source entry.
+      event.stopImmediatePropagation();
+      if (index === targetIndex) {
+        const resolve = finishRestore;
+        finishRestore = null;
+        restoring = null;
+        resolve?.();
+      } else {
+        const distance = Math.abs(targetIndex - index);
+        const restore = !restoring || distance < previousDistance;
+        if (!restoring)
+          restoring = new Promise<void>((resolve) => {
+            finishRestore = resolve;
+          });
+        previousDistance = distance;
+        // More queued Back/Forward presses can move the starting point of our correction.
+        if (restore) window.history.go(targetIndex - index);
+      }
+    };
+    const removePopGuard = registerHistoryPopGuard(holdDestination);
     const unblock = history.block({
       blockerFn: async ({ action, currentLocation, nextLocation }) => {
         // Pushes go through their action's guard; replaces also update saved editor addresses.
@@ -52,6 +99,9 @@ export function ModalNavigationProvider({ children }: { children: ReactNode }) {
         if (phaseRef.current || drafts.some((draft) => draft.current.blocked)) return true;
         if (drafts.length === 0) return false;
         phaseRef.current = "guard";
+        if (typeof window.history.state?.__TSR_index === "number") {
+          targetIndex = nextLocation.state.__TSR_index;
+        }
         setNavigating(true);
         const saved = new Set<RefObject<ModalNavigationDraft>>();
         for (const draft of drafts) {
@@ -66,14 +116,27 @@ export function ModalNavigationProvider({ children }: { children: ReactNode }) {
             pendingRef.current = resolve;
             setConfirming(true);
           }));
-        if (discard) {
+        let leave = discard;
+        if (leave) {
+          for (const draft of drafts) {
+            if (draft.current.beforeLeave && !(await draft.current.beforeLeave())) {
+              leave = false;
+              break;
+            }
+          }
+        }
+        await restoring;
+        restoring = null;
+        if (leave) {
           approvedHrefRef.current = nextLocation.href;
           discardRef.current = dirty.flatMap((draft) =>
             draft.current.onDiscard ? [draft.current.onDiscard] : [],
           );
+        } else {
+          targetIndex = null;
         }
         phaseRef.current = "handoff";
-        return !discard;
+        return !leave;
       },
       enableBeforeUnload: () =>
         [...draftsRef.current].some((draft) => draft.current.unsavedChanges),
@@ -85,17 +148,19 @@ export function ModalNavigationProvider({ children }: { children: ReactNode }) {
       if (approvedHrefRef.current === history.location.href) {
         for (const discard of discardRef.current) discard();
       }
-      discardRef.current = [];
-      phaseRef.current = null;
-      setNavigating(false);
-      // Folder subscribers may invoke the gallery's leave guard during this same transition.
-      queueMicrotask(() => {
-        approvedHrefRef.current = null;
-      });
+      const index = window.history.state?.__TSR_index;
+      if (typeof index === "number" && index !== history.location.state.__TSR_index) {
+        // A rejected pop notifies before the native rollback reaches the source entry.
+        rollbackIndex = history.location.state.__TSR_index;
+        return;
+      }
+      finishNavigation();
     });
     return () => {
       unblock();
       unsubscribe();
+      removePopGuard();
+      finishRestore?.();
     };
   }, [history]);
 

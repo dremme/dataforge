@@ -184,6 +184,7 @@ export function useDebouncedSave<T>({
 
   const hasUnsavedChanges = useCallback(
     (current: T) => {
+      if (inFlightRef.current) return true;
       const pending = pendingSaveRef.current;
       const baseline = lastSavedRef.current;
 
@@ -206,6 +207,8 @@ export function useDebouncedSave<T>({
     };
   }, [clearFeedbackTimer, flushPendingSave, invalidate]);
 
+  const isSaving = useCallback(() => inFlightRef.current !== null, []);
+
   return {
     saveState,
     saveError,
@@ -216,5 +219,6 @@ export function useDebouncedSave<T>({
     invalidateInFlight,
     hasUnsavedChanges,
     discardPendingSave,
+    isSaving,
   };
 }
