@@ -19,6 +19,23 @@ async function openAppearance(onClose = vi.fn<() => void>()) {
 }
 
 describe("SettingsModal: appearance", () => {
+  it("keeps a preview when dismissal is cancelled and closes directly after undoing the edit", async () => {
+    const { user, onClose } = await openAppearance();
+    const original = screen.getByRole("radio", { checked: true });
+
+    await user.click(screen.getByRole("radio", { name: /^Light/ }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onClose).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(screen.getByRole("radio", { name: /^Light/ })).toBeChecked();
+
+    await user.click(original);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("alertdialog", { name: "Discard changes?" })).not.toBeInTheDocument();
+  });
+
   it("previews a scheme live and drops the preview when closed unsaved", async () => {
     const { unmount, user } = await openAppearance();
 

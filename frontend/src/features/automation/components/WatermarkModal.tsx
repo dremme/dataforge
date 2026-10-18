@@ -76,6 +76,13 @@ export function WatermarkModal({
 
   return (
     <Modal
+      unsavedChanges={
+        text !== initialSettings.text ||
+        size !== initialSettings.size ||
+        opacity !== initialSettings.opacity ||
+        position !== initialSettings.position ||
+        stripMetadata !== initialSettings.strip_metadata
+      }
       scope={scope}
       title="Add watermark?"
       description={

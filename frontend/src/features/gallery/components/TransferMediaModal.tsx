@@ -360,6 +360,7 @@ export function TransferMediaModal({
 
   return (
     <Modal
+      unsavedChanges={selectedPath !== ""}
       title={modeCopy.title}
       scope={scope}
       description={

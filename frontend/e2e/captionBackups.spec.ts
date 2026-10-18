@@ -32,6 +32,10 @@ for (const job of ["Find & replace", "Edit captions"] as const) {
         await backupLabel.click();
         await expect(checkbox).not.toBeChecked();
         await modal.getByRole("button", { name: "Cancel", exact: true }).click();
+        await page
+          .getByRole("alertdialog", { name: "Discard changes?" })
+          .getByRole("button", { name: "Discard", exact: true })
+          .click();
         await page.getByRole("button", { name: "Tools", exact: true }).click();
         await page.getByRole("menuitem", { name: new RegExp(job) }).click();
         await expect(checkbox).toBeChecked();

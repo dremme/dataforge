@@ -76,6 +76,28 @@ describe("useDebouncedSave", () => {
     });
     expect(save.mock.calls.map(([payload]) => payload.text)).toEqual(["First", "Second"]);
   });
+
+  it("can retry the failed payload when an explicit action flushes it again", async () => {
+    const save = vi
+      .fn<(payload: Payload) => Promise<void>>()
+      .mockRejectedValueOnce(new Error("Write failed"))
+      .mockResolvedValue(undefined);
+    const { result } = setupHook({ save });
+    const payload = { path: "photo.png", text: "Edited caption" };
+    act(() => {
+      result.current.setBaseline({ ...payload, text: "Original caption" });
+      result.current.scheduleSave(payload);
+    });
+    await act(async () => {
+      expect(await result.current.flushPendingSave()).toBe(false);
+    });
+    await act(async () => {
+      expect(await result.current.flushPendingSave(true)).toBe(true);
+    });
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith(payload);
+    expect(result.current.hasUnsavedChanges(payload)).toBe(false);
+  });
   beforeEach(() => {
     vi.useFakeTimers();
   });

@@ -102,6 +102,13 @@ export function EditCaptionsModal({
 
   return (
     <Modal
+      unsavedChanges={
+        mode !== initialSettings.mode ||
+        instruction !== initialSettings.instruction ||
+        reasoningEffort !== initialSettings.reasoning_effort ||
+        preserveThinking !== initialSettings.preserve_thinking ||
+        !backup
+      }
       scope={scope}
       title="Start edit captions?"
       description={

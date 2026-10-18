@@ -96,26 +96,32 @@ export function useDebouncedSave<T>({
     [clearFeedbackTimer, errorMessage, isCurrent, next, saveRef, showError, showSaved],
   );
 
-  const flushPendingSave = useCallback(() => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
+  const flushPendingSave = useCallback(
+    (retryFailed = false) => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
 
-    const pending = pendingSaveRef.current;
-    const baseline = lastSavedRef.current;
+      const pending = pendingSaveRef.current;
+      const baseline = lastSavedRef.current;
 
-    if (
-      !pending ||
-      (!inFlightRef.current && baseline !== null && isUnchangedRef.current(pending, baseline))
-    ) {
+      if (
+        !pending ||
+        (!inFlightRef.current && baseline !== null && isUnchangedRef.current(pending, baseline))
+      ) {
+        pendingSaveRef.current = null;
+        if (!inFlightRef.current && retryFailed && failedSaveRef.current !== null) {
+          return persist(failedSaveRef.current);
+        }
+        return inFlightRef.current ?? Promise.resolve(failedSaveRef.current === null);
+      }
+
       pendingSaveRef.current = null;
-      return inFlightRef.current ?? Promise.resolve(failedSaveRef.current === null);
-    }
-
-    pendingSaveRef.current = null;
-    return persist(pending);
-  }, [isUnchangedRef, persist]);
+      return persist(pending);
+    },
+    [isUnchangedRef, persist],
+  );
 
   const scheduleSave = useCallback(
     (payload: T) => {

@@ -1,4 +1,12 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import {
+  useContext,
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { ModalNavigationPendingContext } from "./modalNavigationContext";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "@/shared/hooks/useModalFocus";
 import { useEditorOverlayEscape } from "@/shared/hooks/useEditorOverlayEscape";
@@ -12,6 +20,8 @@ import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import type { ScrollLockClass } from "@/shared/hooks/scrollLockManager";
 import { classNames } from "@/shared/lib/classNames";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import type { GuardedAction } from "@/shared/hooks/useDiscardChanges";
+import { ModalCancelContext } from "./modalCancelContext";
 
 /** `bubble` is window-level; `editor` is capture-phase so the find panel gets first refusal. */
 export type ModalEscape = "bubble" | "editor" | "none";
@@ -31,6 +41,7 @@ interface ModalShellProps {
   describedById?: string;
 
   onClose: () => void;
+  onCancelAction?: (action: GuardedAction) => Promise<void>;
   busy?: boolean;
   /** Suspends the focus trap; `inert` does not, as the trap keys off `aria-hidden`. */
   suspended?: boolean;
@@ -62,8 +73,9 @@ export function ModalShell({
   labelledById,
   describedById,
   onClose,
+  onCancelAction,
   busy = false,
-  suspended = false,
+  suspended: locallySuspended = false,
   escape = "bubble",
   scrollLock,
   nested,
@@ -77,6 +89,8 @@ export function ModalShell({
   inline = false,
   style,
 }: ModalShellProps) {
+  const navigationPending = useContext(ModalNavigationPendingContext);
+  const suspended = navigationPending || locallySuspended;
   const fallbackRef = useRef<HTMLDivElement>(null);
   const resolvedPanelRef = panelRef ?? fallbackRef;
 
@@ -114,7 +128,13 @@ export function ModalShell({
 
   if (inline)
     return (
-      <aside className={`${block} ${block}--inline`} aria-label={label} style={style}>
+      <aside
+        className={`${block} ${block}--inline`}
+        aria-label={label}
+        style={style}
+        aria-hidden={navigationPending || undefined}
+        inert={navigationPending}
+      >
         <div ref={resolvedPanelRef} className={`${block}__panel`} tabIndex={-1}>
           {children}
         </div>
@@ -158,7 +178,9 @@ export function ModalShell({
         tabIndex={-1}
         data-scroll-lock-allow
       >
-        {children}
+        <ModalCancelContext.Provider value={onCancelAction ?? null}>
+          {children}
+        </ModalCancelContext.Provider>
       </Panel>
     </div>,
     document.body,

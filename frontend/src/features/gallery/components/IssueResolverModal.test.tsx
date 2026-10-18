@@ -711,6 +711,31 @@ describe("IssueResolverModal", () => {
     expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
   });
 
+  it.each(["Back", "Skip"])("asks before %s discards caption edits", async (action) => {
+    const user = userEvent.setup();
+    const onIndexChange = vi.fn<(index: number) => void>();
+    render(
+      <IssueResolverModal
+        items={[makeIssueItem("car.png"), makeIssueItem("boat.png"), makeIssueItem("lake.png")]}
+        index={1}
+        onClose={vi.fn<() => void>()}
+        onIndexChange={onIndexChange}
+        onCaptionSaved={vi.fn<Parameters<typeof IssueResolverModal>[0]["onCaptionSaved"]>()}
+      />,
+    );
+    const caption = await screen.findByRole("textbox", { name: "Caption for boat.png" });
+    await user.clear(caption);
+    await user.type(caption, "An edited caption.");
+    await user.click(screen.getByRole("button", { name: action }));
+    await screen.findByRole("alertdialog", { name: "Discard changes?" });
+    expect(onIndexChange).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(caption).toHaveValue("An edited caption.");
+    await user.click(screen.getByRole("button", { name: action }));
+    await user.click(await screen.findByRole("button", { name: "Discard" }));
+    expect(onIndexChange).toHaveBeenCalledExactlyOnceWith(action === "Back" ? 0 : 2);
+  });
+
   it("presents an item resolved earlier in the session as settled, not outstanding", async () => {
     const user = userEvent.setup();
     const items = [

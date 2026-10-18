@@ -55,6 +55,12 @@ export function AutoCaptionModal({
 
   return (
     <Modal
+      unsavedChanges={
+        mode !== initialSettings.mode ||
+        captionAudio !== initialSettings.caption_audio ||
+        reasoningEffort !== initialSettings.reasoning_effort ||
+        preserveThinking !== initialSettings.preserve_thinking
+      }
       scope={scope}
       title="Start auto-caption?"
       description={

@@ -8,6 +8,7 @@ interface RenameModalProps {
   /** What the field starts with: a folder's name, or a file's name before its extension. */
   initialName: string;
   busy?: boolean;
+  suspended?: boolean;
   error?: string | null;
   onConfirm: (name: string) => void;
   onCancel: () => void;
@@ -19,6 +20,7 @@ export function RenameModal({
   fieldLabel,
   initialName,
   busy = false,
+  suspended = false,
   error = null,
   onConfirm,
   onCancel,
@@ -38,10 +40,12 @@ export function RenameModal({
 
   return (
     <Modal
+      unsavedChanges={name !== initialName}
       title={title}
       description={description}
       panelClassName="rename-modal"
       busy={busy}
+      suspended={suspended}
       onConfirm={handleConfirm}
       onClose={onCancel}
       initialFocusRef={inputRef}

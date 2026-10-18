@@ -159,6 +159,14 @@ export function ReplaceCaptionsModal({
 
   return (
     <Modal
+      unsavedChanges={
+        mode !== initialSettings.mode ||
+        search !== initialSettings.search ||
+        replacement !== initialSettings.replacement ||
+        useRegex !== initialSettings.use_regex ||
+        caseSensitive !== initialSettings.case_sensitive ||
+        !backup
+      }
       scope={scope}
       title="Find and replace in captions?"
       description={

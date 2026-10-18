@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -24,6 +25,7 @@ import { readStoredJson, writeStored } from "@/shared/lib/storage";
 import { Modal, ModalButton } from "@/shared/ui/Modal";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
+import { ModalNavigationPendingContext } from "@/shared/ui/modalNavigationContext";
 import type {
   GalleryItem,
   VideoProjectDocument,
@@ -349,6 +351,7 @@ function EditorSession({
   const mediaProblems = useMediaProblems(engine);
 
   const clipboard = useEditorClipboard();
+  const navigationPending = useContext(ModalNavigationPendingContext);
   const modalOpen =
     exportOpen || settingsOpen || leaveOpen || deleteOpen || versionsOpen || attributesOpen;
   const locations = useMemo(
@@ -1322,70 +1325,72 @@ function EditorSession({
         </section>
       </div>
 
-      {exportOpen && (
-        <ExportModal
-          project={project}
-          range={range}
-          selectionSpan={
-            selectedClips.length > 0
-              ? {
-                  start: Math.min(...selectedClips.map((clip) => clip.start)),
-                  end: Math.max(...selectedClips.map(clipEnd)),
-                }
-              : null
-          }
-          busy={exportBusy}
-          error={exportError}
-          blocked={exportBlocked}
-          onExport={(settings, span) => void startExport(settings, span)}
-          onCancel={() => setExportOpen(false)}
-        />
-      )}
-      {deleteOpen && state.path && (
-        <DeleteVideoProjectModal
-          name={project.name}
-          onClose={() => setDeleteOpen(false)}
-          onDelete={async () => {
-            const path = state.path;
-            if (!path) return;
-            engine.pause();
-            // Pending edits land first, so no save can write the file back after it is gone.
-            await state.flush();
-            await deleteVideoProject(path);
-            onExit();
-          }}
-        />
-      )}
-      {attributesOpen && attributeDonor && (
-        <PasteAttributesModal
-          donorLabel={clipLabel(project, attributeDonor)}
-          targetCount={selectedClips.length}
-          groups={attributeGroups}
-          onCancel={() => setAttributesOpen(false)}
-          onPaste={(groups: AttributeGroup[]) => {
-            if (apply(pasteAttributes(project, selection, attributeDonor, groups))) {
-              setAttributesOpen(false);
+      <ModalNavigationPendingContext.Provider value={navigationPending || leaveOpen}>
+        {exportOpen && (
+          <ExportModal
+            project={project}
+            range={range}
+            selectionSpan={
+              selectedClips.length > 0
+                ? {
+                    start: Math.min(...selectedClips.map((clip) => clip.start)),
+                    end: Math.max(...selectedClips.map(clipEnd)),
+                  }
+                : null
             }
-          }}
-        />
-      )}
-      {versionsOpen && (
-        <VersionsModal
-          project={project}
-          onRestore={restoreVersion}
-          onClose={() => setVersionsOpen(false)}
-        />
-      )}
-      {settingsOpen && (
-        <ProjectSettingsModal
-          project={project}
-          onCancel={() => setSettingsOpen(false)}
-          onSave={(patch) => {
-            state.commit({ ...project, ...patch });
-            setSettingsOpen(false);
-          }}
-        />
-      )}
+            busy={exportBusy}
+            error={exportError}
+            blocked={exportBlocked}
+            onExport={(settings, span) => void startExport(settings, span)}
+            onCancel={() => setExportOpen(false)}
+          />
+        )}
+        {deleteOpen && state.path && (
+          <DeleteVideoProjectModal
+            name={project.name}
+            onClose={() => setDeleteOpen(false)}
+            onDelete={async () => {
+              const path = state.path;
+              if (!path) return;
+              engine.pause();
+              // Pending edits land first, so no save can write the file back after it is gone.
+              await state.flush();
+              await deleteVideoProject(path);
+              onExit();
+            }}
+          />
+        )}
+        {attributesOpen && attributeDonor && (
+          <PasteAttributesModal
+            donorLabel={clipLabel(project, attributeDonor)}
+            targetCount={selectedClips.length}
+            groups={attributeGroups}
+            onCancel={() => setAttributesOpen(false)}
+            onPaste={(groups: AttributeGroup[]) => {
+              if (apply(pasteAttributes(project, selection, attributeDonor, groups))) {
+                setAttributesOpen(false);
+              }
+            }}
+          />
+        )}
+        {versionsOpen && (
+          <VersionsModal
+            project={project}
+            onRestore={restoreVersion}
+            onClose={() => setVersionsOpen(false)}
+          />
+        )}
+        {settingsOpen && (
+          <ProjectSettingsModal
+            project={project}
+            onCancel={() => setSettingsOpen(false)}
+            onSave={(patch) => {
+              state.commit({ ...project, ...patch });
+              setSettingsOpen(false);
+            }}
+          />
+        )}
+      </ModalNavigationPendingContext.Provider>
       {leaveOpen && (
         <Modal
           title="Your latest changes are not saved"

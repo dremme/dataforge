@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -11,6 +12,10 @@ import type { WorkspaceAction, WorkspaceTransition } from "@/app/hooks/useWorksp
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { readStored, writeStored } from "@/shared/lib/storage";
 import { ModalShell } from "@/shared/ui/ModalShell";
+import { DiscardChangesModal } from "@/shared/ui/Modal";
+import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
+import { useModalNavigationDraft } from "@/shared/hooks/useModalNavigationDraft";
+import { ModalNavigationPendingContext } from "@/shared/ui/modalNavigationContext";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { matchesShortcut, queueIndexAfter, queueStepFor, SHORTCUTS } from "@/shared/lib/shortcuts";
@@ -195,6 +200,7 @@ export function GalleryItemModal({
     retrySave,
     flushPendingSave,
     discardCaptionChanges,
+    hasUnsavedChanges: captionDirty,
   } = useGalleryItemCaption({ item, onCaptionSaved });
   const backupCaption = useCaptionBackup(item?.path, hasCaptionBackup);
   const captionCompletions = useMemo(() => buildCaptionVocabulary(items), [items]);
@@ -292,7 +298,38 @@ export function GalleryItemModal({
   const { transferPicker, overwritePrompt, transferring } = transfer;
   const otherWorkBusy = deleting || renaming || transferring !== null || gifToMp4.converting;
   const busy = otherWorkBusy || frameCapture.saving || videoEdit.applying || imageEdit.applying;
-  const leave = useCallback(
+  const navigationPending = useContext(ModalNavigationPendingContext);
+  const otherOverlayOpen =
+    navigationPending ||
+    suspended ||
+    deleteConfirmOpen ||
+    renameOpen ||
+    revertConfirmOpen ||
+    comfyWorkflowOpen ||
+    transfer.transferModalOpen ||
+    gifToMp4.conflict !== null;
+  const activeEdit = item && isEditableVideo(item) ? videoEdit : imageEdit;
+  const unsavedEdits = editMode && (activeEdit.dirty || activeEdit.adjust.autoPending);
+  useModalNavigationDraft({
+    unsavedChanges: captionDirty,
+    blocked: busy,
+    save: () => flushPendingSave(true),
+    onDiscard: discardCaptionChanges,
+  });
+  const discard = useDiscardChanges(
+    unsavedEdits,
+    busy || otherOverlayOpen,
+    busy,
+    activeEdit.resetDraft,
+  );
+  const { request: requestDiscard } = discard;
+  const renameDiscard = useDiscardChanges(
+    unsavedEdits,
+    busy || navigationPending || (otherOverlayOpen && !renameOpen),
+    busy,
+  );
+  const { request: requestRename } = renameDiscard;
+  const flushAndLeave = useCallback(
     async (action: WorkspaceAction) => {
       if (busy || leavingRef.current) return;
       leavingRef.current = true;
@@ -311,6 +348,15 @@ export function GalleryItemModal({
     },
     [busy, flushPendingSave],
   );
+  const resetEditDraft = activeEdit.resetDraft;
+  const leave = useCallback(
+    (action: WorkspaceAction) =>
+      requestDiscard(async () => {
+        if (unsavedEdits) resetEditDraft();
+        await flushAndLeave(action);
+      }),
+    [requestDiscard, flushAndLeave, resetEditDraft, unsavedEdits],
+  );
 
   useEffect(() => {
     if (!transitionRef) return;
@@ -320,14 +366,7 @@ export function GalleryItemModal({
     };
   }, [leave, transitionRef]);
   // Frame mode stays out: this feeds ModalShell.suspended, which would make the slider inert.
-  const childOverlayOpen =
-    suspended ||
-    deleteConfirmOpen ||
-    renameOpen ||
-    revertConfirmOpen ||
-    comfyWorkflowOpen ||
-    transfer.transferModalOpen ||
-    gifToMp4.conflict !== null;
+  const childOverlayOpen = otherOverlayOpen || discard.confirming || renameDiscard.confirming;
   const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
 
   // Transfer state stays out: a move advances the item while finally is pending, re-enabling early.
@@ -361,19 +400,29 @@ export function GalleryItemModal({
 
   // Editing and capture expand the view through `inline` below; the saved layout stays put.
   const toggleFrameMode = useCallback(() => {
-    setEditMode(false);
-    frameCapture.toggleFrameMode();
-  }, [frameCapture]);
+    void requestDiscard(() => {
+      setEditMode(false);
+      frameCapture.toggleFrameMode();
+    });
+  }, [requestDiscard, frameCapture]);
 
   const toggleVideoEditMode = useCallback(() => {
-    setFrameMode(false);
-    videoEdit.toggleEditMode();
-  }, [videoEdit]);
+    void requestDiscard(() => {
+      setFrameMode(false);
+      videoEdit.toggleEditMode();
+    });
+  }, [requestDiscard, videoEdit]);
 
   const toggleImageEditMode = useCallback(() => {
-    setFrameMode(false);
-    imageEdit.toggleEditMode();
-  }, [imageEdit]);
+    void requestDiscard(() => {
+      setFrameMode(false);
+      imageEdit.toggleEditMode();
+    });
+  }, [requestDiscard, imageEdit]);
+
+  const exitEditMode = useCallback(() => {
+    void requestDiscard(activeEdit.exitEditMode);
+  }, [activeEdit.exitEditMode, requestDiscard]);
 
   const { copyState, copyLabel, copyText } = useCopyFeedback();
 
@@ -405,29 +454,30 @@ export function GalleryItemModal({
   }, [renaming]);
 
   const confirmRename = useCallback(
-    async (name: string) => {
-      if (!item || renaming) return;
+    (name: string) =>
+      requestRename(async () => {
+        if (!item || renaming) return;
 
-      setRenaming(true);
-      setRenameError(null);
-      // A caption saved after the rename would write a file under the old name.
-      if (!(await flushPendingSave())) {
-        setRenaming(false);
-        setRenameOpen(false);
-        return;
-      }
+        setRenaming(true);
+        setRenameError(null);
+        // A caption saved after the rename would write a file under the old name.
+        if (!(await flushPendingSave(true))) {
+          setRenaming(false);
+          setRenameError("The caption could not be saved. Try renaming again to retry the save.");
+          return;
+        }
 
-      try {
-        const result = await renameMedia(item.path, name);
-        setRenameOpen(false);
-        onRenamed?.(item.path, result.destination);
-      } catch (error) {
-        setRenameError(formatApiError(error));
-      } finally {
-        setRenaming(false);
-      }
-    },
-    [flushPendingSave, item, onRenamed, renaming],
+        try {
+          const result = await renameMedia(item.path, name);
+          setRenameOpen(false);
+          onRenamed?.(item.path, result.destination);
+        } catch (error) {
+          setRenameError(formatApiError(error));
+        } finally {
+          setRenaming(false);
+        }
+      }),
+    [requestRename, flushPendingSave, item, onRenamed, renaming],
   );
 
   const handleResolveIssue = useCallback(() => {
@@ -505,9 +555,13 @@ export function GalleryItemModal({
 
   useEffect(() => {
     const goToStep = (step: NonNullable<ReturnType<typeof queueStepFor>>) => {
+      if (items.length < 2) return;
       if (step === "previous") void leave(onPrevious);
       else if (step === "next") void leave(onNext);
-      else if (onGoTo) void leave(() => onGoTo(queueIndexAfter(step, index, items.length)));
+      else {
+        const target = queueIndexAfter(step, index, items.length);
+        if (onGoTo && target !== index) void leave(() => onGoTo(target));
+      }
     };
     const handleKey = (event: KeyboardEvent) => {
       if (childOverlayOpen || busy) return;
@@ -539,7 +593,8 @@ export function GalleryItemModal({
       // First: the caption editor, where this gets pressed, has already prevented the default.
       if (matchesShortcut(event, SHORTCUTS.saveAndNext)) {
         event.preventDefault();
-        void leave(onNext);
+        if (items.length > 1) void leave(onNext);
+        else void flushPendingSave();
         return;
       }
       // A mask surface claims arrows and Delete by preventing the default.
@@ -577,6 +632,7 @@ export function GalleryItemModal({
     leave,
     inline,
     frameCapture.frameMode,
+    flushPendingSave,
     index,
     items.length,
     onGoTo,
@@ -586,9 +642,8 @@ export function GalleryItemModal({
   ]);
 
   // In frame/edit mode Escape steps back to viewing; ModalShell stands down via escape="none".
-  useEscapeKey(frameCapture.exitFrameMode, frameCapture.frameMode && !busy);
-  useEscapeKey(videoEdit.exitEditMode, editMode && canEditVideoItem && !busy);
-  useEscapeKey(imageEdit.exitEditMode, editMode && canEditImageItem && !busy);
+  useEscapeKey(frameCapture.exitFrameMode, frameCapture.frameMode && !busy && !childOverlayOpen);
+  useEscapeKey(exitEditMode, editing && !busy && !childOverlayOpen);
 
   if (!item) return null;
 
@@ -802,7 +857,7 @@ export function GalleryItemModal({
                   <button
                     type="button"
                     className="gallery-item-modal__copy"
-                    onClick={() => void leave(() => transfer.openTransferPicker("copy"))}
+                    onClick={() => void flushAndLeave(() => transfer.openTransferPicker("copy"))}
                     disabled={busy}
                     aria-busy={transferring === "copy" || undefined}
                     aria-label={`Copy ${item.name} to another folder`}
@@ -1279,6 +1334,16 @@ export function GalleryItemModal({
           </>
         )}
       </ModalShell>
+      {discard.confirming && (
+        <DiscardChangesModal onDiscard={discard.discard} onKeepEditing={discard.keepEditing} />
+      )}
+      {renameDiscard.confirming && (
+        <DiscardChangesModal
+          description="Your unapplied media edits will be lost when this file is renamed."
+          onDiscard={renameDiscard.discard}
+          onKeepEditing={renameDiscard.keepEditing}
+        />
+      )}
 
       {deleteConfirmOpen && (
         <ConfirmModal
@@ -1320,6 +1385,7 @@ export function GalleryItemModal({
           fieldLabel="File name"
           initialName={nameParts.stem}
           busy={renaming}
+          suspended={renameDiscard.confirming}
           error={renameError}
           onConfirm={(name) => {
             void confirmRename(name);

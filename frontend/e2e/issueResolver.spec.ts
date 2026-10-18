@@ -1,8 +1,44 @@
-import { copyFile, mkdtemp, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import { WORKSPACE } from "./workspace";
 import type { Page } from "@playwright/test";
+
+for (const action of ["Back", "Skip"]) {
+  test(`${action} asks before discarding a caption draft`, async ({ page }) => {
+    const folder = await mkdtemp(path.join(WORKSPACE, "issue-drafts-"));
+    for (const name of ["first", "second", "third"]) {
+      await copyFile(path.join(WORKSPACE, "photo.png"), path.join(folder, `${name}.png`));
+      await writeFile(path.join(folder, `${name}.txt`), `Original ${name} caption.`);
+      await writeFile(
+        path.join(folder, `${name}.png.issue.json`),
+        JSON.stringify({ fixes: ["Describe the scene more precisely."], rules: [] }),
+      );
+    }
+    await page.goto(`/?path=${encodeURIComponent(folder)}`);
+    await page.getByRole("button", { name: /^Review/ }).click();
+    await page.getByRole("menuitem", { name: /^Caption issues/ }).click();
+    let modal = page.getByRole("dialog", { name: "Resolve caption issue for first.png" });
+    await modal.getByRole("button", { name: "Skip", exact: true }).click();
+    modal = page.getByRole("dialog", { name: "Resolve caption issue for second.png" });
+    const caption = modal.getByRole("textbox", { name: "Caption for second.png" });
+    await caption.fill("An unsaved caption draft.");
+    await modal.getByRole("button", { name: action, exact: true }).click();
+    const confirmation = page.getByRole("alertdialog", { name: "Discard changes?" });
+    await expect(confirmation).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(caption).toHaveText("An unsaved caption draft.");
+    await modal.getByRole("button", { name: action, exact: true }).click();
+    await confirmation.getByRole("button", { name: "Discard", exact: true }).click();
+    const next = action === "Back" ? "first" : "third";
+    await expect(
+      page.getByRole("dialog", { name: `Resolve caption issue for ${next}.png` }),
+    ).toBeVisible();
+    expect(await readFile(path.join(folder, "second.txt"), "utf8")).toBe(
+      "Original second caption.",
+    );
+  });
+}
 
 async function openIssueResolver(page: Page, rules: string[] = []) {
   const folder = await mkdtemp(path.join(WORKSPACE, "issue-resolver-"));

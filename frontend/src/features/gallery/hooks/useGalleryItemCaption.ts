@@ -224,6 +224,7 @@ export function useGalleryItemCaption({
     saveState,
     saveError,
     canRevert: caption.trim() !== openedCaption.trim(),
+    hasUnsavedChanges: item ? hasUnsavedChanges({ path: item.path, text: caption.trim() }) : false,
     handleCaptionChange,
     revertCaption,
     retrySave,

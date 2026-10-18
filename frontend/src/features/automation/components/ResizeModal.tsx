@@ -85,6 +85,11 @@ export function ResizeModal({
 
   return (
     <Modal
+      unsavedChanges={
+        megapixels !== String(initialSettings.megapixels) ||
+        multiple !== String(initialSettings.multiple) ||
+        reset
+      }
       scope={scope}
       title={reset ? "Reset size?" : "Resize media?"}
       description={

@@ -11,6 +11,7 @@ import { EditorOptionsContext } from "@/shared/preferences/editorPreferences";
 import { useUiSettings } from "@/shared/preferences/uiPreferences";
 import { createQueryClient } from "@/shared/query/queryClient";
 import { useThemeSync } from "@/shared/theme/theme";
+import { ModalNavigationProvider } from "@/shared/ui/ModalNavigationProvider";
 
 function ThemeSync() {
   useThemeSync();
@@ -34,10 +35,12 @@ export default function App() {
           <NotificationsProvider>
             <JobsProvider>
               <RouterContextProvider router={router}>
-                {/* Resolves each new location; the routes render nothing of their own. */}
-                <Matches />
-                <AppContent />
-                <BackendUnavailable />
+                <ModalNavigationProvider>
+                  {/* Resolves each new location; the routes render nothing of their own. */}
+                  <Matches />
+                  <AppContent />
+                  <BackendUnavailable />
+                </ModalNavigationProvider>
               </RouterContextProvider>
             </JobsProvider>
           </NotificationsProvider>

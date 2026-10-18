@@ -25,6 +25,7 @@ export function PasteAttributesModal({
   };
   return (
     <Modal
+      unsavedChanges={chosen.size !== groups.length}
       title="Paste attributes"
       description={
         <>

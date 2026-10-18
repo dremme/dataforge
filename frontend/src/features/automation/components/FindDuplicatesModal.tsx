@@ -35,6 +35,7 @@ export function FindDuplicatesModal({
 
   return (
     <Modal
+      unsavedChanges={threshold !== initialSettings.threshold}
       scope={scope}
       title="Find duplicates?"
       description={

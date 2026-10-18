@@ -630,8 +630,11 @@ describe("GalleryItemModal", () => {
         onDeleted: vi.fn<(path: string) => void>(),
         ...overrides,
       };
-      renderWithProviders(<GalleryItemModal {...props} />);
-      return props;
+      const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
+      return {
+        ...props,
+        showIndex: (index: number) => rerender(<GalleryItemModal {...props} index={index} />),
+      };
     }
 
     describe("docked beside the gallery", () => {
@@ -712,6 +715,7 @@ describe("GalleryItemModal", () => {
 
       await user.keyboard("{Home}");
       expect(props.onGoTo).toHaveBeenLastCalledWith(0);
+      props.showIndex(0);
 
       await user.keyboard("{End}");
       expect(props.onGoTo).toHaveBeenLastCalledWith(1);

@@ -33,6 +33,7 @@ export function SetCaptionsModal({
 
   return (
     <Modal
+      unsavedChanges={caption !== initialSettings.caption || overwrite}
       scope={scope}
       title="Set captions?"
       description={

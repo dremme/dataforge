@@ -101,6 +101,16 @@ export function TrainLoraModal({
 
   return (
     <Modal
+      unsavedChanges={
+        model !== initialSettings.model ||
+        loraName !== "" ||
+        triggerWord !== initialSettings.trigger_word ||
+        templateDraft.hasDrafts ||
+        JSON.stringify(prompts.map((row) => row.text)) !==
+          JSON.stringify(
+            initialSettings.prompts.length ? initialSettings.prompts : DEFAULT_TRAINING_PROMPTS,
+          )
+      }
       scope={scope}
       title="Start LoRA training?"
       description={<>Trains a {trainingModelLabel(model)} LoRA on them in Ostris AI-Toolkit.</>}

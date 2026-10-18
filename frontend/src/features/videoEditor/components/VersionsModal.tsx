@@ -2,7 +2,8 @@ import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatApiError } from "@/shared/api/http";
 import { formatDurationSeconds, formatModifiedAt } from "@/shared/lib/format";
-import { Modal, ModalButton } from "@/shared/ui/Modal";
+import { DiscardChangesModal, Modal, ModalButton } from "@/shared/ui/Modal";
+import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
 import type { VideoProjectVersionSummary } from "@/shared/types";
 import {
   deleteVideoProjectVersion,
@@ -32,6 +33,7 @@ export function VersionsModal({ project, onRestore, onClose }: VersionsModalProp
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const labelId = useId();
+  const discard = useDiscardChanges(label !== "", busy !== null, busy !== null, onClose);
 
   const run = async (key: string, action: () => Promise<unknown>) => {
     setBusy(key);
@@ -64,7 +66,10 @@ export function VersionsModal({ project, onRestore, onClose }: VersionsModalProp
       role="dialog"
       panelClassName="video-versions-modal"
       busy={busy !== null}
-      onClose={onClose}
+      suspended={discard.confirming}
+      onClose={() => {
+        void discard.request(onClose);
+      }}
     >
       <div className="video-versions-modal__body">
         <div className="modal__field">
@@ -121,9 +126,9 @@ export function VersionsModal({ project, onRestore, onClose }: VersionsModalProp
                   className="video-editor__text-btn"
                   disabled={busy !== null}
                   onClick={() =>
-                    void run(`restore-${version.id}`, () => onRestore(version)).then(
-                      (restored) => restored && onClose(),
-                    )
+                    void discard.request(async () => {
+                      if (await run(`restore-${version.id}`, () => onRestore(version))) onClose();
+                    })
                   }
                 >
                   {busy === `restore-${version.id}` ? "Restoring..." : "Restore"}
@@ -147,6 +152,9 @@ export function VersionsModal({ project, onRestore, onClose }: VersionsModalProp
         )}
         {error && <p className="modal__error">{error}</p>}
       </div>
+      {discard.confirming && (
+        <DiscardChangesModal onDiscard={discard.discard} onKeepEditing={discard.keepEditing} />
+      )}
     </Modal>
   );
 }

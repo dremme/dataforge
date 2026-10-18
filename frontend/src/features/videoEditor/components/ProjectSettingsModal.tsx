@@ -45,6 +45,11 @@ export function ProjectSettingsModal({ project, onSave, onCancel }: ProjectSetti
 
   return (
     <Modal
+      unsavedChanges={
+        width !== String(project.width) ||
+        height !== String(project.height) ||
+        rate !== String(Number(project.frame_rate.toFixed(3)))
+      }
       title="Project settings"
       role="dialog"
       panelClassName="video-settings-modal"

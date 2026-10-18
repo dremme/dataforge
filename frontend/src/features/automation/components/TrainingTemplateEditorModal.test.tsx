@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TrainingTemplateEditorModal } from "./TrainingTemplateEditorModal";
@@ -44,6 +44,28 @@ describe("TrainingTemplateEditorModal", () => {
     expect(screen.getByRole("heading", { name: "Krea 2 Turbo template" })).toBeInTheDocument();
   });
 
+  it("closes an unchanged custom template without asking to discard it", async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderEditor({ initialContent: "steps: 250" });
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps an edited template until discarding is confirmed", async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderEditor();
+    await user.type(editor(), "edited");
+    await user.keyboard("{Escape}");
+    await screen.findByRole("alertdialog", { name: "Discard changes?" });
+    expect(onClose).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(editor()).toHaveValue(`${STOCK}edited`);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(await screen.findByRole("button", { name: "Discard" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("says the edit is scoped to this run and the blanks are filled later", () => {
     renderEditor();
 
@@ -72,6 +94,25 @@ describe("TrainingTemplateEditorModal", () => {
 
     await waitFor(() => expect(onApply).toHaveBeenCalledWith("steps: 250"));
     expect(checkTrainingTemplate).toHaveBeenCalledWith("steps: 250");
+  });
+
+  it("locks the template while validating the submitted draft", async () => {
+    const user = userEvent.setup();
+    let finish!: (result: { ok: boolean; error: null }) => void;
+    checkTrainingTemplate.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { onApply } = renderEditor();
+    await user.clear(editor());
+    await user.type(editor(), "steps: 250");
+    await user.click(screen.getByRole("button", { name: "Use for this run" }));
+    expect(editor()).toBeDisabled();
+    await user.type(editor(), "steps: 500");
+    expect(editor()).toHaveValue("steps: 250");
+    finish({ ok: true, error: null });
+    await waitFor(() => expect(onApply).toHaveBeenCalledExactlyOnceWith("steps: 250"));
   });
 
   it("shows the backend's reason and keeps the editor open on a bad draft", async () => {

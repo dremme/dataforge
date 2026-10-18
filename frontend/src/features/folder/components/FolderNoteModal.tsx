@@ -27,6 +27,7 @@ export function FolderNoteModal({ folderPath, initialText, onClose }: FolderNote
 
   return (
     <Modal
+      unsavedChanges={text !== initialText}
       title={adding ? "Add note" : "Edit note"}
       description="Shown above this folder's gallery."
       panelClassName="folder-note-modal"

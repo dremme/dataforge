@@ -51,6 +51,12 @@ export function VerifyCaptionsModal({
 
   return (
     <Modal
+      unsavedChanges={
+        mode !== initialSettings.mode ||
+        context !== initialSettings.context ||
+        reasoningEffort !== initialSettings.reasoning_effort ||
+        preserveThinking !== initialSettings.preserve_thinking
+      }
       scope={scope}
       title="Start verify captions?"
       description={

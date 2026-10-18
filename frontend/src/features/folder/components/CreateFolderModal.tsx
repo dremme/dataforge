@@ -31,6 +31,7 @@ export function CreateFolderModal({
 
   return (
     <Modal
+      unsavedChanges={name !== ""}
       title="New folder"
       description={
         <>

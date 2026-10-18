@@ -60,6 +60,7 @@ export function useTrainingTemplateDraft(model: TrainingModel) {
     /** What to send for the current model: the edited YAML, or null for the stock one. */
     template: drafts[model] ?? null,
     edited: drafts[model] !== undefined,
+    hasDrafts: Object.keys(drafts).length > 0,
     stockTemplate: stockTemplate ?? "",
     editorOpen,
     loading,

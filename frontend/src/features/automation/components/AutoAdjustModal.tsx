@@ -28,6 +28,7 @@ export function AutoAdjustModal({
 
   return (
     <Modal
+      unsavedChanges={replace || reset}
       scope={scope}
       title={reset ? "Reset color adjustments?" : "Auto-adjust media?"}
       description={

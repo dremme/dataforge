@@ -18,7 +18,8 @@ import {
 import { classNames } from "@/shared/lib/classNames";
 import { iconCheck, iconTrash2, iconTriangleAlert, iconX } from "@/shared/icons";
 import { ConfirmModal } from "@/shared/ui/ConfirmModal";
-import { ModalButton } from "@/shared/ui/Modal";
+import { DiscardChangesModal, ModalButton } from "@/shared/ui/Modal";
+import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import type { DuplicateGroup, GalleryItem } from "@/shared/types";
@@ -67,6 +68,13 @@ export function DuplicateResolverModal({
 
   const selectedPath = keepPath ?? suggestion?.path ?? null;
   const alreadySettled = group ? settledGroups.has(group.group) : false;
+  const discardChanges = useDiscardChanges(
+    !alreadySettled && keepPath !== null && keepPath !== suggestion?.path,
+    busy || confirmOpen,
+    busy,
+    onClose,
+  );
+  const { request: requestDiscard } = discardChanges;
 
   const discard = useMemo(
     () =>
@@ -77,16 +85,15 @@ export function DuplicateResolverModal({
   );
 
   const closeModal = useCallback(() => {
-    if (busy) return;
-    onClose();
-  }, [busy, onClose]);
+    void requestDiscard(onClose);
+  }, [requestDiscard, onClose]);
 
   const goTo = useCallback(
     (next: number) => {
-      if (busy) return;
-      if (next >= 0 && next < queue.length) onIndexChange(next);
+      if (next >= 0 && next < queue.length && next !== index)
+        void requestDiscard(() => onIndexChange(next));
     },
-    [busy, onIndexChange, queue.length],
+    [requestDiscard, index, onIndexChange, queue.length],
   );
 
   const settle = useCallback(
@@ -171,7 +178,7 @@ export function DuplicateResolverModal({
         label={`Resolve duplicate group ${index + 1} of ${queue.length}`}
         onClose={closeModal}
         busy={busy}
-        suspended={confirmOpen}
+        suspended={confirmOpen || discardChanges.confirming}
         scrollLock="duplicate-resolver-modal-open"
       >
         <header className="duplicate-resolver-modal__header">
@@ -272,6 +279,12 @@ export function DuplicateResolverModal({
           onCancel={() => {
             if (!busy) setConfirmOpen(false);
           }}
+        />
+      )}
+      {discardChanges.confirming && (
+        <DiscardChangesModal
+          onDiscard={discardChanges.discard}
+          onKeepEditing={discardChanges.keepEditing}
         />
       )}
     </>

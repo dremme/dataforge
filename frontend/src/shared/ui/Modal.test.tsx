@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { stubModalClock } from "@/test/modalClock";
 import { Modal, ModalActions } from "./Modal";
+import { ModalNavigationPendingContext } from "./modalNavigationContext";
 
 function renderModal(overrides: Partial<Parameters<typeof Modal>[0]> = {}) {
   const onConfirm = vi.fn<() => void>();
@@ -52,6 +53,35 @@ describe("Modal", () => {
 
     expect(screen.getByRole("alertdialog", { name: "Start job?" })).toHaveFocus();
   });
+
+  it.each(["Cancel", "Close", "Escape", "Backdrop"])(
+    "asks before %s discards changes and can keep editing",
+    async (exit) => {
+      const user = userEvent.setup();
+      const { onClose, onConfirm } = renderModal({ unsavedChanges: true });
+      const dismiss = async () => {
+        if (exit === "Escape") await user.keyboard("{Escape}");
+        else
+          await user.click(
+            screen.getByRole("button", { name: exit === "Backdrop" ? "Close modal" : exit }),
+          );
+      };
+
+      await dismiss();
+      const confirmation = await screen.findByRole("alertdialog", { name: "Discard changes?" });
+      expect(onClose).not.toHaveBeenCalled();
+      expect(onConfirm).not.toHaveBeenCalled();
+      await user.click(within(confirmation).getByRole("button", { name: "Keep editing" }));
+      expect(
+        screen.queryByRole("alertdialog", { name: "Discard changes?" }),
+      ).not.toBeInTheDocument();
+
+      await dismiss();
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(onConfirm).not.toHaveBeenCalled();
+    },
+  );
 
   it("ignores Enter immediately after opening", async () => {
     const user = userEvent.setup();
@@ -128,6 +158,30 @@ describe("Modal", () => {
     await user.click(screen.getByRole("textbox", { name: "Name" }));
     await user.keyboard("{Enter}");
 
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("suspends Enter and Escape until a pending navigation finishes", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn<() => void>();
+    const onClose = vi.fn<() => void>();
+    const { passOpenGrace } = stubModalClock();
+    const form = (pending: boolean) => (
+      <ModalNavigationPendingContext.Provider value={pending}>
+        <Modal title="Edit settings" onClose={onClose} onConfirm={onConfirm}>
+          <input aria-label="Name" />
+        </Modal>
+      </ModalNavigationPendingContext.Provider>
+    );
+    const { rerender } = render(form(false));
+    passOpenGrace();
+    screen.getByRole("textbox", { name: "Name" }).focus();
+    rerender(form(true));
+    await user.keyboard("{Enter}{Escape}");
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    rerender(form(false));
+    await user.keyboard("{Enter}");
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 

@@ -123,6 +123,21 @@ export function ComfyProcessModal({
 
   return (
     <Modal
+      unsavedChanges={
+        preset !==
+          (loadedPresets && !loadedPresets.some((entry) => entry.name === initialSettings.preset)
+            ? (loadedPresets[0]?.name ?? "")
+            : initialSettings.preset) ||
+        overwrite !== initialSettings.overwrite_candidates ||
+        Object.entries(drafts).some(
+          ([name, draft]) =>
+            draft.seedText !==
+              (initialSettings.by_preset[name]?.seed == null
+                ? ""
+                : String(initialSettings.by_preset[name].seed)) ||
+            draft.promptText !== (initialSettings.by_preset[name]?.prompt_text ?? ""),
+        )
+      }
       scope={scope}
       title="Process with ComfyUI?"
       description={

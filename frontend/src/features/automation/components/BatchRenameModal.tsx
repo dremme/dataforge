@@ -73,6 +73,9 @@ export function BatchRenameModal({
 
   return (
     <Modal
+      unsavedChanges={
+        stem !== initialSettings.stem || startNumber !== String(initialSettings.start_number)
+      }
       scope={scope}
       title="Rename files?"
       description={

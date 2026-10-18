@@ -1,6 +1,50 @@
 import { expect, test } from "@playwright/test";
 import { openWorkspace } from "./workspace";
 
+test("form cancellation preserves edits until discard is confirmed", async ({ page }, testInfo) => {
+  await openWorkspace(page);
+  await page.getByRole("button", { name: "Auto-caption", exact: true }).click();
+  const modal = page.getByRole("alertdialog", { name: "Start auto-caption?" });
+  const option = modal.getByRole("checkbox", { name: "Caption audio", exact: true });
+  const original = await option.isChecked();
+  await modal.getByText("Caption audio", { exact: true }).click();
+  await modal.getByRole("button", { name: "Cancel", exact: true }).click();
+  const confirmation = page.getByRole("alertdialog", { name: "Discard changes?" });
+  await expect(confirmation).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("discard-changes.png"),
+    animations: "disabled",
+  });
+  await confirmation.getByRole("button", { name: "Keep editing", exact: true }).click();
+  await expect(option).toBeChecked({ checked: !original });
+  await modal.getByRole("button", { name: "Close", exact: true }).click();
+  await confirmation.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(modal).toHaveCount(0);
+});
+
+test("settings keep their draft after Escape and close without prompting after undo", async ({
+  page,
+}) => {
+  await openWorkspace(page);
+  await page.getByRole("button", { name: "Open settings", exact: true }).click();
+  const modal = page.getByRole("dialog", { name: "Settings", exact: true });
+  const original = await modal.getByRole("radio", { checked: true }).getAttribute("value");
+  const editedName = original === "light" ? "Dark" : "Light";
+  const edited = modal.getByRole("radio", { name: new RegExp(`^${editedName}`) });
+  await modal.getByText(editedName, { exact: true }).click();
+  await page.keyboard.press("Escape");
+  const confirmation = page.getByRole("alertdialog", { name: "Discard changes?" });
+  await expect(confirmation).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(confirmation).toHaveCount(0);
+  await expect(edited).toBeChecked();
+  const originalName = original === "system" ? "System" : original === "light" ? "Light" : "Dark";
+  await modal.getByText(originalName, { exact: true }).click();
+  await modal.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(modal).toHaveCount(0);
+  await expect(confirmation).toHaveCount(0);
+});
+
 for (const name of ["Cancel", "Close"]) {
   test(`Enter activates the focused ${name} without starting a job`, async ({ page }) => {
     let starts = 0;

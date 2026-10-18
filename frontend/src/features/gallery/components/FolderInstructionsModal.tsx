@@ -10,8 +10,8 @@ import { iconCopy, iconFilePlus, iconLoader2, iconX } from "@/shared/icons";
 import type { InstructionFileResponse, JobType } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { formatCount } from "@/shared/lib/format";
-import { ConfirmModal } from "@/shared/ui/ConfirmModal";
-import { ModalButton } from "@/shared/ui/Modal";
+import { DiscardChangesModal, ModalButton } from "@/shared/ui/Modal";
+import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
 import { Icon } from "@/shared/ui/Icon";
 import { MarkdownEditor } from "@/shared/ui/MarkdownEditor";
 import { TokenEstimate } from "@/shared/ui/TokenEstimate";
@@ -87,7 +87,6 @@ export function FolderInstructionsModal({
   const [drafts, setDrafts] = useState(NO_DRAFTS);
   const [errors, setErrors] = useState<Record<InstructionKind, string | null>>(NO_DRAFTS);
   const [saving, setSaving] = useState(false);
-  const [discardOpen, setDiscardOpen] = useState(false);
   const tabs = useTabList(KINDS, tab, setTab);
 
   const textOf = (kind: InstructionKind) => drafts[kind] ?? instructions?.[kind].text ?? "";
@@ -95,6 +94,7 @@ export function FolderInstructionsModal({
     (kind) => instructions !== null && textOf(kind) !== instructions[kind].text,
   );
   const edited = editedKinds.length > 0;
+  const discard = useDiscardChanges(edited, saving, saving, onClose);
 
   const setDraft = useCallback((kind: InstructionKind, value: string | null) => {
     setDrafts((current) => ({ ...current, [kind]: value }));
@@ -126,12 +126,7 @@ export function FolderInstructionsModal({
 
   // The one exit path: close button, Escape and backdrop all land here.
   const requestClose = () => {
-    if (saving) return;
-    if (edited) {
-      setDiscardOpen(true);
-      return;
-    }
-    onClose();
+    void discard.request(onClose);
   };
 
   const text = textOf(tab);
@@ -214,7 +209,7 @@ export function FolderInstructionsModal({
       label="Folder instructions"
       onClose={requestClose}
       busy={saving}
-      suspended={discardOpen}
+      suspended={discard.confirming}
       escape="editor"
       // useGalleryOverlays holds the session lock; measuring depth here would drop the blur.
       nested={false}
@@ -325,15 +320,11 @@ export function FolderInstructionsModal({
         />
       </footer>
 
-      {discardOpen && (
-        <ConfirmModal
-          title="Discard changes?"
+      {discard.confirming && (
+        <DiscardChangesModal
           description={`Your changes to the ${unsavedNames} will be lost. This cannot be undone.`}
-          confirmLabel="Discard"
-          cancelLabel="Keep editing"
-          confirmVariant="danger"
-          onConfirm={onClose}
-          onCancel={() => setDiscardOpen(false)}
+          onDiscard={discard.discard}
+          onKeepEditing={discard.keepEditing}
         />
       )}
     </ModalShell>

@@ -7,7 +7,8 @@ import { formatApiError } from "@/shared/api/http";
 import { iconRotateCcw, iconX } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import type { TrainingModel } from "@/shared/types";
-import { ModalActions } from "@/shared/ui/Modal";
+import { DiscardChangesModal, ModalActions } from "@/shared/ui/Modal";
+import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { YamlEditor } from "@/shared/ui/YamlEditor";
@@ -41,6 +42,8 @@ export function TrainingTemplateEditorModal({
 
   const modelLabel = trainingModelLabel(model);
   const edited = draft !== stockContent;
+  const discard = useDiscardChanges(draft !== initialContent, checking, checking, onClose);
+  const { request: requestDiscard } = discard;
   const lineCount = useMemo(() => (draft.length === 0 ? 0 : draft.split("\n").length), [draft]);
 
   const handleApply = useCallback(async () => {
@@ -62,9 +65,8 @@ export function TrainingTemplateEditorModal({
   }, [stockContent]);
 
   const close = useCallback(() => {
-    if (checking) return;
-    onClose();
-  }, [checking, onClose]);
+    void requestDiscard(onClose);
+  }, [requestDiscard, onClose]);
 
   return (
     <ModalShell
@@ -72,6 +74,7 @@ export function TrainingTemplateEditorModal({
       label={`Edit the ${modelLabel} training template`}
       onClose={close}
       busy={checking}
+      suspended={discard.confirming}
       escape="editor"
       panelRef={panelRef}
     >
@@ -102,6 +105,7 @@ export function TrainingTemplateEditorModal({
           id="training-template-editor"
           className={classNames(error && "code-editor--error")}
           value={draft}
+          editable={!checking}
           aria-label={`${modelLabel} training template`}
           aria-invalid={error != null}
           onChange={(value) => {
@@ -150,6 +154,9 @@ export function TrainingTemplateEditorModal({
           />
         </div>
       </footer>
+      {discard.confirming && (
+        <DiscardChangesModal onDiscard={discard.discard} onKeepEditing={discard.keepEditing} />
+      )}
     </ModalShell>
   );
 }

@@ -57,6 +57,34 @@ beforeEach(() => {
 });
 
 describe("DuplicateResolverModal", () => {
+  it.each(["Back", "Skip", "Close"])(
+    "asks before %s discards a keeper selection",
+    async (action) => {
+      const user = userEvent.setup();
+      const { onIndexChange, onClose } = renderModal({
+        groups: [group(), group({ group: "g2" }), group({ group: "g3" })],
+        index: 1,
+      });
+      const keeper = screen
+        .getAllByRole("radio")
+        .find((card) => card.textContent?.includes("small.png"))!;
+      await user.click(keeper);
+      const modal = screen.getByRole("dialog");
+      await user.click(within(modal).getByRole("button", { name: action }));
+      expect(onIndexChange).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+      await user.keyboard("{Escape}");
+      expect(keeper).toHaveAttribute("aria-checked", "true");
+
+      await user.click(within(modal).getByRole("button", { name: action }));
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+      expect(vi.mocked(onClose).mock.calls).toEqual(action === "Close" ? [[]] : []);
+      expect(vi.mocked(onIndexChange).mock.calls).toEqual(
+        action === "Close" ? [] : [[action === "Back" ? 0 : 2]],
+      );
+    },
+  );
+
   it("shows both members side by side with their metadata", () => {
     renderModal();
 

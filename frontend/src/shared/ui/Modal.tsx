@@ -1,4 +1,5 @@
 import {
+  useContext,
   useEffect,
   useId,
   useLayoutEffect,
@@ -12,6 +13,9 @@ import { ModalScope, type ModalScopeInfo } from "./ModalScope";
 import { Icon } from "./Icon";
 import { ModalShell } from "./ModalShell";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
+import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
+import { ModalCancelContext } from "./modalCancelContext";
+import { ModalNavigationPendingContext } from "./modalNavigationContext";
 
 /** Ignore Enter still in flight from the keypress that opened the modal. */
 export const OPEN_GRACE_MS = 100;
@@ -31,6 +35,7 @@ interface ModalProps {
   panelClassName?: string;
   busy?: boolean;
   suspended?: boolean;
+  unsavedChanges?: boolean;
   onConfirm?: () => void;
   onClose: () => void;
   initialFocusRef?: RefObject<HTMLElement | null>;
@@ -47,6 +52,7 @@ export function Modal({
   panelClassName,
   busy = false,
   suspended = false,
+  unsavedChanges = false,
   onConfirm,
   onClose,
   initialFocusRef,
@@ -58,6 +64,11 @@ export function Modal({
   const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const openedAtRef = useRef(0);
+  const navigationPending = useContext(ModalNavigationPendingContext);
+  const discard = useDiscardChanges(unsavedChanges, busy || suspended, busy, onClose);
+  const requestClose = () => {
+    void discard.request(onClose);
+  };
 
   useLayoutEffect(() => {
     openedAtRef.current = performance.now();
@@ -66,7 +77,7 @@ export function Modal({
   const confirmRef = useLatestRef(onConfirm);
 
   useEffect(() => {
-    if (busy || suspended || !onConfirm) return;
+    if (busy || suspended || navigationPending || discard.confirming || !onConfirm) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.key !== "Enter" || event.shiftKey)
@@ -86,50 +97,56 @@ export function Modal({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, confirmRef, onConfirm, suspended]);
+  }, [busy, confirmRef, discard.confirming, navigationPending, onConfirm, suspended]);
 
   return (
-    <ModalShell
-      block="confirm-modal"
-      role={role}
-      panelClassName={panelClassName}
-      labelledById={titleId}
-      describedById={describedById ?? (description ? descriptionId : undefined)}
-      onClose={onClose}
-      busy={busy}
-      suspended={suspended}
-      scrollLock="confirm-modal-open"
-      backdropLabel="Close modal"
-      initialFocusRef={initialFocusRef}
-      panelRef={panelRef}
-    >
-      <header className="confirm-modal__header">
-        <h2 id={titleId} className="confirm-modal__title">
-          {title}
-        </h2>
-        <button
-          type="button"
-          className="confirm-modal__close"
-          onClick={onClose}
-          aria-label="Close"
-          disabled={busy}
-        >
-          <Icon icon={iconX} />
-        </button>
-      </header>
+    <>
+      <ModalShell
+        block="confirm-modal"
+        role={role}
+        panelClassName={panelClassName}
+        labelledById={titleId}
+        describedById={describedById ?? (description ? descriptionId : undefined)}
+        onClose={requestClose}
+        onCancelAction={discard.request}
+        busy={busy}
+        suspended={suspended || discard.confirming}
+        scrollLock="confirm-modal-open"
+        backdropLabel="Close modal"
+        initialFocusRef={initialFocusRef}
+        panelRef={panelRef}
+      >
+        <header className="confirm-modal__header">
+          <h2 id={titleId} className="confirm-modal__title">
+            {title}
+          </h2>
+          <button
+            type="button"
+            className="confirm-modal__close"
+            onClick={requestClose}
+            aria-label="Close"
+            disabled={busy}
+          >
+            <Icon icon={iconX} />
+          </button>
+        </header>
 
-      {scope && <ModalScope {...scope} />}
+        {scope && <ModalScope {...scope} />}
 
-      {description && (
-        <p id={descriptionId} className="confirm-modal__description">
-          {description}
-        </p>
+        {description && (
+          <p id={descriptionId} className="confirm-modal__description">
+            {description}
+          </p>
+        )}
+
+        {children}
+
+        {footer && <footer className="confirm-modal__actions">{footer}</footer>}
+      </ModalShell>
+      {discard.confirming && (
+        <DiscardChangesModal onDiscard={discard.discard} onKeepEditing={discard.keepEditing} />
       )}
-
-      {children}
-
-      {footer && <footer className="confirm-modal__actions">{footer}</footer>}
-    </ModalShell>
+    </>
   );
 }
 
@@ -190,9 +207,18 @@ export function ModalActions({
   onConfirm,
   onCancel,
 }: ModalActionsProps) {
+  const request = useContext(ModalCancelContext);
   return (
     <>
-      <ModalButton label={cancelLabel} variant="secondary" disabled={busy} onClick={onCancel} />
+      <ModalButton
+        label={cancelLabel}
+        variant="secondary"
+        disabled={busy}
+        onClick={() => {
+          if (request) void request(onCancel);
+          else onCancel();
+        }}
+      />
       <ModalButton
         label={busy ? (busyLabel ?? confirmLabel) : confirmLabel}
         variant={confirmVariant}
@@ -201,5 +227,33 @@ export function ModalActions({
         onClick={onConfirm}
       />
     </>
+  );
+}
+
+export function DiscardChangesModal({
+  onDiscard,
+  onKeepEditing,
+  description = "Your unsaved changes will be lost. This cannot be undone.",
+}: {
+  onDiscard: () => void;
+  onKeepEditing: () => void;
+  description?: string;
+}) {
+  return (
+    <Modal
+      title="Discard changes?"
+      description={description}
+      onClose={onKeepEditing}
+      onConfirm={onDiscard}
+      footer={
+        <ModalActions
+          confirmLabel="Discard"
+          cancelLabel="Keep editing"
+          confirmVariant="danger"
+          onConfirm={onDiscard}
+          onCancel={onKeepEditing}
+        />
+      }
+    />
   );
 }

@@ -119,6 +119,15 @@ export function ExportModal({
 
   return (
     <Modal
+      unsavedChanges={
+        filename !== wholeName ||
+        extent !== "whole" ||
+        size !== saved.size ||
+        orientation !== (saved.orientation ?? projectOrientation(project.width, project.height)) ||
+        quality !== saved.quality ||
+        copyCaption !== saved.copy_caption ||
+        audioLevel !== saved.audio_level
+      }
       title="Export video"
       role="dialog"
       panelClassName="video-export-modal"

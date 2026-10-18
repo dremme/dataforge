@@ -229,7 +229,9 @@ describe("GalleryItemModal", () => {
 
     it("navigates items with arrow keys while frame capture stays on", async () => {
       const user = userEvent.setup();
-      const { onNext, onPrevious } = renderVideoModal();
+      const { onNext, onPrevious } = renderVideoModal({
+        items: [videoItem(), makeItem("reel.mp4", { media_type: "video" })],
+      });
 
       const modal = await openFrameMode(user);
 

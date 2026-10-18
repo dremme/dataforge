@@ -71,6 +71,10 @@ test("free crop readouts reflect the visible image and video rectangles", async 
   await expect(readout).toHaveCSS("opacity", "0");
 
   await page.locator(".gallery-item-modal__close").click();
+  await page
+    .getByRole("alertdialog", { name: "Discard changes?" })
+    .getByRole("button", { name: "Discard", exact: true })
+    .click();
   await page.getByRole("button", { name: "View landscape.mp4" }).click();
   await page.getByRole("button", { name: "Edit landscape.mp4" }).click();
   await page.getByRole("button", { name: "Crop", exact: true }).click();

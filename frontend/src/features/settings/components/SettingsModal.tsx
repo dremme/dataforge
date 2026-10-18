@@ -34,7 +34,8 @@ import {
   useThemePreference,
 } from "@/shared/theme/theme";
 import type { AppSettingKey, AppSettingsResponse, ProbedService } from "@/shared/types";
-import { ModalButton } from "@/shared/ui/Modal";
+import { DiscardChangesModal, ModalButton } from "@/shared/ui/Modal";
+import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { ShortcutKeys } from "@/shared/ui/ShortcutKeys";
@@ -397,6 +398,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const editedKeys = state.status === "ready" ? editedSettingKeys(state.settings, state.draft) : [];
   const editedCount =
     editedKeys.length + [themeEdited, cardsEdited, editorEdited].filter(Boolean).length;
+  const discard = useDiscardChanges(editedCount > 0, saving, saving, onClose);
+  const requestClose = () => {
+    void discard.request(onClose);
+  };
   const isPageEdited = (page: Page) => {
     if (page.id === "appearance") return themeEdited;
     if (page.id === "gallery") return cardsEdited;
@@ -598,8 +603,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     <ModalShell
       block="settings-modal"
       label="Settings"
-      onClose={onClose}
+      onClose={requestClose}
       busy={saving}
+      suspended={discard.confirming}
       scrollLock="settings-modal-open"
       backdropLabel="Close settings"
     >
@@ -652,7 +658,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <button
             type="button"
             className="settings-modal__close"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={saving}
             aria-label="Close"
           >
@@ -693,7 +699,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 : "Changes apply right away, without a restart."}
           </p>
           <div className="settings-modal__actions">
-            <ModalButton label="Cancel" variant="secondary" disabled={saving} onClick={onClose} />
+            <ModalButton
+              label="Cancel"
+              variant="secondary"
+              disabled={saving}
+              onClick={requestClose}
+            />
             <ModalButton
               label={saving ? "Saving..." : "Save"}
               variant="primary"
@@ -704,6 +715,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </div>
         </footer>
       </div>
+      {discard.confirming && (
+        <DiscardChangesModal onDiscard={discard.discard} onKeepEditing={discard.keepEditing} />
+      )}
     </ModalShell>
   );
 }

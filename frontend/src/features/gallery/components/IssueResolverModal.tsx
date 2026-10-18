@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { ModalNavigationPendingContext } from "@/shared/ui/modalNavigationContext";
 import { saveCaption } from "@/features/gallery/api/captions";
 import { openMediaInViewer } from "@/features/gallery/api/media";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
@@ -26,7 +27,8 @@ import {
 } from "@/shared/icons";
 import { buildCaptionVocabulary } from "@/features/gallery/lib/captionVocabulary";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
-import { ModalButton } from "@/shared/ui/Modal";
+import { DiscardChangesModal, ModalButton } from "@/shared/ui/Modal";
+import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { TokenEstimate } from "@/shared/ui/TokenEstimate";
@@ -80,11 +82,19 @@ export function IssueResolverModal({
   const [openingInViewer, setOpeningInViewer] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
 
-  const { caption, handleCaptionChange } = useGalleryItemCaption({
+  const { caption, handleCaptionChange, hasUnsavedChanges } = useGalleryItemCaption({
     item,
     onCaptionSaved,
     autoSave: false,
   });
+  const navigationPending = useContext(ModalNavigationPendingContext);
+  const discard = useDiscardChanges(
+    hasUnsavedChanges,
+    saving || comfyWorkflowOpen,
+    saving,
+    onClose,
+  );
+  const { request: requestDiscard } = discard;
 
   if (useChanged(item?.path)) {
     setComfyWorkflowOpen(false);
@@ -108,19 +118,24 @@ export function IssueResolverModal({
   const captionCompletions = useMemo(() => buildCaptionVocabulary(queue), [queue]);
 
   const closeModal = useCallback(() => {
-    if (saving) return;
-    onClose();
-  }, [onClose, saving]);
+    void requestDiscard(onClose);
+  }, [requestDiscard, onClose]);
+
+  const goTo = useCallback(
+    (next: number) => {
+      if (next < 0 || next >= queue.length || next === index) return;
+      void requestDiscard(() => onIndexChange(next));
+    },
+    [requestDiscard, index, onIndexChange, queue.length],
+  );
 
   const handleNext = useCallback(() => {
-    if (saving) return;
-    if (index < queue.length - 1) onIndexChange(index + 1);
-  }, [index, onIndexChange, queue.length, saving]);
+    goTo(index + 1);
+  }, [goTo, index]);
 
   const handlePrevious = useCallback(() => {
-    if (saving) return;
-    if (index > 0) onIndexChange(index - 1);
-  }, [index, onIndexChange, saving]);
+    goTo(index - 1);
+  }, [goTo, index]);
 
   const handleOpenInViewer = useCallback(async () => {
     if (!item || openingInViewer || saving) return;
@@ -162,7 +177,7 @@ export function IssueResolverModal({
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (saving || comfyWorkflowOpen) return;
+      if (saving || comfyWorkflowOpen || discard.confirming || navigationPending) return;
 
       // Checked before the editable guard: the caption editor is where this gets pressed.
       if (matchesShortcut(event, SHORTCUTS.resolveOrAccept)) {
@@ -176,12 +191,21 @@ export function IssueResolverModal({
       if (!step) return;
       event.preventDefault();
       const target = queueIndexAfter(step, index, queue.length);
-      if (target !== index) onIndexChange(target);
+      goTo(target);
     };
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [comfyWorkflowOpen, handleResolve, index, onIndexChange, queue.length, saving]);
+  }, [
+    comfyWorkflowOpen,
+    discard.confirming,
+    navigationPending,
+    goTo,
+    handleResolve,
+    index,
+    queue.length,
+    saving,
+  ]);
 
   if (!item) return null;
 
@@ -200,7 +224,7 @@ export function IssueResolverModal({
       label={`Resolve caption issue for ${item.name}`}
       onClose={closeModal}
       busy={saving}
-      suspended={comfyWorkflowOpen}
+      suspended={comfyWorkflowOpen || discard.confirming}
       scrollLock="issue-resolver-modal-open"
     >
       <header className="issue-resolver-modal__header">
@@ -382,6 +406,9 @@ export function IssueResolverModal({
           mediaName={item.name}
           onClose={() => setComfyWorkflowOpen(false)}
         />
+      )}
+      {discard.confirming && (
+        <DiscardChangesModal onDiscard={discard.discard} onKeepEditing={discard.keepEditing} />
       )}
     </ModalShell>
   );

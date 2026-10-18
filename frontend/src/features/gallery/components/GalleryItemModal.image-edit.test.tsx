@@ -289,6 +289,59 @@ describe("GalleryItemModal", () => {
     });
 
     describe("alongside the modal's other modes", () => {
+      it.each([
+        ["Home", 0],
+        ["End", 1],
+      ] as const)("%s leaves edits intact when already at its destination", async (key, index) => {
+        const user = userEvent.setup();
+        const other = imageItem({ name: "other.png", path: `${HOME_PATH}\\other.png` });
+        const onGoTo = vi.fn<(index: number) => void>();
+        renderModal(imageItem(), { items: [imageItem(), other], index, onGoTo });
+        const modal = await openEditMode(user, index === 0 ? "sunset.png" : "other.png");
+        await user.click(within(modal).getByRole("button", { name: /^Rotate$/ }));
+        await user.click(within(modal).getByRole("button", { name: "Rotate right" }));
+        await user.keyboard(`{${key}}`);
+        expect(onGoTo).not.toHaveBeenCalled();
+        expect(
+          screen.queryByRole("alertdialog", { name: "Discard changes?" }),
+        ).not.toBeInTheDocument();
+        expect(modal.querySelector(".image-edit-stage__canvas")).toHaveStyle({
+          "--edit-rotate": "90deg",
+        });
+      });
+
+      it.each(["Close", "Escape", "Next item"])(
+        "protects unapplied image edits on %s",
+        async (exit) => {
+          const user = userEvent.setup();
+          const { props } = renderModal(imageItem());
+          const modal = await openEditMode(user);
+          await user.click(within(modal).getByRole("button", { name: /^Rotate$/ }));
+          await user.click(within(modal).getByRole("button", { name: "Rotate right" }));
+          const leave = async () => {
+            if (exit === "Escape") await user.keyboard("{Escape}");
+            else await user.click(within(modal).getByRole("button", { name: exit }));
+          };
+          await leave();
+          await screen.findByRole("alertdialog", { name: "Discard changes?" });
+          expect(props.onClose).not.toHaveBeenCalled();
+          expect(props.onNext).not.toHaveBeenCalled();
+          await user.keyboard("{Escape}");
+          expect(modal.querySelector(".image-edit-stage__canvas")).toHaveStyle({
+            "--edit-rotate": "90deg",
+          });
+          await leave();
+          await user.click(await screen.findByRole("button", { name: "Discard" }));
+          await waitFor(() => {
+            expect(props.onClose).toHaveBeenCalledTimes(exit === "Close" ? 1 : 0);
+            expect(props.onNext).toHaveBeenCalledTimes(exit === "Next item" ? 1 : 0);
+          });
+          expect(within(modal).queryAllByLabelText(/^Caption for/)).toHaveLength(
+            exit === "Escape" ? 1 : 0,
+          );
+        },
+      );
+
       it("steps out of the mode on Escape before it closes the modal", async () => {
         const user = userEvent.setup();
         const { props } = renderModal(imageItem());
