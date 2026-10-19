@@ -8,7 +8,7 @@ test("quick-action navigation hints align", async ({ page }, testInfo) => {
   await page.keyboard.press("Control+p");
   const palette = page.getByRole("dialog", { name: "Quick actions" });
   await palette.evaluate((element) =>
-    Promise.all(element.getAnimations().map((animation) => animation.finished)),
+    Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)),
   );
   const hint = palette.locator(".quick-action__hint > span").first();
   const hintBox = (await hint.boundingBox())!;
