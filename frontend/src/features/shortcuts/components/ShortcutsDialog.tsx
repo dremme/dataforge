@@ -4,6 +4,9 @@ import { ShortcutKeys } from "@/shared/ui/ShortcutKeys";
 
 const SHORTCUT_LIST: readonly ShortcutDefinition[] = Object.values(SHORTCUTS);
 
+// The video editor lists its own keys in its inspector.
+const LISTED_GROUPS = SHORTCUT_GROUPS.filter((group) => group.id !== "videoEditor");
+
 interface ShortcutsDialogProps {
   onClose: () => void;
 }
@@ -17,7 +20,7 @@ export function ShortcutsDialog({ onClose }: ShortcutsDialogProps) {
       onClose={onClose}
     >
       <div className="shortcuts-dialog__groups">
-        {SHORTCUT_GROUPS.map((group) => (
+        {LISTED_GROUPS.map((group) => (
           <section key={group.id} className="shortcuts-dialog__group" aria-label={group.label}>
             <h3 className="shortcuts-dialog__group-label">{group.label}</h3>
             <dl className="shortcuts-dialog__list">

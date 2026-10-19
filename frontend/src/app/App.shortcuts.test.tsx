@@ -71,7 +71,7 @@ describe("App: keyboard shortcuts", () => {
     expect(currentPath()).toBe(VACATION_PATH);
   });
 
-  it("lists every shortcut on ?", async () => {
+  it("lists every shortcut outside the video editor on ?", async () => {
     const user = await renderAt();
 
     await user.keyboard("?");
@@ -81,6 +81,7 @@ describe("App: keyboard shortcuts", () => {
     expect(within(global).getByText("Open the command palette")).toBeInTheDocument();
     expect(within(global).getByText("Ctrl+P")).toBeInTheDocument();
     expect(within(dialog).getByRole("region", { name: "Review queues" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("region", { name: "Video editor" })).not.toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     await waitFor(() =>

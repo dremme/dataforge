@@ -1,5 +1,5 @@
 import { Tooltip } from "@/shared/ui/Tooltip";
-import { useId } from "react";
+import { Fragment, useId } from "react";
 import {
   iconBlend,
   iconClipboardPaste,
@@ -103,9 +103,25 @@ const KIND_ICONS: Record<Clip["kind"], typeof iconFilm> = {
   title: iconType,
 };
 
+/** Every video editor shortcut, which the `?` sheet leaves out; mirrored actions share a row. */
 const QUICK_KEYS: { label: string; shortcuts: ShortcutDefinition[] }[] = [
   { label: "Play or pause", shortcuts: [SHORTCUTS.editorPlayPause] },
-  { label: "Split at the playhead", shortcuts: [SHORTCUTS.editorSplit] },
+  {
+    label: "Step a frame back, forward",
+    shortcuts: [SHORTCUTS.editorStepBack, SHORTCUTS.editorStepForward],
+  },
+  { label: "Go to start, end", shortcuts: [SHORTCUTS.editorGoToStart, SHORTCUTS.editorGoToEnd] },
+  {
+    label: "Previous, next edit",
+    shortcuts: [SHORTCUTS.editorPreviousEdit, SHORTCUTS.editorNextEdit],
+  },
+  {
+    label: "Previous, next marker",
+    shortcuts: [SHORTCUTS.editorPreviousMarker, SHORTCUTS.editorNextMarker],
+  },
+  { label: "Add a marker", shortcuts: [SHORTCUTS.editorAddMarker] },
+  { label: "Mark in, out", shortcuts: [SHORTCUTS.editorMarkIn, SHORTCUTS.editorMarkOut] },
+  { label: "Clear selection and range", shortcuts: [SHORTCUTS.editorClearMarks] },
   {
     label: "Select, Blade, Range",
     shortcuts: [SHORTCUTS.editorSelectTool, SHORTCUTS.editorBladeTool, SHORTCUTS.editorRangeTool],
@@ -114,10 +130,15 @@ const QUICK_KEYS: { label: string; shortcuts: ShortcutDefinition[] }[] = [
     label: "Ripple, roll trim tool",
     shortcuts: [SHORTCUTS.editorRippleTool, SHORTCUTS.editorRollTool],
   },
-  { label: "Add a marker", shortcuts: [SHORTCUTS.editorAddMarker] },
-  { label: "Mark in, out", shortcuts: [SHORTCUTS.editorMarkIn, SHORTCUTS.editorMarkOut] },
+  { label: "Toggle snapping", shortcuts: [SHORTCUTS.editorSnapping] },
+  {
+    label: "Zoom in, out, fit",
+    shortcuts: [SHORTCUTS.editorZoomIn, SHORTCUTS.editorZoomOut, SHORTCUTS.editorZoomFit],
+  },
+  { label: "Split at the playhead", shortcuts: [SHORTCUTS.editorSplit] },
+  { label: "Delete clips", shortcuts: [SHORTCUTS.editorDelete] },
   { label: "Ripple delete the range", shortcuts: [SHORTCUTS.editorRippleDelete] },
-  { label: "Copy, paste", shortcuts: [SHORTCUTS.editorCopy, SHORTCUTS.editorPaste] },
+  { label: "Duplicate clips", shortcuts: [SHORTCUTS.editorDuplicate] },
   {
     label: "Nudge a frame earlier, later",
     shortcuts: [SHORTCUTS.editorNudgeBack, SHORTCUTS.editorNudgeForward],
@@ -130,16 +151,18 @@ const QUICK_KEYS: { label: string; shortcuts: ShortcutDefinition[] }[] = [
     label: "Ripple trim start, end",
     shortcuts: [SHORTCUTS.editorRippleTrimStart, SHORTCUTS.editorRippleTrimEnd],
   },
+  { label: "Select every clip", shortcuts: [SHORTCUTS.editorSelectAll] },
   { label: "Select from the playhead on", shortcuts: [SHORTCUTS.editorSelectForward] },
-
+  { label: "Same, on the selected tracks", shortcuts: [SHORTCUTS.editorSelectForwardOnTracks] },
   {
-    label: "Previous, next edit",
-    shortcuts: [SHORTCUTS.editorPreviousEdit, SHORTCUTS.editorNextEdit],
+    label: "Copy, cut, paste",
+    shortcuts: [SHORTCUTS.editorCopy, SHORTCUTS.editorCut, SHORTCUTS.editorPaste],
   },
-  { label: "Fit the timeline", shortcuts: [SHORTCUTS.editorZoomFit] },
+  { label: "Paste settings", shortcuts: [SHORTCUTS.editorPasteAttributes] },
+  { label: "Undo, redo", shortcuts: [SHORTCUTS.editorUndo, SHORTCUTS.editorRedo] },
 ];
 
-/** A listing has room for one way to press each; the full set is in the shortcut sheet. */
+/** A row has room for one way to press each action. */
 function firstChord(shortcut: ShortcutDefinition): ShortcutDefinition {
   return { ...shortcut, chords: shortcut.chords.slice(0, 1) };
 }
@@ -298,7 +321,12 @@ function InspectorContent({
                 <span>{item.label}</span>
                 <span className="video-editor__quick-keys-caps">
                   {item.shortcuts.map((shortcut, index) => (
-                    <ShortcutKeys key={index} shortcut={firstChord(shortcut)} />
+                    <Fragment key={index}>
+                      <span className="video-editor__quick-keys-action">
+                        <ShortcutKeys shortcut={firstChord(shortcut)} />
+                      </span>
+                      {index < item.shortcuts.length - 1 && <span aria-hidden="true"> </span>}
+                    </Fragment>
                   ))}
                 </span>
               </li>

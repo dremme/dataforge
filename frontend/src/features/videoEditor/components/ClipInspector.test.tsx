@@ -99,6 +99,10 @@ describe("ClipInspector", () => {
     expect(screen.getByText("640 × 360")).toBeInTheDocument();
     expect(screen.getByText("30 fps")).toBeInTheDocument();
     expect(screen.getByText("Split at the playhead")).toBeInTheDocument();
+    // One way to press each action, with the row's actions split by commas.
+    expect(screen.getByText("Undo, redo").closest("li")).toHaveTextContent(
+      /^Undo, redoCtrlZ CtrlShiftZ$/,
+    );
   });
 
   it("links one picture with its sound and deletes several clips at once", async () => {

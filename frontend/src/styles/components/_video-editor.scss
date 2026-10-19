@@ -2222,6 +2222,11 @@ $lane-inset: 4px;
     gap: 0.25rem;
   }
 
+  &__quick-keys-action {
+    display: inline-flex;
+    align-items: baseline;
+  }
+
   // Timeline panel
   &__toolbar {
     display: flex;
