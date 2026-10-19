@@ -100,6 +100,35 @@ describe("useFolderNavigation", () => {
     });
   });
 
+  it("drops the outgoing folder's note and instructions while the next folder loads", async () => {
+    const resolvers = holdListings();
+    const { result } = renderHookWithQueryClient(() => useFolderNavigation());
+    await waitFor(() => expect(resolvers.has(undefined)).toBe(true));
+    await act(async () => {
+      resolvers.get(undefined)?.({
+        ...homeFolder,
+        note: "Outgoing note",
+        has_sysprompt: true,
+        sysprompt_applies: true,
+        has_caption_rules: true,
+      });
+    });
+    await waitFor(() => expect(result.current.folder?.note).toBe("Outgoing note"));
+
+    act(() => {
+      void result.current.navigateTo(VACATION_PATH);
+    });
+
+    await waitFor(() => expect(result.current.folder?.path).toBe(VACATION_PATH));
+    expect(result.current.loading).toBe(true);
+    expect(result.current.folder).toMatchObject({
+      note: "",
+      has_sysprompt: false,
+      sysprompt_applies: false,
+      has_caption_rules: false,
+    });
+  });
+
   it("files the default folder under the path the server named", async () => {
     const { result, client, router } = await renderAtHome();
 

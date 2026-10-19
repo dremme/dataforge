@@ -34,11 +34,19 @@ import { getAppScrollElement } from "@/shared/lib/appScroll";
 import type { FolderResponse } from "@/shared/types";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
+/**
+ * The outgoing listing, shown while the next one loads; its note and instructions belong to
+ * that folder only.
+ */
 function applyOptimisticFolder(folder: FolderResponse, folderPath: string): FolderResponse {
   return {
     ...folder,
     path: folderPath,
     breadcrumbs: buildBreadcrumbs(folderPath),
+    note: "",
+    has_sysprompt: false,
+    sysprompt_applies: false,
+    has_caption_rules: false,
   };
 }
 
