@@ -14,7 +14,7 @@ describe("ConfirmDialog", () => {
     resetScrollLockManagerForTests();
   });
 
-  it("keeps the blurred backdrop after parent re-renders", () => {
+  it("keeps the native dialog open after parent re-renders", () => {
     const { rerender } = render(
       <ConfirmDialog
         title="Start auto-caption job?"
@@ -25,8 +25,8 @@ describe("ConfirmDialog", () => {
       />,
     );
 
-    const backdrop = () => screen.getByRole("button", { name: "Close dialog" });
-    expect(backdrop()).not.toHaveClass("confirm-dialog__backdrop--nested");
+    const backdrop = () => screen.getByLabelText("Close dialog", { exact: true });
+    expect(backdrop()).not.toHaveClass("dialog__backdrop--nested");
 
     rerender(
       <ConfirmDialog
@@ -38,10 +38,10 @@ describe("ConfirmDialog", () => {
       />,
     );
 
-    expect(backdrop()).not.toHaveClass("confirm-dialog__backdrop--nested");
+    expect(backdrop()).not.toHaveClass("dialog__backdrop--nested");
   });
 
-  it("uses the nested backdrop when another overlay was open on mount", () => {
+  it("opens as a native dialog while another overlay holds the scroll lock", () => {
     const handle = acquireScrollLock("jobs-dialog-open");
 
     render(
@@ -54,9 +54,7 @@ describe("ConfirmDialog", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Close dialog" })).toHaveClass(
-      "confirm-dialog__backdrop--nested",
-    );
+    expect(screen.getByRole("alertdialog")).toHaveAttribute("open");
 
     releaseScrollLock(handle);
   });
@@ -86,16 +84,16 @@ describe("ConfirmDialog", () => {
     }
 
     const { rerender } = render(<Host step="move" />);
-    expect(screen.getByRole("button", { name: "Close dialog" })).not.toHaveClass(
-      "confirm-dialog__backdrop--nested",
+    expect(screen.getByLabelText("Close dialog", { exact: true })).not.toHaveClass(
+      "dialog__backdrop--nested",
     );
 
     rerender(<Host step="overwrite" />);
     expect(
       screen.getByRole("alertdialog", { name: "Replace existing files?" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Close dialog" })).not.toHaveClass(
-      "confirm-dialog__backdrop--nested",
+    expect(screen.getByLabelText("Close dialog", { exact: true })).not.toHaveClass(
+      "dialog__backdrop--nested",
     );
   });
 

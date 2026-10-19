@@ -34,15 +34,18 @@ describe("DialogShell", () => {
     resetScrollLockManagerForTests();
   });
 
-  it("keeps the backdrop outside the dialog", () => {
+  it("keeps the backdrop outside the content panel and out of the tab order", () => {
     renderShell({ backdropLabel: "Close test dialog" });
 
     // Inside the dialog the backdrop would be announced as content: a stray
     // close button ahead of everything the overlay actually says.
-    const backdrop = screen.getByRole("button", { name: "Close test dialog" });
-    expect(backdrop).toBeInTheDocument();
+    const backdrop = screen.getByLabelText("Close test dialog", { exact: true });
+    expect(backdrop).toHaveAttribute("tabindex", "-1");
     expect(
-      within(screen.getByRole("dialog")).queryByRole("button", { name: "Close test dialog" }),
+      within(screen.getByRole("dialog").querySelector(".dialog-panel") as HTMLElement).queryByRole(
+        "button",
+        { name: "Close test dialog" },
+      ),
     ).toBeNull();
   });
 
@@ -72,6 +75,22 @@ describe("DialogShell", () => {
       </StrictMode>,
     );
     expect(screen.getByLabelText("Name")).toHaveFocus();
+  });
+
+  it("keeps the deepest dialog on top when nested dialogs mount together", async () => {
+    render(
+      <StrictMode>
+        <DialogShell block="parent-dialog" label="Parent" onClose={() => {}}>
+          <DialogShell block="child-dialog" label="Child" onClose={() => {}}>
+            <DialogShell block="grandchild-dialog" label="Grandchild" onClose={() => {}}>
+              <button type="button">Inside</button>
+            </DialogShell>
+          </DialogShell>
+        </DialogShell>
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Grandchild" })).toHaveFocus());
   });
 
   it("returns focus to the trigger on close", async () => {
@@ -134,7 +153,7 @@ describe("DialogShell", () => {
     await user.keyboard("{Escape}");
     expect(onClose).not.toHaveBeenCalled();
 
-    const backdrop = screen.getByRole("button", { name: "Close test dialog" });
+    const backdrop = screen.getByLabelText("Close test dialog", { exact: true });
     expect(backdrop).toBeDisabled();
   });
 
@@ -155,7 +174,7 @@ describe("DialogShell", () => {
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "Close test dialog" }));
+    await user.click(screen.getByLabelText("Close test dialog", { exact: true }));
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
@@ -177,23 +196,24 @@ describe("DialogShell", () => {
 
     await user.keyboard("{Escape}");
 
-    // The editor variant listens in the capture phase and stops propagation, so
-    // the parent's window-level handler never runs.
+    // Native cancellation belongs to the top dialog, without suspending its parent.
     expect(onCloseChild).toHaveBeenCalledTimes(1);
     expect(onCloseParent).not.toHaveBeenCalled();
   });
 
-  it("renders the drawer's panel as an aside carrying its aria-controls id", () => {
-    renderShell({ panelAs: "aside", panelId: "test-dialog-panel" });
+  it("renders a native dialog carrying its aria-controls id", () => {
+    renderShell({ panelId: "test-dialog-panel" });
 
     const panel = screen.getByRole("dialog");
-    expect(panel.tagName).toBe("ASIDE");
+    expect(panel.tagName).toBe("DIALOG");
     expect(panel).toHaveAttribute("id", "test-dialog-panel");
   });
 
   it("swaps the entrance for the exit animation while closing", () => {
     const { rerender } = renderShell({ backdropLabel: "Close test dialog" });
-    expect(screen.getByRole("dialog")).toHaveClass("dialog-panel--enter");
+    expect(screen.getByRole("dialog").querySelector(".dialog-panel")).toHaveClass(
+      "dialog-panel--enter",
+    );
 
     rerender(
       <StrictMode>
@@ -209,11 +229,11 @@ describe("DialogShell", () => {
       </StrictMode>,
     );
 
-    const panel = screen.getByRole("dialog");
+    const panel = screen.getByRole("dialog").querySelector(".dialog-panel");
     expect(panel).toHaveClass("dialog-panel--exit");
     // Never both at once, or the two animations would race on one element.
     expect(panel).not.toHaveClass("dialog-panel--enter");
-    expect(screen.getByRole("button", { name: "Close test dialog" })).toHaveClass(
+    expect(screen.getByLabelText("Close test dialog", { exact: true })).toHaveClass(
       "dialog-backdrop--exit",
     );
   });
@@ -225,7 +245,7 @@ describe("DialogShell", () => {
 
     await user.keyboard("{Escape}");
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Close test dialog" })).toBeDisabled();
+    expect(screen.getByLabelText("Close test dialog", { exact: true })).toBeDisabled();
   });
 
   it("reports the exit only when the panel's own animation ends", () => {
@@ -249,7 +269,9 @@ describe("DialogShell", () => {
     fireEvent.animationEnd(screen.getByRole("button", { name: "Inside" }));
     expect(onExited).not.toHaveBeenCalled();
 
-    fireEvent.animationEnd(screen.getByRole("dialog"));
+    fireEvent.animationEnd(
+      screen.getByRole("dialog").querySelector(".dialog-panel") as HTMLElement,
+    );
     expect(onExited).toHaveBeenCalledTimes(1);
   });
 
@@ -285,13 +307,17 @@ describe("DialogShell", () => {
     const onExited = vi.fn<() => void>();
     renderShell({ onExited });
 
-    fireEvent.animationEnd(screen.getByRole("dialog"));
+    fireEvent.animationEnd(
+      screen.getByRole("dialog").querySelector(".dialog-panel") as HTMLElement,
+    );
     expect(onExited).not.toHaveBeenCalled();
   });
 
   it("skips the enter animation when the caller has its own", () => {
     const { rerender } = renderShell();
-    expect(screen.getByRole("dialog")).toHaveClass("dialog-panel--enter");
+    expect(screen.getByRole("dialog").querySelector(".dialog-panel")).toHaveClass(
+      "dialog-panel--enter",
+    );
 
     rerender(
       <StrictMode>
@@ -305,6 +331,8 @@ describe("DialogShell", () => {
         </DialogShell>
       </StrictMode>,
     );
-    expect(screen.getByRole("dialog")).not.toHaveClass("dialog-panel--enter");
+    expect(screen.getByRole("dialog").querySelector(".dialog-panel")).not.toHaveClass(
+      "dialog-panel--enter",
+    );
   });
 });

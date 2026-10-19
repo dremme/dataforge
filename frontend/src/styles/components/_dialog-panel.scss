@@ -1,9 +1,37 @@
-.dialog-panel {
-  // tabindex="-1" container, not a control: left alone it would draw the browser's default ring around the whole dialog.
+:where(.dialog-surface) {
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  overflow: visible;
+}
+
+.dialog-surface {
+  &:not([open]) {
+    display: none;
+  }
+
   &:focus {
     outline: none;
   }
 
+  &::backdrop {
+    background: transparent;
+  }
+}
+
+// Only the base dialog blurs the page; subsequent native modals dim the dialog beneath.
+.dialog-surface[data-dialog-stacked] > .dialog-backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dialog-panel {
   &--enter {
     animation: dialog-panel-enter 0.16s ease-out;
   }

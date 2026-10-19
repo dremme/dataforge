@@ -412,9 +412,9 @@ describe("JobsDialog", () => {
     );
 
     const panel = screen.getByRole("dialog");
-    expect(panel).toHaveClass("dialog-panel--exit");
+    expect(panel.querySelector(".dialog-panel")).toHaveClass("dialog-panel--exit");
 
-    fireEvent.animationEnd(panel);
+    fireEvent.animationEnd(panel.querySelector(".dialog-panel") as HTMLElement);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -467,7 +467,7 @@ describe("JobsDialog", () => {
     });
 
     const { baseElement } = renderDrawer([], [externalJob]);
-    const panel = baseElement.querySelector(".jobs-dialog__panel")!;
+    const panel = baseElement.querySelector("dialog.jobs-dialog")!;
 
     await waitFor(() =>
       expect(
@@ -492,7 +492,7 @@ describe("JobsDialog", () => {
     const user = userEvent.setup();
     jobsContext.cancelJob.mockResolvedValue(null);
     const { baseElement } = renderDrawer([captionJob]);
-    const panel = baseElement.querySelector(".jobs-dialog__panel")!;
+    const panel = baseElement.querySelector("dialog.jobs-dialog")!;
 
     await user.click(screen.getByRole("button", { name: "Cancel job for landscapes" }));
     const confirm = screen.getByRole("alertdialog", { name: "Cancel auto-caption job?" });

@@ -1,6 +1,5 @@
 import {
   useContext,
-  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -12,8 +11,8 @@ import { iconLoader2, iconX } from "@/shared/icons";
 import { DialogScope, type DialogScopeInfo } from "./DialogScope";
 import { Icon } from "./Icon";
 import { DialogShell } from "./DialogShell";
-import { useLatestRef } from "@/shared/hooks/useLatestRef";
-import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
+import type { GuardedAction } from "@/shared/hooks/useDiscardChanges";
+import { DialogSubmissionContext } from "./dialogSubmissionContext";
 import { DialogCancelContext } from "./dialogCancelContext";
 import { DialogSuspendedContext } from "./dialogSuspendedContext";
 
@@ -27,7 +26,7 @@ function entersNewline(target: EventTarget | null): boolean {
   );
 }
 
-interface DialogProps {
+export interface DialogProps {
   title: string;
   scope?: DialogScopeInfo;
   description?: ReactNode;
@@ -35,7 +34,8 @@ interface DialogProps {
   panelClassName?: string;
   busy?: boolean;
   suspended?: boolean;
-  unsavedChanges?: boolean;
+  confirmDisabled?: boolean;
+  onCancelAction?: (action: GuardedAction) => Promise<void>;
   onConfirm?: () => void;
   onClose: () => void;
   initialFocusRef?: RefObject<HTMLElement | null>;
@@ -48,11 +48,12 @@ export function Dialog({
   title,
   scope,
   description,
-  role = "alertdialog",
+  role = "dialog",
   panelClassName,
   busy = false,
   suspended = false,
-  unsavedChanges = false,
+  confirmDisabled = false,
+  onCancelAction,
   onConfirm,
   onClose,
   initialFocusRef,
@@ -62,73 +63,58 @@ export function Dialog({
 }: DialogProps) {
   const titleId = useId();
   const descriptionId = useId();
-  const panelRef = useRef<HTMLDivElement>(null);
   const openedAtRef = useRef(0);
   const parentSuspended = useContext(DialogSuspendedContext);
-  const discard = useDiscardChanges({
-    unsavedChanges,
-    busy,
-    suspended,
-    onNavigationDiscard: onClose,
-  });
-  const requestClose = () => {
-    void discard.request(onClose);
+  const confirm = () => {
+    if (!busy && !confirmDisabled && !suspended && !parentSuspended) onConfirm?.();
   };
 
   useLayoutEffect(() => {
     openedAtRef.current = performance.now();
   }, []);
 
-  const confirmRef = useLatestRef(onConfirm);
-
-  useEffect(() => {
-    if (busy || suspended || parentSuspended || discard.confirming || !onConfirm) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || event.key !== "Enter" || event.shiftKey)
-        return;
-      if (!(event.target instanceof Node) || !panelRef.current?.contains(event.target)) return;
-      if (entersNewline(event.target)) return;
-      if (
-        event.target instanceof Element &&
-        event.target.closest("button, a[href], select, [role='button'], [role='combobox']")
-      )
-        return;
-      if (performance.now() - openedAtRef.current < OPEN_GRACE_MS) return;
-
-      event.preventDefault();
-      confirmRef.current?.();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, confirmRef, discard.confirming, parentSuspended, onConfirm, suspended]);
-
   return (
-    <>
-      <DialogShell
-        block="confirm-dialog"
-        role={role}
-        panelClassName={panelClassName}
-        labelledById={titleId}
-        describedById={describedById ?? (description ? descriptionId : undefined)}
-        onClose={requestClose}
-        onCancelAction={discard.request}
-        busy={busy}
-        suspended={suspended || discard.confirming}
-        scrollLock="confirm-dialog-open"
-        backdropLabel="Close dialog"
-        initialFocusRef={initialFocusRef}
-        panelRef={panelRef}
-      >
-        <header className="confirm-dialog__header">
-          <h2 id={titleId} className="confirm-dialog__title">
+    <DialogShell
+      block="dialog"
+      role={role}
+      panelClassName={panelClassName}
+      labelledById={titleId}
+      describedById={describedById ?? (description ? descriptionId : undefined)}
+      onClose={onClose}
+      onCancelAction={onCancelAction}
+      onKeyDown={(event) => {
+        if (
+          event.defaultPrevented ||
+          event.nativeEvent.isComposing ||
+          event.key !== "Enter" ||
+          event.shiftKey
+        )
+          return;
+        if (entersNewline(event.target)) return;
+        if (
+          event.target instanceof Element &&
+          event.target.closest("button, a[href], select, [role='button'], [role='combobox']")
+        )
+          return;
+        if (performance.now() - openedAtRef.current < OPEN_GRACE_MS) return;
+        event.preventDefault();
+        confirm();
+      }}
+      busy={busy}
+      suspended={suspended}
+      scrollLock="dialog-open"
+      backdropLabel="Close dialog"
+      initialFocusRef={initialFocusRef}
+    >
+      <DialogSubmissionContext.Provider value={{ confirm, busy, disabled: confirmDisabled }}>
+        <header className="dialog__header">
+          <h2 id={titleId} className="dialog__title">
             {title}
           </h2>
           <button
             type="button"
-            className="confirm-dialog__close"
-            onClick={requestClose}
+            className="dialog__close"
+            onClick={onClose}
             aria-label="Close"
             disabled={busy}
           >
@@ -139,17 +125,16 @@ export function Dialog({
         {scope && <DialogScope {...scope} />}
 
         {description && (
-          <p id={descriptionId} className="confirm-dialog__description">
+          <p id={descriptionId} className="dialog__description">
             {description}
           </p>
         )}
 
         {children}
 
-        {footer && <footer className="confirm-dialog__actions">{footer}</footer>}
-      </DialogShell>
-      {discard.prompt}
-    </>
+        {footer && <footer className="dialog__actions">{footer}</footer>}
+      </DialogSubmissionContext.Provider>
+    </DialogShell>
   );
 }
 
@@ -177,13 +162,13 @@ export function DialogButton({
   return (
     <button
       type="button"
-      className={`confirm-dialog__btn confirm-dialog__btn--${variant}`}
+      className={`dialog__btn dialog__btn--${variant}`}
       onClick={onClick}
       onKeyDown={onKeyDown}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
     >
-      {displayIcon && <Icon icon={displayIcon} spin={busy} className="confirm-dialog__btn-icon" />}
+      {displayIcon && <Icon icon={displayIcon} spin={busy} className="dialog__btn-icon" />}
       {label}
     </button>
   );
@@ -196,7 +181,7 @@ interface DialogActionsProps {
   confirmVariant?: "primary" | "warning" | "danger";
   busy?: boolean;
   confirmDisabled?: boolean;
-  onConfirm: () => void;
+  onConfirm?: () => void;
   onCancel: () => void;
 }
 
@@ -205,12 +190,15 @@ export function DialogActions({
   busyLabel,
   cancelLabel = "Cancel",
   confirmVariant = "primary",
-  busy = false,
-  confirmDisabled = false,
+  busy: standaloneBusy = false,
+  confirmDisabled: standaloneDisabled = false,
   onConfirm,
   onCancel,
 }: DialogActionsProps) {
   const request = useContext(DialogCancelContext);
+  const submission = useContext(DialogSubmissionContext);
+  const busy = submission?.busy ?? standaloneBusy;
+  const confirmDisabled = submission?.disabled ?? standaloneDisabled;
   return (
     <>
       <DialogButton
@@ -227,36 +215,8 @@ export function DialogActions({
         variant={confirmVariant}
         busy={busy}
         disabled={confirmDisabled}
-        onClick={onConfirm}
+        onClick={submission?.confirm ?? (() => onConfirm?.())}
       />
     </>
-  );
-}
-
-export function DiscardChangesDialog({
-  onDiscard,
-  onKeepEditing,
-  description = "Your unsaved changes will be lost. This cannot be undone.",
-}: {
-  onDiscard: () => void;
-  onKeepEditing: () => void;
-  description?: string;
-}) {
-  return (
-    <Dialog
-      title="Discard changes?"
-      description={description}
-      onClose={onKeepEditing}
-      onConfirm={onDiscard}
-      footer={
-        <DialogActions
-          confirmLabel="Discard"
-          cancelLabel="Keep editing"
-          confirmVariant="danger"
-          onConfirm={onDiscard}
-          onCancel={onKeepEditing}
-        />
-      }
-    />
   );
 }

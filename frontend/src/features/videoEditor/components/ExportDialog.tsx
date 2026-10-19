@@ -1,3 +1,4 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useId, useState } from "react";
 import {
   VIDEO_PROJECT_EXPORT_EXTENSION,
@@ -6,7 +7,7 @@ import {
   VIDEO_PROJECT_TRUE_PEAK_CEILING_DB,
 } from "@/shared/constants";
 import { formatFileSize } from "@/shared/lib/format";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import { RadioTileGroup } from "@/shared/ui/RadioTileGroup";
 import type {
   VideoProjectAudioLevel,
@@ -117,7 +118,8 @@ export function ExportDialog({
     `${formatTimecode(part.start, project.frame_rate)} – ${formatTimecode(part.end, project.frame_rate)}`;
 
   return (
-    <Dialog
+    <GuardedDialog
+      confirmDisabled={!canExport}
       unsavedChanges={
         filename !== wholeName ||
         extent !== "whole" ||
@@ -133,16 +135,7 @@ export function ExportDialog({
       busy={busy}
       onConfirm={submit}
       onClose={onCancel}
-      footer={
-        <DialogActions
-          confirmLabel="Export"
-          busyLabel="Starting..."
-          busy={busy}
-          confirmDisabled={!canExport}
-          onConfirm={submit}
-          onCancel={onCancel}
-        />
-      }
+      footer={<DialogActions confirmLabel="Export" busyLabel="Starting..." onCancel={onCancel} />}
     >
       <div className="dialog__field">
         <label className="dialog__label" htmlFor={nameId}>
@@ -282,6 +275,6 @@ export function ExportDialog({
       </p>
       {blocked && <p className="dialog__error">{blocked}</p>}
       {error && <p className="dialog__error">{error}</p>}
-    </Dialog>
+    </GuardedDialog>
   );
 }

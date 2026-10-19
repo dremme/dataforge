@@ -2,7 +2,7 @@
 @use "../abstracts/mixins" as *;
 
 // Two scrolling regions, each bounded; the panel itself never scrolls.
-.confirm-dialog__panel.comfy-workflow-dialog {
+.dialog__panel.comfy-workflow-dialog {
   display: flex;
   flex-direction: column;
   width: min(54rem, 100%);
@@ -11,12 +11,12 @@
 }
 
 // Picking another output must not resize the panel, so a list reserves the full height.
-.confirm-dialog__panel.comfy-workflow-dialog:has(.comfy-workflow-dialog__outputs-field) {
+.dialog__panel.comfy-workflow-dialog:has(.comfy-workflow-dialog__outputs-field) {
   height: min(88vh, 50rem);
 }
 
 .comfy-workflow-dialog {
-  .confirm-dialog__description {
+  .dialog__description {
     margin-bottom: 0.875rem;
     overflow-wrap: anywhere;
   }

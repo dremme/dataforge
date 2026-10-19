@@ -197,7 +197,7 @@ describe("App: quick action bar", () => {
     await user.type(within(palette).getByRole("combobox"), "set captions");
     await user.keyboard("{Enter}");
 
-    await screen.findByRole("alertdialog", { name: "Set captions?" });
+    await screen.findByRole("dialog", { name: "Set captions?" });
     expect(screen.queryByRole("dialog", { name: "Quick actions" })).not.toBeInTheDocument();
   });
 
@@ -248,11 +248,11 @@ describe("App: quick action bar", () => {
 
     await user.click(screen.getByRole("button", { name: /^Tools$/ }));
     await user.click(screen.getByRole("menuitem", { name: /Find & replace/ }));
-    await screen.findByRole("alertdialog", { name: "Find and replace in captions?" });
+    await screen.findByRole("dialog", { name: "Find and replace in captions?" });
     await user.keyboard("{Escape}");
     await waitFor(() => {
       expect(
-        screen.queryByRole("alertdialog", { name: "Find and replace in captions?" }),
+        screen.queryByRole("dialog", { name: "Find and replace in captions?" }),
       ).not.toBeInTheDocument();
     });
 
@@ -269,14 +269,14 @@ describe("App: quick action bar", () => {
     await waitForHomeFolder();
 
     await user.click(screen.getByRole("button", { name: "New folder" }));
-    await screen.findByRole("alertdialog", { name: "New folder" });
+    await screen.findByRole("dialog", { name: "New folder" });
 
     await openQuickAction(user);
     expect(screen.queryByRole("dialog", { name: "Quick actions" })).not.toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     await waitFor(() => {
-      expect(screen.queryByRole("alertdialog", { name: "New folder" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog", { name: "New folder" })).not.toBeInTheDocument();
     });
 
     await openQuickAction(user);

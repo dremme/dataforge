@@ -1,4 +1,4 @@
-import { completionStatus } from "@codemirror/autocomplete";
+import { closeCompletion, completionStatus } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
 import { search } from "@codemirror/search";
@@ -103,6 +103,8 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
 
       const view = viewRef.current;
       if (view && completionStatus(view.state) !== null) {
+        closeCompletion(view);
+        event.preventDefault();
         event.stopPropagation();
         return;
       }

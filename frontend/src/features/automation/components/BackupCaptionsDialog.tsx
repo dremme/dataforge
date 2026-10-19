@@ -1,5 +1,6 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback } from "react";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { CAPTION_BACKUP_DIR_NAME } from "@/shared/constants";
@@ -24,7 +25,8 @@ export function BackupCaptionsDialog({
   }, [busy, onConfirm]);
 
   return (
-    <Dialog
+    <GuardedDialog
+      role="alertdialog"
       scope={scope}
       title="Back up captions?"
       description={
@@ -41,8 +43,6 @@ export function BackupCaptionsDialog({
         <DialogActions
           confirmLabel="Back up captions"
           busyLabel="Starting..."
-          busy={busy}
-          onConfirm={handleConfirm}
           onCancel={onCancel}
         />
       }

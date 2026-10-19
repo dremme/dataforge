@@ -4,6 +4,7 @@ import { iconX } from "@/shared/icons";
 import { variantIcons, type NotificationVariant, type Toast } from "./notifications";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
+import { useModalPortalTarget } from "@/shared/hooks/useModalPortalTarget";
 
 interface NotificationContainerProps {
   toasts: Toast[];
@@ -86,6 +87,7 @@ function NotificationToast({
 }
 
 export function NotificationContainer({ toasts, ...handlers }: NotificationContainerProps) {
+  const target = useModalPortalTarget(toasts.length > 0);
   if (toasts.length === 0) {
     return null;
   }
@@ -96,6 +98,6 @@ export function NotificationContainer({ toasts, ...handlers }: NotificationConta
         <NotificationToast key={toast.id} toast={toast} {...handlers} />
       ))}
     </div>,
-    document.body,
+    target,
   );
 }

@@ -10,7 +10,7 @@ import {
 } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { registerHistoryPopGuard } from "@/shared/lib/historyPopGate";
-import { DiscardChangesDialog } from "./Dialog";
+import { DiscardChangesDialog } from "./DiscardChangesDialog";
 import { DialogNavigationContext, type DialogNavigationDraft } from "./dialogNavigationContext";
 import { DialogSuspendedContext } from "./dialogSuspendedContext";
 

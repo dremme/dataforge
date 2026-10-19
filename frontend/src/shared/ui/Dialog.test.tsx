@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { stubDialogClock } from "@/test/dialogClock";
@@ -30,7 +30,7 @@ describe("Dialog", () => {
   it("wires the accessible name and description to the panel", () => {
     renderDialog();
 
-    const panel = screen.getByRole("alertdialog", { name: "Start job?" });
+    const panel = screen.getByRole("dialog", { name: "Start job?" });
     expect(panel).toHaveAccessibleDescription("Runs over every file in the folder.");
   });
 
@@ -42,7 +42,7 @@ describe("Dialog", () => {
       </>,
     );
 
-    const [first, second] = screen.getAllByRole("alertdialog");
+    const [first, second] = screen.getAllByRole("dialog");
     expect(first.getAttribute("aria-labelledby")).not.toBe(second.getAttribute("aria-labelledby"));
     expect(first).toHaveAccessibleName("First");
     expect(second).toHaveAccessibleName("Second");
@@ -51,37 +51,8 @@ describe("Dialog", () => {
   it("focuses the panel on open", () => {
     renderDialog();
 
-    expect(screen.getByRole("alertdialog", { name: "Start job?" })).toHaveFocus();
+    expect(screen.getByRole("dialog", { name: "Start job?" })).toHaveFocus();
   });
-
-  it.each(["Cancel", "Close", "Escape", "Backdrop"])(
-    "asks before %s discards changes and can keep editing",
-    async (exit) => {
-      const user = userEvent.setup();
-      const { onClose, onConfirm } = renderDialog({ unsavedChanges: true });
-      const dismiss = async () => {
-        if (exit === "Escape") await user.keyboard("{Escape}");
-        else
-          await user.click(
-            screen.getByRole("button", { name: exit === "Backdrop" ? "Close dialog" : exit }),
-          );
-      };
-
-      await dismiss();
-      const confirmation = await screen.findByRole("alertdialog", { name: "Discard changes?" });
-      expect(onClose).not.toHaveBeenCalled();
-      expect(onConfirm).not.toHaveBeenCalled();
-      await user.click(within(confirmation).getByRole("button", { name: "Keep editing" }));
-      expect(
-        screen.queryByRole("alertdialog", { name: "Discard changes?" }),
-      ).not.toBeInTheDocument();
-
-      await dismiss();
-      await user.click(screen.getByRole("button", { name: "Discard" }));
-      expect(onClose).toHaveBeenCalledTimes(1);
-      expect(onConfirm).not.toHaveBeenCalled();
-    },
-  );
 
   it("ignores Enter immediately after opening", async () => {
     const user = userEvent.setup();
@@ -93,6 +64,16 @@ describe("Dialog", () => {
     passOpenGrace();
     await user.keyboard("{Enter}");
     expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares disabled submission state between the button and Enter", async () => {
+    const user = userEvent.setup();
+    const { onConfirm, passOpenGrace } = renderDialog({ confirmDisabled: true });
+    passOpenGrace();
+
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+    await user.keyboard("{Enter}");
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 
   it("closes on Escape and confirms on Enter", async () => {
@@ -257,7 +238,7 @@ describe("Dialog", () => {
   it("omits aria-describedby when there is no description", () => {
     render(<Dialog title="Bare" onClose={vi.fn<() => void>()} footer={null} />);
 
-    expect(screen.getByRole("alertdialog")).not.toHaveAttribute("aria-describedby");
+    expect(screen.getByRole("dialog")).not.toHaveAttribute("aria-describedby");
   });
 });
 

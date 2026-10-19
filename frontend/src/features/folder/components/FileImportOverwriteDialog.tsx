@@ -1,5 +1,6 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { iconAlertTriangle } from "@/shared/icons";
-import { Dialog, DialogButton } from "@/shared/ui/Dialog";
+import { DialogButton } from "@/shared/ui/Dialog";
 
 type FileImportOverwriteDialogProps = {
   conflicts: string[];
@@ -28,7 +29,8 @@ export function FileImportOverwriteDialog({
       : `${conflicts.slice(0, 3).join(", ")} and ${conflicts.length - 3} more`;
 
   return (
-    <Dialog
+    <GuardedDialog
+      role="alertdialog"
       title={title}
       description={
         <>

@@ -338,7 +338,7 @@ describe("GallerySelectionControls", () => {
 
   it("ignores Ctrl+A entirely while scroll lock is active", () => {
     const selectAllPaths = vi.fn<() => void>();
-    const handle = acquireScrollLock("confirm-dialog-open");
+    const handle = acquireScrollLock("dialog-open");
 
     renderControls({
       selectionMode: false,
@@ -431,7 +431,7 @@ describe("GallerySelectionControls", () => {
   it("ignores Escape entirely while scroll lock is active", () => {
     const exitSelectionMode = vi.fn<() => void>();
     const clearSelectedPaths = vi.fn<() => void>();
-    const handle = acquireScrollLock("confirm-dialog-open");
+    const handle = acquireScrollLock("dialog-open");
 
     renderControls({ exitSelectionMode, clearSelectedPaths });
 
@@ -789,7 +789,7 @@ describe("GallerySelectionControls", () => {
   });
 
   it("ignores Delete entirely while scroll lock is active", () => {
-    const handle = acquireScrollLock("confirm-dialog-open");
+    const handle = acquireScrollLock("dialog-open");
 
     renderControls();
 

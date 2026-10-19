@@ -8,7 +8,7 @@ import { renderApp } from "@/test/renderApp";
 async function openLintDialog(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: /^Tools$/ }));
   await user.click(screen.getByRole("menuitem", { name: /Lint captions/ }));
-  return screen.findByRole("alertdialog", { name: "Lint captions?" });
+  return screen.findByRole("dialog", { name: "Lint captions?" });
 }
 
 describe("App: dialogs", () => {
@@ -41,7 +41,7 @@ describe("App: dialogs", () => {
 
     await user.click(screen.getByRole("button", { name: /Auto-caption/ }));
 
-    const dialog = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
+    const dialog = await screen.findByRole("dialog", { name: "Start auto-caption?" });
     expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent(
       "1 selected file in Photos",
     );
@@ -119,7 +119,7 @@ describe("App: dialogs", () => {
 
     await user.click(screen.getByRole("button", { name: /Auto-caption/ }));
 
-    const dialog = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
+    const dialog = await screen.findByRole("dialog", { name: "Start auto-caption?" });
     expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent(
       /^Matching \d+ files? in Photos$/,
     );
@@ -127,7 +127,7 @@ describe("App: dialogs", () => {
     expect(screen.getByRole("radio", { name: /Reasoning/i })).toBeChecked();
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(([input]) => {
         const requestUrl =
@@ -137,7 +137,7 @@ describe("App: dialogs", () => {
     ).toBe(false);
 
     await user.click(screen.getByRole("button", { name: /Auto-caption/ }));
-    await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
+    await screen.findByRole("dialog", { name: "Start auto-caption?" });
 
     const instructRadio = screen.getByRole("radio", { name: /Instruct/i });
     await user.click(instructRadio);

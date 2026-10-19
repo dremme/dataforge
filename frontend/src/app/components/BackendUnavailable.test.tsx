@@ -46,6 +46,9 @@ describe("BackendUnavailable", () => {
     renderGate();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(BACKEND_UNREACHABLE.title);
+    expect(screen.getByRole("alertdialog", { name: BACKEND_UNREACHABLE.title })).toHaveAttribute(
+      "open",
+    );
   });
 
   it("keeps the error up while re-probing an API that never answered", async () => {

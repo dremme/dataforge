@@ -1,5 +1,6 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useState } from "react";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import { ATTRIBUTE_LABELS, type AttributeGroup } from "@/features/videoEditor/lib/clipboard";
 
 interface PasteAttributesDialogProps {
@@ -24,7 +25,8 @@ export function PasteAttributesDialog({
     if (chosen.size > 0) onPaste(groups.filter((group) => chosen.has(group)));
   };
   return (
-    <Dialog
+    <GuardedDialog
+      confirmDisabled={chosen.size === 0}
       unsavedChanges={chosen.size !== groups.length}
       title="Paste attributes"
       description={
@@ -36,14 +38,7 @@ export function PasteAttributesDialog({
       role="dialog"
       onConfirm={submit}
       onClose={onCancel}
-      footer={
-        <DialogActions
-          confirmLabel="Paste"
-          confirmDisabled={chosen.size === 0}
-          onConfirm={submit}
-          onCancel={onCancel}
-        />
-      }
+      footer={<DialogActions confirmLabel="Paste" onCancel={onCancel} />}
     >
       <fieldset className="dialog__field video-editor__attribute-list">
         <legend className="dialog__label">Settings</legend>
@@ -67,6 +62,6 @@ export function PasteAttributesDialog({
           </label>
         ))}
       </fieldset>
-    </Dialog>
+    </GuardedDialog>
   );
 }

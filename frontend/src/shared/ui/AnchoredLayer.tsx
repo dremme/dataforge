@@ -1,7 +1,16 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import { useAnchoredPosition, type AnchoredOptions } from "@/shared/hooks/useAnchoredPosition";
 import { classNames } from "@/shared/lib/classNames";
+import { DialogHostContext } from "./dialogHostContext";
 
 interface AnchoredLayerProps extends AnchoredOptions {
   anchorRef: RefObject<HTMLElement | null>;
@@ -29,6 +38,14 @@ export function AnchoredLayer({
 }: AnchoredLayerProps) {
   const fallbackRef = useRef<HTMLDivElement>(null);
   const resolvedRef = floatingRef ?? fallbackRef;
+  const owner = useContext(DialogHostContext);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const target = owner?.current ?? document.body;
+    // The owning dialog's ref is assigned after its descendants first render.
+    // oxlint-disable-next-line react-hooks/set-state-in-effect -- resolve the mounted portal host
+    if (portalTarget !== target) setPortalTarget(target);
+  }, [owner, portalTarget]);
 
   const [wasOpen, setWasOpen] = useState(open);
   const [exiting, setExiting] = useState(false);
@@ -45,7 +62,7 @@ export function AnchoredLayer({
 
   useAnchoredPosition(anchorRef, resolvedRef, open || exiting, options);
 
-  if (!(open || exiting)) return null;
+  if (!(open || exiting) || !portalTarget) return null;
 
   return createPortal(
     <div
@@ -61,6 +78,6 @@ export function AnchoredLayer({
     >
       {children}
     </div>,
-    document.body,
+    portalTarget,
   );
 }

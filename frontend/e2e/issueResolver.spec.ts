@@ -56,7 +56,12 @@ async function openIssueResolver(page: Page, rules: string[] = []) {
   await page.getByRole("button", { name: "Resolve caption issue for landscape.png" }).click();
   const dialog = page.getByRole("dialog", { name: "Resolve caption issue for landscape.png" });
   await dialog.evaluate((element) =>
-    Promise.all(element.getAnimations().map((animation) => animation.finished)),
+    Promise.all(
+      element
+        .querySelector(".issue-resolver-dialog__panel")!
+        .getAnimations()
+        .map((animation) => animation.finished),
+    ),
   );
   return dialog;
 }
@@ -148,7 +153,9 @@ test("the issue dialog uses viewport space and contains overflowing findings", a
 }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   let dialog = await openIssueResolver(page);
-  const initialHeight = await dialog.evaluate((element: HTMLElement) => element.offsetHeight);
+  const initialHeight = await dialog
+    .locator(".issue-resolver-dialog__panel")
+    .evaluate((element: HTMLElement) => element.offsetHeight);
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   dialog = await openIssueResolver(
     page,
@@ -159,7 +166,11 @@ test("the issue dialog uses viewport space and contains overflowing findings", a
     ),
   );
   await expect
-    .poll(() => dialog.evaluate((element: HTMLElement) => element.offsetHeight))
+    .poll(() =>
+      dialog
+        .locator(".issue-resolver-dialog__panel")
+        .evaluate((element: HTMLElement) => element.offsetHeight),
+    )
     .toBe(initialHeight);
   const details = dialog.locator(".issue-resolver-dialog__details");
   const issues = dialog.locator(".issue-resolver-dialog__issue-card");
@@ -175,7 +186,11 @@ test("the issue dialog uses viewport space and contains overflowing findings", a
 
   await page.setViewportSize({ width: 1024, height: 600 });
   await expect
-    .poll(() => dialog.evaluate((element: HTMLElement) => element.offsetHeight))
+    .poll(() =>
+      dialog
+        .locator(".issue-resolver-dialog__panel")
+        .evaluate((element: HTMLElement) => element.offsetHeight),
+    )
     .toBeLessThanOrEqual(600 * 0.92 + 1);
   await expect
     .poll(() => details.evaluate((element) => element.scrollHeight - element.clientHeight))

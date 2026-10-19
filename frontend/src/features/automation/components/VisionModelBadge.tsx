@@ -7,7 +7,7 @@ export function VisionModelBadge() {
   const modelId = useVisionModelId();
   if (!modelId) return null;
   return (
-    <span className="confirm-dialog__model-badge">
+    <span className="dialog__model-badge">
       <Icon icon={iconBrain} />
       {modelId}
     </span>

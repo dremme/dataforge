@@ -903,7 +903,7 @@
   transform: translateY(-50%);
 }
 
-/// Bordered header/footer bars. `.confirm-dialog` is a padded card and does not use these.
+/// Bordered header/footer bars. `.dialog` is a padded card and does not use these.
 @mixin dialog-chrome-frame {
   display: flex;
   flex-shrink: 0;

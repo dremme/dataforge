@@ -9,7 +9,7 @@ const SCROLL_LOCK_CLASSES = [
   "duplicate-resolver-dialog-open",
   "candidate-review-dialog-open",
   "folder-instructions-dialog-open",
-  "confirm-dialog-open",
+  "dialog-open",
   "jobs-dialog-open",
   "stats-dialog-open",
   "training-sample-dialog-open",

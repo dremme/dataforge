@@ -1,8 +1,9 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { InstructionFileSource } from "@/features/automation/components/InstructionFileSource";
 import { instructionApplies } from "@/shared/api/folderInstructions";
 import { CAPTION_RULES_FILENAME } from "@/shared/constants";
 import { useFolderInstructions } from "@/shared/hooks/useFolderInstructions";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 interface CheckCaptionRulesDialogProps {
@@ -25,7 +26,8 @@ export function CheckCaptionRulesDialog({
   const rulesApply = rules !== null && instructionApplies(rules);
 
   return (
-    <Dialog
+    <GuardedDialog
+      confirmDisabled={!rulesApply}
       scope={scope}
       title="Lint captions?"
       description={
@@ -41,14 +43,7 @@ export function CheckCaptionRulesDialog({
       footer={
         <>
           <InstructionFileSource state={state} kind="caption_rules" />
-          <DialogActions
-            confirmLabel="Lint captions"
-            busyLabel="Starting..."
-            busy={busy}
-            confirmDisabled={!rulesApply}
-            onConfirm={onConfirm}
-            onCancel={onCancel}
-          />
+          <DialogActions confirmLabel="Lint captions" busyLabel="Starting..." onCancel={onCancel} />
         </>
       }
     >
@@ -64,6 +59,6 @@ export function CheckCaptionRulesDialog({
           saved as <strong>{CAPTION_RULES_FILENAME}</strong> and cover every subfolder too.
         </p>
       )}
-    </Dialog>
+    </GuardedDialog>
   );
 }

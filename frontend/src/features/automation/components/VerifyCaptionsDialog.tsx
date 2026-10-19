@@ -1,3 +1,4 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useState } from "react";
 import {
   AutomationModeSelector,
@@ -9,7 +10,7 @@ import {
 } from "@/features/automation/components/ReasoningEffortSelector";
 import { VisionModelBadge } from "@/features/automation/components/VisionModelBadge";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 export type VerifyCaptionsMode = AutomationMode;
@@ -50,7 +51,7 @@ export function VerifyCaptionsDialog({
   }, [busy, context, mode, onConfirm, preserveThinking, reasoningEffort]);
 
   return (
-    <Dialog
+    <GuardedDialog
       unsavedChanges={
         mode !== initialSettings.mode ||
         context !== initialSettings.context ||
@@ -73,8 +74,6 @@ export function VerifyCaptionsDialog({
         <DialogActions
           confirmLabel="Start verify captions"
           busyLabel="Starting..."
-          busy={busy}
-          onConfirm={handleConfirm}
           onCancel={onCancel}
         />
       }
@@ -128,6 +127,6 @@ export function VerifyCaptionsDialog({
           data-scroll-lock-allow
         />
       </div>
-    </Dialog>
+    </GuardedDialog>
   );
 }

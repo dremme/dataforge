@@ -1,3 +1,4 @@
+import { DiscardChangesDialog } from "@/shared/ui/DiscardChangesDialog";
 import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatApiError } from "@/shared/api/http";
@@ -156,7 +157,7 @@ export function VersionsDialog({ project, onRestore, onClose }: VersionsDialogPr
         )}
         {error && <p className="dialog__error">{error}</p>}
       </div>
-      {discard.prompt}
+      {discard.promptProps && <DiscardChangesDialog {...discard.promptProps} />}
     </Dialog>
   );
 }

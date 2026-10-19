@@ -389,7 +389,7 @@ describe("App: folder navigation", () => {
     await renderApp();
 
     await user.click(await screen.findByRole("button", { name: "Rename folder" }));
-    const dialog = await screen.findByRole("alertdialog", { name: "Rename folder" });
+    const dialog = await screen.findByRole("dialog", { name: "Rename folder" });
     const input = within(dialog).getByLabelText("Folder name");
     expect(input).toHaveValue("Empty");
     await user.clear(input);
@@ -400,7 +400,7 @@ describe("App: folder navigation", () => {
     await waitFor(() => {
       expect(new URLSearchParams(window.location.search).get("path")).toBe(renamedPath);
     });
-    expect(screen.queryByRole("alertdialog", { name: "Rename folder" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Rename folder" })).not.toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Rename folder" })).toBeInTheDocument();
     expect(readRecentFolderPaths()).not.toContain(EMPTY_PATH);
     expect(readRecentFolderPaths()).toContain(renamedPath);
@@ -413,7 +413,7 @@ describe("App: folder navigation", () => {
     await renderApp();
 
     await user.click(await screen.findByRole("button", { name: "Rename folder" }));
-    const dialog = await screen.findByRole("alertdialog", { name: "Rename folder" });
+    const dialog = await screen.findByRole("dialog", { name: "Rename folder" });
     const input = within(dialog).getByLabelText("Folder name");
     await user.clear(input);
     await user.type(input, "vacation");

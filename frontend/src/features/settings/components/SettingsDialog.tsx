@@ -1,3 +1,4 @@
+import { DiscardChangesDialog } from "@/shared/ui/DiscardChangesDialog";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { VISION_MODEL_QUERY_KEY } from "@/features/automation/api/visionLlm";
@@ -719,7 +720,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
           </div>
         </footer>
       </div>
-      {discard.prompt}
+      {discard.promptProps && <DiscardChangesDialog {...discard.promptProps} />}
     </DialogShell>
   );
 }

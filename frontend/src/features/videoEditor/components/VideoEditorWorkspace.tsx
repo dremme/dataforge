@@ -228,7 +228,6 @@ export function VideoEditorWorkspace({
         onClose={onExit}
         escape="none"
         scrollLock="video-editor-open"
-        nested={false}
         enterAnimation="none"
       >
         <div className="video-editor__loading">
@@ -1056,9 +1055,8 @@ function EditorSession({
       onClose={() => void requestExit()}
       escape="none"
       scrollLock="video-editor-open"
-      nested={false}
       enterAnimation="none"
-      suspended={dialogOpen || menuOpen}
+      suspended={dialogOpen}
     >
       <div className="video-editor__frame" style={gridStyle}>
         <EditorTopBar
@@ -1421,6 +1419,7 @@ function EditorSession({
       </DialogSuspendedContext.Provider>
       {leaveOpen && (
         <Dialog
+          role="alertdialog"
           title="Your latest changes are not saved"
           description={
             <>

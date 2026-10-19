@@ -48,7 +48,7 @@ describe("App: keyboard shortcuts", () => {
 
     await user.keyboard("{Alt>}n{/Alt}");
 
-    const dialog = await screen.findByRole("alertdialog", { name: "New folder" });
+    const dialog = await screen.findByRole("dialog", { name: "New folder" });
     expect(within(dialog).getByRole("textbox")).toHaveValue("");
   });
 
@@ -58,7 +58,7 @@ describe("App: keyboard shortcuts", () => {
     await user.keyboard("{Control>}f{/Control}");
     await user.keyboard("{Alt>}n{/Alt}");
 
-    expect(screen.queryByRole("alertdialog", { name: "New folder" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "New folder" })).not.toBeInTheDocument();
   });
 
   it("does not navigate from behind an open dialog", async () => {

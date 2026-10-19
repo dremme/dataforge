@@ -1,3 +1,4 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import {
   useCallback,
   useEffect,
@@ -31,7 +32,7 @@ import { useNotify } from "@/shared/notifications/notifications";
 import type { MediaTransferMode } from "@/features/gallery/api/media";
 import type { FolderChild } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import { Icon } from "@/shared/ui/Icon";
 
@@ -359,7 +360,8 @@ export function TransferMediaDialog({
   }, [currentKey, entries, rootsLoading]);
 
   return (
-    <Dialog
+    <GuardedDialog
+      confirmDisabled={!canTransfer}
       unsavedChanges={selectedPath !== ""}
       title={modeCopy.title}
       scope={scope}
@@ -380,9 +382,6 @@ export function TransferMediaDialog({
         <DialogActions
           confirmLabel={modeCopy.confirm}
           busyLabel={modeCopy.busy}
-          busy={busy}
-          confirmDisabled={!canTransfer}
-          onConfirm={handleConfirm}
           onCancel={onClose}
         />
       }
@@ -516,6 +515,6 @@ export function TransferMediaDialog({
           )}
         </div>
       </div>
-    </Dialog>
+    </GuardedDialog>
   );
 }

@@ -192,7 +192,7 @@ describe("App workspace", () => {
       expect(screen.queryByRole("button", { name: "View beach.jpg" })).not.toBeInTheDocument(),
     );
     await user.click(screen.getByRole("button", { name: "Auto-caption" }));
-    const dialog = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
+    const dialog = await screen.findByRole("dialog", { name: "Start auto-caption?" });
     expect(dialog).toHaveTextContent("Matching 1 file in Photos");
     await user.keyboard("{Escape}");
     await user.clear(search);

@@ -21,7 +21,7 @@ for (const [model, title, architecture] of [
     await openWorkspace(page);
     await page.getByRole("button", { name: "Tools", exact: true }).click();
     await page.getByRole("menuitem", { name: /^Quick LoRA training/ }).click();
-    const dialog = page.getByRole("alertdialog", { name: "Start LoRA training?" });
+    const dialog = page.getByRole("dialog", { name: "Start LoRA training?" });
     await dialog.getByRole("combobox", { name: "Model" }).selectOption(model);
     await expect(dialog).toContainText(`Trains a ${title} LoRA`);
     await dialog.getByLabel("LoRA name", { exact: true }).fill("sample_train_v1");
@@ -45,6 +45,7 @@ for (const [model, title, architecture] of [
       animations: "disabled",
     });
     await editor.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(dialog.getByRole("button", { name: "Edit template" })).toBeFocused();
 
     const submitted = page.waitForRequest(
       (request) =>

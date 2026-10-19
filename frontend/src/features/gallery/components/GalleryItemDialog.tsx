@@ -1,3 +1,4 @@
+import { DiscardChangesDialog } from "@/shared/ui/DiscardChangesDialog";
 import {
   useCallback,
   useContext,
@@ -11,6 +12,7 @@ import {
 import type { WorkspaceAction, WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { readStored, writeStored } from "@/shared/lib/storage";
+import { InspectorPanel } from "@/shared/ui/InspectorPanel";
 import { DialogShell } from "@/shared/ui/DialogShell";
 import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
 import { useDialogNavigationDraft } from "@/shared/hooks/useDialogNavigationDraft";
@@ -668,19 +670,17 @@ export function GalleryItemDialog({
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
 
+  const Surface = inline ? InspectorPanel : DialogShell;
   return (
     <DialogSuspendedContext.Provider value={parentSuspended || leaving}>
-      <DialogShell
+      <Surface
         block="gallery-item-dialog"
         label={`Viewing ${item.name}`}
         onClose={closeDialog}
         busy={busy}
         suspended={childOverlayOpen}
-        // The media viewer remains the workspace's base overlay when returning from review.
-        nested={false}
-        escape={frameCapture.frameMode || editMode ? "none" : "bubble"}
+        escape={frameCapture.frameMode || editMode ? "none" : "close"}
         panelRef={dialogRef}
-        inline={inline}
         scrollLock="gallery-item-dialog-open"
         style={{ "--inspector-width": `${inspectorWidth}px` } as CSSProperties}
       >
@@ -1340,9 +1340,9 @@ export function GalleryItemDialog({
             </footer>
           </>
         )}
-      </DialogShell>
-      {discard.prompt}
-      {renameDiscard.prompt}
+      </Surface>
+      {discard.promptProps && <DiscardChangesDialog {...discard.promptProps} />}
+      {renameDiscard.promptProps && <DiscardChangesDialog {...renameDiscard.promptProps} />}
 
       {deleteConfirmOpen && (
         <ConfirmDialog

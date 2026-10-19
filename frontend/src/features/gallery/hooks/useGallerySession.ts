@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-} from "react";
+import { useCallback, useEffect, useMemo, type Dispatch, type SetStateAction } from "react";
 import { useFolderCaptionPatch } from "@/features/gallery/hooks/useFolderCaptionPatch";
 import { useGalleryDisplayMode } from "@/features/gallery/hooks/useGalleryDisplayMode";
 import { useGalleryOverlays } from "@/features/gallery/hooks/useGalleryOverlays";
@@ -27,7 +20,6 @@ type UseGallerySessionOptions = {
   items: GalleryItem[];
   folderPath: string | undefined;
   setFolder: Dispatch<SetStateAction<FolderResponse | null>>;
-  mainRef: RefObject<HTMLElement | null>;
   refreshFolder: () => Promise<void>;
   syncBaseline: () => Promise<void> | void;
   requestTransition?: WorkspaceTransition;
@@ -38,7 +30,6 @@ export function useGallerySession({
   items,
   folderPath,
   setFolder,
-  mainRef,
   refreshFolder,
   syncBaseline,
   requestTransition,
@@ -117,7 +108,6 @@ export function useGallerySession({
     images: items,
     filteredItems: query.filteredItems,
     folderResetToken,
-    mainRef,
     requestTransition,
   });
 

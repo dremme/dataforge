@@ -1,5 +1,6 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useId, useState } from "react";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import { DialogSelect } from "@/shared/ui/DialogSelect";
 import type { Project } from "@/features/videoEditor/lib/timeline";
 
@@ -45,7 +46,8 @@ export function ProjectSettingsDialog({ project, onSave, onCancel }: ProjectSett
   };
 
   return (
-    <Dialog
+    <GuardedDialog
+      confirmDisabled={Boolean(error)}
       unsavedChanges={
         width !== String(project.width) || height !== String(project.height) || rate !== savedRate
       }
@@ -55,14 +57,7 @@ export function ProjectSettingsDialog({ project, onSave, onCancel }: ProjectSett
       description="The canvas every clip is placed on and the rate the timeline steps in. Odd sizes round down to even, which the encoder needs."
       onConfirm={save}
       onClose={onCancel}
-      footer={
-        <DialogActions
-          confirmLabel="Apply"
-          confirmDisabled={Boolean(error)}
-          onConfirm={save}
-          onCancel={onCancel}
-        />
-      }
+      footer={<DialogActions confirmLabel="Apply" onCancel={onCancel} />}
     >
       {videos.length > 0 && (
         <DialogSelect
@@ -125,6 +120,6 @@ export function ProjectSettingsDialog({ project, onSave, onCancel }: ProjectSett
         </div>
       </div>
       {error && <p className="dialog__error">{error}</p>}
-    </Dialog>
+    </GuardedDialog>
   );
 }

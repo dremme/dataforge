@@ -3441,7 +3441,7 @@ $lane-inset: 4px;
 
 // Each choice's label sits beside its tiles, not above them: a line saved per group keeps the
 // whole dialog on screen without scrolling.
-.confirm-dialog__panel.video-export-dialog {
+.dialog__panel.video-export-dialog {
   width: min(34rem, 100%);
 }
 
@@ -3469,7 +3469,7 @@ $lane-inset: 4px;
 }
 
 // The version list is the dialog's only scroller; the name field stays put.
-.confirm-dialog__panel.video-versions-dialog {
+.dialog__panel.video-versions-dialog {
   display: flex;
   flex-direction: column;
   width: min(34rem, 100%);

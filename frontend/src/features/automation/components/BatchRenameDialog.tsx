@@ -1,6 +1,7 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useState } from "react";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 
@@ -72,7 +73,7 @@ export function BatchRenameDialog({
   }, [busy, onConfirm, startNumber, stem]);
 
   return (
-    <Dialog
+    <GuardedDialog
       unsavedChanges={
         stem !== initialSettings.stem || startNumber !== String(initialSettings.start_number)
       }
@@ -89,15 +90,7 @@ export function BatchRenameDialog({
       onConfirm={handleConfirm}
       onClose={onCancel}
       describedById={error ? errorId : undefined}
-      footer={
-        <DialogActions
-          confirmLabel="Rename"
-          busyLabel="Starting..."
-          busy={busy}
-          onConfirm={handleConfirm}
-          onCancel={onCancel}
-        />
-      }
+      footer={<DialogActions confirmLabel="Rename" busyLabel="Starting..." onCancel={onCancel} />}
     >
       <div className="dialog__field">
         <div className="batch-rename-dialog__row">
@@ -155,6 +148,6 @@ export function BatchRenameDialog({
           </p>
         )}
       </div>
-    </Dialog>
+    </GuardedDialog>
   );
 }

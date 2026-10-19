@@ -122,7 +122,7 @@ describe("TrainingSamples", () => {
     await user.click(screen.getByRole("button", { name: "View training sample 1 of 2" }));
     expect(onLightboxOpenChange).toHaveBeenLastCalledWith(true);
 
-    await user.click(screen.getByRole("button", { name: "Close sample viewer" }));
+    await user.click(screen.getByLabelText("Close sample viewer"));
     expect(onLightboxOpenChange).toHaveBeenLastCalledWith(false);
   });
 

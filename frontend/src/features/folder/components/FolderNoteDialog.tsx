@@ -1,7 +1,8 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useRef, useState } from "react";
 import { useSaveFolderNote } from "@/features/folder/hooks/useSaveFolderNote";
 import { formatApiError } from "@/shared/api/http";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 
 interface FolderNoteDialogProps {
   folderPath: string;
@@ -26,7 +27,8 @@ export function FolderNoteDialog({ folderPath, initialText, onClose }: FolderNot
   }, [busy, canSave, folderPath, onClose, save, text]);
 
   return (
-    <Dialog
+    <GuardedDialog
+      confirmDisabled={!canSave}
       unsavedChanges={text !== initialText}
       title={adding ? "Add note" : "Edit note"}
       description="Shown above this folder's gallery."
@@ -36,16 +38,7 @@ export function FolderNoteDialog({ folderPath, initialText, onClose }: FolderNot
       onClose={onClose}
       initialFocusRef={textRef}
       describedById={save.error ? errorId : undefined}
-      footer={
-        <DialogActions
-          confirmLabel="Save note"
-          busyLabel="Saving..."
-          busy={busy}
-          confirmDisabled={!canSave}
-          onConfirm={handleConfirm}
-          onCancel={onClose}
-        />
-      }
+      footer={<DialogActions confirmLabel="Save note" busyLabel="Saving..." onCancel={onClose} />}
     >
       <div className="dialog__field">
         <label htmlFor={textId} className="dialog__label">
@@ -67,6 +60,6 @@ export function FolderNoteDialog({ folderPath, initialText, onClose }: FolderNot
           {formatApiError(save.error)}
         </p>
       )}
-    </Dialog>
+    </GuardedDialog>
   );
 }

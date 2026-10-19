@@ -1,5 +1,4 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { DiscardChangesDialog } from "@/shared/ui/Dialog";
 import { DialogNavigationContext } from "@/shared/ui/dialogNavigationContext";
 import { DialogSuspendedContext } from "@/shared/ui/dialogSuspendedContext";
 import { useDialogNavigationDraft } from "./useDialogNavigationDraft";
@@ -68,13 +67,9 @@ export function useDiscardChanges({
     [],
   );
 
-  const prompt = confirming && (
-    <DiscardChangesDialog
-      description={description}
-      onDiscard={() => decide(true)}
-      onKeepEditing={() => decide(false)}
-    />
-  );
+  const promptProps = confirming
+    ? { description, onDiscard: () => decide(true), onKeepEditing: () => decide(false) }
+    : null;
 
-  return { confirming, request, prompt };
+  return { confirming, request, promptProps };
 }

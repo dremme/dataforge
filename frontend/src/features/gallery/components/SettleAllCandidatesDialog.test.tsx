@@ -72,9 +72,7 @@ describe("SettleAllCandidatesDialog", () => {
   it("confirms as a primary action, since accepting is what the candidates are for", () => {
     renderDialog();
 
-    expect(screen.getByRole("button", { name: "Accept" })).toHaveClass(
-      "confirm-dialog__btn--primary",
-    );
+    expect(screen.getByRole("button", { name: "Accept" })).toHaveClass("dialog__btn--primary");
   });
 
   it("offers to keep the original metadata and reports a change", async () => {
@@ -121,7 +119,7 @@ describe("SettleAllCandidatesDialog", () => {
       const { props } = renderDialog({ action: "delete" });
 
       const deleteButton = screen.getByRole("button", { name: "Delete" });
-      expect(deleteButton).toHaveClass("confirm-dialog__btn--danger");
+      expect(deleteButton).toHaveClass("dialog__btn--danger");
 
       await user.click(deleteButton);
       expect(props.onConfirm).toHaveBeenCalledTimes(1);

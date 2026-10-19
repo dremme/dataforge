@@ -1,3 +1,4 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { previewCaptionReplacements } from "@/features/automation/api/jobs";
@@ -7,7 +8,7 @@ import { folderKey } from "@/features/folder/lib/folderPath";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { classNames } from "@/shared/lib/classNames";
 import type { CaptionReplaceMode, CaptionReplacePreviewSample } from "@/shared/types";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { RadioTileGroup, type RadioTileOption } from "@/shared/ui/RadioTileGroup";
@@ -158,7 +159,7 @@ export function ReplaceCaptionsDialog({
   }
 
   return (
-    <Dialog
+    <GuardedDialog
       unsavedChanges={
         mode !== initialSettings.mode ||
         search !== initialSettings.search ||
@@ -178,15 +179,7 @@ export function ReplaceCaptionsDialog({
       onClose={onCancel}
       initialFocusRef={searchRef}
       describedById={error ? errorId : undefined}
-      footer={
-        <DialogActions
-          confirmLabel="Replace"
-          busyLabel="Starting..."
-          busy={busy}
-          onConfirm={handleConfirm}
-          onCancel={onCancel}
-        />
-      }
+      footer={<DialogActions confirmLabel="Replace" busyLabel="Starting..." onCancel={onCancel} />}
     >
       <div className="replace-captions-dialog__body">
         <RadioTileGroup
@@ -292,7 +285,7 @@ export function ReplaceCaptionsDialog({
           </p>
         )}
       </div>
-    </Dialog>
+    </GuardedDialog>
   );
 }
 

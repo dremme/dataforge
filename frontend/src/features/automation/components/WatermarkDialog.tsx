@@ -1,7 +1,8 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useState } from "react";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { RadioTileGroup, type RadioTileOption } from "@/shared/ui/RadioTileGroup";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { WatermarkOpacity, WatermarkPosition, WatermarkSizeName } from "@/shared/types";
 
@@ -75,7 +76,7 @@ export function WatermarkDialog({
   }, [busy, onConfirm, opacity, position, size, stripMetadata, text]);
 
   return (
-    <Dialog
+    <GuardedDialog
       unsavedChanges={
         text !== initialSettings.text ||
         size !== initialSettings.size ||
@@ -97,13 +98,7 @@ export function WatermarkDialog({
       onClose={onCancel}
       describedById={error ? errorId : undefined}
       footer={
-        <DialogActions
-          confirmLabel="Add watermark"
-          busyLabel="Starting..."
-          busy={busy}
-          onConfirm={handleConfirm}
-          onCancel={onCancel}
-        />
+        <DialogActions confirmLabel="Add watermark" busyLabel="Starting..." onCancel={onCancel} />
       }
     >
       <div className="dialog__field">
@@ -178,6 +173,6 @@ export function WatermarkDialog({
         </label>
         <p className="dialog__hint">Remove embedded metadata from media files.</p>
       </div>
-    </Dialog>
+    </GuardedDialog>
   );
 }

@@ -29,13 +29,13 @@ describe("App: folder note", () => {
     await renderApp();
 
     await user.click(await screen.findByRole("button", { name: "Add note" }));
-    const dialog = await screen.findByRole("alertdialog", { name: "Add note" });
+    const dialog = await screen.findByRole("dialog", { name: "Add note" });
     await user.type(within(dialog).getByRole("textbox", { name: "Note" }), "Reshoot the dusk set.");
     await user.click(within(dialog).getByRole("button", { name: "Save note" }));
 
     const banner = await screen.findByRole("complementary", { name: "Folder note" });
     expect(banner).toHaveTextContent("Reshoot the dusk set.");
-    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("button", { name: "Edit note" })).toBeInTheDocument();
     expect(notePuts(fetchMock)).toEqual([{ path: HOME_PATH, text: "Reshoot the dusk set." }]);
   });

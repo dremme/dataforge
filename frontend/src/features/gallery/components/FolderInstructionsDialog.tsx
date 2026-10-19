@@ -1,3 +1,4 @@
+import { DiscardChangesDialog } from "@/shared/ui/DiscardChangesDialog";
 import { useCallback, useState } from "react";
 import { saveInstructionFile, type InstructionKind } from "@/shared/api/folderInstructions";
 import { formatApiError } from "@/shared/api/http";
@@ -215,9 +216,8 @@ export function FolderInstructionsDialog({
       onClose={requestClose}
       busy={saving}
       suspended={discard.confirming}
+      scrollLock="folder-instructions-dialog-open"
       escape="editor"
-      // useGalleryOverlays holds the session lock; measuring depth here would drop the blur.
-      nested={false}
     >
       <header className="folder-instructions-dialog__header">
         <div className="folder-instructions-dialog__header-text">
@@ -325,7 +325,7 @@ export function FolderInstructionsDialog({
         />
       </footer>
 
-      {discard.prompt}
+      {discard.promptProps && <DiscardChangesDialog {...discard.promptProps} />}
     </DialogShell>
   );
 }

@@ -1,3 +1,4 @@
+import { DiscardChangesDialog } from "@/shared/ui/DiscardChangesDialog";
 import { useCallback, useMemo, useState, type CSSProperties } from "react";
 import { dismissDuplicateGroup, resolveDuplicateGroup } from "@/features/gallery/api/duplicates";
 import {
@@ -281,7 +282,7 @@ export function DuplicateResolverDialog({
           }}
         />
       )}
-      {discardChanges.prompt}
+      {discardChanges.promptProps && <DiscardChangesDialog {...discardChanges.promptProps} />}
     </>
   );
 }

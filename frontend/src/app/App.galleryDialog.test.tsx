@@ -155,7 +155,7 @@ describe("App: gallery item dialog", () => {
     const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     await user.click(within(dialog).getByRole("button", { name: "Rename sunset.png" }));
 
-    const rename = await screen.findByRole("alertdialog", { name: "Rename file" });
+    const rename = await screen.findByRole("dialog", { name: "Rename file" });
     expect(within(rename).getByText(".png")).toBeVisible();
     const input = within(rename).getByLabelText("File name");
     expect(input).toHaveValue("sunset");
@@ -164,7 +164,7 @@ describe("App: gallery item dialog", () => {
     await user.click(within(rename).getByRole("button", { name: "Rename" }));
 
     expect(await screen.findByRole("complementary", { name: "Viewing dusk.png" })).toBeVisible();
-    expect(screen.queryByRole("alertdialog", { name: "Rename file" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Rename file" })).not.toBeInTheDocument();
     expect(
       requestsTo(
         `/api/media/rename?path=${encodeURIComponent(`${HOME_PATH}\\sunset.png`)}&name=dusk`,
@@ -191,7 +191,7 @@ describe("App: gallery item dialog", () => {
     const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     await user.click(within(dialog).getByRole("button", { name: "Rename sunset.png" }));
 
-    const rename = await screen.findByRole("alertdialog", { name: "Rename file" });
+    const rename = await screen.findByRole("dialog", { name: "Rename file" });
     const input = within(rename).getByLabelText("File name");
     await user.clear(input);
     await user.type(input, "dusk");
@@ -203,7 +203,7 @@ describe("App: gallery item dialog", () => {
     expect(screen.getByRole("complementary", { name: "Viewing sunset.png" })).toBeVisible();
 
     await user.click(within(rename).getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("alertdialog", { name: "Rename file" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Rename file" })).not.toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Viewing sunset.png" })).toBeVisible();
   });
 

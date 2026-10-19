@@ -2,6 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AnchoredLayer } from "./AnchoredLayer";
+import { DialogShell } from "./DialogShell";
 
 function Fixture({ open, exitDuration }: { open: boolean; exitDuration?: number }) {
   const anchorRef = useRef<HTMLButtonElement>(null);
@@ -42,6 +43,15 @@ describe("AnchoredLayer", () => {
 
     expect(container.contains(panel)).toBe(false);
     expect(panel.parentElement).toBe(document.body);
+  });
+
+  it("keeps a dialog's anchored surface inside its native modal", () => {
+    render(
+      <DialogShell block="test-dialog" label="Test dialog" onClose={() => {}}>
+        <Fixture open />
+      </DialogShell>,
+    );
+    expect(screen.getByRole("menu").parentElement).toBe(screen.getByRole("dialog"));
   });
 
   it("names the surface and carries the caller's own class", () => {

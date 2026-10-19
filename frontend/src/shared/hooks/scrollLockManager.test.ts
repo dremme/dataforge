@@ -20,7 +20,7 @@ describe("scrollLockManager", () => {
     const first = acquireScrollLock("gallery-item-dialog-open");
     expect(getScrollLockDepth()).toBe(1);
 
-    const second = acquireScrollLock("confirm-dialog-open");
+    const second = acquireScrollLock("dialog-open");
     expect(getScrollLockDepth()).toBe(2);
 
     releaseScrollLock(second);
@@ -34,12 +34,12 @@ describe("scrollLockManager", () => {
     const first = acquireScrollLock("gallery-item-dialog-open");
     expect(document.documentElement.classList.contains("gallery-item-dialog-open")).toBe(true);
 
-    const second = acquireScrollLock("confirm-dialog-open");
+    const second = acquireScrollLock("dialog-open");
     expect(document.documentElement.classList.contains("gallery-item-dialog-open")).toBe(false);
-    expect(document.documentElement.classList.contains("confirm-dialog-open")).toBe(true);
+    expect(document.documentElement.classList.contains("dialog-open")).toBe(true);
 
     releaseScrollLock(second);
-    expect(document.documentElement.classList.contains("confirm-dialog-open")).toBe(false);
+    expect(document.documentElement.classList.contains("dialog-open")).toBe(false);
     expect(document.documentElement.classList.contains("gallery-item-dialog-open")).toBe(true);
 
     releaseScrollLock(first);
@@ -59,7 +59,7 @@ describe("scrollLockManager", () => {
     const removeSpy = vi.spyOn(document, "removeEventListener");
 
     const first = acquireScrollLock("gallery-item-dialog-open");
-    const second = acquireScrollLock("confirm-dialog-open");
+    const second = acquireScrollLock("dialog-open");
 
     const wheelAdds = addSpy.mock.calls.filter(([eventName]) => eventName === "wheel");
     expect(wheelAdds).toHaveLength(1);

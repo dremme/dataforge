@@ -1,6 +1,7 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import type { SettleAllCandidatesAction } from "@/features/gallery/lib/settleAllCandidates";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 export interface SettleAllCandidatesDialogProps {
@@ -49,7 +50,8 @@ export function SettleAllCandidatesDialog({
   }
 
   return (
-    <Dialog
+    <GuardedDialog
+      role="alertdialog"
       title={
         scope.kind === "selected" ? "Accept selected candidates?" : "Accept all staged candidates?"
       }
@@ -58,14 +60,7 @@ export function SettleAllCandidatesDialog({
       busy={busy}
       onConfirm={confirm}
       onClose={onCancel}
-      footer={
-        <DialogActions
-          confirmLabel={busy ? "Accepting..." : "Accept"}
-          busy={busy}
-          onConfirm={confirm}
-          onCancel={onCancel}
-        />
-      }
+      footer={<DialogActions confirmLabel={busy ? "Accepting..." : "Accept"} onCancel={onCancel} />}
     >
       <div className="dialog__field">
         <label className="dialog__checkbox">
@@ -84,6 +79,6 @@ export function SettleAllCandidatesDialog({
           A file whose metadata cannot be carried over is left staged.
         </p>
       </div>
-    </Dialog>
+    </GuardedDialog>
   );
 }

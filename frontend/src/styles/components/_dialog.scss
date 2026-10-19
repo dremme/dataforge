@@ -42,7 +42,7 @@
   }
 }
 
-.confirm-dialog {
+.dialog {
   @include dialog-shell($z-index-confirm);
 
   &__backdrop {
@@ -357,7 +357,7 @@
   width: min(38rem, 100%);
 }
 
-.confirm-dialog__panel.edit-captions-dialog {
+.dialog__panel.edit-captions-dialog {
   display: flex;
   flex-direction: column;
   max-height: 88vh;
@@ -462,7 +462,7 @@
 }
 
 // Sample list is the only scroller; the form stays put as the preview arrives.
-.confirm-dialog__panel.replace-captions-dialog {
+.dialog__panel.replace-captions-dialog {
   display: flex;
   flex-direction: column;
   width: min(36rem, 100%);
@@ -668,7 +668,7 @@
   }
 }
 
-.confirm-dialog__panel.transfer-media-dialog {
+.dialog__panel.transfer-media-dialog {
   display: flex;
   flex-direction: column;
   width: min(36rem, 100%);
@@ -677,7 +677,7 @@
 }
 
 // Prompt list is unbounded and is the only scroller; model tiles and name/trigger stay on screen.
-.confirm-dialog__panel.train-lora-dialog {
+.dialog__panel.train-lora-dialog {
   display: flex;
   flex-direction: column;
   // Wider so name and trigger fit side by side at a readable width.
@@ -1056,7 +1056,7 @@
   // 0.875rem, not the shared 1.125rem: four fields plus the metadata checkbox only clear a
   // 720px viewport at the tighter rhythm, and this panel must never scroll.
   .dialog__field,
-  .confirm-dialog__actions {
+  .dialog__actions {
     margin-top: 0.875rem;
   }
 
@@ -1108,7 +1108,7 @@
 }
 
 // Fixed content, so it is laid out to fit; the group grid scrolls only on a phone-sized window.
-.confirm-dialog__panel.shortcuts-dialog {
+.dialog__panel.shortcuts-dialog {
   display: flex;
   flex-direction: column;
   width: min(60rem, 100%);

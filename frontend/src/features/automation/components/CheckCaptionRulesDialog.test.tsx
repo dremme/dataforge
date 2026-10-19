@@ -47,7 +47,7 @@ function renderDialog() {
 }
 
 function footer() {
-  return screen.getByRole("alertdialog").querySelector("footer") as HTMLElement;
+  return screen.getByRole("dialog").querySelector("footer") as HTMLElement;
 }
 
 describe("CheckCaptionRulesDialog", () => {

@@ -5,6 +5,7 @@ import { useOptionalStreamConnected } from "@/shared/events/serverEvents";
 import { iconCircleAlert } from "@/shared/icons";
 import type { HealthResponse } from "@/shared/types";
 import { EmptyState } from "@/shared/ui/EmptyState";
+import { DialogShell } from "@/shared/ui/DialogShell";
 
 export const HEALTH_POLL_MS = 2_000;
 
@@ -50,7 +51,15 @@ export function BackendUnavailable() {
   if (!down) return null;
 
   return (
-    <div className="backend-unavailable">
+    <DialogShell
+      block="backend-unavailable"
+      label={BACKEND_UNREACHABLE.title}
+      role="alertdialog"
+      escape="none"
+      busy
+      enterAnimation="none"
+      onClose={() => undefined}
+    >
       <EmptyState
         icon={iconCircleAlert}
         title={BACKEND_UNREACHABLE.title}
@@ -58,6 +67,6 @@ export function BackendUnavailable() {
         variant="error"
         role="alert"
       />
-    </div>
+    </DialogShell>
   );
 }

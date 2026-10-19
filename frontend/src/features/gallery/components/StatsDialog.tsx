@@ -60,7 +60,6 @@ export function StatsDialog({ open, items, onClose, onSearchWord }: StatsDialogP
   return (
     <DialogShell
       block="stats-dialog"
-      panelAs="aside"
       // StatsButton points aria-controls here from outside the drawer, so the id stays a fixed string.
       panelId="stats-dialog-panel"
       labelledById="stats-dialog-title"

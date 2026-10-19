@@ -1,5 +1,6 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useState } from "react";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 interface AutoAdjustDialogProps {
@@ -27,7 +28,7 @@ export function AutoAdjustDialog({
   }, [busy, onConfirm, replace, reset]);
 
   return (
-    <Dialog
+    <GuardedDialog
       unsavedChanges={replace || reset}
       scope={scope}
       title={reset ? "Reset color adjustments?" : "Auto-adjust media?"}
@@ -49,8 +50,6 @@ export function AutoAdjustDialog({
         <DialogActions
           confirmLabel={reset ? "Reset color adjustments" : "Start auto-adjust"}
           busyLabel="Starting..."
-          busy={busy}
-          onConfirm={handleConfirm}
           onCancel={onCancel}
         />
       }
@@ -91,6 +90,6 @@ export function AutoAdjustDialog({
           all other edits are kept.
         </p>
       </div>
-    </Dialog>
+    </GuardedDialog>
   );
 }

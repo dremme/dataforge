@@ -178,7 +178,7 @@ describe("TrainingSampleDialog", () => {
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "Close sample viewer" }));
+    await user.click(screen.getByLabelText("Close sample viewer"));
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
@@ -206,12 +206,11 @@ describe("TrainingSampleDialog", () => {
     expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("keeps the backdrop outside the dialog", () => {
+  it("keeps the backdrop out of the dialog accessibility tree", () => {
     renderDialog();
 
-    // Backdrop is a sibling of the panel; putting it in the dialog would lead every screen-reader pass.
     const dialog = screen.getByRole("dialog");
-    expect(screen.getByRole("button", { name: "Close sample viewer" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Close sample viewer")).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Close sample viewer" })).toBeNull();
   });
 

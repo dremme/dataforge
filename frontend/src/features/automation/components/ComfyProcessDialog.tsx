@@ -1,10 +1,11 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { comfyPresetsQueryOptions } from "@/features/automation/lib/automationQueries";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { formatApiError } from "@/shared/api/http";
 import { iconLoader2, iconTriangleAlert } from "@/shared/icons";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import { DialogSelect } from "@/shared/ui/DialogSelect";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import { Icon } from "@/shared/ui/Icon";
@@ -97,7 +98,7 @@ export function ComfyProcessDialog({
   const seedBlocked = selected?.accepts_seed === false;
 
   const handleConfirm = () => {
-    if (busy) return;
+    if (busy || state.status !== "ready") return;
 
     if (!preset) {
       setError("Choose a workflow preset.");
@@ -123,7 +124,8 @@ export function ComfyProcessDialog({
   const disabled = busy || !ready;
 
   return (
-    <Dialog
+    <GuardedDialog
+      confirmDisabled={disabled || !preset}
       unsavedChanges={
         preset !== resolvePreset(initialSettings.preset) ||
         overwrite !== initialSettings.overwrite_candidates ||
@@ -150,9 +152,6 @@ export function ComfyProcessDialog({
         <DialogActions
           confirmLabel="Start processing"
           busyLabel="Starting..."
-          busy={busy}
-          confirmDisabled={disabled || !preset}
-          onConfirm={handleConfirm}
           onCancel={onCancel}
         />
       }
@@ -292,6 +291,6 @@ export function ComfyProcessDialog({
           </span>
         </label>
       </div>
-    </Dialog>
+    </GuardedDialog>
   );
 }

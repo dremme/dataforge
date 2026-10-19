@@ -7,6 +7,7 @@ import type { ComfyPresetSettings, ComfyPresetsResponse } from "@/shared/types";
 import { ComfyProcessDialog } from "./ComfyProcessDialog";
 import { renderWithQueryClient } from "@/test/queryClient";
 import type { ComfyProcessSettings } from "@/features/automation/components/ComfyProcessDialog";
+import { stubDialogClock } from "@/test/dialogClock";
 
 vi.mock("@/features/automation/api/jobs", () => ({
   fetchComfyPresets: vi.fn<typeof fetchComfyPresets>(),
@@ -65,6 +66,19 @@ function renderDialog(initialSettings = settings()) {
 describe("ComfyProcessDialog", () => {
   beforeEach(() => {
     fetchPresets.mockReset().mockResolvedValue(presets(["fix-faces", "upscale-2x"]));
+  });
+
+  it("blocks Enter while a remembered preset is still loading", async () => {
+    fetchPresets.mockReturnValue(new Promise(() => {}));
+    const user = userEvent.setup();
+    const { passOpenGrace } = stubDialogClock();
+    const { onConfirm } = renderDialog(settings({ preset: "example-workflow" }));
+
+    expect(screen.getByRole("button", { name: "Start processing" })).toBeDisabled();
+    passOpenGrace();
+    await user.keyboard("{Enter}");
+
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 
   it("says where results go", async () => {

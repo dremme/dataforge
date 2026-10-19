@@ -1,5 +1,6 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import type { ReactNode } from "react";
-import { Dialog, DialogActions } from "./Dialog";
+import { DialogActions } from "./Dialog";
 import type { DialogScopeInfo } from "./DialogScope";
 
 interface ConfirmDialogProps {
@@ -27,7 +28,8 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    <Dialog
+    <GuardedDialog
+      role="alertdialog"
       title={title}
       scope={scope}
       description={description}
@@ -39,8 +41,6 @@ export function ConfirmDialog({
           confirmLabel={confirmLabel}
           cancelLabel={cancelLabel}
           confirmVariant={confirmVariant}
-          busy={busy}
-          onConfirm={onConfirm}
           onCancel={onCancel}
         />
       }

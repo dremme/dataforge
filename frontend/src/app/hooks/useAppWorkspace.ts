@@ -125,7 +125,6 @@ export function useAppWorkspace() {
     items,
     folderPath: folder?.path,
     setFolder,
-    mainRef,
     refreshFolder,
     syncBaseline,
     requestTransition,

@@ -1,6 +1,7 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useState } from "react";
 import type { DuplicateThreshold } from "@/shared/types";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { RadioTileGroup, type RadioTileOption } from "@/shared/ui/RadioTileGroup";
@@ -34,7 +35,7 @@ export function FindDuplicatesDialog({
   }, [busy, onConfirm, threshold]);
 
   return (
-    <Dialog
+    <GuardedDialog
       unsavedChanges={threshold !== initialSettings.threshold}
       scope={scope}
       title="Find duplicates?"
@@ -46,13 +47,7 @@ export function FindDuplicatesDialog({
       onConfirm={handleConfirm}
       onClose={onCancel}
       footer={
-        <DialogActions
-          confirmLabel="Find duplicates"
-          busyLabel="Starting..."
-          busy={busy}
-          onConfirm={handleConfirm}
-          onCancel={onCancel}
-        />
+        <DialogActions confirmLabel="Find duplicates" busyLabel="Starting..." onCancel={onCancel} />
       }
     >
       <RadioTileGroup
@@ -64,6 +59,6 @@ export function FindDuplicatesDialog({
         disabled={busy}
         onChange={setThreshold}
       />
-    </Dialog>
+    </GuardedDialog>
   );
 }

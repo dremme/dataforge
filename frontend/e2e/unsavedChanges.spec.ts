@@ -38,7 +38,7 @@ test("renaming asks before losing the parent media draft", async ({ page }) => {
   await openPhoto(page);
   await rotate(page);
   await page.getByRole("button", { name: "Rename photo.png", exact: true }).click();
-  const rename = page.getByRole("alertdialog", { name: "Rename file" });
+  const rename = page.getByRole("dialog", { name: "Rename file" });
   await rename.getByRole("textbox", { name: "File name" }).fill("renamed");
   await rename.getByRole("button", { name: "Rename", exact: true }).click();
   await expect(confirmation(page)).toBeVisible();
@@ -61,7 +61,7 @@ test("a failed caption save preserves the proposed filename", async ({ page }) =
   );
   await page.getByRole("textbox", { name: "Caption for photo.png" }).fill("Edited caption.");
   await page.getByRole("button", { name: "Rename photo.png", exact: true }).click();
-  const rename = page.getByRole("alertdialog", { name: "Rename file" });
+  const rename = page.getByRole("dialog", { name: "Rename file" });
   await rename.getByRole("textbox", { name: "File name" }).fill("new-name");
   await rename.getByRole("button", { name: "Rename", exact: true }).click();
   await expect(rename).toContainText("The caption could not be saved");
@@ -129,9 +129,7 @@ test("discard keeps nested forms suspended until a slow project save finishes", 
     await browserBack(page);
     await confirmation(page).getByRole("button", { name: "Discard", exact: true }).click();
     await expect(confirmation(page)).toHaveCount(0);
-    const width = page
-      .locator(".dialog-panel")
-      .filter({ has: page.getByLabel("Width", { exact: true }) });
+    const width = page.locator("dialog").filter({ has: page.getByLabel("Width", { exact: true }) });
     await expect(width).toHaveAttribute("inert", "");
     await page.keyboard.press("Escape");
     await expect(confirmation(page)).toHaveCount(0);
@@ -339,11 +337,11 @@ for (const repeats of [1, 3]) {
       await openUnsavedVideoProject(page, repeats);
       await browserBack(page);
       await confirmation(page).getByRole("button", { name: "Discard", exact: true }).click();
-      await expect(page.locator(".video-settings-dialog")).toHaveAttribute("inert", "");
+      await expect(page.locator("dialog:has(.video-settings-dialog)")).toHaveAttribute("inert", "");
       await page.evaluate((count) => {
         for (let step = 0; step < count; step++) window.history.back();
       }, repeats);
-      await expect(page.locator(".video-settings-dialog")).toHaveAttribute("inert", "");
+      await expect(page.locator("dialog:has(.video-settings-dialog)")).toHaveAttribute("inert", "");
       await page.keyboard.press("Escape");
       release();
       await expect(page.locator(".video-editor")).toHaveCount(0);
@@ -570,6 +568,7 @@ test("browser Back keeps instructions and the URL until discard is confirmed", a
   await page.keyboard.press("Escape");
   await expect(page).toHaveURL(currentUrl);
   await expect(prompt).toHaveText("Unsaved instruction draft.");
+  await expect(prompt).toBeFocused();
   await browserBack(page);
   await confirmation(page).getByRole("button", { name: "Discard", exact: true }).click();
   await expect(editor).toHaveCount(0);
@@ -581,7 +580,7 @@ test("browser Back protects drafts in both levels of the training form", async (
   const currentUrl = page.url();
   await page.getByRole("button", { name: "Tools", exact: true }).click();
   await page.getByRole("menuitem", { name: /^Quick LoRA training/ }).click();
-  const parent = page.getByRole("alertdialog", { name: "Start LoRA training?" });
+  const parent = page.getByRole("dialog", { name: "Start LoRA training?" });
   await parent.getByLabel("LoRA name", { exact: true }).fill("sample_draft");
   await parent.getByRole("button", { name: "Edit template" }).click();
   const editor = page.getByRole("dialog", { name: /^Edit the .* training template$/ });
@@ -592,9 +591,11 @@ test("browser Back protects drafts in both levels of the training form", async (
   await page.keyboard.press("Escape");
   await expect(page).toHaveURL(currentUrl);
   await expect(yaml).toContainText("steps: 250");
+  await expect(yaml).toBeFocused();
   await editor.getByRole("button", { name: "Close", exact: true }).click();
   await confirmation(page).getByRole("button", { name: "Discard", exact: true }).click();
   await expect(parent.getByLabel("LoRA name", { exact: true })).toHaveValue("sample_draft");
+  await expect(parent.getByRole("button", { name: "Edit template" })).toBeFocused();
   await parent.getByRole("button", { name: "Edit template" }).click();
   await browserBack(page);
   await confirmation(page).getByRole("button", { name: "Discard", exact: true }).click();
@@ -615,6 +616,7 @@ test("browser Back protects nested video project settings", async ({ page }) => 
   await expect(confirmation(page)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog.getByLabel("Width", { exact: true })).toHaveValue("800");
+  await expect(dialog.getByLabel("Width", { exact: true })).toBeFocused();
   await browserBack(page);
   await confirmation(page).getByRole("button", { name: "Discard", exact: true }).click();
   await expect(dialog).toHaveCount(0);

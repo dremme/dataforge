@@ -1,3 +1,4 @@
+import { DiscardChangesDialog } from "@/shared/ui/DiscardChangesDialog";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { DialogSuspendedContext } from "@/shared/ui/dialogSuspendedContext";
 import { saveCaption } from "@/features/gallery/api/captions";
@@ -407,7 +408,7 @@ export function IssueResolverDialog({
           onClose={() => setComfyWorkflowOpen(false)}
         />
       )}
-      {discard.prompt}
+      {discard.promptProps && <DiscardChangesDialog {...discard.promptProps} />}
     </DialogShell>
   );
 }

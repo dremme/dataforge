@@ -1,8 +1,9 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useId, useState } from "react";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { MAX_RESIZE_MEGAPIXELS, MAX_RESIZE_MULTIPLE } from "@/shared/constants";
 import { fittedSize } from "@/shared/lib/sizeFit";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 /** Large enough that the budget, not the source, decides every example. */
@@ -84,7 +85,7 @@ export function ResizeDialog({
   };
 
   return (
-    <Dialog
+    <GuardedDialog
       unsavedChanges={
         megapixels !== String(initialSettings.megapixels) ||
         multiple !== String(initialSettings.multiple) ||
@@ -112,8 +113,6 @@ export function ResizeDialog({
         <DialogActions
           confirmLabel={reset ? "Reset size" : "Resize"}
           busyLabel="Starting..."
-          busy={busy}
-          onConfirm={handleConfirm}
           onCancel={onCancel}
         />
       }
@@ -196,6 +195,6 @@ export function ResizeDialog({
           all other edits are kept.
         </p>
       </div>
-    </Dialog>
+    </GuardedDialog>
   );
 }

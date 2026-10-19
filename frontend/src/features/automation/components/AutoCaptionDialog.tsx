@@ -1,3 +1,4 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useState } from "react";
 import {
   AutomationModeSelector,
@@ -10,7 +11,7 @@ import {
 } from "@/features/automation/components/ReasoningEffortSelector";
 import { VisionModelBadge } from "@/features/automation/components/VisionModelBadge";
 import { useFolderInstructions } from "@/shared/hooks/useFolderInstructions";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 
@@ -54,7 +55,7 @@ export function AutoCaptionDialog({
   }, [busy, captionAudio, mode, onConfirm, preserveThinking, reasoningEffort]);
 
   return (
-    <Dialog
+    <GuardedDialog
       unsavedChanges={
         mode !== initialSettings.mode ||
         captionAudio !== initialSettings.caption_audio ||
@@ -78,8 +79,6 @@ export function AutoCaptionDialog({
           <DialogActions
             confirmLabel="Start auto-caption"
             busyLabel="Starting..."
-            busy={busy}
-            onConfirm={handleConfirm}
             onCancel={onCancel}
           />
         </>
@@ -142,6 +141,6 @@ export function AutoCaptionDialog({
           Could not load the system prompt. {state.message}
         </p>
       )}
-    </Dialog>
+    </GuardedDialog>
   );
 }

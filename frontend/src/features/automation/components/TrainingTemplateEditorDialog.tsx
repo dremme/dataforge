@@ -1,3 +1,4 @@
+import { DiscardChangesDialog } from "@/shared/ui/DiscardChangesDialog";
 import { formatCount } from "@/shared/lib/format";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -139,7 +140,7 @@ export function TrainingTemplateEditorDialog({
             <span className="training-template-editor__meta-label">Status</span>
           </div>
         </div>
-        <div className="confirm-dialog__actions training-template-editor__footer-actions">
+        <div className="dialog__actions training-template-editor__footer-actions">
           <button
             type="button"
             className="training-template-editor__reset"
@@ -158,7 +159,7 @@ export function TrainingTemplateEditorDialog({
           />
         </div>
       </footer>
-      {discard.prompt}
+      {discard.promptProps && <DiscardChangesDialog {...discard.promptProps} />}
     </DialogShell>
   );
 }

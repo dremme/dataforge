@@ -52,6 +52,7 @@ export function JobTypeFilterMenu({ value, onChange }: JobTypeFilterMenuProps) {
   // Portalled panel events still bubble through this element in the React tree.
   const handleKeyDown = (event: KeyboardEvent) => {
     if (!open || event.key !== "Escape") return;
+    event.preventDefault();
     event.stopPropagation();
     close();
   };

@@ -1,3 +1,4 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { previewCaptionEdits } from "@/features/automation/api/jobs";
@@ -16,7 +17,7 @@ import type { JobSettingsByType } from "@/features/automation/preferences/automa
 import { formatApiError } from "@/shared/api/http";
 import { CAPTION_EDIT_PREVIEW_LIMIT } from "@/shared/constants";
 import { iconInfo } from "@/shared/icons";
-import { Dialog, DialogActions, DialogButton } from "@/shared/ui/Dialog";
+import { DialogActions, DialogButton } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import { Icon } from "@/shared/ui/Icon";
 
@@ -101,7 +102,8 @@ export function EditCaptionsDialog({
   }, [backup, controlsBusy, instruction, mode, onConfirm, preserveThinking, reasoningEffort]);
 
   return (
-    <Dialog
+    <GuardedDialog
+      confirmDisabled={preview.isFetching}
       unsavedChanges={
         mode !== initialSettings.mode ||
         instruction !== initialSettings.instruction ||
@@ -140,9 +142,6 @@ export function EditCaptionsDialog({
           <DialogActions
             confirmLabel="Start edit captions"
             busyLabel="Starting..."
-            busy={busy}
-            confirmDisabled={preview.isFetching}
-            onConfirm={handleConfirm}
             onCancel={onCancel}
           />
         </>
@@ -238,6 +237,6 @@ export function EditCaptionsDialog({
           </p>
         )}
       </div>
-    </Dialog>
+    </GuardedDialog>
   );
 }

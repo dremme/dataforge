@@ -1,3 +1,4 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useRef, useState } from "react";
 import type { TrainLoraSettings } from "@/features/automation/api/jobs";
 import {
@@ -11,7 +12,7 @@ import { useTrainingTemplateDraft } from "@/features/automation/hooks/useTrainin
 import type { TrainingModel } from "@/shared/types";
 import { iconFilePen, iconPlus, iconTrash2, iconTriangleAlert } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 import { DialogSelect } from "@/shared/ui/DialogSelect";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
@@ -101,7 +102,7 @@ export function TrainLoraDialog({
   }, [busy, loraName, model, onConfirm, prompts, templateDraft.template, triggerWord]);
 
   return (
-    <Dialog
+    <GuardedDialog
       unsavedChanges={
         model !== initialSettings.model ||
         loraName !== "" ||
@@ -120,13 +121,7 @@ export function TrainLoraDialog({
       initialFocusRef={nameRef}
       describedById={error || templateDraft.loadError ? errorId : undefined}
       footer={
-        <DialogActions
-          confirmLabel="Start training"
-          busyLabel="Starting..."
-          busy={busy}
-          onConfirm={handleConfirm}
-          onCancel={onCancel}
-        />
+        <DialogActions confirmLabel="Start training" busyLabel="Starting..." onCancel={onCancel} />
       }
     >
       <div className="train-lora-dialog__body" data-scroll-lock-allow>
@@ -273,6 +268,6 @@ export function TrainLoraDialog({
           onApply={templateDraft.applyTemplate}
         />
       )}
-    </Dialog>
+    </GuardedDialog>
   );
 }

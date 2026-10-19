@@ -264,7 +264,6 @@ export function JobsDialog({ currentFolder, onOpenFolder, currentActions }: Jobs
     <>
       <DialogShell
         block="jobs-dialog"
-        panelAs="aside"
         panelId="jobs-dialog-panel"
         labelledById="jobs-dialog-title"
         onClose={closeDrawer}

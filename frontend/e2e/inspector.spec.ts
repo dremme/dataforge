@@ -124,7 +124,10 @@ for (const inspectorWidth of [320, 380, 520]) {
     ]) {
       await page.setViewportSize(viewport);
       await focus.evaluate((element) => {
-        for (const animation of element.getAnimations()) animation.finish();
+        for (const animation of element
+          .querySelector(".gallery-item-dialog__panel")!
+          .getAnimations())
+          animation.finish();
       });
       await expect
         .poll(() =>
@@ -264,7 +267,10 @@ for (const theme of ["dark", "light"]) {
         const focus = page.getByRole("dialog", { name: "Viewing photo.png" });
         await expect(focus).toBeVisible();
         await focus.evaluate((element) => {
-          for (const animation of element.getAnimations()) animation.finish();
+          for (const animation of element
+            .querySelector(".gallery-item-dialog__panel")!
+            .getAnimations())
+            animation.finish();
         });
         const stage = (await focus.locator(".gallery-item-dialog__stage").boundingBox())!;
         const media = (await focus.locator(".gallery-item-dialog__img").boundingBox())!;

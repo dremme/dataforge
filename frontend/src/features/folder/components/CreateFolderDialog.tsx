@@ -1,5 +1,6 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useRef, useState } from "react";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 
 interface CreateFolderDialogProps {
   parentLabel: string;
@@ -30,7 +31,8 @@ export function CreateFolderDialog({
   }, [busy, canSubmit, onConfirm, trimmedName]);
 
   return (
-    <Dialog
+    <GuardedDialog
+      confirmDisabled={!canSubmit}
       unsavedChanges={name !== ""}
       title="New folder"
       description={
@@ -45,14 +47,7 @@ export function CreateFolderDialog({
       initialFocusRef={inputRef}
       describedById={error ? errorId : undefined}
       footer={
-        <DialogActions
-          confirmLabel="Create folder"
-          busyLabel="Creating..."
-          busy={busy}
-          confirmDisabled={!canSubmit}
-          onConfirm={handleConfirm}
-          onCancel={onCancel}
-        />
+        <DialogActions confirmLabel="Create folder" busyLabel="Creating..." onCancel={onCancel} />
       }
     >
       <div className="dialog__field">
@@ -78,6 +73,6 @@ export function CreateFolderDialog({
           {error}
         </p>
       )}
-    </Dialog>
+    </GuardedDialog>
   );
 }

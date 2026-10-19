@@ -325,7 +325,7 @@ test("sends only filtered media paths to bulk tools", async ({ page }, testInfo)
     .getByRole("menu", { name: "Tools" })
     .getByRole("menuitem", { name: /^Set captions/ })
     .click();
-  const dialog = page.getByRole("alertdialog", { name: "Set captions?" });
+  const dialog = page.getByRole("dialog", { name: "Set captions?" });
   await expect(dialog.locator(".dialog-scope__line")).toContainText("Matching 1 file");
   let submitted: { paths?: string[] } | undefined;
   await page.route("**/api/automation/set-captions?**", async (route) => {

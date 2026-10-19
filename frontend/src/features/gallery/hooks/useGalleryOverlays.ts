@@ -1,6 +1,5 @@
-import { useCallback, useState, type RefObject } from "react";
+import { useCallback, useState } from "react";
 import { useGalleryItemDialog } from "@/features/gallery/hooks/useGalleryItemDialog";
-import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import type { GalleryItem } from "@/shared/types";
 import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
 import { readStored, writeStored } from "@/shared/lib/storage";
@@ -10,7 +9,6 @@ type UseGalleryOverlaysArgs = {
   images: GalleryItem[];
   filteredItems: GalleryItem[];
   folderResetToken: number;
-  mainRef: RefObject<HTMLElement | null>;
   requestTransition?: WorkspaceTransition;
 };
 
@@ -18,7 +16,6 @@ export function useGalleryOverlays({
   images,
   filteredItems,
   folderResetToken,
-  mainRef,
   requestTransition,
 }: UseGalleryOverlaysArgs) {
   const [instructionsOpen, setInstructionsOpen] = useState(false);
@@ -70,8 +67,6 @@ export function useGalleryOverlays({
   }, [requestTransition]);
 
   const closeInstructions = useCallback(() => setInstructionsOpen(false), []);
-
-  useScrollLock(instructionsOpen, "folder-instructions-dialog-open", mainRef);
 
   return {
     selectedPath,

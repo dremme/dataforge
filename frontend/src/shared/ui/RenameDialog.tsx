@@ -1,5 +1,6 @@
+import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useRef, useState, type ReactNode } from "react";
-import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogActions } from "@/shared/ui/Dialog";
 
 interface RenameDialogProps {
   title: string;
@@ -39,7 +40,8 @@ export function RenameDialog({
   }, [busy, canSubmit, onConfirm, trimmedName]);
 
   return (
-    <Dialog
+    <GuardedDialog
+      confirmDisabled={!canSubmit}
       unsavedChanges={name !== initialName}
       title={title}
       description={description}
@@ -50,16 +52,7 @@ export function RenameDialog({
       onClose={onCancel}
       initialFocusRef={inputRef}
       describedById={error ? errorId : undefined}
-      footer={
-        <DialogActions
-          confirmLabel="Rename"
-          busyLabel="Renaming..."
-          busy={busy}
-          confirmDisabled={!canSubmit}
-          onConfirm={handleConfirm}
-          onCancel={onCancel}
-        />
-      }
+      footer={<DialogActions confirmLabel="Rename" busyLabel="Renaming..." onCancel={onCancel} />}
     >
       <div className="dialog__field">
         <label htmlFor={nameId} className="dialog__label">
@@ -84,6 +77,6 @@ export function RenameDialog({
           {error}
         </p>
       )}
-    </Dialog>
+    </GuardedDialog>
   );
 }

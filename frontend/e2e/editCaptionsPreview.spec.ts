@@ -29,11 +29,9 @@ test("previews caption edits without writes, then starts the normal backed-up jo
   await expect(page.getByText("one.png")).toBeVisible();
   await page.getByRole("button", { name: "Tools", exact: true }).click();
   await page.getByRole("menuitem", { name: /Edit captions/ }).click();
-  const dialog = page.getByRole("alertdialog", { name: "Start edit captions?" });
+  const dialog = page.getByRole("dialog", { name: "Start edit captions?" });
   await dialog.getByLabel("Edit instruction").fill("Rewrite in present tense.");
-  const preview = dialog
-    .locator(".confirm-dialog__actions")
-    .getByRole("button", { name: "Dry run" });
+  const preview = dialog.locator(".dialog__actions").getByRole("button", { name: "Dry run" });
   await preview.focus();
   await preview.press("Enter");
   const samples = dialog.getByRole("status");

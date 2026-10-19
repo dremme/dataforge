@@ -7,6 +7,10 @@
   backdrop-filter: blur($dialog-backdrop-blur);
   -webkit-backdrop-filter: blur($dialog-backdrop-blur);
 
+  &__backdrop {
+    display: none;
+  }
+
   .empty-state {
     width: min(32rem, 100%);
     background: var(--bg-elevated);
