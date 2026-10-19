@@ -4,6 +4,8 @@
 
 Use the video editor to combine videos, still images, audio, and titles on a multi-track timeline, then export a new MP4. Projects reference the source files in the open folder; editing does not copy or modify those files.
 
+![DataForge video editor showing sample media, a title over the preview, video and audio tracks with a cross-dissolve, and title settings in the inspector.](video-editor.png)
+
 - [Start a project](#start-a-project)
 - [Add and replace media](#add-and-replace-media)
 - [Edit the timeline](#edit-the-timeline)
