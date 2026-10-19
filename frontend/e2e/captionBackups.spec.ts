@@ -22,7 +22,10 @@ for (const job of ["Find & replace", "Edit captions"] as const) {
       await expect(page.getByText("photo.png")).toBeVisible();
       await page.getByRole("button", { name: "Tools", exact: true }).click();
       await page.getByRole("menuitem", { name: new RegExp(job) }).click();
-      const dialog = page.getByRole("alertdialog");
+      const dialog = page.getByRole("dialog", {
+        name: job === "Find & replace" ? "Find and replace in captions?" : "Start edit captions?",
+        exact: true,
+      });
       const checkbox = dialog.getByRole("checkbox", { name: "Back up captions first" });
       const backupLabel = dialog.getByText("Back up captions first", { exact: true });
       await expect(checkbox).toBeChecked();

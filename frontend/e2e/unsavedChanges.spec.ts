@@ -76,8 +76,6 @@ test("a failed caption save preserves the proposed filename", async ({ page }) =
 
 async function openFolderCard(page: Page, folder: string) {
   await expect(page.getByRole("button", { name: "View clip.mp4", exact: true })).toBeVisible();
-  const moreFolders = page.getByRole("button").filter({ hasText: /^Show \d+ more folders/ });
-  if (await moreFolders.count()) await moreFolders.click();
   await page
     .locator("button.folder-card")
     .filter({ hasText: path.basename(folder) })
@@ -85,17 +83,28 @@ async function openFolderCard(page: Page, folder: string) {
 }
 
 async function openVideoProject(page: Page, extraHistory = 0) {
-  const folder = await mkdtemp(path.join(WORKSPACE, "unsaved-project-"));
+  const parent = await mkdtemp(path.join(WORKSPACE, "unsaved-parent-"));
+  await copyFile(path.join(WORKSPACE, "clip.mp4"), path.join(parent, "clip.mp4"));
+  const folder = await mkdtemp(path.join(parent, "unsaved-project-"));
   await copyFile(path.join(WORKSPACE, "clip.mp4"), path.join(folder, "clip.mp4"));
   await page.goto(`/?path=${encodeURIComponent(folder)}`);
   for (let step = 0; step <= extraHistory; step++) {
-    await page.getByRole("button", { name: "dataforge-e2e", exact: true }).click();
+    await page.getByRole("button", { name: path.basename(parent), exact: true }).click();
     await openFolderCard(page, folder);
   }
   await page.getByRole("button", { name: "View clip.mp4", exact: true }).click();
   await page
     .getByRole("button", { name: "Open clip.mp4 in the video editor", exact: true })
     .click();
+}
+
+async function openTrainingDialog(page: Page) {
+  await page.route("**/api/external/ostris/jobs", (route) =>
+    route.fulfill({ json: { jobs: [], active_count: 0, available: true, revision: 1 } }),
+  );
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^Quick LoRA training/ }).click();
+  return page.getByRole("dialog", { name: "Start LoRA training?" });
 }
 
 async function openUnsavedVideoProject(page: Page, extraHistory = 0) {
@@ -394,8 +403,7 @@ test("repeated Back followed by Keep editing preserves both nested training draf
   await openFolderCard(page, previous);
   await page.getByRole("button", { name: path.basename(parent), exact: true }).click();
   const currentUrl = page.url();
-  await page.getByRole("button", { name: "Tools", exact: true }).click();
-  await page.getByRole("menuitem", { name: /^Quick LoRA training/ }).click();
+  await openTrainingDialog(page);
   await page.getByLabel("LoRA name", { exact: true }).fill("sample_draft");
   await page.getByRole("button", { name: "Edit template", exact: true }).click();
   const editor = page.getByRole("dialog", { name: /^Edit the .* training template$/ });
@@ -578,9 +586,7 @@ test("browser Back keeps instructions and the URL until discard is confirmed", a
 test("browser Back protects drafts in both levels of the training form", async ({ page }) => {
   await openParentFolder(page);
   const currentUrl = page.url();
-  await page.getByRole("button", { name: "Tools", exact: true }).click();
-  await page.getByRole("menuitem", { name: /^Quick LoRA training/ }).click();
-  const parent = page.getByRole("dialog", { name: "Start LoRA training?" });
+  const parent = await openTrainingDialog(page);
   await parent.getByLabel("LoRA name", { exact: true }).fill("sample_draft");
   await parent.getByRole("button", { name: "Edit template" }).click();
   const editor = page.getByRole("dialog", { name: /^Edit the .* training template$/ });
