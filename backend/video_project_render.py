@@ -3,7 +3,7 @@
 Layers stack bottom up: the lowest video track first, and within a track later clips above
 earlier ones, which is what makes a dissolve's incoming clip fade in over the outgoing one.
 Every clip is offset onto the timeline with ``setpts`` and overlaid with ``eof_action=pass``, so
-gaps stay black. Audio clips are delayed to their place and summed per track, where the track's
+gaps show the project's background. Audio clips are delayed to their place and summed per track, where the track's
 gain and ducking apply, then the tracks are mixed over silence of the full length with the master
 gain, then limited, and normalized first when asked, by the export's audio level setting.
 
@@ -34,6 +34,7 @@ from constants import (
     VIDEO_PROJECT_LOUDNESS_TARGET_LUFS,
     VIDEO_PROJECT_MIN_CLIP_SECONDS,
     VIDEO_PROJECT_QUALITY_PRESETS,
+    VIDEO_PROJECT_SIZE_PRESET_SHORT_SIDES,
     VIDEO_PROJECT_TIME_EPSILON,
     VIDEO_PROJECT_TRUE_PEAK_CEILING_DB,
 )
@@ -66,10 +67,6 @@ from video_project_animation import (
     keyframe_expression,
     speech_spans,
 )
-
-#: Short side of the fixed-size presets; their long side is 16:9 of it.
-SIZE_PRESET_SHORT_SIDES = {"720p": 720, "1080p": 1080}
-WIDESCREEN = 16 / 9
 
 AUDIO_SAMPLE_RATE = 48000
 #: The limiter runs at four times the rate, so it also sees the peaks between samples.
@@ -104,19 +101,24 @@ def project_orientation(width: int, height: int) -> str:
 
 def export_size(project: VideoProject, settings: VideoProjectExportSettings) -> tuple[int, int]:
     """Source size keeps the project's sides and only swaps or squares them for a different
-    orientation; the presets fix the short side and make the long side 16:9 of it."""
+    orientation; the presets fix the short side and keep the project's aspect."""
     orientation = settings.orientation or project_orientation(project.width, project.height)
-    if settings.size == "source":
-        long_side = max(project.width, project.height)
-        short_side = min(project.width, project.height)
-    else:
-        short_side = SIZE_PRESET_SHORT_SIDES[settings.size]
-        long_side = round(short_side * WIDESCREEN)
+    long_side = max(project.width, project.height)
+    short_side = min(project.width, project.height)
+    if settings.size != "source":
+        preset = VIDEO_PROJECT_SIZE_PRESET_SHORT_SIDES[settings.size]
+        long_side = round(preset * long_side / short_side)
+        short_side = preset
     if orientation == "landscape":
         return _even(long_side), _even(short_side)
     if orientation == "portrait":
         return _even(short_side), _even(long_side)
     return _even(short_side), _even(short_side)
+
+
+def _ffmpeg_color(color: str) -> str:
+    """``#rrggbb`` as ffmpeg spells it, since ``#`` would read oddly inside a graph file."""
+    return f"0x{color.removeprefix('#')}"
 
 
 def _font(
@@ -508,7 +510,8 @@ def _picture_links(
     links: list[str] = []
     canvas = f"{project.width}x{project.height}"
     links.append(
-        f"color=c=black:s={canvas}:r={project.frame_rate:.6f}:d={_seconds(duration)},"
+        f"color=c={_ffmpeg_color(project.background)}:s={canvas}:r={project.frame_rate:.6f}"
+        f":d={_seconds(duration)},"
         "format=yuv420p[base]"
     )
 
@@ -675,9 +678,10 @@ def build_render(
     width, height = export_size(project, settings)
     finish = ["setsar=1"]
     if (width, height) != (project.width, project.height):
+        background = _ffmpeg_color(project.background)
         finish = [
             f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos",
-            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black",
+            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color={background}",
             "setsar=1",
         ]
     if window.head > 0:

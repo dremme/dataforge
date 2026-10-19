@@ -4,6 +4,7 @@ import {
   estimateExportBytes,
   exportSize,
   fadeLevel,
+  frameFromShortSide,
   layersAt,
   pictureTime,
   placement,
@@ -69,6 +70,7 @@ function project(clips: Clip[], tracks: Partial<Project["tracks"][number]>[] = [
     width: 1920,
     height: 1080,
     frame_rate: 30,
+    background: "#000000",
     sources: [
       {
         id: "src",
@@ -109,10 +111,30 @@ describe("exportSize", () => {
       width: 720,
       height: 1280,
     });
-    expect(exportSize({ width: 640, height: 480 }, { ...settings, size: "1080p" })).toEqual({
-      width: 1920,
-      height: 1080,
+  });
+
+  it("fixes the short side of a preset and keeps the project's aspect", () => {
+    const preset = { ...settings, size: "1080p" } as const;
+    expect(exportSize({ width: 640, height: 480 }, preset)).toEqual({ width: 1440, height: 1080 });
+    expect(exportSize({ width: 1080, height: 1350 }, preset)).toEqual({
+      width: 1080,
+      height: 1350,
     });
+    expect(
+      exportSize({ width: 1920, height: 1080 }, { ...preset, orientation: "portrait" }),
+    ).toEqual({ width: 1080, height: 1920 });
+    expect(exportSize({ width: 2582, height: 1080 }, { ...settings, size: "2160p" })).toEqual({
+      width: 5164,
+      height: 2160,
+    });
+  });
+});
+
+describe("frameFromShortSide", () => {
+  it("evens both sides and lays them out for the orientation", () => {
+    expect(frameFromShortSide(1080, 2.39, "landscape")).toEqual({ width: 2580, height: 1080 });
+    expect(frameFromShortSide(1080, 16 / 9, "portrait")).toEqual({ width: 1080, height: 1920 });
+    expect(frameFromShortSide(721, 16 / 9, "square")).toEqual({ width: 720, height: 720 });
   });
 });
 

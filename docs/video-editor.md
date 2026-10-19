@@ -46,7 +46,18 @@ The top bar can hide the media browser and inspector. Drag the panel dividers to
 
 ### Set the canvas and frame rate
 
-Click the dimensions and frame rate in the top bar, or choose **Project actions > Project settings...**. Enter a width, height, and frame rate, or use **Match a video** to take them from a project source. Odd dimensions round down to even pixels for encoding.
+Click the dimensions and frame rate in the top bar, or choose **Project actions > Project settings...**.
+
+| Setting | Choices and behavior |
+| --- | --- |
+| **Match a video** | Takes the size and frame rate from a video in the project. |
+| **Aspect ratio** | 16:9, 4:3, 3:2, 5:4, 1:1, 1.85:1 Flat, 1.90:1 DCI, 2:1, or 2.39:1 Scope. Keeps the current short side. |
+| **Resolution** | The short side: 480p, 720p, 1080p, 1440p, or 2160p. Keeps the current aspect ratio. |
+| **Width** / **Height** | The exact canvas size. **Swap width and height** switches between landscape and portrait. |
+| **Frame rate** / **FPS** | 23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60, or 120 fps, or any rate up to 120 typed in. NTSC rates are stored exactly. |
+| **Background** | The color in gaps, around fitted pictures, and in the padding of an export with a different shape. Black by default. |
+
+Presets fill in the exact fields; a typed size or rate that matches no preset shows as **Custom**. A summary under the fields shows the resulting size, aspect ratio, and rate. Odd dimensions round down to even pixels for encoding.
 
 These settings define the canvas and the timeline's frame steps. Export has separate size and shape choices.
 
@@ -264,7 +275,7 @@ Choose **Export** to render from the source files to a new MP4 in the project fo
 | --- | --- |
 | **File name** | Enter the name before the `.mp4` suffix. |
 | **Part** | **Whole timeline**, **Marked range**, or **Selected clips** when a range or selection is available. Whole timeline remains the default. |
-| **Size** | **Source size** uses the project canvas dimensions as the basis; other presets are **720p** and **1080p**. |
+| **Size** | **Project size** uses the project canvas dimensions. **480p**, **720p**, **1080p**, **1440p**, and **2160p** set the short side and keep the project's aspect ratio. |
 | **Shape** | **Landscape**, **Portrait**, or **Square**. A changed output frame fits the composition without stretching it. |
 | **Quality** | **Standard**, **High quality**, or **Smaller file**. The summary shows dimensions, frame rate, duration, and an approximate file size. |
 | **Sound** | **Limit peaks**, **Normalize**, or **As mixed**; see below. |

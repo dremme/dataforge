@@ -27,6 +27,7 @@ function document(path: string | null = null): VideoProjectDocument {
       width: 64,
       height: 48,
       frame_rate: 10,
+      background: "#000000",
       sources: [],
       tracks: [
         {

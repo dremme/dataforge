@@ -1593,7 +1593,8 @@ type VideoProjectClipKind = Literal["video", "image", "audio", "title"]
 #: ``fit`` letterboxes inside the canvas, ``fill`` covers it and crops the overflow.
 type VideoProjectFitMode = Literal["fit", "fill"]
 type VideoProjectTitleAlign = Literal["left", "center", "right"]
-type VideoProjectSizePreset = Literal["source", "720p", "1080p"]
+#: ``source`` keeps the project's own size; the others fix the short side.
+type VideoProjectSizePreset = Literal["source", "480p", "720p", "1080p", "1440p", "2160p"]
 type VideoProjectOrientation = Literal["landscape", "portrait", "square"]
 type VideoProjectQuality = Literal["standard", "high", "small"]
 #: ``limit`` holds true peaks under the ceiling; ``normalize`` also brings the mix to the
@@ -1848,6 +1849,9 @@ class VideoProject(BaseModel):
     width: int = Field(ge=MIN_PROJECT_DIMENSION, le=MAX_PROJECT_DIMENSION)
     height: int = Field(ge=MIN_PROJECT_DIMENSION, le=MAX_PROJECT_DIMENSION)
     frame_rate: float = Field(gt=0.0, le=MAX_PROJECT_FRAME_RATE)
+    #: The canvas under every clip: it shows in gaps, around fitted pictures and in the padding
+    #: of an export fitted to another shape.
+    background: HexColor = "#000000"
     #: The video the project was started from; its caption is the one an export may copy.
     initial_source_id: ProjectId | None = None
     sources: list[VideoProjectSource] = Field(default_factory=list)

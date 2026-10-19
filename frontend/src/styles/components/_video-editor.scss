@@ -3220,14 +3220,47 @@ $lane-inset: 4px;
   }
 }
 
-.video-settings-dialog__row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+.video-settings-dialog {
+  // Presets above the fields they fill: the aspect spans the swap column, so Resolution sits
+  // over Height and Frame rate over the rate.
+  &__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 0.5rem;
+    row-gap: 0.75rem;
+    @include dialog-form-field;
 
-  input {
+    // The grid keeps the dialog's rhythm above it; its own rows are spaced by the gap.
+    .dialog__field {
+      margin-top: 0;
+    }
+
+    .dialog__input {
+      @include tabular-nums;
+      text-align: right;
+    }
+  }
+
+  &__aspect {
+    grid-column: span 2;
+  }
+
+  // Centred on the inputs beside it, below their labels.
+  &__swap {
+    align-self: end;
+    margin-bottom: 0.75rem;
+  }
+
+  &__background {
+    width: max-content;
     @include tabular-nums;
-    text-align: right;
+  }
+
+  &__summary {
+    margin: 0.875rem 0 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    @include tabular-nums;
   }
 }
 

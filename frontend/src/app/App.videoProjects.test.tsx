@@ -44,6 +44,7 @@ function draft(): VideoProjectDocument {
       width: 640,
       height: 360,
       frame_rate: 30,
+      background: "#000000",
       sources: [],
       tracks: [
         {

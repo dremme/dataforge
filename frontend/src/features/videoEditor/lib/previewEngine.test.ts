@@ -21,6 +21,7 @@ function project(duration: number): Project {
     width: 64,
     height: 48,
     frame_rate: 30,
+    background: "#000000",
     initial_source_id: null,
     sources: [],
     tracks: [

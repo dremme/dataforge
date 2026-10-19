@@ -72,6 +72,7 @@ function project(clips: Clip[]): Project {
     width: 64,
     height: 48,
     frame_rate: 10,
+    background: "#000000",
     initial_source_id: "src",
     sources: [
       {

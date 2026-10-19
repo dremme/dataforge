@@ -87,6 +87,7 @@ export function makeProject(patch: Partial<Project> = {}): Project {
     width: 640,
     height: 360,
     frame_rate: 30,
+    background: "#000000",
     initial_source_id: null,
     sources: [makeSource("still", "still.png", "image")],
     tracks: [

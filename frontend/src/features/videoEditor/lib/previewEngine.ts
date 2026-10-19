@@ -585,7 +585,7 @@ export class PreviewEngine {
     const scale = canvas.width / project.width;
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.globalAlpha = 1;
-    context.fillStyle = canvasColor(canvas, "--video-bg");
+    context.fillStyle = project.background;
     context.fillRect(0, 0, canvas.width, canvas.height);
 
     const fidelity = { adjustUnavailable: false, adjustReduced: false };

@@ -112,7 +112,9 @@ def render(
     return output
 
 
-def pixel(video: Path, seconds: float, x: int = 32, y: int = 24) -> tuple[int, int, int]:
+def pixel(
+    video: Path, seconds: float, x: int = 32, y: int = 24, *, width: int = 64
+) -> tuple[int, int, int]:
     executable = ffmpeg_path()
     assert executable
     result = subprocess.run(
@@ -123,7 +125,6 @@ def pixel(video: Path, seconds: float, x: int = 32, y: int = 24) -> tuple[int, i
         capture_output=True,
         check=True,
     )
-    width = 64
     offset = (y * width + x) * 3
     data = result.stdout
     return data[offset], data[offset + 1], data[offset + 2]
@@ -175,16 +176,24 @@ class ExportSizeTests(unittest.TestCase):
         self.assertEqual(export_size(project, portrait), (720, 1280))
         self.assertEqual(export_size(project, square), (720, 720))
 
-    def test_presets_fix_the_short_side_at_sixteen_by_nine(self) -> None:
-        project = self.project(640, 480)
+    def test_presets_fix_the_short_side_and_keep_the_project_aspect(self) -> None:
+        self.assertEqual(
+            export_size(self.project(640, 480), VideoProjectExportSettings(size="1080p")),
+            (1440, 1080),
+        )
+        self.assertEqual(
+            export_size(self.project(1080, 1350), VideoProjectExportSettings(size="1080p")),
+            (1080, 1350),
+        )
+        self.assertEqual(
+            export_size(self.project(2582, 1080), VideoProjectExportSettings(size="2160p")),
+            (5164, 2160),
+        )
 
-        self.assertEqual(
-            export_size(project, VideoProjectExportSettings(size="1080p")), (1920, 1080)
-        )
-        self.assertEqual(
-            export_size(project, VideoProjectExportSettings(size="720p", orientation="portrait")),
-            (720, 1280),
-        )
+    def test_a_preset_in_another_orientation_swaps_the_project_sides(self) -> None:
+        settings = VideoProjectExportSettings(size="720p", orientation="portrait")
+
+        self.assertEqual(export_size(self.project(1920, 1080), settings), (720, 1280))
 
 
 class AudibleTrackTests(unittest.TestCase):
@@ -265,6 +274,25 @@ class CompositeTests(unittest.TestCase):
             self.assertTrue(close(pixel(video, 0.5), (0, 0, 0)))
             self.assertTrue(close(pixel(video, 1.5), RED))
             self.assertTrue(close(pixel(video, 2.5), (0, 0, 0)))
+
+    def test_the_background_fills_gaps_and_the_padding_of_a_fitted_export(self) -> None:
+        with TempMediaFolder() as root:
+            write_image(root, "red.png", color=RED)
+            project = project_with(
+                root, [spacer(2), still("red.png", "v1", 1.0, 1.0)], sources=["red.png"]
+            ).model_copy(update={"background": "#1e1edc"})
+
+            video = render(root, project, orientation="square")
+
+            self.assertTrue(close(pixel(video, 0.5, 24, 24, width=48), BLUE))
+            self.assertTrue(close(pixel(video, 1.5, 24, 24, width=48), RED))
+            self.assertTrue(close(pixel(video, 1.5, 24, 2, width=48), BLUE))
+
+    def test_a_project_saved_without_a_background_draws_on_black(self) -> None:
+        with TempMediaFolder() as root:
+            fields = project_with(root, [spacer(1)]).model_dump(exclude={"background"})
+
+            self.assertEqual(VideoProject.model_validate(fields).background, "#000000")
 
     def test_higher_tracks_composite_above_lower_ones_unless_hidden(self) -> None:
         with TempMediaFolder() as root:

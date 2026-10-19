@@ -1,4 +1,7 @@
-import { VIDEO_PROJECT_QUALITY_PRESETS } from "@/shared/constants";
+import {
+  VIDEO_PROJECT_QUALITY_PRESETS,
+  VIDEO_PROJECT_SIZE_PRESET_SHORT_SIDES,
+} from "@/shared/constants";
 import type { VideoProjectExportSettings, VideoProjectOrientation } from "@/shared/types";
 import {
   clipEnd,
@@ -16,11 +19,21 @@ import { clipValueAt, duckLevel, transformAt } from "./keyframes";
  * where. Both must agree or the export would not match what was watched.
  */
 
-const PRESET_SHORT_SIDES = { "720p": 720, "1080p": 1080 } as const;
-const WIDESCREEN = 16 / 9;
-
-function even(value: number): number {
+export function even(value: number): number {
   return Math.max(2, Math.floor(Math.round(value) / 2) * 2);
+}
+
+/** An evened frame whose short side is `shortSide` and whose long side is `ratio` times it. */
+export function frameFromShortSide(
+  shortSide: number,
+  ratio: number,
+  orientation: VideoProjectOrientation,
+): { width: number; height: number } {
+  const short = even(shortSide);
+  const long = orientation === "square" ? short : even(shortSide * ratio);
+  return orientation === "portrait"
+    ? { width: short, height: long }
+    : { width: long, height: short };
 }
 
 export function projectOrientation(width: number, height: number): VideoProjectOrientation {
@@ -34,16 +47,18 @@ export function exportSize(
   settings: VideoProjectExportSettings,
 ): { width: number; height: number } {
   const orientation = settings.orientation ?? projectOrientation(project.width, project.height);
-  const [longSide, shortSide] =
-    settings.size === "source"
-      ? [Math.max(project.width, project.height), Math.min(project.width, project.height)]
-      : [
-          Math.round(PRESET_SHORT_SIDES[settings.size] * WIDESCREEN),
-          PRESET_SHORT_SIDES[settings.size],
-        ];
-  if (orientation === "landscape") return { width: even(longSide), height: even(shortSide) };
-  if (orientation === "portrait") return { width: even(shortSide), height: even(longSide) };
-  return { width: even(shortSide), height: even(shortSide) };
+  const longSide = Math.max(project.width, project.height);
+  const shortSide = Math.min(project.width, project.height);
+  if (settings.size === "source") {
+    const sides = { width: even(longSide), height: even(shortSide) };
+    if (orientation === "portrait") return { width: sides.height, height: sides.width };
+    return orientation === "square" ? { width: sides.height, height: sides.height } : sides;
+  }
+  return frameFromShortSide(
+    VIDEO_PROJECT_SIZE_PRESET_SHORT_SIDES[settings.size],
+    longSide / shortSide,
+    orientation,
+  );
 }
 
 /** The frame size the presets' bits-per-pixel figures were read at. */

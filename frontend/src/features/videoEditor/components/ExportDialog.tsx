@@ -8,6 +8,7 @@ import {
 } from "@/shared/constants";
 import { formatFileSize } from "@/shared/lib/format";
 import { DialogActions } from "@/shared/ui/Dialog";
+import { DialogSelect } from "@/shared/ui/DialogSelect";
 import { RadioTileGroup } from "@/shared/ui/RadioTileGroup";
 import type {
   VideoProjectAudioLevel,
@@ -22,6 +23,7 @@ import {
   exportSize,
   projectOrientation,
 } from "@/features/videoEditor/lib/composition";
+import { RESOLUTION_PRESETS } from "@/features/videoEditor/lib/projectFormat";
 import {
   formatTimecode,
   projectDuration,
@@ -188,18 +190,18 @@ export function ExportDialog({
             ]}
           />
         )}
-        <RadioTileGroup
+        <DialogSelect
           label="Size"
-          name="video-export-size"
-          groupLabel="Export size"
           value={size}
           disabled={busy}
           onChange={setSize}
-          options={[
-            { value: "source", title: "Source size" },
-            { value: "720p", title: "720p" },
-            { value: "1080p", title: "1080p" },
-          ]}
+          options={(["source", ...RESOLUTION_PRESETS] as const).map((key) => {
+            const option = exportSize(project, { ...settings, size: key });
+            return {
+              value: key,
+              title: `${key === "source" ? "Project size" : key} (${option.width} × ${option.height})`,
+            };
+          })}
         />
         <RadioTileGroup
           label="Shape"

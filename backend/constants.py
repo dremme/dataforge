@@ -85,6 +85,16 @@ VIDEO_PROJECT_QUALITY_PRESETS: dict[str, VideoExportQuality] = {
     "small": {"crf": 27, "preset": "medium", "audio_kbps": 128, "bits_per_pixel": 0.03},
 }
 
+#: Keyed by the wire ``VideoProjectSizePreset``: the short side of the frame. The long side keeps
+#: the project's own aspect, and the project dialog offers the same resolutions.
+VIDEO_PROJECT_SIZE_PRESET_SHORT_SIDES: dict[str, int] = {
+    "480p": 480,
+    "720p": 720,
+    "1080p": 1080,
+    "1440p": 1440,
+    "2160p": 2160,
+}
+
 # GIF delays are per-frame, not a rate; 24 matches the rest of the video tooling.
 GIF_MP4_FRAME_RATE = 24.0
 GIF_MP4_EXTENSION = ".mp4"
@@ -296,6 +306,7 @@ SHARED_CONSTANTS: dict[str, object] = {
     "VIDEO_PROJECT_STILL_SECONDS": VIDEO_PROJECT_STILL_SECONDS,
     "VIDEO_PROJECT_UNTITLED_NAME": VIDEO_PROJECT_UNTITLED_NAME,
     "VIDEO_PROJECT_QUALITY_PRESETS": VIDEO_PROJECT_QUALITY_PRESETS,
+    "VIDEO_PROJECT_SIZE_PRESET_SHORT_SIDES": VIDEO_PROJECT_SIZE_PRESET_SHORT_SIDES,
     "VIDEO_PROJECT_TRUE_PEAK_CEILING_DB": VIDEO_PROJECT_TRUE_PEAK_CEILING_DB,
     "VIDEO_PROJECT_LOUDNESS_TARGET_LUFS": VIDEO_PROJECT_LOUDNESS_TARGET_LUFS,
     "VIDEO_PROJECT_DUCK_RAMP_SECONDS": VIDEO_PROJECT_DUCK_RAMP_SECONDS,
