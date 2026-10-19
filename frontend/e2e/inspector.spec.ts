@@ -40,7 +40,7 @@ test("remembers expanded media view after closing, folder navigation, and reload
   await page.reload();
   await page.getByRole("button", { name: "View photo.png", exact: true }).click();
   await expect(focus).toBeVisible();
-  await focus.getByRole("button", { name: "Return to caption inspector" }).click();
+  await focus.getByRole("button", { name: "Minimize to caption inspector" }).click();
   await inspector.getByRole("button", { name: "Close", exact: true }).click();
   await page.reload();
   await page.getByRole("button", { name: "View photo.png", exact: true }).click();
@@ -281,7 +281,7 @@ for (const theme of ["dark", "light"]) {
         expect(Math.abs(meta.width - stage.width)).toBeLessThan(1);
         await expect(focus.getByRole("button", { name: "Next item" })).toBeVisible();
         await page.screenshot({ animations: "disabled", path: testInfo.outputPath("focus.png") });
-        await focus.getByRole("button", { name: "Return to caption inspector" }).click();
+        await focus.getByRole("button", { name: "Minimize to caption inspector" }).click();
         await expect(inspector).toBeVisible();
       }
     });

@@ -135,7 +135,7 @@ export {
   LockOpen as iconLockOpen,
   Magnet as iconMagnet,
   Maximize2 as iconMaximize2,
-  Minimize as iconMinimize,
+  Minimize2 as iconMinimize2,
   MemoryStick as iconMemoryStick,
   MessageCircleCheck as iconMessageCheck,
   MessageCircleDashed as iconMessageDashed,

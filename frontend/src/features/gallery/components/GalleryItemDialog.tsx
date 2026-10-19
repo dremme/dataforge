@@ -64,7 +64,7 @@ import {
   iconVideo,
   iconX,
   iconExpand,
-  iconMinimize,
+  iconMinimize2,
   iconPencilLine,
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
@@ -935,15 +935,17 @@ export function GalleryItemDialog({
             </Tooltip>
             <div className="gallery-item-dialog__presentation-actions">
               {onFocusViewChange && (
-                <Tooltip content={focusView ? "Return to caption inspector" : "Expand media view"}>
+                <Tooltip
+                  content={focusView ? "Minimize to caption inspector" : "Expand media view"}
+                >
                   <button
                     type="button"
                     className="gallery-item-dialog__expand"
-                    aria-label={focusView ? "Return to caption inspector" : "Expand media view"}
+                    aria-label={focusView ? "Minimize to caption inspector" : "Expand media view"}
                     disabled={busy || editing || frameCapture.frameMode}
                     onClick={() => onFocusViewChange(!focusView)}
                   >
-                    <Icon icon={focusView ? iconMinimize : iconExpand} />
+                    <Icon icon={focusView ? iconMinimize2 : iconExpand} />
                   </button>
                 </Tooltip>
               )}

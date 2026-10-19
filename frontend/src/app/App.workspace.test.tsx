@@ -68,7 +68,9 @@ describe("App workspace", () => {
     renderApp();
     await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
     const restored = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    await user.click(within(restored).getByRole("button", { name: "Return to caption inspector" }));
+    await user.click(
+      within(restored).getByRole("button", { name: "Minimize to caption inspector" }),
+    );
     const inline = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     await user.click(within(inline).getByRole("button", { name: "Close" }));
     expect(await openInspector(user)).toBeInTheDocument();
@@ -102,7 +104,7 @@ describe("App workspace", () => {
     await user.click(within(inspector).getByRole("button", { name: "Expand media view" }));
     const focus = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
     expect(within(focus).getByLabelText("Caption for sunset.png")).toHaveValue("A lake at sunset");
-    await user.click(within(focus).getByRole("button", { name: "Return to caption inspector" }));
+    await user.click(within(focus).getByRole("button", { name: "Minimize to caption inspector" }));
     expect(
       within(
         await screen.findByRole("complementary", { name: "Viewing sunset.png" }),
