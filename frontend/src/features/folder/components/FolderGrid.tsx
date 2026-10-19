@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useFolderPrefetch } from "@/features/folder/hooks/useFolderPrefetch";
+import { useOpenFolderInNewTab } from "@/features/folder/hooks/useOpenFolderInNewTab";
 import { clampFolders, folderCardLabel } from "@/features/folder/lib/folderCards";
 import { readFolderExpanded, writeFolderExpanded } from "@/features/folder/lib/folderExpansion";
 import { folderReviewCountsQueryOptions } from "@/features/folder/lib/folderQuery";
@@ -80,6 +81,7 @@ function countLabel(count: number, singular: string, plural: string): string {
 
 function FolderCard({ folder, onOpen }: { folder: Subfolder; onOpen: (path: string) => void }) {
   const prefetch = useFolderPrefetch();
+  const openInNewTab = useOpenFolderInNewTab();
   // Read on every hover rather than once, so a job that ran meanwhile is reflected; the
   // bubble's delay leaves the request time to land before anything shows.
   const {
@@ -122,6 +124,7 @@ function FolderCard({ folder, onOpen }: { folder: Subfolder; onOpen: (path: stri
         className="folder-card"
         onClick={() => onOpen(folder.path)}
         {...prefetch(folder.path)}
+        {...openInNewTab(folder.path)}
         onMouseEnter={loadCounts}
         onFocus={loadCounts}
         aria-label={folderCardLabel(folder)}

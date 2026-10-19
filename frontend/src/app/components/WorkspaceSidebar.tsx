@@ -4,6 +4,7 @@ import {
   useFolderFavorites,
   useToggleFolderFavorite,
 } from "@/features/folder/hooks/useFolderFavorites";
+import { useOpenFolderInNewTab } from "@/features/folder/hooks/useOpenFolderInNewTab";
 import {
   forgetRecentFolder,
   getRecentFoldersForPicker,
@@ -94,6 +95,7 @@ export function WorkspaceSidebar({
   const toggleFavorite = useToggleFolderFavorite();
   const { dragProps, dragMark } = useFavoriteDragOrder(favorites);
   const notify = useNotify();
+  const openInNewTab = useOpenFolderInNewTab();
   // The recent list lives in storage, outside React state; bumping this re-reads it.
   const [, setRecentRevision] = useState(0);
   const recent = getRecentFoldersForPicker(
@@ -177,6 +179,7 @@ export function WorkspaceSidebar({
       >
         <button
           {...props}
+          {...openInNewTab(path)}
           type="button"
           aria-label={name}
           className={classNames(
