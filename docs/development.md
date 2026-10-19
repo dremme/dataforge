@@ -104,7 +104,7 @@ The tests run under coverage, and the run ends with one line per side (coverage.
 
 ### CI and end-to-end tests
 
-Backend, frontend, and end-to-end CI all use the exact Python 3.13.12 release recorded in `.python-version`. Backend CI has one runner. Windows setup uses the same default; local setup and server startup accept any final Python 3.13.x release and reject other release series and prereleases. Frontend CI generates files with Python and runs its scoped checks. End-to-end CI runs separately from `run_checks.py` and the pre-commit hook; locally, `run_checks.py --e2e` adds the suite to a full run.
+Backend, frontend, and end-to-end CI all use the exact Python 3.13.12 release recorded in `.python-version`. Backend CI has one runner. Windows setup uses the same default; local setup and server startup accept any final Python 3.13.x release and reject other release series and prereleases. Frontend CI generates files with Python and runs its scoped checks, then runs `npm run build` after the tests pass. Vite reports asset sizes and gzip estimates in the build log. End-to-end CI runs separately from `run_checks.py` and the pre-commit hook; locally, `run_checks.py --e2e` adds the suite to a full run.
 
 The E2E suite drives Chromium against its own backend on 18090 and Vite on 18091, using temporary data and a stand-in vision model. It needs no existing servers or real model. It covers captioning, gallery thumbnails, media editing, the workflow inspector, notifications, and job controls. Avoid using those ports for another service during the run.
 
