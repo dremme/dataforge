@@ -5,6 +5,7 @@ import {
   formatBytes,
   formatBytesValue,
   formatCount,
+  formatDayLabel,
   formatDurationSeconds,
   formatModifiedAt,
   formatRelativeTime,
@@ -84,6 +85,23 @@ describe("formatModifiedAt", () => {
 
   it("returns null for invalid timestamps", () => {
     expect(formatModifiedAt("not-a-date")).toBeNull();
+  });
+});
+
+describe("formatDayLabel", () => {
+  const now = new Date(2026, 2, 15, 9, 0).getTime();
+
+  it("names today and yesterday by local calendar day", () => {
+    expect(formatDayLabel(new Date(2026, 2, 15, 0, 5).toISOString(), now)).toBe("Today");
+    expect(formatDayLabel(new Date(2026, 2, 14, 23, 55).toISOString(), now)).toBe("Yesterday");
+  });
+
+  it("falls back to the date without the clock", () => {
+    expect(formatDayLabel(new Date(2026, 2, 13, 14, 5).toISOString(), now)).toBe("Mar 13, 2026");
+  });
+
+  it("returns null for invalid timestamps", () => {
+    expect(formatDayLabel("not-a-date", now)).toBeNull();
   });
 });
 

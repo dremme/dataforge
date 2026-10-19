@@ -40,6 +40,7 @@ function document(path: string | null = null): VideoProjectDocument {
           gain: 1,
           speech: false,
           sync_lock: true,
+          collapsed: false,
         },
       ],
       clips: [],

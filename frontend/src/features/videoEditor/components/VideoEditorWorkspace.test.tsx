@@ -78,6 +78,7 @@ const track = (id: string, kind: "video" | "audio", name: string) => ({
   gain: 1,
   speech: false,
   sync_lock: true,
+  collapsed: false,
 });
 
 function startingDocument(): VideoProjectDocument {
@@ -144,7 +145,8 @@ function renderEditor(onExit = vi.fn<() => void>()) {
   return onExit;
 }
 
-const clips = () => screen.queryAllByRole("button", { name: /^clip\.mp4, 00:00 to 00:04/ });
+const clips = () =>
+  screen.queryAllByRole("button", { name: /^clip\.mp4, 00:00:00:00 to 00:00:04:00/ });
 
 /**
  * Moves the playhead and waits until it reads the new time. The engine learns the project's
@@ -329,7 +331,7 @@ describe("VideoEditorWorkspace", () => {
     await user.click(screen.getByRole("button", { name: "Add title" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "No video track is free at 00:00 for a title.",
+      "No video track is free at 00:00:00:00 for a title.",
     );
     expect(screen.getAllByRole("button", { name: /^Title, / })).toHaveLength(1);
   });
@@ -381,7 +383,7 @@ describe("VideoEditorWorkspace", () => {
 
     fireEvent.keyDown(document.body, { key: "W", shiftKey: true });
     expect(
-      await screen.findAllByRole("button", { name: /^clip\.mp4, 00:00 to 00:02/ }),
+      await screen.findAllByRole("button", { name: /^clip\.mp4, 00:00:00:00 to 00:00:02:00/ }),
     ).toHaveLength(2);
 
     fireEvent.keyDown(document.body, { key: "a", ctrlKey: true });
@@ -559,15 +561,21 @@ describe("VideoEditorWorkspace", () => {
     await seekTo(60, "00:00:02:00");
 
     await user.click(screen.getByRole("button", { name: "Split at playhead" }));
-    const halves = () => screen.getAllByRole("button", { name: /^clip\.mp4, 00:00 to 00:02/ });
+    const halves = () =>
+      screen.getAllByRole("button", { name: /^clip\.mp4, 00:00:00:00 to 00:00:02:00/ });
     expect(halves()).toHaveLength(2);
 
     // The copy lands right after the selection, so the later half is the one with room.
-    fireEvent.keyDown(screen.getAllByRole("button", { name: /^clip\.mp4, 00:02 to 00:04/ })[0], {
-      key: "Enter",
-    });
+    fireEvent.keyDown(
+      screen.getAllByRole("button", { name: /^clip\.mp4, 00:00:02:00 to 00:00:04:00/ })[0],
+      {
+        key: "Enter",
+      },
+    );
     await user.click(screen.getByRole("button", { name: "Duplicate" }));
-    expect(screen.getAllByRole("button", { name: /^clip\.mp4, 00:04 to 00:06/ })).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: /^clip\.mp4, 00:00:04:00 to 00:00:06:00/ }),
+    ).toHaveLength(2);
   });
 
   it("lets go of chosen clips that an undo takes away", async () => {
@@ -596,8 +604,12 @@ describe("VideoEditorWorkspace", () => {
     fireEvent.keyDown(document.body, { key: "o" });
     await user.click(screen.getByRole("button", { name: "Ripple delete" }));
 
-    expect(screen.getAllByRole("button", { name: /^clip\.mp4, 00:00 to 00:01/ })).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: /^clip\.mp4, 00:01 to 00:03/ })).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: /^clip\.mp4, 00:00:00:00 to 00:00:01:00/ }),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: /^clip\.mp4, 00:00:01:00 to 00:00:03:00/ }),
+    ).toHaveLength(2);
   });
 
   it("adds a file from the media browser at the playhead and marks it as used", async () => {
@@ -625,7 +637,9 @@ describe("VideoEditorWorkspace", () => {
 
     await user.click(await screen.findByRole("button", { name: "Add sky.png to the timeline" }));
 
-    expect(await screen.findByRole("button", { name: /^sky\.png, 00:00 to / })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /^sky\.png, 00:00:00:00 to / }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Preview sky.png, used on the timeline" }),
     ).toBeInTheDocument();
@@ -789,9 +803,12 @@ describe("VideoEditorWorkspace", () => {
     renderEditor();
     await screen.findByRole("button", { name: "Back to gallery" });
 
-    fireEvent.keyDown(screen.getAllByRole("button", { name: /^clip\.mp4, 00:00 to 00:02/ })[0], {
-      key: "Enter",
-    });
+    fireEvent.keyDown(
+      screen.getAllByRole("button", { name: /^clip\.mp4, 00:00:00:00 to 00:00:02:00/ })[0],
+      {
+        key: "Enter",
+      },
+    );
     await user.click(screen.getByRole("button", { name: /Add cross-dissolve/ }));
     expect(await screen.findByRole("heading", { name: "Cross-dissolve" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Cross-dissolve, / })).toBeInTheDocument();

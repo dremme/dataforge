@@ -28,3 +28,13 @@ export function parseTimecode(text: string, frameRate: number, current = 0): num
   const whole = hours * 3600 + minutes * 60 + secs;
   return (whole * perSecond + frame) / frameRate;
 }
+
+/** Plain seconds beside a frame timecode, e.g. ``2.92 s`` for ``00:00:02:22`` at 24 fps. */
+export function formatClockSeconds(seconds: number): string {
+  const hundredths = Math.round(Math.max(0, seconds) * 100);
+  const secs = `${((hundredths % 6000) / 100).toFixed(2)} s`;
+  const minutes = Math.floor(hundredths / 6000);
+  if (minutes === 0) return secs;
+  const hours = Math.floor(minutes / 60);
+  return hours === 0 ? `${minutes} min ${secs}` : `${hours} h ${minutes % 60} min ${secs}`;
+}

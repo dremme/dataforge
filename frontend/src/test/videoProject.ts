@@ -17,6 +17,7 @@ export function makeTrack(
     gain: 1,
     speech: false,
     sync_lock: true,
+    collapsed: false,
     ...patch,
   };
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { classNames } from "@/shared/lib/classNames";
+import { Tooltip } from "@/shared/ui/Tooltip";
 import { parseTimecode } from "@/features/videoEditor/lib/timecode";
 import { formatTimecode } from "@/features/videoEditor/lib/timeline";
 import { useChanged } from "@/shared/hooks/useChanged";
@@ -45,30 +46,31 @@ export function TimecodeField({
     onCommit(seconds);
   };
   return (
-    <input
-      className={classNames("video-editor__timecode-field", className)}
-      value={text}
-      aria-label={label}
-      aria-invalid={invalid || undefined}
-      title={invalid ? `Not a time this field can read. ${HINT}` : HINT}
-      spellCheck={false}
-      disabled={disabled}
-      onChange={(event) => {
-        setText(event.target.value);
-        setInvalid(false);
-      }}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          commit();
-        } else if (event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          setText(shown);
+    <Tooltip content={invalid ? `Not a time this field can read. ${HINT}` : HINT}>
+      <input
+        className={classNames("video-editor__timecode-field", className)}
+        value={text}
+        aria-label={label}
+        aria-invalid={invalid || undefined}
+        spellCheck={false}
+        disabled={disabled}
+        onChange={(event) => {
+          setText(event.target.value);
           setInvalid(false);
-        }
-      }}
-    />
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            setText(shown);
+            setInvalid(false);
+          }
+        }}
+      />
+    </Tooltip>
   );
 }

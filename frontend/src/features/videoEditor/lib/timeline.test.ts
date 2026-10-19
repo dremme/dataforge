@@ -99,6 +99,7 @@ function project(clips: Clip[]): Project {
         gain: 1,
         speech: false,
         sync_lock: true,
+        collapsed: false,
       },
       {
         id: "v1",
@@ -111,6 +112,7 @@ function project(clips: Clip[]): Project {
         gain: 1,
         speech: false,
         sync_lock: true,
+        collapsed: false,
       },
       {
         id: "a1",
@@ -123,6 +125,7 @@ function project(clips: Clip[]): Project {
         gain: 1,
         speech: false,
         sync_lock: true,
+        collapsed: false,
       },
       {
         id: "a2",
@@ -135,6 +138,7 @@ function project(clips: Clip[]): Project {
         gain: 1,
         speech: false,
         sync_lock: true,
+        collapsed: false,
       },
     ],
     clips,

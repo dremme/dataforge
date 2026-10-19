@@ -141,7 +141,9 @@ describe("VideoEditorWorkspace assembly", () => {
     await waitFor(() => expect(clipButtons("take2.mp4")).toHaveLength(1));
     // The shot is cut at 2 s; its second half and its sound sit after the 10 s take.
     expect(clipButtons("clip.mp4")).toHaveLength(4);
-    expect(screen.getByRole("button", { name: /^still\.png, 00:16 to 00:18/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^still\.png, 00:00:16:00 to 00:00:18:00/ }),
+    ).toBeInTheDocument();
   });
 
   it("moves a clip to a typed start and nudges it by frames", async () => {
@@ -153,7 +155,9 @@ describe("VideoEditorWorkspace assembly", () => {
     await user.clear(start);
     await user.type(start, "00:00:05:00{Enter}");
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /^still\.png, 00:05 to 00:07/ })).toBeVisible(),
+      expect(
+        screen.getByRole("button", { name: /^still\.png, 00:00:05:00 to 00:00:07:00/ }),
+      ).toBeVisible(),
     );
 
     fireEvent.keyDown(document.body, { key: "," });
@@ -171,7 +175,9 @@ describe("VideoEditorWorkspace assembly", () => {
     fireEvent.keyDown(document.body, { key: "v", ctrlKey: true });
 
     await waitFor(() => expect(clipButtons("clip.mp4")).toHaveLength(4));
-    expect(screen.getAllByRole("button", { name: /^clip\.mp4, 00:08 to 00:12/ })).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: /^clip\.mp4, 00:00:08:00 to 00:00:12:00/ }),
+    ).toHaveLength(2);
 
     await select("still\\.png");
     fireEvent.keyDown(document.body, { key: "V", ctrlKey: true, shiftKey: true });

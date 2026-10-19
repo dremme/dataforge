@@ -1,3 +1,4 @@
+import { Tooltip } from "@/shared/ui/Tooltip";
 import {
   useEffect,
   useLayoutEffect,
@@ -10,6 +11,7 @@ import {
 } from "react";
 import {
   iconChevronDown,
+  iconChevronRight,
   iconChevronUp,
   iconEye,
   iconEyeOff,
@@ -88,8 +90,11 @@ export const SOURCE_DRAG_TYPE = "application/x-dataforge-editor-source";
 export const TRACK_HEADER_PX = 184;
 /** Room before 00:00, so the playhead and a clip's first edge never sit under the headers. */
 export const TIMELINE_ORIGIN_PX = 12;
+/** Both fit the header's two rows of controls inside its padding. */
 const VIDEO_LANE_PX = 60;
-const AUDIO_LANE_PX = 48;
+const AUDIO_LANE_PX = 56;
+/** A collapsed lane fits one row of clip names, matching the header's single row. */
+const COLLAPSED_LANE_PX = 28;
 const SNAP_PX = 8;
 /** Seconds of empty timeline after the last clip, so there is room to drop and drag. */
 const TAIL_SECONDS = 10;
@@ -167,6 +172,7 @@ interface Box {
 }
 
 function laneHeight(track: Track): number {
+  if (track.collapsed) return COLLAPSED_LANE_PX;
   return track.kind === "video" ? VIDEO_LANE_PX : AUDIO_LANE_PX;
 }
 
@@ -646,23 +652,34 @@ export function Timeline({
           >
             {ruler.ticks.map((tick) => (
               <span key={tick} className="video-timeline__tick" style={{ left: at(tick) }}>
-                {rulerLabel(tick)}
+                {formatTimecode(tick, project.frame_rate)}
               </span>
             ))}
             {project.markers.map((marker) => (
-              <button
+              <Tooltip
                 key={marker.id}
-                type="button"
-                className="video-timeline__marker"
+                content={
+                  <>
+                    {markerLabel(project, marker)}
+                    {marker.note && (
+                      <span className="video-timeline__marker-note">{marker.note}</span>
+                    )}
+                  </>
+                }
+                className="video-timeline__marker-tip"
                 style={{ left: at(marker.time) }}
-                title={[markerLabel(project, marker), marker.note].filter(Boolean).join("\n")}
-                aria-label={`${markerLabel(project, marker)}, ${formatTimecode(marker.time, project.frame_rate)}`}
-                tabIndex={-1}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  onSeek(marker.time);
-                }}
-              />
+              >
+                <button
+                  type="button"
+                  className="video-timeline__marker"
+                  aria-label={`${markerLabel(project, marker)}, ${formatTimecode(marker.time, project.frame_rate)}`}
+                  tabIndex={-1}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    onSeek(marker.time);
+                  }}
+                />
+              </Tooltip>
             ))}
             {range && (
               <span
@@ -721,6 +738,7 @@ export function Timeline({
                   track.locked && "video-timeline__lane--locked",
                   track.hidden && "video-timeline__lane--hidden",
                   track.muted && "video-timeline__lane--muted",
+                  track.collapsed && "video-timeline__lane--collapsed",
                   drop?.trackId === track.id && "video-timeline__lane--drop",
                 )}
                 style={{ height: laneHeight(track) }}
@@ -737,6 +755,7 @@ export function Timeline({
                       pxPerSecond={pxPerSecond}
                       levelPx={levelPx}
                       view={view}
+                      collapsed={track.collapsed}
                       selected={selection.has(clip.id)}
                       invalid={Boolean(dragError) && selection.has(clip.id)}
                       onPointerDown={(event) => handleClipPointerDown(event, clip)}
@@ -755,7 +774,6 @@ export function Timeline({
                       key={id}
                       className="video-timeline__crossfade"
                       style={{ left: at(start), width: (end - start) * pxPerSecond }}
-                      title={`Crossfade, ${(end - start).toFixed(2)} seconds`}
                       aria-hidden="true"
                     />
                   ))}
@@ -849,11 +867,6 @@ function CornerTimecode({ engine, frameRate }: { engine: PreviewEngine; frameRat
   return <span className="video-timeline__timecode">{formatTimecode(time, frameRate)}</span>;
 }
 
-/** Whole seconds as a timecode; half seconds as seconds, so neighbouring labels differ. */
-function rulerLabel(time: number): string {
-  return Number.isInteger(time) ? formatTimecode(time) : `${time.toFixed(1)}s`;
-}
-
 const STEPS: [step: number, divisions: number][] = [
   [0.5, 5],
   [1, 4],
@@ -868,18 +881,28 @@ const STEPS: [step: number, divisions: number][] = [
   [600, 6],
 ];
 
+/** Room for one ``HH:MM:SS:FF`` label and the gap before the next. */
+const RULER_LABEL_PX = 96;
+
 /**
  * One label every 0.5 to 600 seconds, whichever leaves room to read it, and minor ticks between
- * them: single frames once they are wide enough to tell apart.
+ * them: single frames once they are wide enough to tell apart. A half second rounds down to a
+ * whole frame (12 of 25), so every label names a frame.
  */
 function rulerTicks(
   pxPerSecond: number,
   seconds: number,
   frameRate: number,
 ): { ticks: number[]; minorPx: number } {
-  const [step, divisions] = STEPS.find(([candidate]) => candidate * pxPerSecond >= 72) ?? [600, 6];
+  const [step, divisions] = STEPS.find(
+    ([candidate]) => candidate * pxPerSecond >= RULER_LABEL_PX,
+  ) ?? [600, 6];
+  const half = Math.max(1, Math.floor(Math.round(frameRate) / 2)) / frameRate;
   const ticks: number[] = [];
-  for (let time = 0; time <= seconds; time += step) ticks.push(time);
+  for (let time = 0; time <= seconds; time += Math.max(1, step)) {
+    ticks.push(time);
+    if (step < 1 && time + half <= seconds) ticks.push(time + half);
+  }
   const framePx = pxPerSecond / frameRate;
   return { ticks, minorPx: framePx >= FRAME_TICK_PX ? framePx : (step * pxPerSecond) / divisions };
 }
@@ -923,10 +946,22 @@ function TrackHeader({
         `video-timeline__header--${track.kind}`,
         divided && "video-timeline__header--divided",
         track.locked && "video-timeline__header--locked",
+        track.collapsed && "video-timeline__header--collapsed",
       )}
       style={{ height: laneHeight(track) }}
     >
       <div className="video-timeline__header-row">
+        <ToolButton
+          icon={track.collapsed ? iconChevronRight : iconChevronDown}
+          label={track.collapsed ? `Expand ${track.name}` : `Collapse ${track.name}`}
+          tooltip={
+            track.collapsed
+              ? `Expand ${track.name} to show its pictures and sound`
+              : `Collapse ${track.name} to a row of clip names`
+          }
+          className="video-timeline__fold"
+          onClick={() => update({ collapsed: !track.collapsed })}
+        />
         {renaming ? (
           <input
             className="video-timeline__name-input"
@@ -948,18 +983,19 @@ function TrackHeader({
             }}
           />
         ) : (
-          <button
-            type="button"
-            className="video-timeline__name"
-            onDoubleClick={() => {
-              setDraft(track.name);
-              onRenameStart();
-            }}
-            title="Double-click to rename"
-            aria-label={`${track.name}, double-click to rename`}
-          >
-            {track.name}
-          </button>
+          <Tooltip content="Double-click to rename" className="video-timeline__name-tip">
+            <button
+              type="button"
+              className="video-timeline__name"
+              onDoubleClick={() => {
+                setDraft(track.name);
+                onRenameStart();
+              }}
+              aria-label={`${track.name}, double-click to rename`}
+            >
+              {track.name}
+            </button>
+          </Tooltip>
         )}
         <div className="video-timeline__header-manage">
           <ToolButton
@@ -1045,6 +1081,8 @@ interface TimelineClipProps {
   levelPx: number;
   /** Timeline seconds in view, and a margin either side; pictures are fetched for these. */
   view: TimeRange;
+  /** On a collapsed track: the name bar only, so no pictures or waveform are fetched. */
+  collapsed: boolean;
   selected: boolean;
   invalid: boolean;
   onPointerDown: (event: ReactPointerEvent) => void;
@@ -1060,6 +1098,7 @@ function TimelineClip({
   pxPerSecond,
   levelPx,
   view,
+  collapsed,
   selected,
   invalid,
   onPointerDown,
@@ -1090,7 +1129,7 @@ function TimelineClip({
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      aria-label={`${label}, ${formatTimecode(clip.start)} to ${formatTimecode(clipEnd(clip))}`}
+      aria-label={`${label}, ${formatTimecode(clip.start, project.frame_rate)} to ${formatTimecode(clipEnd(clip), project.frame_rate)}`}
       data-clip={clip.id}
     >
       <span className="video-timeline__clip-head">
@@ -1100,22 +1139,24 @@ function TimelineClip({
         <span className="video-timeline__clip-label">{missing ? `${label} (missing)` : label}</span>
         {clip.speed !== 1 && <span className="video-timeline__clip-speed">{clip.speed}×</span>}
       </span>
-      <span className="video-timeline__clip-body">
-        {!missing && location && (
-          <ClipPicture
-            clip={clip}
-            location={location}
-            pxPerSecond={pxPerSecond}
-            levelPx={levelPx}
-            view={view}
-            sourceDuration={source?.duration ?? null}
-          />
-        )}
-        {clip.kind === "title" && clip.title && (
-          <span className="video-timeline__clip-text">{clip.title.text}</span>
-        )}
-      </span>
-      {clip.kind === "audio" && clip.keyframes.gain.length > 0 && (
+      {!collapsed && (
+        <span className="video-timeline__clip-body">
+          {!missing && location && (
+            <ClipPicture
+              clip={clip}
+              location={location}
+              pxPerSecond={pxPerSecond}
+              levelPx={levelPx}
+              view={view}
+              sourceDuration={source?.duration ?? null}
+            />
+          )}
+          {clip.kind === "title" && clip.title && (
+            <span className="video-timeline__clip-text">{clip.title.text}</span>
+          )}
+        </span>
+      )}
+      {!collapsed && clip.kind === "audio" && clip.keyframes.gain.length > 0 && (
         <GainEnvelope clip={clip} width={width} />
       )}
       {keyframeTimes(clip, ANIMATED_PROPERTIES).map((time) => (

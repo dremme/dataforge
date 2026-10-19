@@ -1,3 +1,4 @@
+import { Tooltip } from "@/shared/ui/Tooltip";
 import { useState } from "react";
 import { iconBookmarkPlus, iconSearch, iconTrash2 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -110,13 +111,14 @@ function MarkerRow({
   return (
     <li className={classNames("video-editor__marker", current && "video-editor__marker--current")}>
       <div className="video-editor__marker-head">
-        <button
-          type="button"
-          className="video-editor__marker-go"
-          aria-label={`Go to ${label}`}
-          title={`Go to ${label}`}
-          onClick={() => onSeek(marker.time)}
-        />
+        <Tooltip content={`Go to ${label}`}>
+          <button
+            type="button"
+            className="video-editor__marker-go"
+            aria-label={`Go to ${label}`}
+            onClick={() => onSeek(marker.time)}
+          />
+        </Tooltip>
         <TimecodeField
           label={`Time of ${label}`}
           value={marker.time}

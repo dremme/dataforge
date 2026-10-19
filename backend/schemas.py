@@ -1652,6 +1652,9 @@ class VideoProjectTrack(BaseModel):
     #: Ripple edits on other tracks (ripple delete, insert, ripple trim) move this one too.
     #: Off, they leave it alone unless one of its clips is linked to a clip they move.
     sync_lock: bool = True
+    #: Timeline display only: the lane shrinks to a bar of clip names, without pictures or
+    #: waveforms. Preview and export ignore it.
+    collapsed: bool = False
 
 
 class VideoProjectTransform(BaseModel):

@@ -89,6 +89,7 @@ function project(clips: Clip[], tracks: Partial<Project["tracks"][number]>[] = [
       gain: 1,
       speech: false,
       sync_lock: true,
+      collapsed: false,
       ...track,
       ...tracks.find((patch) => patch.id === track.id),
     })),

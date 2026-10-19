@@ -1,3 +1,4 @@
+import { Tooltip } from "@/shared/ui/Tooltip";
 import type { VideoProjectMix } from "@/shared/types";
 import { iconMic } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -39,23 +40,27 @@ export function MixPanel({
             format={percent}
             onChange={(gain, final) => onTrackEdit(track.id, { gain }, final)}
           />
-          <button
-            type="button"
-            className={classNames(
-              "video-editor__key-btn",
-              track.speech && "video-editor__key-btn--on",
-            )}
-            aria-pressed={track.speech}
-            aria-label={`${track.name} is speech`}
-            title={
+          <Tooltip
+            content={
               track.speech
                 ? `${track.name} is speech: the other tracks duck while it sounds`
                 : `Mark ${track.name} as speech, so the other tracks duck under it`
             }
-            onClick={() => onTrackEdit(track.id, { speech: !track.speech }, true)}
+            placement="top"
           >
-            <Icon icon={iconMic} />
-          </button>
+            <button
+              type="button"
+              className={classNames(
+                "video-editor__key-btn",
+                track.speech && "video-editor__key-btn--on",
+              )}
+              aria-pressed={track.speech}
+              aria-label={`${track.name} is speech`}
+              onClick={() => onTrackEdit(track.id, { speech: !track.speech }, true)}
+            >
+              <Icon icon={iconMic} />
+            </button>
+          </Tooltip>
         </div>
       ))}
       <Slider

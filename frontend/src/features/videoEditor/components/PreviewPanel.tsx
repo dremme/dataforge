@@ -8,6 +8,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
+import { createPortal } from "react-dom";
 import { formatApiError } from "@/shared/api/http";
 import {
   iconActivity,
@@ -53,6 +54,7 @@ import {
   type Clip,
   type Project,
 } from "@/features/videoEditor/lib/timeline";
+import { formatClockSeconds } from "@/features/videoEditor/lib/timecode";
 import type { ReplacePolicy } from "@/features/videoEditor/lib/assembly";
 import { MixMeter } from "./MixMeter";
 import { PreviewScopes } from "./PreviewScopes";
@@ -126,6 +128,7 @@ export function PreviewPanel({
   renderFrame,
   notice,
 }: PreviewPanelProps) {
+  const [toolSlot, setToolSlot] = useState<HTMLDivElement | null>(null);
   return (
     <section className="video-editor__preview video-editor__pane" aria-label="Preview">
       <div className="video-editor__pane-header">
@@ -150,15 +153,7 @@ export function PreviewPanel({
         <span className="video-editor__pane-caption">
           {mode === "source" ? (sourceItem?.name ?? "Pick a file in Media") : project.name}
         </span>
-        {mode === "timeline" && (
-          <ToolButton
-            icon={iconScanSquare}
-            label="Safe-area guides"
-            tooltip={guides ? "Hide the safe-area guides" : "Show the safe-area guides"}
-            pressed={guides}
-            onClick={onGuides}
-          />
-        )}
+        <div ref={setToolSlot} className="video-editor__pane-tools" />
       </div>
       {mode === "timeline" && notice}
       {mode === "timeline" ? (
@@ -169,7 +164,9 @@ export function PreviewPanel({
           onTransform={onTransform}
           hasMissing={hasMissing}
           guides={guides}
+          onGuides={onGuides}
           renderFrame={renderFrame}
+          toolSlot={toolSlot}
         />
       ) : sourceItem ? (
         <SourcePreview
@@ -196,7 +193,9 @@ function TimelinePreview({
   onTransform,
   hasMissing,
   guides,
+  onGuides,
   renderFrame,
+  toolSlot,
 }: {
   engine: PreviewEngine;
   project: Project;
@@ -204,7 +203,10 @@ function TimelinePreview({
   onTransform: (clip: Clip, next: Clip["transform"], final: boolean) => void;
   hasMissing: boolean;
   guides: boolean;
+  onGuides: () => void;
   renderFrame: (time: number) => Promise<Blob>;
+  /** The pane header's tool group, where this monitor puts its view and compare tools. */
+  toolSlot: HTMLElement | null;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -312,8 +314,54 @@ function TimelinePreview({
   ]
     .filter(Boolean)
     .join(" ");
+  // Toggles that draw over the live picture, then the one action that replaces it.
+  const tools = (
+    <>
+      <div className="video-editor__tool-group">
+        <ToolButton
+          tooltipPlacement="bottom"
+          icon={iconScanSquare}
+          label="Safe-area guides"
+          tooltip={guides ? "Hide the safe-area guides" : "Show the safe-area guides"}
+          pressed={guides}
+          onClick={onGuides}
+        />
+        <ToolButton
+          tooltipPlacement="bottom"
+          icon={iconSquareSplitHorizontal}
+          label={reference ? "Stop comparing" : "Compare with this frame"}
+          tooltip={
+            reference
+              ? "Let go of the held reference frame"
+              : "Hold this frame and wipe between it and the live picture"
+          }
+          pressed={reference !== null}
+          onClick={() => (reference ? setReference(null) : holdReference())}
+          disabled={duration <= 0}
+        />
+        <ToolButton
+          tooltipPlacement="bottom"
+          icon={iconActivity}
+          label="Scopes"
+          tooltip={scopes ? "Hide the waveform and histogram" : "Show a waveform and histogram"}
+          pressed={scopes}
+          onClick={() => setScopes((on) => !on)}
+          disabled={duration <= 0}
+        />
+      </div>
+      <ToolButton
+        tooltipPlacement="bottom"
+        icon={iconImageDown}
+        label="Show the export's frame"
+        tooltip="Render this frame as the export will, at full size"
+        onClick={() => void showRenderedFrame()}
+        disabled={duration <= 0 || frameState.busy}
+      />
+    </>
+  );
   return (
     <>
+      {toolSlot && createPortal(tools, toolSlot)}
       <div ref={stageRef} className="video-editor__stage">
         <div className="video-editor__canvas-box" style={{ width: box.width, height: box.height }}>
           <canvas ref={canvasRef} className="video-editor__canvas" aria-label="Timeline preview" />
@@ -440,48 +488,23 @@ function TimelinePreview({
           <div className="video-editor__transport-end">
             <MixMeter engine={engine} />
             {drawn.width > 0 && (
-              <span
-                className={classNames(
-                  "video-editor__preview-size",
-                  (reduced || fidelity.adjustReduced) && "video-editor__preview-size--reduced",
-                )}
-                title={sizeNote}
-              >
-                {drawn.width} × {drawn.height}
-                {fidelity.adjustReduced && ` · color ${MAX_ADJUST_WIDTH} px`}
-              </span>
+              <Tooltip content={sizeNote} placement="top">
+                <span
+                  className={classNames(
+                    "video-editor__preview-size",
+                    (reduced || fidelity.adjustReduced) && "video-editor__preview-size--reduced",
+                  )}
+                >
+                  {drawn.width} × {drawn.height}
+                  {fidelity.adjustReduced && ` · color ${MAX_ADJUST_WIDTH} px`}
+                </span>
+              </Tooltip>
             )}
-            <ToolButton
-              icon={iconActivity}
-              label="Scopes"
-              tooltip={scopes ? "Hide the waveform and histogram" : "Show a waveform and histogram"}
-              pressed={scopes}
-              onClick={() => setScopes((on) => !on)}
-              disabled={duration <= 0}
-            />
-            <ToolButton
-              icon={iconSquareSplitHorizontal}
-              label={reference ? "Stop comparing" : "Compare with this frame"}
-              tooltip={
-                reference
-                  ? "Let go of the held reference frame"
-                  : "Hold this frame and wipe between it and the live picture"
-              }
-              pressed={reference !== null}
-              onClick={() => (reference ? setReference(null) : holdReference())}
-              disabled={duration <= 0}
-            />
-            <ToolButton
-              icon={iconImageDown}
-              label="Show the export's frame"
-
-              tooltip="Render this frame as the export will, at full size"
-              onClick={() => void showRenderedFrame()}
-              disabled={duration <= 0 || frameState.busy}
-            />
-            <span className="video-editor__timecode video-editor__timecode--total">
-              {formatTimecode(duration, project.frame_rate)}
-            </span>
+            <Tooltip content={`Duration ${formatClockSeconds(duration)}`} placement="top">
+              <span className="video-editor__timecode video-editor__timecode--total">
+                {formatTimecode(duration, project.frame_rate)}
+              </span>
+            </Tooltip>
           </div>
         </div>
       </div>

@@ -907,7 +907,7 @@ export function placeSource(
   const track = preferredTrack ?? freeTrackAt(project, kind, start, duration);
   if (!track) {
     return {
-      error: `No ${kind} track is free at ${formatTimecode(start)}. Move the playhead or add a track.`,
+      error: `No ${kind} track is free at ${formatTimecode(start, project.frame_rate)}. Move the playhead or add a track.`,
     };
   }
 
@@ -982,7 +982,9 @@ export function addTitle(
           freeTrackAt(project, "video", start, TITLE_SECONDS, candidate.id)?.id === candidate.id,
       );
   if (!track || track.kind !== "video") {
-    return { error: `No video track is free at ${formatTimecode(start)} for a title.` };
+    return {
+      error: `No video track is free at ${formatTimecode(start, project.frame_rate)} for a title.`,
+    };
   }
   const clip: Clip = {
     id: newId(),
@@ -1062,6 +1064,7 @@ export function addTrack(project: Project, kind: VideoProjectTrackKind): EditRes
     gain: 1,
     speech: false,
     sync_lock: true,
+    collapsed: false,
   };
   const tracks = kind === "video" ? [track, ...project.tracks] : [...project.tracks, track];
   return { project: { ...project, tracks } };

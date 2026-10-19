@@ -35,6 +35,7 @@ function project(duration: number): Project {
         gain: 1,
         speech: false,
         sync_lock: true,
+        collapsed: false,
       },
     ],
     clips: [

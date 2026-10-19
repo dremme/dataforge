@@ -51,38 +51,41 @@
     {
       "id": "2ed92ec6b61b",
       "kind": "video",
-      "name": "V2",
+      "name": "Title",
       "locked": false,
       "hidden": false,
       "muted": false,
-      "solo": false
+      "solo": false,
+      "gain": 1.0,
+      "speech": false,
+      "sync_lock": true,
+      "collapsed": true
     },
     {
       "id": "a578f3d3cd9c",
       "kind": "video",
-      "name": "V1",
+      "name": "Video",
       "locked": false,
       "hidden": false,
       "muted": false,
-      "solo": false
+      "solo": false,
+      "gain": 1.0,
+      "speech": false,
+      "sync_lock": true,
+      "collapsed": false
     },
     {
       "id": "064038d9e44c",
       "kind": "audio",
-      "name": "A1",
+      "name": "Voice",
       "locked": false,
       "hidden": false,
       "muted": false,
-      "solo": false
-    },
-    {
-      "id": "bc67d5e25bc5",
-      "kind": "audio",
-      "name": "A2",
-      "locked": false,
-      "hidden": false,
-      "muted": false,
-      "solo": false
+      "solo": false,
+      "gain": 1.0,
+      "speech": false,
+      "sync_lock": true,
+      "collapsed": false
     }
   ],
   "clips": [
@@ -126,6 +129,7 @@
       "gain": 1.0,
       "fade_in": 0.0,
       "fade_out": 0.0,
+      "fade_curve": "equal_power",
       "title": {
         "text": "This is a sample project",
         "size": 0.08,
@@ -136,6 +140,14 @@
         "outline": 0.04,
         "outline_color": "#000000",
         "font": null
+      },
+      "keyframes": {
+        "x": [],
+        "y": [],
+        "scale": [],
+        "rotation": [],
+        "opacity": [],
+        "gain": []
       }
     },
     {
@@ -178,7 +190,16 @@
       "gain": 1.0,
       "fade_in": 0.0,
       "fade_out": 0.0,
-      "title": null
+      "fade_curve": "equal_power",
+      "title": null,
+      "keyframes": {
+        "x": [],
+        "y": [],
+        "scale": [],
+        "rotation": [],
+        "opacity": [],
+        "gain": []
+      }
     },
     {
       "id": "52de8a5a85b3",
@@ -220,7 +241,16 @@
       "gain": 1.0,
       "fade_in": 0.0,
       "fade_out": 0.0,
-      "title": null
+      "fade_curve": "equal_power",
+      "title": null,
+      "keyframes": {
+        "x": [],
+        "y": [],
+        "scale": [],
+        "rotation": [],
+        "opacity": [],
+        "gain": []
+      }
     },
     {
       "id": "e1bae36a8f57",
@@ -262,7 +292,16 @@
       "gain": 1.0,
       "fade_in": 0.0,
       "fade_out": 0.0,
-      "title": null
+      "fade_curve": "equal_power",
+      "title": null,
+      "keyframes": {
+        "x": [],
+        "y": [],
+        "scale": [],
+        "rotation": [],
+        "opacity": [],
+        "gain": []
+      }
     }
   ],
   "transitions": [
@@ -272,11 +311,17 @@
       "to_clip_id": "e1bae36a8f57"
     }
   ],
+  "mix": {
+    "master_gain": 1.0,
+    "duck_gain": 0.25
+  },
+  "markers": [],
   "export": {
     "filename": "",
     "size": "source",
     "orientation": null,
     "quality": "standard",
-    "copy_caption": false
+    "copy_caption": false,
+    "audio_level": "limit"
   }
 }

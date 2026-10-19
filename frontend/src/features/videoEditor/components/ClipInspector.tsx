@@ -1,3 +1,4 @@
+import { Tooltip } from "@/shared/ui/Tooltip";
 import { useId } from "react";
 import {
   iconBlend,
@@ -41,6 +42,7 @@ import {
   type EditResult,
   type Project,
 } from "@/features/videoEditor/lib/timeline";
+import { formatClockSeconds } from "@/features/videoEditor/lib/timecode";
 
 import { TRANSFORM_PROPERTIES } from "@/features/videoEditor/lib/keyframes";
 import { FontPicker } from "./FontPicker";
@@ -271,7 +273,12 @@ function InspectorContent({
             </div>
             <div>
               <dt>Duration</dt>
-              <dd>{formatTimecode(projectDuration(project), project.frame_rate)}</dd>
+              <dd>
+                {formatTimecode(projectDuration(project), project.frame_rate)}
+                <span className="video-editor__facts-seconds">
+                  {formatClockSeconds(projectDuration(project))}
+                </span>
+              </dd>
             </div>
             <div>
               <dt>Clips</dt>
@@ -383,7 +390,9 @@ function InspectorContent({
           </label>
           {timed && (
             <label className="video-editor__field">
-              <span title="Where the take begins in the file; the clip stays in place">In</span>
+              <Tooltip content="Where the take begins in the file; the clip stays in place">
+                <span>In</span>
+              </Tooltip>
               <TimecodeField
                 label="In point"
                 value={clip.source_in}
@@ -481,29 +490,29 @@ function InspectorContent({
             onEdit={onEdit}
           />
           <div className="video-editor__field">
-            <span id={`curve-${clip.id}`} title="The shape of its fades and crossfades">
-              Fades
-            </span>
+            <Tooltip content="The shape of its fades and crossfades">
+              <span id={`curve-${clip.id}`}>Fades</span>
+            </Tooltip>
             <div
               className="video-editor__segmented"
               role="radiogroup"
               aria-labelledby={`curve-${clip.id}`}
             >
               {FADE_CURVES.map((curve) => (
-                <button
-                  key={curve.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={clip.fade_curve === curve.value}
-                  title={curve.hint}
-                  className={classNames(
-                    "video-editor__segment",
-                    clip.fade_curve === curve.value && "video-editor__segment--on",
-                  )}
-                  onClick={() => onEdit({ fade_curve: curve.value }, true)}
-                >
-                  {curve.label}
-                </button>
+                <Tooltip key={curve.value} content={curve.hint} placement="top">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={clip.fade_curve === curve.value}
+                    className={classNames(
+                      "video-editor__segment",
+                      clip.fade_curve === curve.value && "video-editor__segment--on",
+                    )}
+                    onClick={() => onEdit({ fade_curve: curve.value }, true)}
+                  >
+                    {curve.label}
+                  </button>
+                </Tooltip>
               ))}
             </div>
           </div>
@@ -784,21 +793,24 @@ function ColorPanel({
       }
     >
       <div className="video-editor__auto">
-        <button
-          type="button"
-          className={classNames("video-editor__auto-btn", auto && "video-editor__auto-btn--on")}
-          aria-pressed={auto !== null}
-          aria-busy={autoPending || undefined}
-          disabled={autoPending}
-          title={auto ? "Turn Auto off" : "Fix levels and color cast from this clip's frames"}
-          onClick={() => {
-            if (!auto) onAuto();
-            else onEdit({ adjust: withoutAuto(clip.adjust, auto), auto_adjust: null }, true);
-          }}
+        <Tooltip
+          content={auto ? "Turn Auto off" : "Fix levels and color cast from this clip's frames"}
         >
-          <Icon icon={autoPending ? iconLoader2 : iconWandSparkles} spin={autoPending} />
-          {autoPending ? "Reading frames..." : "Auto"}
-        </button>
+          <button
+            type="button"
+            className={classNames("video-editor__auto-btn", auto && "video-editor__auto-btn--on")}
+            aria-pressed={auto !== null}
+            aria-busy={autoPending || undefined}
+            disabled={autoPending}
+            onClick={() => {
+              if (!auto) onAuto();
+              else onEdit({ adjust: withoutAuto(clip.adjust, auto), auto_adjust: null }, true);
+            }}
+          >
+            <Icon icon={autoPending ? iconLoader2 : iconWandSparkles} spin={autoPending} />
+            {autoPending ? "Reading frames..." : "Auto"}
+          </button>
+        </Tooltip>
         {auto ? (
           <Slider
             label="Amount"

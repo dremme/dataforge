@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { VideoProjectExportState } from "@/shared/types";
 import { makeProject } from "@/test/videoProject";
@@ -55,13 +56,12 @@ describe("EditorTopBar export status", () => {
     expect(screen.getByText("-14.0 LUFS · peak -1.2 dBTP")).toBeInTheDocument();
   });
 
-  it("warns when the exported sound reaches full scale", () => {
+  it("warns when the exported sound reaches full scale", async () => {
+    const user = userEvent.setup();
     renderBar({ ...finished, loudness_lufs: -6, true_peak_db: 2.3 });
 
-    expect(screen.getByText(/peak 2\.3 dBTP · clipped/)).toHaveAttribute(
-      "title",
-      expect.stringMatching(/will distort/),
-    );
+    await user.hover(screen.getByText(/peak 2\.3 dBTP · clipped/));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(/will distort/);
   });
 
   it("says nothing about a level it could not measure", () => {

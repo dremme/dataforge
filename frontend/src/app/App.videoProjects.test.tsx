@@ -57,6 +57,7 @@ function draft(): VideoProjectDocument {
           gain: 1,
           speech: false,
           sync_lock: true,
+          collapsed: false,
         },
       ],
       clips: [],

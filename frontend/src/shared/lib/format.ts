@@ -24,14 +24,42 @@ export function formatCount(count: number): string {
   return String(Math.round(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-export function formatModifiedAt(isoDate: string): string | null {
+function parseDate(isoDate: string): Date | null {
   const timestamp = Date.parse(isoDate);
-  if (Number.isNaN(timestamp)) return null;
+  return Number.isNaN(timestamp) ? null : new Date(timestamp);
+}
 
-  const date = new Date(timestamp);
+function calendarDate(date: Date): string {
+  return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
+function clockTime(date: Date): string {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}, ${hours}:${minutes}`;
+  return `${hours}:${minutes}`;
+}
+
+export function formatModifiedAt(isoDate: string): string | null {
+  const date = parseDate(isoDate);
+  return date ? `${calendarDate(date)}, ${clockTime(date)}` : null;
+}
+
+/** Local time of day, e.g. ``14:05``. */
+export function formatClockTime(isoDate: string): string | null {
+  const date = parseDate(isoDate);
+  return date ? clockTime(date) : null;
+}
+
+/** ``Today``, ``Yesterday`` or the local calendar date, e.g. ``Mar 15, 2026``. */
+export function formatDayLabel(isoDate: string, nowMs = Date.now()): string | null {
+  const date = parseDate(isoDate);
+  if (!date) return null;
+
+  const now = new Date(nowMs);
+  if (date.toDateString() === now.toDateString()) return "Today";
+  now.setDate(now.getDate() - 1);
+  if (date.toDateString() === now.toDateString()) return "Yesterday";
+  return calendarDate(date);
 }
 
 const RELATIVE_STEPS: ReadonlyArray<[string, number]> = [

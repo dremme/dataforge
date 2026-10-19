@@ -2,8 +2,11 @@ import { DiscardChangesDialog } from "@/shared/ui/DiscardChangesDialog";
 import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatApiError } from "@/shared/api/http";
-import { formatDurationSeconds, formatModifiedAt } from "@/shared/lib/format";
+import { classNames } from "@/shared/lib/classNames";
+import { formatClockTime, formatDurationSeconds } from "@/shared/lib/format";
+import { iconBookmark, iconHistory, iconLoader2, iconRotateCcw, iconTrash2 } from "@/shared/icons";
 import { Dialog, DialogButton } from "@/shared/ui/Dialog";
+import { Icon } from "@/shared/ui/Icon";
 import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
 import type { VideoProjectVersionSummary } from "@/shared/types";
 import {
@@ -12,6 +15,7 @@ import {
   saveVideoProjectVersion,
 } from "@/features/videoEditor/api/videoProjects";
 import type { Project } from "@/features/videoEditor/lib/timeline";
+import { groupVersionsByDay } from "@/features/videoEditor/lib/versionDays";
 
 const VIDEO_PROJECT_VERSIONS_QUERY_KEY = ["video-project-versions"] as const;
 
@@ -65,8 +69,8 @@ export function VersionsDialog({ project, onRestore, onClose }: VersionsDialogPr
     <Dialog
       title="Project versions"
       description={
-        "Save the edit as it is now under a name, or go back to an earlier version. A " +
-        "restore replaces the timeline as one edit, so Undo brings this one back."
+        "Name the edit as it is now to come back to it later. Restoring counts as one edit, " +
+        "so Undo brings this one back."
       }
       role="dialog"
       panelClassName="video-versions-dialog"
@@ -106,51 +110,86 @@ export function VersionsDialog({ project, onRestore, onClose }: VersionsDialogPr
             />
           </div>
         </div>
+        <div className="video-versions-dialog__history-head">
+          <h3 className="video-versions-dialog__heading">History</h3>
+          <span className="video-versions-dialog__heading-hint">
+            Checkpoints are kept every ten minutes of editing
+          </span>
+        </div>
         {versions.isPending ? (
           <p className="dialog__hint">Loading versions...</p>
         ) : versions.isError ? (
           <p className="dialog__error">{formatApiError(versions.error)}</p>
         ) : rows.length === 0 ? (
           <p className="dialog__hint">
-            No versions yet. Saving keeps an automatic checkpoint every ten minutes of editing.
+            No versions yet. Name one above, or keep editing for the first checkpoint.
           </p>
         ) : (
           <ul className="video-versions-dialog__list" aria-label="Versions">
-            {rows.map((version) => (
-              <li key={version.id} className="video-versions-dialog__row">
-                <span className="video-versions-dialog__text">
-                  <strong>{version.label ?? "Automatic checkpoint"}</strong>
-                  <span className="video-versions-dialog__meta">
-                    {formatModifiedAt(version.created_at) ?? version.created_at} ·{" "}
-                    {formatDurationSeconds(version.duration)} · {version.clip_count}{" "}
-                    {version.clip_count === 1 ? "clip" : "clips"}
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  className="video-editor__text-btn"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    void discard.request(async () => {
-                      if (await run(`restore-${version.id}`, () => onRestore(version))) onClose();
-                    })
-                  }
-                >
-                  {busy === `restore-${version.id}` ? "Restoring..." : "Restore"}
-                </button>
-                {version.label !== null && (
-                  <button
-                    type="button"
-                    className="video-editor__text-btn"
-                    aria-label={`Delete version ${version.label}`}
-                    disabled={busy !== null}
-                    onClick={() =>
-                      void run(`delete-${version.id}`, () => deleteVideoProjectVersion(version.id))
-                    }
-                  >
-                    Delete
-                  </button>
-                )}
+            {groupVersionsByDay(rows).map((day) => (
+              <li key={day.label} className="video-versions-dialog__day">
+                <h3 className="video-versions-dialog__day-label">{day.label}</h3>
+                <ul className="video-versions-dialog__day-list">
+                  {day.versions.map((version) => {
+                    const named = version.label !== null;
+                    return (
+                      <li
+                        key={version.id}
+                        className={classNames(
+                          "video-versions-dialog__row",
+                          named && "video-versions-dialog__row--named",
+                        )}
+                      >
+                        <Icon
+                          icon={named ? iconBookmark : iconHistory}
+                          className="video-versions-dialog__kind"
+                        />
+                        <span className="video-versions-dialog__text">
+                          <span className="video-versions-dialog__name">
+                            {version.label ?? "Automatic checkpoint"}
+                          </span>
+                          <span className="video-versions-dialog__meta">
+                            {formatClockTime(version.created_at) ?? version.created_at} ·{" "}
+                            {formatDurationSeconds(version.duration)} · {version.clip_count}{" "}
+                            {version.clip_count === 1 ? "clip" : "clips"}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          className="video-versions-dialog__restore"
+                          disabled={busy !== null}
+                          onClick={() =>
+                            void discard.request(async () => {
+                              if (await run(`restore-${version.id}`, () => onRestore(version)))
+                                onClose();
+                            })
+                          }
+                        >
+                          <Icon
+                            icon={busy === `restore-${version.id}` ? iconLoader2 : iconRotateCcw}
+                            spin={busy === `restore-${version.id}`}
+                          />
+                          {busy === `restore-${version.id}` ? "Restoring..." : "Restore"}
+                        </button>
+                        {named && (
+                          <button
+                            type="button"
+                            className="video-versions-dialog__delete"
+                            aria-label={`Delete version ${version.label}`}
+                            disabled={busy !== null}
+                            onClick={() =>
+                              void run(`delete-${version.id}`, () =>
+                                deleteVideoProjectVersion(version.id),
+                              )
+                            }
+                          >
+                            <Icon icon={iconTrash2} />
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               </li>
             ))}
           </ul>

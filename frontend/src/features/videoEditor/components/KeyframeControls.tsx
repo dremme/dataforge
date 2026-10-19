@@ -1,3 +1,4 @@
+import { Tooltip } from "@/shared/ui/Tooltip";
 import type { VideoProjectEasing } from "@/shared/types";
 import { iconChevronLeft, iconChevronRight, iconDiamond } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -54,20 +55,21 @@ export function KeyedSlider({ clip, property, time, label, onEdit, ...slider }: 
         onChange={(value, final) => onEdit(setValueAt(clip, property, at, value), final)}
         {...slider}
       />
-      <button
-        type="button"
-        className={classNames(
-          "video-editor__key-btn",
-          animated && "video-editor__key-btn--animated",
-          onKey && "video-editor__key-btn--on",
-        )}
-        aria-pressed={onKey}
-        aria-label={action}
-        title={action}
-        onClick={() => onEdit(keyPatch(toggleKeyframe(clip, property, at)), true)}
-      >
-        <Icon icon={iconDiamond} />
-      </button>
+      <Tooltip content={action}>
+        <button
+          type="button"
+          className={classNames(
+            "video-editor__key-btn",
+            animated && "video-editor__key-btn--animated",
+            onKey && "video-editor__key-btn--on",
+          )}
+          aria-pressed={onKey}
+          aria-label={action}
+          onClick={() => onEdit(keyPatch(toggleKeyframe(clip, property, at)), true)}
+        >
+          <Icon icon={iconDiamond} />
+        </button>
+      </Tooltip>
     </div>
   );
 }
@@ -101,19 +103,19 @@ export function KeyframeBar({
   };
   return (
     <div className="video-editor__keyframe-bar">
-      <button
-        type="button"
-        className="video-editor__icon-btn"
-        aria-label="Previous keyframe"
-        title="Previous keyframe"
-        disabled={previous === undefined}
-        onClick={() => previous !== undefined && onSeek(previous)}
-      >
-        <Icon icon={iconChevronLeft} />
-      </button>
+      <Tooltip content="Previous keyframe">
+        <button
+          type="button"
+          className="video-editor__icon-btn"
+          aria-label="Previous keyframe"
+          disabled={previous === undefined}
+          onClick={() => previous !== undefined && onSeek(previous)}
+        >
+          <Icon icon={iconChevronLeft} />
+        </button>
+      </Tooltip>
       <select
         aria-label="Easing to the next keyframe"
-        title="How the keyframes here travel to the next ones"
         className="video-editor__easing-select"
         value={easing ?? ""}
         disabled={!easing}
@@ -126,16 +128,17 @@ export function KeyframeBar({
           </option>
         ))}
       </select>
-      <button
-        type="button"
-        className="video-editor__icon-btn"
-        aria-label="Next keyframe"
-        title="Next keyframe"
-        disabled={next === undefined}
-        onClick={() => next !== undefined && onSeek(next)}
-      >
-        <Icon icon={iconChevronRight} />
-      </button>
+      <Tooltip content="Next keyframe">
+        <button
+          type="button"
+          className="video-editor__icon-btn"
+          aria-label="Next keyframe"
+          disabled={next === undefined}
+          onClick={() => next !== undefined && onSeek(next)}
+        >
+          <Icon icon={iconChevronRight} />
+        </button>
+      </Tooltip>
     </div>
   );
 }

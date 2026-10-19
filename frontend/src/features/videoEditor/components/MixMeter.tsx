@@ -1,3 +1,4 @@
+import { Tooltip } from "@/shared/ui/Tooltip";
 import { useEffect, useRef, useState } from "react";
 import { VIDEO_PROJECT_TRUE_PEAK_CEILING_DB } from "@/shared/constants";
 import { classNames } from "@/shared/lib/classNames";
@@ -68,27 +69,28 @@ export function MixMeter({ engine }: { engine: PreviewEngine }) {
           "limiter will hold it there."
         : "Sample peaks of the preview mix. Click to clear the warning.";
   return (
-    <button
-      type="button"
-      className={classNames("video-editor__meter", alarm && `video-editor__meter--${alarm}`)}
-      title={description}
-      aria-label={`Mix level: peak ${formatDb(held)} dB${alarm === "clip" ? ", clipped" : ""}`}
-      onClick={() => {
-        setAlarm(null);
-        heldRef.current = -Infinity;
-        setHeld(-Infinity);
-      }}
-    >
-      <span className="video-editor__meter-bars" aria-hidden="true">
-        {barRefs.map((ref, index) => (
-          <span key={index} className="video-editor__meter-track">
-            <span ref={ref} className="video-editor__meter-fill" />
-          </span>
-        ))}
-      </span>
-      <span className="video-editor__meter-value">
-        {alarm === "clip" ? "Clip" : formatDb(held)}
-      </span>
-    </button>
+    <Tooltip content={description} placement="top">
+      <button
+        type="button"
+        className={classNames("video-editor__meter", alarm && `video-editor__meter--${alarm}`)}
+        aria-label={`Mix level: peak ${formatDb(held)} dB${alarm === "clip" ? ", clipped" : ""}`}
+        onClick={() => {
+          setAlarm(null);
+          heldRef.current = -Infinity;
+          setHeld(-Infinity);
+        }}
+      >
+        <span className="video-editor__meter-bars" aria-hidden="true">
+          {barRefs.map((ref, index) => (
+            <span key={index} className="video-editor__meter-track">
+              <span ref={ref} className="video-editor__meter-fill" />
+            </span>
+          ))}
+        </span>
+        <span className="video-editor__meter-value">
+          {alarm === "clip" ? "Clip" : formatDb(held)}
+        </span>
+      </button>
+    </Tooltip>
   );
 }

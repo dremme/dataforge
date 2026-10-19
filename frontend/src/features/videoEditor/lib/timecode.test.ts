@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatTimecode } from "./timeline";
-import { parseTimecode } from "./timecode";
+import { formatClockSeconds, parseTimecode } from "./timecode";
 
 describe("parseTimecode", () => {
   it("reads back every timecode the editor shows", () => {
@@ -22,5 +22,19 @@ describe("parseTimecode", () => {
     for (const text of ["", "abc", "1:2:3:4:5", "00:24", "00:61:00", "1.5"]) {
       expect(parseTimecode(text, 24)).toBeNull();
     }
+  });
+});
+
+describe("formatClockSeconds", () => {
+  it("reads a frame timecode back as seconds", () => {
+    // 00:00:02:22 at 24 fps: two seconds and 22 frames.
+    expect(formatClockSeconds(2 + 22 / 24)).toBe("2.92 s");
+    expect(formatClockSeconds(0)).toBe("0.00 s");
+  });
+
+  it("names minutes and hours instead of a second timecode-like format", () => {
+    expect(formatClockSeconds(65)).toBe("1 min 5.00 s");
+    expect(formatClockSeconds(59.999)).toBe("1 min 0.00 s");
+    expect(formatClockSeconds(3725.5)).toBe("1 h 2 min 5.50 s");
   });
 });

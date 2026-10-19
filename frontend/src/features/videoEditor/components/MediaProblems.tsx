@@ -1,3 +1,4 @@
+import { Tooltip } from "@/shared/ui/Tooltip";
 import { iconLoader2, iconTriangleAlert } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import {
@@ -63,21 +64,22 @@ export function MediaProblems({
                 Retry
               </button>
               {source.kind === "video" && problem.kind !== "network" && (
-                <button
-                  type="button"
-                  className="video-editor__text-btn"
-                  onClick={() => onConvert(problem.sourceId)}
-                  disabled={busy}
-                  title="Writes an H.264 copy beside the file and relinks this project to it"
-                >
-                  {busy ? (
-                    <>
-                      <Icon icon={iconLoader2} spin /> Making a copy...
-                    </>
-                  ) : (
-                    "Use an H.264 copy"
-                  )}
-                </button>
+                <Tooltip content="Writes an H.264 copy beside the file and relinks this project to it">
+                  <button
+                    type="button"
+                    className="video-editor__text-btn"
+                    onClick={() => onConvert(problem.sourceId)}
+                    disabled={busy}
+                  >
+                    {busy ? (
+                      <>
+                        <Icon icon={iconLoader2} spin /> Making a copy...
+                      </>
+                    ) : (
+                      "Use an H.264 copy"
+                    )}
+                  </button>
+                </Tooltip>
               )}
             </div>
           );

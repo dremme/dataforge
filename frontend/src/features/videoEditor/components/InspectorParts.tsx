@@ -1,3 +1,4 @@
+import { Tooltip } from "@/shared/ui/Tooltip";
 import {
   createContext,
   useCallback,
@@ -134,15 +135,11 @@ export function Panel({
 
 export function ResetButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      className="video-editor__icon-btn"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-    >
-      <Icon icon={iconRotateCcw} />
-    </button>
+    <Tooltip content={label}>
+      <button type="button" className="video-editor__icon-btn" onClick={onClick} aria-label={label}>
+        <Icon icon={iconRotateCcw} />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -176,15 +173,19 @@ export function Slider({ label, value, min, max, step, format, onChange, resting
   const origin = resting !== undefined && resting >= min && resting <= max ? resting : min;
   return (
     <div className={classNames("video-editor__slider", changed && "video-editor__slider--changed")}>
-      <label
-        htmlFor={id}
-        title={resting !== undefined ? "Double-click to reset" : undefined}
-        onDoubleClick={() => {
-          if (resting !== undefined && changed) onChange(resting, true);
-        }}
+      <Tooltip
+        content={resting !== undefined ? "Double-click to reset" : undefined}
+        className="video-editor__slider-label"
       >
-        {label}
-      </label>
+        <label
+          htmlFor={id}
+          onDoubleClick={() => {
+            if (resting !== undefined && changed) onChange(resting, true);
+          }}
+        >
+          {label}
+        </label>
+      </Tooltip>
       <input
         id={id}
         type="range"

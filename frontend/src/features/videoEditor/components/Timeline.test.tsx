@@ -21,7 +21,7 @@ import {
 // 100 px per second: a pointer at ORIGIN + 100 * t is at t seconds, since jsdom lays nothing out.
 const PPS = 100;
 const at = (seconds: number) => TIMELINE_ORIGIN_PX + seconds * PPS;
-// Lanes top to bottom: V2 0-60, V1 60-120, A1 120-168, A2 168-216.
+// Lanes top to bottom: V2 0-60, V1 60-120, A1 120-176, A2 176-232.
 const V1_Y = 90;
 
 const SOURCES = new Map<string, SourceLocation>([
@@ -35,6 +35,7 @@ function renderTimeline(
     tool?: TimelineTool;
     snapping?: boolean;
     selection?: string[];
+    pxPerSecond?: number;
   } = {},
 ) {
   const doc = options.project ?? project();
@@ -61,7 +62,7 @@ function renderTimeline(
       range={null}
       tool={options.tool ?? "select"}
       snapping={options.snapping ?? false}
-      pxPerSecond={PPS}
+      pxPerSecond={options.pxPerSecond ?? PPS}
       {...props}
     />,
   );
@@ -91,10 +92,10 @@ describe("Timeline", () => {
   it("selects a clip on click and adds to the selection with Shift", () => {
     const { onSelect } = renderTimeline({ selection: ["second"] });
 
-    fireEvent.pointerDown(clipNamed("00:00"), { button: 0, clientX: at(1), clientY: V1_Y });
+    fireEvent.pointerDown(clipNamed("00:00:00:00"), { button: 0, clientX: at(1), clientY: V1_Y });
     expect(onSelect).toHaveBeenLastCalledWith(new Set(["first"]), null);
 
-    fireEvent.pointerDown(clipNamed("00:00"), {
+    fireEvent.pointerDown(clipNamed("00:00:00:00"), {
       button: 0,
       shiftKey: true,
       clientX: at(1),
@@ -106,17 +107,17 @@ describe("Timeline", () => {
   it("chooses a clip from the keyboard, Shift+Enter adding it", () => {
     const { onSelect } = renderTimeline({ selection: ["second"] });
 
-    fireEvent.keyDown(clipNamed("00:00"), { key: "Enter" });
+    fireEvent.keyDown(clipNamed("00:00:00:00"), { key: "Enter" });
     expect(onSelect).toHaveBeenLastCalledWith(new Set(["first"]), null);
 
-    fireEvent.keyDown(clipNamed("00:00"), { key: "Enter", shiftKey: true });
+    fireEvent.keyDown(clipNamed("00:00:00:00"), { key: "Enter", shiftKey: true });
     expect(onSelect).toHaveBeenLastCalledWith(new Set(["second", "first"]), null);
   });
 
   it("drags a clip along its track, previewing it and recording one step on release", () => {
     const { onPreview, onCommit, scroller } = renderTimeline({ selection: ["first"] });
 
-    fireEvent.pointerDown(clipNamed("00:00"), { button: 0, clientX: at(1), clientY: V1_Y });
+    fireEvent.pointerDown(clipNamed("00:00:00:00"), { button: 0, clientX: at(1), clientY: V1_Y });
     fireEvent.pointerMove(scroller, { clientX: at(1.5), clientY: V1_Y });
 
     expect(placed(onPreview, "first")?.start).toBeCloseTo(0.5);
@@ -132,7 +133,7 @@ describe("Timeline", () => {
       selection: ["first"],
     });
 
-    fireEvent.pointerDown(clipNamed("00:00"), { button: 0, clientX: at(1), clientY: V1_Y });
+    fireEvent.pointerDown(clipNamed("00:00:00:00"), { button: 0, clientX: at(1), clientY: V1_Y });
     // 0.96 s puts the end 0.04 s short of the next clip, inside the 8 px snap distance.
     fireEvent.pointerMove(scroller, { clientX: at(1.96), clientY: V1_Y });
 
@@ -148,7 +149,7 @@ describe("Timeline", () => {
     const doc = project({ tracks: [track("v2", "video", { locked: true }), track("v1", "video")] });
     const { onCommit, onError, scroller } = renderTimeline({ project: doc, selection: ["first"] });
 
-    fireEvent.pointerDown(clipNamed("00:00"), { button: 0, clientX: at(1), clientY: V1_Y });
+    fireEvent.pointerDown(clipNamed("00:00:00:00"), { button: 0, clientX: at(1), clientY: V1_Y });
     fireEvent.pointerMove(scroller, { clientX: at(1), clientY: 30 });
 
     expect(screen.getByRole("status")).toHaveTextContent(/V2/);
@@ -240,7 +241,7 @@ describe("Timeline", () => {
     expect(blade?.style.display).toBe("block");
     expect(blade?.style.transform).toBe(`translateX(${at(1)}px)`);
 
-    fireEvent.pointerDown(clipNamed("00:00"), { button: 0, clientX: at(1), clientY: V1_Y });
+    fireEvent.pointerDown(clipNamed("00:00:00:00"), { button: 0, clientX: at(1), clientY: V1_Y });
 
     const cut = onCommit.mock.lastCall?.[0] as Project;
     expect(cut.clips.filter((item) => item.track_id === "v1")).toHaveLength(3);
@@ -255,6 +256,31 @@ describe("Timeline", () => {
     fireEvent.pointerMove(scroller, { clientX: at(1), clientY: V1_Y });
 
     expect(onRange).toHaveBeenLastCalledWith({ start: 1, end: 2 });
+  });
+
+  it("labels the ruler in the timecode the playhead shows, on whole frames", () => {
+    const labels = (view: ReturnType<typeof renderTimeline>["view"]) =>
+      [...view.container.querySelectorAll(".video-timeline__tick")]
+        .slice(0, 4)
+        .map((tick) => tick.textContent);
+
+    const seconds = renderTimeline({ project: { ...project(), frame_rate: 25 } });
+    expect(labels(seconds.view)).toEqual([
+      "00:00:00:00",
+      "00:00:01:00",
+      "00:00:02:00",
+      "00:00:03:00",
+    ]);
+    seconds.view.unmount();
+
+    // Zoomed in to half seconds: at 25 fps half a second rounds down to frame 12.
+    const halves = renderTimeline({ project: { ...project(), frame_rate: 25 }, pxPerSecond: 200 });
+    expect(labels(halves.view)).toEqual([
+      "00:00:00:00",
+      "00:00:00:12",
+      "00:00:01:00",
+      "00:00:01:12",
+    ]);
   });
 
   it("seeks from the ruler and from empty lane space, which also clears the selection", () => {
@@ -352,6 +378,31 @@ describe("Timeline", () => {
     await user.clear(name);
     await user.type(name, "Music{Enter}");
     expect(lastTracks().find((item) => item.id === "a1")?.name).toBe("Music");
+  });
+
+  it("collapses a track to a row of clip names and saves that in the project", async () => {
+    const user = userEvent.setup();
+    const { onTracks } = renderTimeline();
+
+    await user.click(screen.getByRole("button", { name: "Collapse V1" }));
+    expect((onTracks.mock.lastCall![0] as Project).tracks.find((item) => item.id === "v1")).toEqual(
+      expect.objectContaining({ collapsed: true }),
+    );
+  });
+
+  it("draws a collapsed track short, with names but no pictures", () => {
+    const doc = project();
+    doc.tracks = doc.tracks.map((item) => (item.id === "v1" ? { ...item, collapsed: true } : item));
+    const { view } = renderTimeline({ project: doc });
+
+    const lane = view.container.querySelector<HTMLElement>('[data-track="v1"]')!;
+    expect(lane.style.height).toBe("28px");
+    expect(within(lane).getAllByRole("button", { name: /^still\.png, / })).toHaveLength(2);
+    expect(lane.querySelector(".video-timeline__clip-body")).toBeNull();
+    expect(screen.getByRole("button", { name: "Expand V1" })).toBeInTheDocument();
+    // Only the collapsed lane shrinks.
+    const a1 = view.container.querySelector<HTMLElement>('[data-track="a1"]')!;
+    expect(a1.style.height).toBe("56px");
   });
 
   it("leaves a track's name alone when renaming is cancelled", async () => {

@@ -169,27 +169,28 @@ function ProjectName({ state }: { state: VideoProjectState }) {
     setName(project.name);
   }
   return (
-    <input
-      className="video-editor__name"
-      value={name}
-      aria-label="Project name"
-      title="Rename the project"
-      maxLength={120}
-      size={Math.min(40, Math.max(8, name.length + 1))}
-      onChange={(event) => setName(event.target.value)}
-      onBlur={() => {
-        const trimmed = name.trim();
-        if (trimmed && trimmed !== project.name) state.commit({ ...project, name: trimmed });
-        else setName(project.name);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-        if (event.key === "Escape") {
-          setName(project.name);
-          event.currentTarget.blur();
-        }
-      }}
-    />
+    <Tooltip content="Rename the project">
+      <input
+        className="video-editor__name"
+        value={name}
+        aria-label="Project name"
+        maxLength={120}
+        size={Math.min(40, Math.max(8, name.length + 1))}
+        onChange={(event) => setName(event.target.value)}
+        onBlur={() => {
+          const trimmed = name.trim();
+          if (trimmed && trimmed !== project.name) state.commit({ ...project, name: trimmed });
+          else setName(project.name);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+          if (event.key === "Escape") {
+            setName(project.name);
+            event.currentTarget.blur();
+          }
+        }}
+      />
+    </Tooltip>
   );
 }
 
@@ -204,38 +205,43 @@ function SaveStatus({ state }: { state: VideoProjectState }) {
   };
   const failed = state.saveState === "error" || state.saveState === "conflict";
   return (
-    <span
-      className={classNames(
-        "video-editor__save",
-        `video-editor__save--${state.saveState}`,
-        failed && "video-editor__save--failed",
-      )}
-      role="status"
-      title={state.saveError ?? undefined}
-    >
-      {state.saveState === "saving" ? (
-        <Icon icon={iconLoader2} spin />
-      ) : failed ? (
-        <Icon icon={iconTriangleAlert} />
-      ) : (
-        <span className="video-editor__save-dot" aria-hidden="true" />
-      )}
-      {labels[state.saveState]}
-      {state.saveState === "error" && (
-        <button type="button" className="video-editor__link-btn" onClick={() => void state.flush()}>
-          Retry
-        </button>
-      )}
-      {state.saveState === "conflict" && (
-        <button
-          type="button"
-          className="video-editor__link-btn"
-          onClick={() => void state.saveAsCopy()}
-        >
-          Save as a new draft
-        </button>
-      )}
-    </span>
+    <Tooltip content={state.saveError ?? undefined}>
+      <span
+        className={classNames(
+          "video-editor__save",
+          `video-editor__save--${state.saveState}`,
+          failed && "video-editor__save--failed",
+        )}
+        role="status"
+      >
+        {state.saveState === "saving" ? (
+          <Icon icon={iconLoader2} spin />
+        ) : failed ? (
+          <Icon icon={iconTriangleAlert} />
+        ) : (
+          <span className="video-editor__save-dot" aria-hidden="true" />
+        )}
+        {labels[state.saveState]}
+        {state.saveState === "error" && (
+          <button
+            type="button"
+            className="video-editor__link-btn"
+            onClick={() => void state.flush()}
+          >
+            Retry
+          </button>
+        )}
+        {state.saveState === "conflict" && (
+          <button
+            type="button"
+            className="video-editor__link-btn"
+            onClick={() => void state.saveAsCopy()}
+          >
+            Save as a new draft
+          </button>
+        )}
+      </span>
+    </Tooltip>
   );
 }
 
@@ -283,9 +289,9 @@ function ExportStatus({
       {state.status === "failed" && (
         <>
           <Icon icon={iconTriangleAlert} />
-          <span className="video-editor__export-text" title={state.error ?? undefined}>
-            Export failed: {state.error}
-          </span>
+          <Tooltip content={state.error ?? undefined} className="video-editor__export-text-tip">
+            <span className="video-editor__export-text">Export failed: {state.error}</span>
+          </Tooltip>
         </>
       )}
       {state.status === "cancelled" && (
@@ -315,21 +321,24 @@ function ExportLevel({ state }: { state: VideoProjectExportState }) {
     peak != null && `peak ${peak.toFixed(1)} dBTP`,
   ].filter(Boolean);
   return (
-    <span
-      className={classNames(
-        "video-editor__export-level",
-        clipped && "video-editor__export-level--clipped",
-      )}
-      title={
+    <Tooltip
+      content={
         clipped
           ? "The sound reaches full scale and will distort on playback. Export again with " +
             "Limit peaks or Normalize, or lower the loudest clips."
           : "Integrated loudness and true peak, measured on the exported file."
       }
     >
-      {parts.join(" · ")}
-      {clipped && " · clipped"}
-    </span>
+      <span
+        className={classNames(
+          "video-editor__export-level",
+          clipped && "video-editor__export-level--clipped",
+        )}
+      >
+        {parts.join(" · ")}
+        {clipped && " · clipped"}
+      </span>
+    </Tooltip>
   );
 }
 

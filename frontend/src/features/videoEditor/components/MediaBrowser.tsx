@@ -1,3 +1,4 @@
+import { Tooltip } from "@/shared/ui/Tooltip";
 import { useMemo, useState } from "react";
 import {
   iconCheck,
@@ -300,15 +301,16 @@ function MediaRow({
           </span>
         </span>
       </button>
-      <button
-        type="button"
-        className="video-editor__media-add"
-        onClick={onAdd}
-        aria-label={`Add ${item.name} to the timeline`}
-        title="Add at the playhead"
-      >
-        <Icon icon={iconPlus} />
-      </button>
+      <Tooltip content="Add at the playhead" className="video-editor__media-add-tip">
+        <button
+          type="button"
+          className="video-editor__media-add"
+          onClick={onAdd}
+          aria-label={`Add ${item.name} to the timeline`}
+        >
+          <Icon icon={iconPlus} />
+        </button>
+      </Tooltip>
     </li>
   );
 }
