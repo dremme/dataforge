@@ -114,4 +114,13 @@ export type AutomationDialogsState = {
     onConfirm: () => void;
     onCancel: () => void;
   };
+  restoreCaptions: {
+    open: boolean;
+    scope: DialogScopeInfo;
+    busy: boolean;
+    folderPath: string;
+    selectedPaths?: string[];
+    onConfirm: () => void;
+    onCancel: () => void;
+  };
 };

@@ -918,7 +918,7 @@ describe("GalleryItemDialog", () => {
     await waitFor(() => expect(revert).toBeDisabled());
   });
 
-  it("offers no backup restore when the folder has no caption backup", async () => {
+  it("offers no backup comparison when the folder has no caption backup", async () => {
     renderWithProviders(
       <GalleryItemDialog
         items={[makeItem("sunset.png")]}
@@ -932,42 +932,153 @@ describe("GalleryItemDialog", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
     expect(
-      within(dialog).queryByRole("button", { name: /Restore the backed up caption/ }),
+      within(dialog).queryByRole("button", { name: /Compare the caption/ }),
     ).not.toBeInTheDocument();
   });
 
-  it("restores this file's backed up caption", async () => {
-    const user = userEvent.setup();
-    installMockBackend({
-      captionBackups: { [`${HOME_PATH}\\sunset.png`]: "The caption as it was backed up" },
+  describe("caption backup", () => {
+    const renderWithBackup = async (backup: string) => {
+      installMockBackend({ captionBackups: { [`${HOME_PATH}\\sunset.png`]: backup } });
+      const onClose = vi.fn<() => void>();
+      renderWithProviders(
+        <GalleryItemDialog
+          items={[makeItem("sunset.png")]}
+          index={0}
+          hasCaptionBackup
+          onClose={onClose}
+          onPrevious={vi.fn<() => void>()}
+          onNext={vi.fn<() => void>()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
+        />,
+      );
+      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const compare = await within(dialog).findByRole("button", {
+        name: "Compare the caption for sunset.png with its backup",
+      });
+      return { dialog, compare, onClose };
+    };
+
+    it("replaces the restore button with a comparison", async () => {
+      const { dialog, compare } = await renderWithBackup("Golden hour over the calm lake");
+
+      expect(compare).toHaveTextContent("Compare backup");
+      expect(
+        within(dialog).queryByRole("button", { name: /Restore the backed up caption/ }),
+      ).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("region", { name: /compared with its backup/ })).toBeNull();
     });
-    const saveCaption = vi.spyOn(captionsApi, "saveCaption");
 
-    renderWithProviders(
-      <GalleryItemDialog
-        items={[makeItem("sunset.png")]}
-        index={0}
-        hasCaptionBackup
-        onClose={vi.fn<() => void>()}
-        onPrevious={vi.fn<() => void>()}
-        onNext={vi.fn<() => void>()}
-        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
-      />,
-    );
+    it("shows word by word what restoring the backup would change", async () => {
+      const user = userEvent.setup();
+      const { dialog, compare } = await renderWithBackup("Golden hour over the calm lake");
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    const restore = await within(dialog).findByRole("button", {
-      name: "Restore the backed up caption for sunset.png",
+      await user.click(compare);
+
+      expect(compare).toHaveAccessibleName("Back to editing the caption for sunset.png");
+      expect(compare).toHaveTextContent("Back to editing");
+      // Both act on the editor's text, which the comparison hides.
+      expect(within(dialog).queryByRole("button", { name: /Revert caption changes/ })).toBeNull();
+      expect(within(dialog).queryByRole("button", { name: /Copy/ })).toBeNull();
+      const region = within(dialog).getByRole("region", {
+        name: "Caption compared with its backup for sunset.png",
+      });
+      expect(region).toHaveTextContent("Golden hour over the calm lake");
+      expect(region.querySelector("ins")?.textContent?.trim()).toBe("calm");
+      expect(region.querySelector("del")).toBeNull();
     });
 
-    await user.click(restore);
+    it("says when the caption already matches the backup", async () => {
+      const user = userEvent.setup();
+      const { dialog, compare } = await renderWithBackup("Golden hour over the lake");
 
-    await waitFor(() =>
-      expect(saveCaption).toHaveBeenLastCalledWith(
-        `${HOME_PATH}\\sunset.png`,
+      await user.click(compare);
+
+      expect(
+        within(dialog).getByRole("region", { name: /compared with its backup/ }),
+      ).toHaveTextContent("Matches the backup.");
+      expect(
+        within(dialog).getByRole("button", {
+          name: "Restore the backed up caption for sunset.png",
+        }),
+      ).toBeDisabled();
+    });
+
+    it("restores the backup from the comparison and returns to the editor", async () => {
+      const user = userEvent.setup();
+      const saveCaption = vi.spyOn(captionsApi, "saveCaption");
+      const { dialog, compare } = await renderWithBackup("The caption as it was backed up");
+
+      await user.click(compare);
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: "Restore the backed up caption for sunset.png",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(saveCaption).toHaveBeenLastCalledWith(
+          `${HOME_PATH}\\sunset.png`,
+          "The caption as it was backed up",
+        ),
+      );
+      expect(compare).toHaveTextContent("Compare backup");
+      expect(within(dialog).queryByRole("region", { name: /compared with its backup/ })).toBeNull();
+      expect(
+        within(dialog).getByRole("button", { name: "Revert caption changes for sunset.png" }),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByRole("textbox", { name: "Caption for sunset.png" })).toHaveValue(
         "The caption as it was backed up",
-      ),
-    );
+      );
+    });
+
+    it("steps out of the comparison on Escape before it closes the docked inspector", async () => {
+      const user = userEvent.setup();
+      installMockBackend({ captionBackups: { [`${HOME_PATH}\\sunset.png`]: "A different one" } });
+      const onClose = vi.fn<() => void>();
+      renderWithProviders(
+        <GalleryItemDialog
+          items={[makeItem("sunset.png")]}
+          index={0}
+          hasCaptionBackup
+          onClose={onClose}
+          onPrevious={vi.fn<() => void>()}
+          onNext={vi.fn<() => void>()}
+          onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
+          focusView={false}
+          onFocusViewChange={vi.fn<(focus: boolean) => void>()}
+        />,
+      );
+      const inspector = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+
+      await user.click(
+        await within(inspector).findByRole("button", {
+          name: "Compare the caption for sunset.png with its backup",
+        }),
+      );
+      await user.keyboard("{Escape}");
+
+      expect(
+        within(inspector).queryByRole("region", { name: /compared with its backup/ }),
+      ).toBeNull();
+      expect(onClose).not.toHaveBeenCalled();
+
+      await user.keyboard("{Escape}");
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("steps out of the comparison on Escape before it closes the dialog", async () => {
+      const user = userEvent.setup();
+      const { dialog, compare, onClose } = await renderWithBackup("A different caption");
+
+      await user.click(compare);
+      await user.keyboard("{Escape}");
+
+      expect(within(dialog).queryByRole("region", { name: /compared with its backup/ })).toBeNull();
+      expect(onClose).not.toHaveBeenCalled();
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    });
   });
 });
 

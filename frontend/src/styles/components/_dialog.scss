@@ -634,37 +634,9 @@
   }
 
   &__text {
-    margin: 0;
     font-size: var(--text-xs);
     line-height: var(--leading-snug);
     color: var(--text-muted);
-    // Captions may have no spaces; break mid-word rather than stretching the panel.
-    overflow-wrap: anywhere;
-  }
-
-  // Each half is tinted so a flush swap does not read as one word.
-  &__removed,
-  &__added {
-    padding: 0.0625rem 0.1875rem;
-    border-radius: 0.1875rem;
-    text-decoration: none;
-  }
-
-  &__removed {
-    background: var(--danger-soft);
-    color: var(--danger);
-    text-decoration: line-through;
-    text-decoration-thickness: 1px;
-  }
-
-  &__added {
-    background: var(--success-soft);
-    color: var(--success);
-  }
-
-  // Only a swap needs the seam; a pure insertion sits flush with its prefix.
-  &__removed + &__added {
-    margin-left: 0.1875rem;
   }
 }
 

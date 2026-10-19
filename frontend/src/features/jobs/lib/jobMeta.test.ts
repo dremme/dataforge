@@ -50,10 +50,11 @@ describe("isJobAvailable", () => {
 describe("JOB_START_CONFIRM", () => {
   it("gives every confirm-started job its dialog copy", () => {
     const confirmable = (Object.keys(JOB_TYPE_META) as JobType[]).filter(isConfirmableJobType);
-    expect(confirmable).toContain("restore_captions");
+    expect(confirmable).toContain("strip_metadata");
 
-    // Backing up asks for an overwrite choice, so it needs a dialog rather than a confirm.
+    // Restoring lists the captions it would change, so both backup jobs open a dialog instead.
     expect(confirmable).not.toContain("backup_captions");
+    expect(confirmable).not.toContain("restore_captions");
 
     // `confirm` is optional on the registry entry, so a confirm job could otherwise
     // reach the dialog with nothing to render.

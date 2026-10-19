@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
+from automation.backup_captions import preview_restore_captions
 from automation.edit_captions import preview_caption_edits
 from automation.jobs import JobType, job_manager
 from automation.replace_captions import preview_caption_replacements
@@ -41,6 +42,8 @@ from schemas import (
     ReplaceCaptionsPreviewResponse,
     ReplaceCaptionsStartRequest,
     ResizeStartRequest,
+    RestoreCaptionsPreviewRequest,
+    RestoreCaptionsPreviewResponse,
     RestoreCaptionsStartRequest,
     SetCaptionsStartRequest,
     StripMetadataStartRequest,
@@ -178,6 +181,22 @@ def start_restore_captions_job(
     path: str = FOLDER_QUERY, body: RestoreCaptionsStartRequest = RestoreCaptionsStartRequest()
 ) -> JobResponse:
     return _start_job("restore_captions", path, body)
+
+
+@router.post("/automation/restore-captions/preview", response_model=RestoreCaptionsPreviewResponse)
+def preview_restore_captions_job(
+    path: str = FOLDER_QUERY,
+    body: RestoreCaptionsPreviewRequest = RestoreCaptionsPreviewRequest(),
+) -> RestoreCaptionsPreviewResponse:
+    """POST like the job it previews, so a large selection fits in the body."""
+    folder = resolve_folder(path)
+    try:
+        selected_paths = resolve_selected_media(folder, body.paths)
+        preview = preview_restore_captions(folder, selected_paths=selected_paths)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return RestoreCaptionsPreviewResponse.model_validate(preview)
 
 
 @router.post("/automation/verify-captions", response_model=JobResponse)

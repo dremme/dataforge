@@ -10,6 +10,7 @@ import type {
   FolderResponse,
   InstructionFileResponse,
   DuplicateGroup,
+  RestoreCaptionsPreviewResponse,
   TaggingStatusResponse,
   VideoProjectSummary,
 } from "@/shared/types";
@@ -1034,6 +1035,32 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/automation/backup-captions" && method === "POST") {
       const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "backup_captions"));
+    }
+
+    if (url.pathname === "/api/automation/restore-captions/preview" && method === "POST") {
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
+      const items = folderResponses[folderPath]?.items ?? [];
+      const preview: RestoreCaptionsPreviewResponse = {
+        total: 0,
+        changed: 0,
+        missing: 0,
+        unchanged: 0,
+        orphaned: 0,
+        samples: [],
+      };
+      for (const [path, backup] of Object.entries(options.captionBackups ?? {})) {
+        const item = items.find((entry) => entry.path === path);
+        if (!item) continue;
+        preview.total += 1;
+        const current = item.description?.trim() || null;
+        if ((current ?? "") === backup) {
+          preview.unchanged += 1;
+          continue;
+        }
+        preview[current === null ? "missing" : "changed"] += 1;
+        preview.samples.push({ name: item.name, path: item.path, backup, current, error: null });
+      }
+      return jsonResponse(preview);
     }
 
     if (url.pathname === "/api/automation/restore-captions" && method === "POST") {

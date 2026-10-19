@@ -164,18 +164,8 @@ export const JOB_TYPE_META = {
     type: "restore_captions" as const,
     group: "files" as const,
     icon: iconArchiveRestore,
-    startUi: "confirm" as const,
+    startUi: "dialog" as const,
     menuDescription: "Bring captions back from the .backup folder.",
-    confirm: {
-      title: "Restore captions from backup?",
-      description: () => (
-        <>
-          Overwrites their current captions with the copies in <strong>.backup</strong>. Files that
-          are not in the backup are left untouched.
-        </>
-      ),
-      confirmLabel: "Restore captions",
-    },
     isAvailable: ({ hasCaptionBackup }: JobAvailability) => hasCaptionBackup,
     unavailableReason: "No caption backup in this folder.",
   },
@@ -299,5 +289,4 @@ export function isJobAvailable(type: JobType, availability: JobAvailability): bo
 
 export const JOB_START_CONFIRM: Record<ConfirmableJobType, NonNullable<JobTypeMeta["confirm"]>> = {
   strip_metadata: JOB_TYPE_META.strip_metadata.confirm!,
-  restore_captions: JOB_TYPE_META.restore_captions.confirm!,
 };

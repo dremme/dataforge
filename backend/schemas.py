@@ -775,6 +775,32 @@ class RestoreCaptionsStartRequest(JobSelectionRequest):
     pass
 
 
+class RestoreCaptionsPreviewRequest(JobSelectionRequest):
+    pass
+
+
+class CaptionBackupCompareSample(BaseModel):
+    name: str
+    #: The media file, for its thumbnail; ``version`` busts the browser cache when it changes.
+    path: str
+    version: str | None = None
+    backup: str
+    #: ``None`` when the file has no caption, so a restore would create it.
+    current: str | None = None
+    error: str | None = None
+
+
+class RestoreCaptionsPreviewResponse(BaseModel):
+    """Counts cover every backup in scope; ``samples`` lists every differing one."""
+
+    total: int = 0
+    changed: int = 0
+    missing: int = 0
+    unchanged: int = 0
+    orphaned: int = 0
+    samples: list[CaptionBackupCompareSample] = Field(default_factory=list)
+
+
 class WatermarkJobSettings(BaseModel):
     # Unconstrained so refusal is the job's own 400.
     text: str = ""

@@ -11,6 +11,7 @@ import { ComfyProcessDialog } from "./ComfyProcessDialog";
 import { TrainLoraDialog } from "./TrainLoraDialog";
 import { VerifyCaptionsDialog } from "./VerifyCaptionsDialog";
 import { ResizeDialog } from "./ResizeDialog";
+import { RestoreCaptionsDialog } from "./RestoreCaptionsDialog";
 import { WatermarkDialog } from "./WatermarkDialog";
 import type { AutomationDialogsState } from "@/features/automation/types";
 
@@ -34,6 +35,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
     comfyProcess,
     autoAdjust,
     checkCaptionRules,
+    restoreCaptions,
   } = dialogs;
 
   return (
@@ -179,6 +181,17 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={checkCaptionRules.busy}
           onConfirm={checkCaptionRules.onConfirm}
           onCancel={checkCaptionRules.onCancel}
+        />
+      )}
+
+      {restoreCaptions.open && (
+        <RestoreCaptionsDialog
+          scope={restoreCaptions.scope}
+          folderPath={restoreCaptions.folderPath}
+          selectedPaths={restoreCaptions.selectedPaths}
+          busy={restoreCaptions.busy}
+          onConfirm={restoreCaptions.onConfirm}
+          onCancel={restoreCaptions.onCancel}
         />
       )}
     </>

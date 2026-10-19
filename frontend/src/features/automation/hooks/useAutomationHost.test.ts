@@ -84,47 +84,48 @@ describe("useAutomationHost", () => {
     expect(result.current.dialogs.backupCaptions.open).toBe(false);
   });
 
-  it("waits for confirmation before restoring captions", async () => {
+  it("opens the comparison dialog before restoring captions", async () => {
     const { result, startJob } = setupHost();
 
-    act(() => {
+    await act(async () => {
       result.current.actions.onRequestStart("restore_captions");
     });
 
-    expect(result.current.jobStartConfirm.pending).toBe("restore_captions");
+    expect(result.current.jobStartConfirm.pending).toBeNull();
+    expect(result.current.dialogs.restoreCaptions.open).toBe(true);
+    expect(result.current.dialogs.restoreCaptions.folderPath).toBe("C:\\Photos");
     expect(startJob).not.toHaveBeenCalled();
 
     await act(async () => {
-      result.current.jobStartConfirm.onConfirm();
+      result.current.dialogs.restoreCaptions.onConfirm();
     });
 
     expect(startJob).toHaveBeenCalledWith("restore_captions", "C:\\Photos", undefined, undefined);
-    expect(result.current.jobStartConfirm.pending).toBeNull();
+    expect(result.current.dialogs.restoreCaptions.open).toBe(false);
   });
 
-  it("does not restore captions when the confirmation is dismissed", () => {
+  it("does not restore captions when the dialog is dismissed", async () => {
     const { result, startJob } = setupHost();
 
-    act(() => {
+    await act(async () => {
       result.current.actions.onRequestStart("restore_captions");
     });
-
     act(() => {
-      result.current.jobStartConfirm.onCancel();
+      result.current.dialogs.restoreCaptions.onCancel();
     });
 
-    expect(result.current.jobStartConfirm.pending).toBeNull();
+    expect(result.current.dialogs.restoreCaptions.open).toBe(false);
     expect(startJob).not.toHaveBeenCalled();
   });
 
-  it("does not open restore confirmation when the folder has no backup", () => {
+  it("does not open the restore dialog when the folder has no backup", async () => {
     const { result, startJob } = setupHost({ hasCaptionBackup: false });
 
-    act(() => {
+    await act(async () => {
       result.current.actions.onRequestStart("restore_captions");
     });
 
-    expect(result.current.jobStartConfirm.pending).toBeNull();
+    expect(result.current.dialogs.restoreCaptions.open).toBe(false);
     expect(startJob).not.toHaveBeenCalled();
   });
 

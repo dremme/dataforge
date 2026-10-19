@@ -13,6 +13,7 @@ from automation.backup_captions import (
     caption_sidecars,
     has_caption_backup,
     list_backup_sidecars,
+    preview_restore_captions,
     run_backup_captions_job,
     run_restore_captions_job,
     validate_backup_captions_folder,
@@ -384,6 +385,130 @@ class RestoreCaptionsJobTests(unittest.TestCase):
                 second.with_suffix(".txt").read_text(encoding="utf-8"),
                 "Edited harbor.",
             )
+
+
+class RestoreCaptionsPreviewTests(unittest.TestCase):
+    def test_sorts_each_backup_by_what_a_restore_would_do(self) -> None:
+        with TempMediaFolder() as root:
+            changed = write_media(root, "changed.png")
+            same = write_media(root, "same.png")
+            missing = write_media(root, "missing.png")
+            orphan = write_media(root, "orphan.png")
+            for media in (changed, same, missing, orphan):
+                write_txt_caption(media, f"Original {media.stem}.")
+            run_backup_captions_job(root)
+
+            write_txt_caption(changed, "Edited changed.")
+            missing.with_suffix(".txt").unlink()
+            orphan.unlink()
+            orphan.with_suffix(".txt").unlink()
+
+            preview = preview_restore_captions(root)
+
+            self.assertEqual(
+                {key: preview[key] for key in ("total", "changed", "missing", "unchanged")},
+                {"total": 4, "changed": 1, "missing": 1, "unchanged": 1},
+            )
+            self.assertEqual(preview["orphaned"], 1)
+            compared = ("name", "path", "backup", "current", "error")
+            self.assertEqual(
+                [{key: sample[key] for key in compared} for sample in preview["samples"]],
+                [
+                    {
+                        "name": "changed.png",
+                        "path": str(changed),
+                        "backup": "Original changed.",
+                        "current": "Edited changed.",
+                        "error": None,
+                    },
+                    {
+                        "name": "missing.png",
+                        "path": str(missing),
+                        "backup": "Original missing.",
+                        "current": None,
+                        "error": None,
+                    },
+                ],
+            )
+
+    def test_versions_each_sample_by_its_media_file(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            write_txt_caption(media, "Original sunset.")
+            run_backup_captions_job(root)
+            write_txt_caption(media, "Edited sunset.")
+            before = preview_restore_captions(root)["samples"][0]["version"]
+
+            media.write_bytes(media.read_bytes() + b"\0")
+            after = preview_restore_captions(root)["samples"][0]["version"]
+
+            self.assertIsNotNone(before)
+            self.assertNotEqual(before, after)
+
+    def test_ignores_a_byte_order_mark_and_surrounding_whitespace(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            media.with_suffix(".txt").write_bytes(b"\xef\xbb\xbfA dog\r\nin a field\r\n")
+            run_backup_captions_job(root)
+            media.with_suffix(".txt").write_bytes(b"A dog\r\nin a field")
+
+            preview = preview_restore_captions(root)
+
+            self.assertEqual(preview["unchanged"], 1)
+            self.assertEqual(preview["samples"], [])
+
+    def test_reports_an_unreadable_caption_as_a_change(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            write_txt_caption(media, "Original sunset.")
+            run_backup_captions_job(root)
+            media.with_suffix(".txt").write_bytes(b"\xff\xfe not utf-8")
+
+            preview = preview_restore_captions(root)
+
+            self.assertEqual(preview["changed"], 1)
+            [sample] = preview["samples"]
+            self.assertIsNone(sample["current"])
+            self.assertEqual(sample["error"], "Could not read the current caption")
+
+    def test_honours_a_media_selection(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "sunset.png")
+            second = write_media(root, "harbor.png")
+            write_txt_caption(first, "Original sunset.")
+            write_txt_caption(second, "Original harbor.")
+            run_backup_captions_job(root)
+            write_txt_caption(first, "Edited sunset.")
+            write_txt_caption(second, "Edited harbor.")
+
+            preview = preview_restore_captions(root, selected_paths=[first])
+
+            self.assertEqual(preview["total"], 1)
+            self.assertEqual([sample["name"] for sample in preview["samples"]], ["sunset.png"])
+
+    def test_lists_every_differing_caption_by_name(self) -> None:
+        with TempMediaFolder() as root:
+            media_files = [write_media(root, f"photo{index}.png") for index in range(4)]
+            for media in media_files:
+                write_txt_caption(media, "Original.")
+            run_backup_captions_job(root)
+            for media in media_files:
+                write_txt_caption(media, "Edited.")
+
+            preview = preview_restore_captions(root)
+
+            self.assertEqual(preview["changed"], 4)
+            self.assertEqual(
+                [sample["name"] for sample in preview["samples"]],
+                ["photo0.png", "photo1.png", "photo2.png", "photo3.png"],
+            )
+
+    def test_requires_an_existing_backup(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "sunset.png"), "A plain caption.")
+
+            with self.assertRaisesRegex(ValueError, "No caption backup"):
+                preview_restore_captions(root)
 
 
 if __name__ == "__main__":

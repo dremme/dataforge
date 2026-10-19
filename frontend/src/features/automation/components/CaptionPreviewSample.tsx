@@ -21,11 +21,11 @@ export function CaptionPreviewSample({
         {name}
       </span>
       {diff && (
-        <p className="caption-preview-sample__text">
+        <p className="caption-diff caption-preview-sample__text">
           {before === after && <strong>Unchanged: </strong>}
           {diff.prefix}
-          {diff.removed && <del className="caption-preview-sample__removed">{diff.removed}</del>}
-          {diff.added && <ins className="caption-preview-sample__added">{diff.added}</ins>}
+          {diff.removed && <del className="caption-diff__removed">{diff.removed}</del>}
+          {diff.added && <ins className="caption-diff__added">{diff.added}</ins>}
           {diff.suffix}
         </p>
       )}

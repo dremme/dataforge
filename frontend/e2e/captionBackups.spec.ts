@@ -110,3 +110,53 @@ test("Backup captions always overwrites existing copies without a checkbox", asy
   expect(fs.readFileSync(path.join(folder, ".backup", "photo.txt"), "utf-8")).toBe(current);
   expect(fs.readFileSync(path.join(folder, "photo.txt"), "utf-8")).toBe(current);
 });
+
+test("compares captions with their backup before restoring them", async ({ page }, testInfo) => {
+  const folder = fs.mkdtempSync(path.join(WORKSPACE, "caption-backup-"));
+  const current = "A blue hatchback parked beside a stone wall.";
+  const backedUp = "A red hatchback parked beside a stone wall.";
+  fs.copyFileSync(path.join(WORKSPACE, "photo.png"), path.join(folder, "photo.png"));
+  fs.writeFileSync(path.join(folder, "photo.txt"), current);
+  fs.mkdirSync(path.join(folder, ".backup"));
+  fs.writeFileSync(path.join(folder, ".backup", "photo.txt"), backedUp);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`/?path=${encodeURIComponent(folder)}`);
+
+  await page.getByRole("button", { name: "View photo.png", exact: true }).click();
+  const inspector = page.getByRole("complementary", { name: "Viewing photo.png" });
+  const compare = inspector.getByRole("button", {
+    name: "Compare the caption for photo.png with its backup",
+  });
+  await compare.click();
+  const comparison = inspector.getByRole("region", { name: /compared with its backup/ });
+  await expect(comparison.locator("del")).toHaveText("blue");
+  await expect(comparison.locator("ins")).toHaveText("red");
+  await page.screenshot({
+    path: testInfo.outputPath("compare-backup.png"),
+    animations: "disabled",
+  });
+  await page.keyboard.press("Escape");
+  await expect(comparison).toHaveCount(0);
+  await expect(inspector).toBeVisible();
+
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
+  await page.getByRole("menuitem", { name: /Restore captions/ }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Restore captions from backup?" });
+  await expect(dialog.getByRole("button", { name: "Restore 1 caption" })).toBeEnabled();
+  const row = dialog.getByRole("listitem", { name: "photo.png" });
+  await expect(row.locator("ins")).toHaveText("red");
+  await page.screenshot({
+    path: testInfo.outputPath("restore-preview.png"),
+    animations: "disabled",
+  });
+  await dialog.getByText("Side by side", { exact: true }).click();
+  await expect(row.locator("p")).toHaveText([current, backedUp]);
+  await page.screenshot({
+    path: testInfo.outputPath("restore-preview-split.png"),
+    animations: "disabled",
+  });
+  await dialog.getByRole("button", { name: "Restore 1 caption", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expectJobCompleted(page, "Restore captions", 30_000);
+  expect(fs.readFileSync(path.join(folder, "photo.txt"), "utf-8")).toBe(backedUp);
+});

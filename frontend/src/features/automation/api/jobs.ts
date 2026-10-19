@@ -10,6 +10,7 @@ import type {
   EditCaptionsPreviewResponse,
   ReplaceCaptionsPreviewRequest,
   ReplaceCaptionsPreviewResponse,
+  RestoreCaptionsPreviewResponse,
   TrainingModel,
   TrainingTemplateCheckResponse,
   TrainingTemplateResponse,
@@ -49,6 +50,19 @@ export async function previewCaptionReplacements(
   return postJson<ReplaceCaptionsPreviewResponse>(
     `/api/automation/replace-captions/preview?${params}`,
     body,
+    { signal },
+  );
+}
+
+export async function previewCaptionRestore(
+  folderPath: string,
+  paths: string[] | undefined,
+  signal?: AbortSignal,
+): Promise<RestoreCaptionsPreviewResponse> {
+  const params = new URLSearchParams({ path: folderPath });
+  return postJson<RestoreCaptionsPreviewResponse>(
+    `/api/automation/restore-captions/preview?${params}`,
+    { paths },
     { signal },
   );
 }

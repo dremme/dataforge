@@ -52,6 +52,7 @@ import {
   iconChevronRight,
   iconClapperboard,
   iconCopy,
+  iconFileDiff,
   iconFiles,
   iconFolderInput,
   iconLoader2,
@@ -93,6 +94,7 @@ import { GIF_MP4_FRAME_RATE } from "@/shared/constants";
 import { classNames } from "@/shared/lib/classNames";
 import { buildCaptionVocabulary } from "@/features/gallery/lib/captionVocabulary";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
+import { CaptionWordDiff } from "@/shared/ui/CaptionWordDiff";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { RenameDialog } from "@/shared/ui/RenameDialog";
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
@@ -213,6 +215,9 @@ export function GalleryItemDialog({
   const [renaming, setRenaming] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [openingInViewer, setOpeningInViewer] = useState(false);
+  const [comparingBackup, setComparingBackup] = useState(false);
+  const comparedBackup = comparingBackup ? backupCaption : null;
+  const showingBackupDiff = comparedBackup !== null;
   const [viewerError, setViewerError] = useState<string | null>(null);
   // Owned here so next/prev keeps capture across videos and GIFs; per-hook flags dropped it.
   const [frameMode, setFrameMode] = useState(false);
@@ -387,6 +392,7 @@ export function GalleryItemDialog({
     setOpeningInViewer(false);
     setViewerError(null);
     setComfyWorkflowOpen(false);
+    setComparingBackup(false);
   }
 
   // Drop sticky capture on a still or missing destination so the bar needs no scrubber.
@@ -571,6 +577,15 @@ export function GalleryItemDialog({
         if (onGoTo && target !== index) void leave(() => onGoTo(target));
       }
     };
+    // Escape leaves the backup comparison before it closes anything; edit and frame modes
+    // take Escape first, so one press never leaves both.
+    const leavesComparison = (event: KeyboardEvent) => {
+      if (!showingBackupDiff || editing || frameCapture.frameMode) return false;
+      if (!matchesShortcut(event, SHORTCUTS.close)) return false;
+      event.preventDefault();
+      setComparingBackup(false);
+      return true;
+    };
     const handleKey = (event: KeyboardEvent) => {
       if (childOverlayOpen || busy) return;
       const outside =
@@ -586,6 +601,7 @@ export function GalleryItemDialog({
           target?.closest(OUTSIDE_ARROW_OWNERS)
         )
           return;
+        if (leavesComparison(event)) return;
         if (matchesShortcut(event, SHORTCUTS.close)) {
           event.preventDefault();
           closeDialog();
@@ -607,6 +623,7 @@ export function GalleryItemDialog({
       }
       // A mask surface claims arrows and Delete by preventing the default.
       if (event.defaultPrevented) return;
+      if (leavesComparison(event)) return;
       if (inline && matchesShortcut(event, SHORTCUTS.close) && getScrollLockDepth() === 0) {
         event.preventDefault();
         closeDialog();
@@ -647,6 +664,7 @@ export function GalleryItemDialog({
     onNext,
     onPrevious,
     openDeleteConfirm,
+    showingBackupDiff,
   ]);
 
   // In frame/edit mode Escape steps back to viewing; DialogShell stands down via escape="none".
@@ -679,7 +697,7 @@ export function GalleryItemDialog({
         onClose={closeDialog}
         busy={busy}
         suspended={childOverlayOpen}
-        escape={frameCapture.frameMode || editMode ? "none" : "close"}
+        escape={frameCapture.frameMode || editMode || showingBackupDiff ? "none" : "close"}
         panelRef={dialogRef}
         scrollLock="gallery-item-dialog-open"
         style={{ "--inspector-width": `${inspectorWidth}px` } as CSSProperties}
@@ -1176,7 +1194,35 @@ export function GalleryItemDialog({
                       <button
                         type="button"
                         className="gallery-item-dialog__caption-action"
-                        onClick={() => handleCaptionChange(backupCaption)}
+                        onClick={() => setComparingBackup((current) => !current)}
+                        // The label names the action, not a state: a toggle that renames itself
+                        // would contradict aria-pressed.
+                        aria-label={
+                          showingBackupDiff
+                            ? `Back to editing the caption for ${item.name}`
+                            : `Compare the caption for ${item.name} with its backup`
+                        }
+                        title={
+                          showingBackupDiff
+                            ? "Close the comparison and edit the caption"
+                            : "Show what restoring the copy in .backup would change"
+                        }
+                      >
+                        <Icon
+                          icon={showingBackupDiff ? iconPencilLine : iconFileDiff}
+                          className="gallery-item-dialog__caption-action-icon"
+                        />
+                        {showingBackupDiff ? "Back to editing" : "Compare backup"}
+                      </button>
+                    )}
+                    {comparedBackup !== null && (
+                      <button
+                        type="button"
+                        className="gallery-item-dialog__caption-action"
+                        onClick={() => {
+                          handleCaptionChange(comparedBackup);
+                          setComparingBackup(false);
+                        }}
                         disabled={busy || !canRestoreBackup}
                         aria-label={`Restore the backed up caption for ${item.name}`}
                         title="Replace this caption with the copy in .backup"
@@ -1185,23 +1231,26 @@ export function GalleryItemDialog({
                           icon={iconArchiveRestore}
                           className="gallery-item-dialog__caption-action-icon"
                         />
-                        Restore backup
+                        Use backup
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className="gallery-item-dialog__caption-action"
-                      onClick={revertCaption}
-                      disabled={busy || !canRevert}
-                      aria-label={`Revert caption changes for ${item.name}`}
-                      title="Undo every change made since this file was opened"
-                    >
-                      <Icon
-                        icon={iconRotateCcw}
-                        className="gallery-item-dialog__caption-action-icon"
-                      />
-                      Revert
-                    </button>
+                    {/* Revert and Copy act on the editor's text, which the comparison hides. */}
+                    {!showingBackupDiff && (
+                      <button
+                        type="button"
+                        className="gallery-item-dialog__caption-action"
+                        onClick={revertCaption}
+                        disabled={busy || !canRevert}
+                        aria-label={`Revert caption changes for ${item.name}`}
+                        title="Undo every change made since this file was opened"
+                      >
+                        <Icon
+                          icon={iconRotateCcw}
+                          className="gallery-item-dialog__caption-action-icon"
+                        />
+                        Revert
+                      </button>
+                    )}
                     {canResolveIssue && (
                       <button
                         type="button"
@@ -1249,28 +1298,51 @@ export function GalleryItemDialog({
                         Resolve duplicate
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className={classNames(
-                        "gallery-item-dialog__caption-action",
-                        copyState === "copied" && "gallery-item-dialog__caption-action--copied",
-                        copyState === "error" && "gallery-item-dialog__caption-action--error",
-                      )}
-                      onClick={() => {
-                        void copyText(copyContent);
-                      }}
-                      disabled={!canCopyCaption}
-                      aria-label={copyLabel}
-                    >
-                      <Icon icon={iconCopy} className="gallery-item-dialog__caption-action-icon" />
-                      {copyLabel}
-                    </button>
+                    {!showingBackupDiff && (
+                      <button
+                        type="button"
+                        className={classNames(
+                          "gallery-item-dialog__caption-action",
+                          copyState === "copied" && "gallery-item-dialog__caption-action--copied",
+                          copyState === "error" && "gallery-item-dialog__caption-action--error",
+                        )}
+                        onClick={() => {
+                          void copyText(copyContent);
+                        }}
+                        disabled={!canCopyCaption}
+                        aria-label={copyLabel}
+                      >
+                        <Icon
+                          icon={iconCopy}
+                          className="gallery-item-dialog__caption-action-icon"
+                        />
+                        {copyLabel}
+                      </button>
+                    )}
                   </div>
                 </div>
+                {comparedBackup !== null && (
+                  <div
+                    className="gallery-item-dialog__caption-compare"
+                    role="region"
+                    aria-label={`Caption compared with its backup for ${item.name}`}
+                    tabIndex={0}
+                  >
+                    {canRestoreBackup ? (
+                      <CaptionWordDiff before={caption.trim()} after={comparedBackup.trim()} />
+                    ) : (
+                      <p className="gallery-item-dialog__caption-compare-note">
+                        Matches the backup.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <CaptionEditor
                   // Fresh editor per item: CodeMirror maps selection through a document swap.
                   key={item.path}
                   id="gallery-item-caption"
+                  // Hidden, not unmounted, so comparing keeps the editor's undo history.
+                  className={showingBackupDiff ? "gallery-item-dialog__hidden-editor" : undefined}
                   completions={captionCompletions}
                   value={caption}
                   placeholder={placeholder}

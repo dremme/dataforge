@@ -264,6 +264,16 @@ export function useAutomationDialogOverlays({
         onCancel: closeDialog,
         onConfirm: () => startJobFromDialog("check_caption_rules"),
       },
+      restoreCaptions: {
+        open: openJobType === "restore_captions",
+        scope,
+        busy: startingJobType === "restore_captions",
+        folderPath: folderPath ?? "",
+        // The same selection the job will run on, so the preview compares what it restores.
+        selectedPaths: snapshot?.paths ?? getJobPaths?.(),
+        onCancel: closeDialog,
+        onConfirm: () => startJobFromDialog("restore_captions"),
+      },
     };
   }, [
     closeDialog,

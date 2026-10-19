@@ -39,7 +39,7 @@ Click a file to edit its caption in the inspector beside the gallery. Its header
 
 The media view and issue resolver share details for the modified date, dimensions, megapixels, aspect ratio, and embedded ComfyUI workflow. Opening folder instructions keeps the current media view and caption draft available.
 
-Captions **autosave**, with surrounding whitespace trimmed. Changing files, closing the editor, and navigating folders wait for saving. If saving fails, the draft stays available: retry saving, explicitly discard the draft to continue, or keep editing. **Revert** restores the text you opened with. **Restore backup** loads its saved caption from `.backup/`.
+Captions **autosave**, with surrounding whitespace trimmed. Changing files, closing the editor, and navigating folders wait for saving. If saving fails, the draft stays available: retry saving, explicitly discard the draft to continue, or keep editing. **Revert** restores the text you opened with. When the folder has a backup of the file, **Compare backup** shows the caption against its copy in `.backup/`: struck-through words go and highlighted words come back if you restore. **Use backup** then loads that copy into the editor; Escape returns to editing.
 
 Type two characters or press `Ctrl+Space` for word completions from the folder's captions. `Ctrl+Enter` saves and moves to the next item. The token count marked `~` is an estimate from text length, not a model tokenizer.
 
@@ -101,7 +101,7 @@ Lint captions skips missing caption files; an existing empty caption is checked.
 
 ### Caption backups
 
-Back up before a bulk rewrite you may want to undo. **Backup captions** copies `.txt` files into `.backup/`, always overwriting existing copies. **Edit captions** and **Find & replace** also start with **Back up captions first** enabled; each backup holds the caption immediately before the latest edit. **Restore captions** asks before overwriting current captions, skips files whose media is gone, and keeps the backup files. Neither backup nor restore changes issue findings.
+Back up before a bulk rewrite you may want to undo. **Backup captions** copies `.txt` files into `.backup/`, always overwriting existing copies. **Edit captions** and **Find & replace** also start with **Back up captions first** enabled; each backup holds the caption immediately before the latest edit. **Restore captions** opens a full-size review of every caption that differs from its backup, with thumbnails and word-by-word changes inline or side by side. Filter the review to changed, new or unreadable captions, or by file name or caption text; the restore still covers everything listed under **All**. The button stays disabled when nothing would change. It skips files whose media is gone and keeps the backup files. Neither backup nor restore changes issue findings.
 
 In **Edit captions**, enter an instruction and click **Dry run** in the dialog actions to test it before
 starting the job. The preview uses up to three readable captions in filename order from the

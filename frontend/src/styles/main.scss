@@ -16,6 +16,7 @@
 @use "components/automation";
 @use "components/backend-unavailable";
 @use "components/breadcrumbs";
+@use "components/caption-diff";
 @use "components/caption-save-status";
 @use "components/code-editor";
 @use "components/comfy-process-log";
@@ -45,6 +46,7 @@
 @use "components/notifications";
 @use "components/candidate-review-dialog";
 @use "components/quick-action";
+@use "components/restore-captions-dialog";
 @use "components/ruler-dial";
 @use "components/sections";
 @use "components/settings-dialog";

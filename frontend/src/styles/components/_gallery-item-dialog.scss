@@ -277,6 +277,38 @@
   &__caption-action-icon {
     @include icon-size-sm;
   }
+
+  // Stands in for the caption editor, in its box and type, while comparing with the backup.
+  &__caption-compare {
+    @include app-scrollbar;
+    min-height: 6.5rem;
+    max-height: min(58vh, 520px);
+    padding: 0.75rem 0.875rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--caption-input-bg);
+    color: var(--text);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 1px var(--caption-focus);
+    }
+  }
+
+  &__caption-compare-note {
+    margin: 0;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  // Kept mounted so its undo history survives comparing.
+  .code-editor.gallery-item-dialog__hidden-editor {
+    display: none;
+  }
 }
 
 // Docked beside the gallery, in its row. Only the caption editor flexes, so header, media and
@@ -443,7 +475,8 @@
 
   // Sized by the panel, never by the caption: a long one scrolls inside instead of
   // setting the footer's floor.
-  .code-editor--caption {
+  .code-editor--caption,
+  .gallery-item-dialog__caption-compare {
     flex: 1;
     min-height: 6.5rem;
     max-height: none;
@@ -537,7 +570,8 @@
       flex-direction: column;
       min-height: 16rem;
 
-      .code-editor--caption {
+      .code-editor--caption,
+      .gallery-item-dialog__caption-compare {
         flex: 1;
         min-height: 0;
         max-height: none;

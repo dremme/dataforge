@@ -357,6 +357,39 @@ class ReplaceCaptionsPreviewEndpointTests(unittest.TestCase):
         self.assertEqual(payload["matched"], 0)
 
 
+class RestoreCaptionsPreviewEndpointTests(unittest.TestCase):
+    def test_lists_the_captions_a_restore_would_change(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "A plain caption.")
+            run_backup_captions_job(root)
+            write_txt_caption(media, "An edited caption.")
+
+            response = _post("restore-captions/preview", root)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["changed"], 1)
+        [sample] = response.json()["samples"]
+        self.assertEqual(
+            {key: sample[key] for key in ("name", "path", "backup", "current", "error")},
+            {
+                "name": "photo.png",
+                "path": str(media),
+                "backup": "A plain caption.",
+                "current": "An edited caption.",
+                "error": None,
+            },
+        )
+
+    def test_a_folder_without_a_backup_is_a_400(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "photo.png"), "A plain caption.")
+
+            response = _post("restore-captions/preview", root)
+
+        self.assertEqual(response.status_code, 400)
+
+
 class EditCaptionsPreviewEndpointTests(unittest.TestCase):
     def test_previews_three_readable_captions_without_writing_or_starting_a_job(self) -> None:
         original = "A person walked along a quiet street beside a stone wall."

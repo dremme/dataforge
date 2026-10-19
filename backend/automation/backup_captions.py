@@ -7,6 +7,7 @@ from pathlib import Path
 
 from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.selection import filter_media_list, list_folder_media
+from captions import CAPTION_READ_ERROR, load_backup_caption, load_reference_caption
 from constants import (
     CAPTION_BACKUP_DIR_NAME,
     CAPTION_SIDECAR_EXTENSIONS,
@@ -63,9 +64,13 @@ def _is_caption_file(entry: os.DirEntry) -> bool:
     return is_file and Path(entry.name).suffix.lower() in CAPTION_SIDECAR_EXTENSIONS
 
 
-def _has_media_for(folder: Path, sidecar: Path) -> bool:
-    """Whether the media a caption was written for is still in ``folder``."""
-    return any((folder / f"{sidecar.stem}{extension}").is_file() for extension in MEDIA_EXTENSIONS)
+def _media_for(folder: Path, sidecar: Path) -> Path | None:
+    """The media in ``folder`` a caption was written for, or ``None`` once it is gone."""
+    for extension in MEDIA_EXTENSIONS:
+        media = folder / f"{sidecar.stem}{extension}"
+        if media.is_file():
+            return media
+    return None
 
 
 def _select_backup_sidecars(folder: Path, selected_paths: list[Path] | None) -> list[Path]:
@@ -98,6 +103,64 @@ def validate_restore_captions_folder(folder: Path) -> None:
 
     if not has_caption_backup(folder):
         raise ValueError(f"No caption backup found in {CAPTION_BACKUP_DIR_NAME}")
+
+
+def _media_version(media: Path) -> str | None:
+    """Changes whenever the file does, so a thumbnail URL built from it never goes stale."""
+    try:
+        stat = media.stat()
+    except OSError:
+        return None
+    return f"{stat.st_mtime_ns}-{stat.st_size}"
+
+
+def preview_restore_captions(
+    folder: Path,
+    *,
+    selected_paths: list[Path] | None = None,
+) -> dict[str, object]:
+    """Count what a restore would change, with every differing caption beside its backup.
+
+    Texts are compared stripped, so a backup that differs only in its line endings or
+    surrounding whitespace counts as unchanged.
+    """
+    validate_restore_captions_folder(folder)
+
+    sidecars = _select_backup_sidecars(folder, selected_paths)
+    counts: dict[str, int] = {"changed": 0, "missing": 0, "unchanged": 0, "orphaned": 0}
+    samples: list[dict[str, object]] = []
+
+    for sidecar in sidecars:
+        media = _media_for(folder, sidecar)
+        if media is None:
+            counts["orphaned"] += 1
+            continue
+
+        backup = load_backup_caption(media)
+        current, status = load_reference_caption(media)
+        error = None
+        if backup is None:
+            error = "Could not read the backed up caption"
+        elif status == CAPTION_READ_ERROR:
+            error = "Could not read the current caption"
+
+        if error is None and (current or "") == backup:
+            counts["unchanged"] += 1
+            continue
+
+        counts["missing" if error is None and current is None else "changed"] += 1
+        samples.append(
+            {
+                "name": media.name,
+                "path": str(media),
+                "version": _media_version(media),
+                "backup": backup or "",
+                "current": current,
+                "error": error,
+            }
+        )
+
+    return {"total": len(sidecars), **counts, "samples": samples}
 
 
 def run_backup_captions_job(
@@ -163,7 +226,7 @@ def run_restore_captions_job(
     sidecars = _select_backup_sidecars(folder, selected_paths)
 
     def process(sidecar: Path) -> FileOutcome:
-        if not _has_media_for(folder, sidecar):
+        if _media_for(folder, sidecar) is None:
             return FileOutcome.counted("orphaned", "No media file for this sidecar")
 
         try:
