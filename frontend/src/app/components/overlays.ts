@@ -1,11 +1,11 @@
 import type { InstructionKind } from "@/shared/api/folderInstructions";
-import type { AutomationModalsState } from "@/features/automation/types";
+import type { AutomationDialogsState } from "@/features/automation/types";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { SelectionActionOverlaysProps } from "@/features/gallery/components/SelectionActionOverlays";
-import type { SidecarSweepModalProps } from "@/features/gallery/components/SidecarSweepModal";
-import type { DeleteFolderOverlayState } from "@/features/folder/hooks/useDeleteFolderModal";
-import type { RenameFolderOverlayState } from "@/features/folder/hooks/useRenameFolderModal";
-import type { SettleAllCandidatesModalProps } from "@/features/gallery/components/SettleAllCandidatesModal";
+import type { SidecarSweepDialogProps } from "@/features/gallery/components/SidecarSweepDialog";
+import type { DeleteFolderOverlayState } from "@/features/folder/hooks/useDeleteFolderDialog";
+import type { RenameFolderOverlayState } from "@/features/folder/hooks/useRenameFolderDialog";
+import type { SettleAllCandidatesDialogProps } from "@/features/gallery/components/SettleAllCandidatesDialog";
 import type { CandidateReviewEntry } from "@/features/gallery/lib/candidateReview";
 import type { QuickActionOverlayState } from "@/features/quickAction/hooks/useQuickActionHost";
 import type {
@@ -14,17 +14,17 @@ import type {
   GalleryItem,
   InstructionFileResponse,
 } from "@/shared/types";
-import type { ModalScopeInfo } from "@/shared/ui/ModalScope";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { RefObject } from "react";
 import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
-import type { CurrentJobActions } from "@/features/jobs/components/JobsModal";
+import type { CurrentJobActions } from "@/features/jobs/components/JobsDialog";
 
 type CaptionSavedHandler = (path: string, update: CaptionSaveResponse) => void;
 
 type GalleryOverlayState = {
   selectedPath: string | null;
   selectedIndex: number;
-  modalItems: GalleryItem[];
+  dialogItems: GalleryItem[];
   searchQuery: string;
   searchRegex: boolean;
   hasCaptionBackup: boolean;
@@ -90,7 +90,7 @@ type StatsOverlayState = {
 
 type JobStartConfirmState = {
   pending: ConfirmableJobType | null;
-  scope: ModalScopeInfo;
+  scope: DialogScopeInfo;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -127,8 +127,8 @@ export type AppOverlaysProps = {
   onOpenFolder: (path?: string) => void;
   quickAction: QuickActionOverlayState;
   selectionActions: SelectionActionOverlaysProps;
-  sidecarSweep: SidecarSweepModalProps;
-  settleAllCandidates: SettleAllCandidatesModalProps;
+  sidecarSweep: SidecarSweepDialogProps;
+  settleAllCandidates: SettleAllCandidatesDialogProps;
   onCaptionSaved: CaptionSavedHandler;
   gallery: GalleryOverlayState;
   issueResolver: IssueResolverOverlayState;
@@ -137,7 +137,7 @@ export type AppOverlaysProps = {
   duplicateResolver: DuplicateResolverOverlayState;
   candidateReview: CandidateReviewOverlayState;
   jobStart: JobStartConfirmState;
-  automation: AutomationModalsState;
+  automation: AutomationDialogsState;
   fileImport: FileImportOverlayState;
   createFolder: CreateFolderOverlayState | null;
   renameFolder: RenameFolderOverlayState | null;

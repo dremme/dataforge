@@ -3,7 +3,7 @@ import { useSaveFolderNote } from "@/features/folder/hooks/useSaveFolderNote";
 import { formatApiError } from "@/shared/api/http";
 import { iconStickyNote, iconTrash2 } from "@/shared/icons";
 import { useNotify } from "@/shared/notifications/notifications";
-import { ConfirmModal } from "@/shared/ui/ConfirmModal";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
@@ -44,7 +44,7 @@ export function FolderNoteBanner({ folderPath, note }: FolderNoteBannerProps) {
         </button>
       </Tooltip>
       {confirming && (
-        <ConfirmModal
+        <ConfirmDialog
           title="Delete this note?"
           description="The note is removed from this folder. This cannot be undone."
           confirmLabel="Delete note"

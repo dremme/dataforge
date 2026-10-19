@@ -253,7 +253,7 @@ describe("useVideoPreviewPlayback", () => {
     frames.tick();
 
     expect(marker.style.left).toBe("50%");
-    // State would carry the whole modal into a render on every frame.
+    // State would carry the whole dialog into a render on every frame.
     expect(result.current.playheadTime).toBe(0);
   });
 

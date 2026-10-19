@@ -9,7 +9,7 @@ export interface ComfyWorkflowPromptsState {
   data: ComfyWorkflowPromptsResponse | null;
 }
 
-/** Parsing the graph is far heavier than the badge probe, so it waits until the modal opens. */
+/** Parsing the graph is far heavier than the badge probe, so it waits until the dialog opens. */
 export function useComfyWorkflowPrompts(
   path: string | undefined,
   open: boolean,

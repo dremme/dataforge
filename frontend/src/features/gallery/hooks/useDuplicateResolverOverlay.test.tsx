@@ -41,7 +41,7 @@ beforeEach(() => {
 });
 
 describe("useDuplicateResolverOverlay", () => {
-  it("tells the caller each time the modal resolves a group", () => {
+  it("tells the caller each time the dialog resolves a group", () => {
     const onResolved = vi.fn<() => void>();
     const { result } = renderHook(() => useDuplicateResolverOverlay(onResolved), { wrapper });
 
@@ -63,7 +63,7 @@ describe("useDuplicateResolverOverlay", () => {
     await waitFor(() => expect(result.current.open).toBe(true));
     expect(result.current.groups.map((entry) => entry.group)).toEqual(["g2"]);
     expect(onOpen).toHaveBeenCalledOnce();
-    // Nothing to announce: the modal is the feedback.
+    // Nothing to announce: the dialog is the feedback.
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -99,7 +99,7 @@ describe("useDuplicateResolverOverlay", () => {
       onOpen: vi.fn<() => void>(),
     });
     await waitFor(() => expect(result.current.open).toBe(true));
-    // The modal settles its last group and closes in one go, before a refresh could land.
+    // The dialog settles its last group and closes in one go, before a refresh could land.
     act(() => {
       result.current.overlay.onResolved([deleted]);
       result.current.overlay.onClose();

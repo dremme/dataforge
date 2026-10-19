@@ -49,7 +49,7 @@ export interface UseVideoEditOptions {
   videoRef: RefObject<HTMLVideoElement | null>;
   standbyVideoRef?: RefObject<HTMLVideoElement | null>;
   onEdited?: () => void | Promise<void>;
-  /** Owned by the modal so the mode sticks across next/prev. */
+  /** Owned by the dialog so the mode sticks across next/prev. */
   editMode: boolean;
   setEditMode: (editMode: boolean) => void;
 }
@@ -468,7 +468,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
           // settle records what is now on disk so Apply stays quiet until the next change.
           if (mountedRef.current) settle();
         } catch (error) {
-          // Unguarded by mountedRef: the store outlives this modal, so a finish after close reports.
+          // Unguarded by mountedRef: the store outlives this dialog, so a finish after close reports.
           notify({
             variant: "danger",
             message: `Could not edit ${name}: ${formatApiError(error)}`,

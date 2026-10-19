@@ -83,8 +83,8 @@
     border-radius: var(--radius-pill);
     // The app's sticky treatment: translucent, so a tinted job card still reads through.
     background: var(--bg-sticky);
-    backdrop-filter: blur(var(--modal-backdrop-blur));
-    -webkit-backdrop-filter: blur(var(--modal-backdrop-blur));
+    backdrop-filter: blur(var(--dialog-backdrop-blur));
+    -webkit-backdrop-filter: blur(var(--dialog-backdrop-blur));
 
     &--failed {
       color: var(--danger);

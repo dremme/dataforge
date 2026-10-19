@@ -1,22 +1,22 @@
-import { AutomationModalOverlays } from "@/features/automation/components/AutomationModalOverlays";
-import { CreateFolderModal } from "@/features/folder/components/CreateFolderModal";
-import { FileImportOverwriteModal } from "@/features/folder/components/FileImportOverwriteModal";
-import { QuickActionModal } from "@/features/quickAction/components/QuickActionModal";
-import { GalleryItemModal } from "@/features/gallery/components/GalleryItemModal";
-import { IssueResolverModal } from "@/features/gallery/components/IssueResolverModal";
+import { AutomationDialogOverlays } from "@/features/automation/components/AutomationDialogOverlays";
+import { CreateFolderDialog } from "@/features/folder/components/CreateFolderDialog";
+import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
+import { QuickActionDialog } from "@/features/quickAction/components/QuickActionDialog";
+import { GalleryItemDialog } from "@/features/gallery/components/GalleryItemDialog";
+import { IssueResolverDialog } from "@/features/gallery/components/IssueResolverDialog";
 import { JOB_START_CONFIRM } from "@/features/jobs/lib/jobMeta";
-import { JobsModal } from "@/features/jobs/components/JobsModal";
-import { DuplicateResolverModal } from "@/features/gallery/components/DuplicateResolverModal";
-import { CandidateReviewModal } from "@/features/gallery/components/CandidateReviewModal";
-import { FolderInstructionsModal } from "@/features/gallery/components/FolderInstructionsModal";
+import { JobsDialog } from "@/features/jobs/components/JobsDialog";
+import { DuplicateResolverDialog } from "@/features/gallery/components/DuplicateResolverDialog";
+import { CandidateReviewDialog } from "@/features/gallery/components/CandidateReviewDialog";
+import { FolderInstructionsDialog } from "@/features/gallery/components/FolderInstructionsDialog";
 import { SelectionActionOverlays } from "@/features/gallery/components/SelectionActionOverlays";
-import { SidecarSweepModal } from "@/features/gallery/components/SidecarSweepModal";
-import { SettleAllCandidatesModal } from "@/features/gallery/components/SettleAllCandidatesModal";
-import { StatsModal } from "@/features/gallery/components/StatsModal";
-import { SettingsModal } from "@/features/settings/components/SettingsModal";
-import { ShortcutsModal } from "@/features/shortcuts/components/ShortcutsModal";
-import { ConfirmModal } from "@/shared/ui/ConfirmModal";
-import { RenameModal } from "@/shared/ui/RenameModal";
+import { SidecarSweepDialog } from "@/features/gallery/components/SidecarSweepDialog";
+import { SettleAllCandidatesDialog } from "@/features/gallery/components/SettleAllCandidatesDialog";
+import { StatsDialog } from "@/features/gallery/components/StatsDialog";
+import { SettingsDialog } from "@/features/settings/components/SettingsDialog";
+import { ShortcutsDialog } from "@/features/shortcuts/components/ShortcutsDialog";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { RenameDialog } from "@/shared/ui/RenameDialog";
 import type { AppOverlaysProps } from "./overlays";
 
 export function AppOverlays({
@@ -45,13 +45,13 @@ export function AppOverlays({
 }: AppOverlaysProps) {
   return (
     <>
-      <JobsModal
+      <JobsDialog
         currentFolder={currentFolder}
         onOpenFolder={onOpenFolder}
         currentActions={currentJobActions}
       />
 
-      <StatsModal
+      <StatsDialog
         open={stats.open}
         items={stats.items}
         onClose={stats.onClose}
@@ -60,12 +60,12 @@ export function AppOverlays({
 
       <SelectionActionOverlays {...selectionActions} />
 
-      <SidecarSweepModal {...sidecarSweep} />
+      <SidecarSweepDialog {...sidecarSweep} />
 
-      <SettleAllCandidatesModal {...settleAllCandidates} />
+      <SettleAllCandidatesDialog {...settleAllCandidates} />
 
       {quickAction.open && (
-        <QuickActionModal
+        <QuickActionDialog
           items={quickAction.items}
           recentItems={quickAction.recentItems}
           onClose={quickAction.close}
@@ -73,7 +73,7 @@ export function AppOverlays({
       )}
 
       {issueResolver.open && issueResolver.items.length > 0 && (
-        <IssueResolverModal
+        <IssueResolverDialog
           items={issueResolver.items}
           index={issueResolver.index}
           onClose={issueResolver.onClose}
@@ -83,7 +83,7 @@ export function AppOverlays({
       )}
 
       {duplicateResolver.open && duplicateResolver.groups.length > 0 && (
-        <DuplicateResolverModal
+        <DuplicateResolverDialog
           groups={duplicateResolver.groups}
           index={duplicateResolver.index}
           onClose={duplicateResolver.onClose}
@@ -94,7 +94,7 @@ export function AppOverlays({
       )}
 
       {candidateReview.open && candidateReview.entries.length > 0 && (
-        <CandidateReviewModal
+        <CandidateReviewDialog
           entries={candidateReview.entries}
           index={candidateReview.index}
           onClose={candidateReview.onClose}
@@ -104,13 +104,13 @@ export function AppOverlays({
       )}
 
       {gallery.selectedPath && gallery.selectedIndex >= 0 && (
-        <GalleryItemModal
+        <GalleryItemDialog
           suspended={instructions.open || gallery.suspended}
           focusView={gallery.focusView}
           onFocusViewChange={gallery.onFocusViewChange}
           onEditExpandedChange={gallery.onEditExpandedChange}
           transitionRef={gallery.transitionRef}
-          items={gallery.modalItems}
+          items={gallery.dialogItems}
           index={gallery.selectedIndex}
           searchQuery={gallery.searchQuery}
           searchRegex={gallery.searchRegex}
@@ -132,7 +132,7 @@ export function AppOverlays({
       )}
 
       {instructions.open && instructions.folderPath && (
-        <FolderInstructionsModal
+        <FolderInstructionsDialog
           key={instructions.folderPath}
           folderPath={instructions.folderPath}
           onClose={instructions.onClose}
@@ -141,7 +141,7 @@ export function AppOverlays({
       )}
 
       {jobStart.pending && (
-        <ConfirmModal
+        <ConfirmDialog
           title={JOB_START_CONFIRM[jobStart.pending].title}
           scope={jobStart.scope}
           description={JOB_START_CONFIRM[jobStart.pending].description()}
@@ -151,10 +151,10 @@ export function AppOverlays({
         />
       )}
 
-      <AutomationModalOverlays modals={automation} />
+      <AutomationDialogOverlays dialogs={automation} />
 
       {fileImport.overwritePrompt && (
-        <FileImportOverwriteModal
+        <FileImportOverwriteDialog
           conflicts={fileImport.overwritePrompt.conflicts}
           busy={fileImport.busy}
           onReplaceExisting={fileImport.onReplaceExisting}
@@ -164,7 +164,7 @@ export function AppOverlays({
       )}
 
       {createFolder && (
-        <CreateFolderModal
+        <CreateFolderDialog
           parentLabel={createFolder.parentLabel}
           busy={createFolder.busy}
           error={createFolder.error}
@@ -174,7 +174,7 @@ export function AppOverlays({
       )}
 
       {renameFolder && (
-        <RenameModal
+        <RenameDialog
           title="Rename folder"
           description={
             <>
@@ -191,7 +191,7 @@ export function AppOverlays({
       )}
 
       {deleteFolder && (
-        <ConfirmModal
+        <ConfirmDialog
           title="Delete this folder?"
           description={
             <>
@@ -209,8 +209,8 @@ export function AppOverlays({
         />
       )}
 
-      {settings.open && <SettingsModal onClose={settings.onClose} />}
-      {shortcuts.open && <ShortcutsModal onClose={shortcuts.onClose} />}
+      {settings.open && <SettingsDialog onClose={settings.onClose} />}
+      {shortcuts.open && <ShortcutsDialog onClose={shortcuts.onClose} />}
     </>
   );
 }

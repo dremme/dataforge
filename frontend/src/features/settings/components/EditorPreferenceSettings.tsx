@@ -1,13 +1,13 @@
 import { iconFileText, iconSpellCheck2 } from "@/shared/icons";
 import { SPELLCHECK_LANGUAGES, type EditorOptions } from "@/shared/preferences/editorPreferences";
 import type { SpellcheckLanguage } from "@/shared/types";
-import { ModalSelect, type ModalSelectOption } from "@/shared/ui/ModalSelect";
+import { DialogSelect, type DialogSelectOption } from "@/shared/ui/DialogSelect";
 import { SettingsCheckbox } from "./SettingsCheckbox";
 import { SettingsGroup } from "./SettingsGroup";
 
 const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
 
-const LANGUAGE_OPTIONS: ModalSelectOption<SpellcheckLanguage>[] = SPELLCHECK_LANGUAGES.map(
+const LANGUAGE_OPTIONS: DialogSelectOption<SpellcheckLanguage>[] = SPELLCHECK_LANGUAGES.map(
   (code) => ({ value: code, title: languageNames.of(code) ?? code }),
 ).sort((a, b) => a.title.localeCompare(b.title));
 
@@ -47,7 +47,7 @@ export function EditorPreferenceSettings({
         </div>
       </SettingsGroup>
       <SettingsGroup title="Captions" icon={iconSpellCheck2}>
-        <div className="settings-modal__row">
+        <div className="settings-dialog__row">
           <SettingsCheckbox
             label="Check spelling"
             hint="Uses the browser's dictionaries. Chrome and Edge may follow their own language settings instead."
@@ -55,7 +55,7 @@ export function EditorPreferenceSettings({
             disabled={disabled}
             onChange={(captionSpellcheck) => change({ captionSpellcheck })}
           />
-          <ModalSelect
+          <DialogSelect
             label="Spelling language"
             value={value.captionSpellcheckLanguage}
             options={LANGUAGE_OPTIONS}

@@ -22,16 +22,16 @@ for (const job of ["Find & replace", "Edit captions"] as const) {
       await expect(page.getByText("photo.png")).toBeVisible();
       await page.getByRole("button", { name: "Tools", exact: true }).click();
       await page.getByRole("menuitem", { name: new RegExp(job) }).click();
-      const modal = page.getByRole("alertdialog");
-      const checkbox = modal.getByRole("checkbox", { name: "Back up captions first" });
-      const backupLabel = modal.getByText("Back up captions first", { exact: true });
+      const dialog = page.getByRole("alertdialog");
+      const checkbox = dialog.getByRole("checkbox", { name: "Back up captions first" });
+      const backupLabel = dialog.getByText("Back up captions first", { exact: true });
       await expect(checkbox).toBeChecked();
       await expect(checkbox).toHaveAccessibleDescription(/Existing backups are overwritten/);
 
       if (!backup) {
         await backupLabel.click();
         await expect(checkbox).not.toBeChecked();
-        await modal.getByRole("button", { name: "Cancel", exact: true }).click();
+        await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
         await page
           .getByRole("alertdialog", { name: "Discard changes?" })
           .getByRole("button", { name: "Discard", exact: true })
@@ -46,14 +46,14 @@ for (const job of ["Find & replace", "Edit captions"] as const) {
 
       const replace = job === "Find & replace";
       if (replace) {
-        await modal.getByLabel("Search for").fill("red");
-        await modal.getByLabel("Replace with").fill("blue");
+        await dialog.getByLabel("Search for").fill("red");
+        await dialog.getByLabel("Replace with").fill("blue");
       } else {
-        await modal.getByLabel("Edit instruction").fill("Rewrite in present tense.");
+        await dialog.getByLabel("Edit instruction").fill("Rewrite in present tense.");
       }
       await backupLabel.scrollIntoViewIfNeeded();
       await expect(backupLabel).toBeInViewport();
-      const start = modal.getByRole("button", {
+      const start = dialog.getByRole("button", {
         name: replace ? "Replace" : "Start edit captions",
         exact: true,
       });
@@ -66,7 +66,7 @@ for (const job of ["Find & replace", "Edit captions"] as const) {
         existingBackup,
       );
       await start.click();
-      await expect(modal).not.toBeVisible();
+      await expect(dialog).not.toBeVisible();
       await expectJobCompleted(page, job, 30_000);
       expect(fs.readFileSync(path.join(folder, "photo.txt"), "utf-8")).not.toBe(original);
       if (backup) {
@@ -94,15 +94,15 @@ test("Backup captions always overwrites existing copies without a checkbox", asy
   await expect(page.getByText("photo.png")).toBeVisible();
   await page.getByRole("button", { name: "Tools", exact: true }).click();
   await page.getByRole("menuitem", { name: /Backup captions/ }).click();
-  const modal = page.getByRole("alertdialog", { name: "Back up captions?" });
-  await expect(modal.getByRole("checkbox")).toHaveCount(0);
-  await expect(modal).toContainText("Existing backups are overwritten.");
+  const dialog = page.getByRole("alertdialog", { name: "Back up captions?" });
+  await expect(dialog.getByRole("checkbox")).toHaveCount(0);
+  await expect(dialog).toContainText("Existing backups are overwritten.");
   await page.screenshot({
     path: testInfo.outputPath("backup-default.png"),
     animations: "disabled",
   });
-  await modal.getByRole("button", { name: "Back up captions", exact: true }).click();
-  await expect(modal).not.toBeVisible();
+  await dialog.getByRole("button", { name: "Back up captions", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
   await expectJobCompleted(page, "Backup captions", 30_000);
   expect(fs.readFileSync(path.join(folder, ".backup", "photo.txt"), "utf-8")).toBe(current);
   expect(fs.readFileSync(path.join(folder, "photo.txt"), "utf-8")).toBe(current);

@@ -203,15 +203,15 @@ describe("VideoEditorWorkspace recovery", () => {
     renderEditor();
 
     const user = await pickFromMenu("Versions...");
-    const modal = await screen.findByRole("dialog", { name: "Project versions" });
-    await user.type(within(modal).getByRole("textbox", { name: "Save this version as" }), "Mine");
-    await user.click(within(modal).getByRole("button", { name: "Save version" }));
+    const dialog = await screen.findByRole("dialog", { name: "Project versions" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Save this version as" }), "Mine");
+    await user.click(within(dialog).getByRole("button", { name: "Save version" }));
     expect(api.saveVideoProjectVersion).toHaveBeenCalledWith(
       expect.objectContaining({ id: "p", name: "clip edit" }),
       "Mine",
     );
 
-    await user.click(within(modal).getByRole("button", { name: "Restore" }));
+    await user.click(within(dialog).getByRole("button", { name: "Restore" }));
 
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Project versions" })).not.toBeInTheDocument(),

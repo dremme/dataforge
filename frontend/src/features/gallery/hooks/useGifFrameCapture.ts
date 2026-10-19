@@ -22,7 +22,7 @@ export interface UseGifFrameCaptureOptions {
   frameCount: number | undefined;
   folderPath: string | undefined;
   onSaved?: () => void | Promise<void>;
-  /** Owned by the modal so mode sticks across next/prev between videos and GIFs. */
+  /** Owned by the dialog so mode sticks across next/prev between videos and GIFs. */
   frameMode: boolean;
   setFrameMode: (frameMode: boolean) => void;
 }
@@ -150,7 +150,7 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
           await onSaved?.();
         }
       } catch (error) {
-        // Unguarded by mountedRef: the store outlives this modal, so a finish after close reports.
+        // Unguarded by mountedRef: the store outlives this dialog, so a finish after close reports.
         notify({
           variant: "danger",
           message: `Could not save ${target}: ${formatApiError(error)}`,

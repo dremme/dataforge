@@ -10,7 +10,7 @@ import {
   touchRecentFolder,
 } from "@/features/folder/lib/folderPreferences";
 import { folderLeafName, folderPathsEqual } from "@/features/folder/lib/folderPath";
-import { FolderNoteModal } from "@/features/folder/components/FolderNoteModal";
+import { FolderNoteDialog } from "@/features/folder/components/FolderNoteDialog";
 import { useTaggingFolder } from "@/features/tagging/hooks/useTaggingFolder";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
@@ -376,7 +376,7 @@ export function WorkspaceSidebar({
         </div>
       </div>
       {editingNote && currentFolder && (
-        <FolderNoteModal
+        <FolderNoteDialog
           key={currentFolder}
           folderPath={currentFolder}
           initialText={note}

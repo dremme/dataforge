@@ -19,7 +19,7 @@ You can also configure the connection in `.env`; environment changes require a r
 
 Remote ComfyUI receives source media and workflow inputs. Prefer absolute custom paths; relative overrides resolve against the server working directory, normally `backend/`.
 
-The processing menu appears when presets exist, even if ComfyUI is stopped. The modal reports availability. Uploaded sources accumulate in ComfyUI's `input/dataforge/` directory; ComfyUI has no remote cleanup endpoint, so clear old uploads there manually.
+The processing menu appears when presets exist, even if ComfyUI is stopped. The dialog reports availability. Uploaded sources accumulate in ComfyUI's `input/dataforge/` directory; ComfyUI has no remote cleanup endpoint, so clear old uploads there manually.
 
 ## Try it
 
@@ -102,7 +102,7 @@ The following are unsupported:
 | `DataForge Seed`   | `seed` or `noise_seed`, if a seed is entered                          |
 | `DataForge FPS`    | The node's own numeric value, set to the source's measured frame rate |
 
-Without these nodes, or with optional fields left empty, the workflow uses its saved values. The modal disables Prompt or Seed when the matching node is absent. A prompt/FPS value must belong to the titled node, rather than be wired from another node; an unusable prompt node causes a supplied prompt to be refused.
+Without these nodes, or with optional fields left empty, the workflow uses its saved values. The dialog disables Prompt or Seed when the matching node is absent. A prompt/FPS value must belong to the titled node, rather than be wired from another node; an unusable prompt node causes a supplied prompt to be refused.
 
 For interpolation, multiply the source rate by the interpolation factor: doubling 24 fps footage requires 48 fps output to retain its duration. Use `DataForge FPS` as the source-rate input to that calculation. The review warns about duration mismatches.
 
@@ -120,7 +120,7 @@ A filename match is marked as a **Likely output**. This is a hint: the embedded 
 
 ## Troubleshooting
 
-**Preset missing.** Check the preset directory and `.json` extension. Export API format, then reopen the modal.
+**Preset missing.** Check the preset directory and `.json` extension. Export API format, then reopen the dialog.
 
 **ComfyUI unavailable.** Start it, check its origin in Settings, and test the connection before saving.
 

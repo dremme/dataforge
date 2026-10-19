@@ -100,7 +100,7 @@ for (const inspectorWidth of [320, 380, 520]) {
     await expect
       .poll(() => video.evaluate((element: HTMLVideoElement) => element.readyState))
       .toBeGreaterThan(0);
-    const stage = (await inspector.locator(".gallery-item-modal__stage").boundingBox())!;
+    const stage = (await inspector.locator(".gallery-item-dialog__stage").boundingBox())!;
     const media = (await video.boundingBox())!;
     expect(media.y).toBeGreaterThanOrEqual(stage.y);
     expect(media.y + media.height).toBeLessThanOrEqual(stage.y + stage.height);
@@ -130,7 +130,7 @@ for (const inspectorWidth of [320, 380, 520]) {
         .poll(() =>
           focus.evaluate((element) => {
             const stage = element
-              .querySelector(".gallery-item-modal__stage")!
+              .querySelector(".gallery-item-dialog__stage")!
               .getBoundingClientRect();
             const video = element.querySelector("video")!.getBoundingClientRect();
             return Math.max(
@@ -167,14 +167,14 @@ for (const height of [600, 720]) {
     await expect(inspector.getByRole("textbox", { name: "Caption for photo.png" })).toBeVisible();
 
     const geometry = await inspector.evaluate((element) => {
-      const panel = element.querySelector(".gallery-item-modal__panel")!;
+      const panel = element.querySelector(".gallery-item-dialog__panel")!;
       const rect = (selector: string) => element.querySelector(selector)!.getBoundingClientRect();
       return {
         overflow: panel.scrollHeight - panel.clientHeight,
         panelBottom: panel.getBoundingClientRect().bottom,
         statusBottom: rect(".caption-save-status").bottom,
         editor: rect(".code-editor--caption").height,
-        stage: rect(".gallery-item-modal__stage").height,
+        stage: rect(".gallery-item-dialog__stage").height,
       };
     });
     await page.screenshot({ path: testInfo.outputPath(`inspector-${height}.png`) });
@@ -196,7 +196,7 @@ test("folder instructions keep the current inspector and restore control focus",
   const instructionsButton = page.getByRole("button", { name: "Edit instructions", exact: true });
   await instructionsButton.click();
   await expect(page.getByRole("dialog", { name: "Folder instructions" })).toBeVisible();
-  await expect(page.locator(".gallery-item-modal--inline")).toBeAttached();
+  await expect(page.locator(".gallery-item-dialog--inline")).toBeAttached();
   await page.keyboard.press("Escape");
   await expect(inspector).toBeVisible();
   await expect(instructionsButton).toBeFocused();
@@ -239,7 +239,7 @@ for (const theme of ["dark", "light"]) {
       await expect(inspector).toBeVisible();
       await expect(inspector.getByRole("button", { name: "Previous item" })).toBeVisible();
       await expect(inspector.getByRole("button", { name: "Next item" })).toBeVisible();
-      await expect(inspector.locator(".gallery-item-modal__counter")).toHaveText(/^[12] \/ 2$/);
+      await expect(inspector.locator(".gallery-item-dialog__counter")).toHaveText(/^[12] \/ 2$/);
       await expect(inspector.getByRole("textbox", { name: "Caption for photo.png" })).toBeVisible();
       expect(
         await page.locator(".app").evaluate((node) => node.scrollWidth <= node.clientWidth),
@@ -249,11 +249,11 @@ for (const theme of ["dark", "light"]) {
       expect(box.x + box.width).toBeLessThanOrEqual(width);
       await page.screenshot({ animations: "disabled", path: testInfo.outputPath("inspector.png") });
       if (width >= 1000) {
-        const panel = (await inspector.locator(".gallery-item-modal__panel").boundingBox())!;
-        const footer = (await inspector.locator(".gallery-item-modal__footer").boundingBox())!;
+        const panel = (await inspector.locator(".gallery-item-dialog__panel").boundingBox())!;
+        const footer = (await inspector.locator(".gallery-item-dialog__footer").boundingBox())!;
         expect(Math.abs(footer.y + footer.height - panel.y - panel.height)).toBeLessThan(1);
         const captionPadding = await inspector
-          .locator(".gallery-item-modal__caption-editor")
+          .locator(".gallery-item-dialog__caption-editor")
           .evaluate((node) => getComputedStyle(node).padding);
         expect(captionPadding).toBe("0px");
         const separator = inspector.getByRole("separator", { name: "Caption inspector width" });
@@ -266,10 +266,10 @@ for (const theme of ["dark", "light"]) {
         await focus.evaluate((element) => {
           for (const animation of element.getAnimations()) animation.finish();
         });
-        const stage = (await focus.locator(".gallery-item-modal__stage").boundingBox())!;
-        const media = (await focus.locator(".gallery-item-modal__img").boundingBox())!;
+        const stage = (await focus.locator(".gallery-item-dialog__stage").boundingBox())!;
+        const media = (await focus.locator(".gallery-item-dialog__img").boundingBox())!;
         expect(media.height).toBeGreaterThan(stage.height * 0.8);
-        const meta = (await focus.locator(".gallery-item-modal__meta").boundingBox())!;
+        const meta = (await focus.locator(".gallery-item-dialog__meta").boundingBox())!;
         expect(Math.abs(meta.y - stage.y - stage.height)).toBeLessThan(1);
         expect(Math.abs(meta.x - stage.x)).toBeLessThan(1);
         expect(Math.abs(meta.width - stage.width)).toBeLessThan(1);
@@ -326,7 +326,7 @@ test("the media view counts the tags that do not fit and recounts on resize", as
     .join(", ");
   await expect(page.getByRole("tooltip")).toHaveText(expected);
 
-  // Still a modal below 1000px; the row is wider, so fewer tags are left over.
+  // Still a dialog below 1000px; the row is wider, so fewer tags are left over.
   await page.setViewportSize({ width: 960, height: 900 });
   await expect.poll(hiddenAt).toBeLessThan(narrow);
 });

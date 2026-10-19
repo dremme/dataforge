@@ -2,10 +2,10 @@
 @use "../abstracts/mixins" as *;
 
 .training-template-editor {
-  @include modal-shell($z-index-confirm);
+  @include dialog-shell($z-index-confirm);
 
   &__backdrop {
-    @include modal-backdrop;
+    @include dialog-backdrop;
   }
 
   &__panel {
@@ -16,27 +16,27 @@
     width: min(820px, 100%);
     max-height: 88vh;
     overflow: hidden;
-    @include modal-panel-surface;
+    @include dialog-panel-surface;
   }
 
   &__header {
-    @include modal-editor-header;
+    @include dialog-editor-header;
   }
 
   &__header-copy {
-    @include modal-editor-header-copy;
+    @include dialog-editor-header-copy;
   }
 
   &__header-actions {
-    @include modal-editor-header-actions;
+    @include dialog-editor-header-actions;
   }
 
   &__title {
-    @include modal-editor-title;
+    @include dialog-editor-title;
   }
 
   &__subtitle {
-    @include modal-editor-subtitle;
+    @include dialog-editor-subtitle;
   }
 
   &__reset {
@@ -48,11 +48,11 @@
   }
 
   &__close {
-    @include modal-close-btn;
+    @include dialog-close-btn;
   }
 
   &__body {
-    @include modal-editor-body;
+    @include dialog-editor-body;
   }
 
   &__error {
@@ -69,7 +69,7 @@
   }
 
   &__footer {
-    @include modal-editor-footer;
+    @include dialog-editor-footer;
     justify-content: space-between;
     gap: 1rem;
   }
@@ -87,18 +87,18 @@
   }
 
   &__meta-item {
-    @include modal-meta-item;
+    @include dialog-meta-item;
   }
 
   &__meta-value {
-    @include modal-meta-value;
+    @include dialog-meta-value;
   }
 
   &__meta-label {
-    @include modal-meta-label;
+    @include dialog-meta-label;
   }
 
   &__meta-divider {
-    @include modal-meta-divider;
+    @include dialog-meta-divider;
   }
 }

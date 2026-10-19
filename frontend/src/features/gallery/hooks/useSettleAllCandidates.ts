@@ -8,7 +8,7 @@ import {
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { ComfyCandidateBatchResponse } from "@/shared/types";
-import type { ModalScopeInfo } from "@/shared/ui/ModalScope";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 export interface UseSettleAllCandidatesOptions {
   folderLabel: string;
@@ -23,7 +23,7 @@ export interface UseSettleAllCandidatesOptions {
 interface PendingSettle {
   action: SettleAllCandidatesAction;
   paths: readonly string[];
-  scope: ModalScopeInfo;
+  scope: DialogScopeInfo;
 }
 
 const SETTLE_REQUESTS: Record<
@@ -43,7 +43,7 @@ export function useSettleAllCandidates({
 }: UseSettleAllCandidatesOptions) {
   const notify = useNotify();
   const { keepMetadata, setKeepMetadata } = useKeepCandidateMetadata();
-  // Snapshotted on open, so a candidate staged while the modal is up is not settled unseen.
+  // Snapshotted on open, so a candidate staged while the dialog is up is not settled unseen.
   const [pending, setPending] = useState<PendingSettle | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -55,7 +55,7 @@ export function useSettleAllCandidates({
     [candidatePaths, selectedPaths],
   );
 
-  const scope = useMemo<ModalScopeInfo>(() => {
+  const scope = useMemo<DialogScopeInfo>(() => {
     const itemCount = selectedPaths ? selectedPaths.size : folderItemCount;
     const candidates = scopedPaths.length;
     return {

@@ -1,7 +1,7 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// Stage size comes from the modal, never the media: an in-flow transformed <img> would size the
+// Stage size comes from the dialog, never the media: an in-flow transformed <img> would size the
 // stage from itself. Both axes are containers so the image can fill either one.
 .image-edit-stage {
   position: relative;

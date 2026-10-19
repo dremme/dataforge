@@ -38,8 +38,8 @@ export const SHORTCUTS = {
   },
   settings: { group: "global", label: "Open settings", chords: [{ key: ",", mod: true }] },
   shortcuts: { group: "global", label: "Show keyboard shortcuts", chords: [{ key: "?" }] },
-  confirm: { group: "global", label: "Confirm a modal", chords: [{ key: "Enter" }] },
-  close: { group: "global", label: "Close a modal or viewer", chords: [{ key: "Escape" }] },
+  confirm: { group: "global", label: "Confirm a dialog", chords: [{ key: "Enter" }] },
+  close: { group: "global", label: "Close a dialog or viewer", chords: [{ key: "Escape" }] },
 
   parentFolder: {
     group: "folders",
@@ -388,7 +388,7 @@ export function ariaKeyShortcuts(shortcut: ShortcutDefinition): string {
 
 export type QueueStep = "previous" | "next" | "first" | "last";
 
-/** The paging step a key asks for in a modal that walks a list, if any. */
+/** The paging step a key asks for in a dialog that walks a list, if any. */
 export function queueStepFor(event: KeyboardEvent): QueueStep | null {
   if (matchesShortcut(event, SHORTCUTS.previousItem)) return "previous";
   if (matchesShortcut(event, SHORTCUTS.nextItem)) return "next";

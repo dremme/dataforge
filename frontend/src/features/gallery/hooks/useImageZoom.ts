@@ -68,7 +68,7 @@ export function measureZoomGeometry(viewport: HTMLElement): ZoomGeometry | null 
   if (viewportRect.width <= 0 || viewportRect.height <= 0) return null;
 
   // Rects are visual pixels; the transform is CSS pixels. They differ under an ancestor
-  // transform (such as a modal's scale-in) or CSS zoom.
+  // transform (such as a dialog's scale-in) or CSS zoom.
   const unit = viewport.offsetWidth > 0 ? viewport.offsetWidth / viewportRect.width : 1;
   const relative = (rect: DOMRect): ZoomRect => ({
     x: (rect.left - viewportRect.left) * unit,

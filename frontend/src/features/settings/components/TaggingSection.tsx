@@ -40,7 +40,7 @@ export function TaggingSection({ visible, children }: TaggingSectionProps) {
       hint="Tags below the minimum confidence are hidden from cards and search. Lower it to find more, at the cost of more wrong guesses."
     >
       {statusQuery.isError ? (
-        <p className="modal__error" role="alert">
+        <p className="dialog__error" role="alert">
           {formatApiError(statusQuery.error)}
         </p>
       ) : (
@@ -61,7 +61,7 @@ export function TaggingSection({ visible, children }: TaggingSectionProps) {
           </dl>
           {status?.detail && (
             <p
-              className={status.state === "failed" ? "modal__error" : "settings-modal__status"}
+              className={status.state === "failed" ? "dialog__error" : "settings-dialog__status"}
               role={status.state === "failed" ? "alert" : undefined}
             >
               {status.detail}

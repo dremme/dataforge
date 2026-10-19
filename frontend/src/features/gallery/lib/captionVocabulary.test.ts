@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeItem } from "@/test/galleryItemModal";
+import { makeItem } from "@/test/galleryItemDialog";
 import { buildCaptionVocabulary } from "./captionVocabulary";
 import type { GalleryItem } from "@/shared/types";
 

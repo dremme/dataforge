@@ -3,8 +3,8 @@ import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { WORKSPACE, openWorkspace } from "./workspace";
 
-async function openPhoto(page: Page) {
-  const folder = await mkdtemp(path.join(WORKSPACE, "unsaved-changes-"));
+async function openPhoto(page: Page, parent = WORKSPACE) {
+  const folder = await mkdtemp(path.join(parent, "unsaved-changes-"));
   await copyFile(path.join(WORKSPACE, "photo.png"), path.join(folder, "photo.png"));
   await writeFile(path.join(folder, "photo.txt"), "Original caption.");
   await page.goto(`/?path=${encodeURIComponent(folder)}`);
@@ -19,12 +19,16 @@ async function rotate(page: Page) {
   await expect(page.locator(".image-edit-stage__canvas")).toHaveCSS("--edit-rotate", "90deg");
 }
 
+/** Earlier specs crowd the shared root until `photo.png` falls outside the rendered gallery. */
 async function openParentFolder(page: Page) {
-  const previous = await openPhoto(page);
+  const parent = await mkdtemp(path.join(WORKSPACE, "unsaved-parent-"));
+  await copyFile(path.join(WORKSPACE, "photo.png"), path.join(parent, "photo.png"));
+  await copyFile(path.join(WORKSPACE, "clip.mp4"), path.join(parent, "clip.mp4"));
+  const previous = await openPhoto(page, parent);
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("button", { name: "dataforge-e2e", exact: true }).click();
+  await page.getByRole("button", { name: path.basename(parent), exact: true }).click();
   await expect(page.getByRole("button", { name: "View clip.mp4", exact: true })).toBeVisible();
-  return previous;
+  return { parent, previous };
 }
 
 const confirmation = (page: Page) => page.getByRole("alertdialog", { name: "Discard changes?" });
@@ -126,7 +130,7 @@ test("discard keeps nested forms suspended until a slow project save finishes", 
     await confirmation(page).getByRole("button", { name: "Discard", exact: true }).click();
     await expect(confirmation(page)).toHaveCount(0);
     const width = page
-      .locator(".modal-panel")
+      .locator(".dialog-panel")
       .filter({ has: page.getByLabel("Width", { exact: true }) });
     await expect(width).toHaveAttribute("inert", "");
     await page.keyboard.press("Escape");
@@ -134,7 +138,7 @@ test("discard keeps nested forms suspended until a slow project save finishes", 
     await page.keyboard.press("Enter");
     await expect(width.getByLabel("Width", { exact: true })).toHaveValue("800");
     release();
-    await expect(page.locator(".video-settings-modal")).toHaveCount(0);
+    await expect(page.locator(".video-settings-dialog")).toHaveCount(0);
     await expect(
       page.getByRole("textbox", { name: "Project name", includeHidden: true }),
     ).toHaveCount(0);
@@ -172,12 +176,12 @@ for (const close of ["button", "Escape"] as const) {
       await expect(
         page.getByRole("button", { name: "Rename photo.png", exact: true, includeHidden: true }),
       ).toBeDisabled();
-      await expect(page.locator(".gallery-item-modal--inline")).toHaveAttribute("inert", "");
+      await expect(page.locator(".gallery-item-dialog--inline")).toHaveAttribute("inert", "");
       await page.keyboard.press("Enter");
       await page.keyboard.press("ArrowRight");
       release();
-      await expect(page.locator(".gallery-item-modal")).toHaveCount(0);
-      await expect(page.locator(".rename-modal")).toHaveCount(0);
+      await expect(page.locator(".gallery-item-dialog")).toHaveCount(0);
+      await expect(page.locator(".rename-dialog")).toHaveCount(0);
       await expect(confirmation(page)).toHaveCount(0);
     } finally {
       release();
@@ -273,7 +277,7 @@ test("reverting during a save keeps reload protection until the original is save
       .poll(async () => (await (await page.request.get(captionUrl)).json()).description)
       .toBe("Original caption.");
     await page.getByRole("button", { name: "Close", exact: true }).click();
-    await expect(page.locator(".gallery-item-modal")).toHaveCount(0);
+    await expect(page.locator(".gallery-item-dialog")).toHaveCount(0);
     await page.reload();
     await page.getByRole("button", { name: "View photo.png", exact: true }).click();
     await expect(caption).toHaveText("Original caption.");
@@ -313,7 +317,7 @@ test("discard waits for an autosave already writing a newer caption", async ({ p
     release();
     await expect(discard).toBeEnabled();
     await discard.click();
-    await expect(page.locator(".gallery-item-modal")).toHaveCount(0);
+    await expect(page.locator(".gallery-item-dialog")).toHaveCount(0);
   } finally {
     release();
   }
@@ -335,15 +339,15 @@ for (const repeats of [1, 3]) {
       await openUnsavedVideoProject(page, repeats);
       await browserBack(page);
       await confirmation(page).getByRole("button", { name: "Discard", exact: true }).click();
-      await expect(page.locator(".video-settings-modal")).toHaveAttribute("inert", "");
+      await expect(page.locator(".video-settings-dialog")).toHaveAttribute("inert", "");
       await page.evaluate((count) => {
         for (let step = 0; step < count; step++) window.history.back();
       }, repeats);
-      await expect(page.locator(".video-settings-modal")).toHaveAttribute("inert", "");
+      await expect(page.locator(".video-settings-dialog")).toHaveAttribute("inert", "");
       await page.keyboard.press("Escape");
       release();
       await expect(page.locator(".video-editor")).toHaveCount(0);
-      await expect(page.locator(".video-settings-modal")).toHaveCount(0);
+      await expect(page.locator(".video-settings-dialog")).toHaveCount(0);
       await expect(confirmation(page)).toHaveCount(0);
       await expect(page).not.toHaveURL(/\/editor\//);
     } finally {
@@ -379,7 +383,7 @@ test("keeping nested edits after autosave preserves the editor's Back and Forwar
     await expect(page.getByRole("textbox", { name: "Project name" })).toHaveValue(
       "Unsaved project",
     );
-    await expect(page.locator(".video-settings-modal")).toHaveCount(0);
+    await expect(page.locator(".video-settings-dialog")).toHaveCount(0);
   } finally {
     release();
   }
@@ -388,9 +392,9 @@ test("keeping nested edits after autosave preserves the editor's Back and Forwar
 test("repeated Back followed by Keep editing preserves both nested training drafts", async ({
   page,
 }) => {
-  const folder = await openParentFolder(page);
-  await openFolderCard(page, folder);
-  await page.getByRole("button", { name: "dataforge-e2e", exact: true }).click();
+  const { parent, previous } = await openParentFolder(page);
+  await openFolderCard(page, previous);
+  await page.getByRole("button", { name: path.basename(parent), exact: true }).click();
   const currentUrl = page.url();
   await page.getByRole("button", { name: "Tools", exact: true }).click();
   await page.getByRole("menuitem", { name: /^Quick LoRA training/ }).click();
@@ -406,11 +410,11 @@ test("repeated Back followed by Keep editing preserves both nested training draf
   await expect(page).toHaveURL(currentUrl);
   await expect(yaml).toContainText("steps: 250");
   await expect(
-    page.locator(".train-lora-modal").getByLabel("LoRA name", { exact: true }),
+    page.locator(".train-lora-dialog").getByLabel("LoRA name", { exact: true }),
   ).toHaveValue("sample_draft");
 });
 
-test("failed project navigation gives only the save failure modal keyboard control", async ({
+test("failed project navigation gives only the save failure dialog keyboard control", async ({
   page,
 }, testInfo) => {
   await page.route("**/api/video-projects/project", (route) =>
@@ -442,7 +446,7 @@ for (const direction of ["back", "forward"] as const) {
   test(`browser ${direction} waits for a slow caption save before changing folders`, async ({
     page,
   }) => {
-    const previous = await openParentFolder(page);
+    const { parent, previous } = await openParentFolder(page);
     if (direction === "forward") {
       await browserBack(page);
       await expect.poll(() => new URL(page.url()).searchParams.get("path")).toBe(previous);
@@ -461,7 +465,7 @@ for (const direction of ["back", "forward"] as const) {
         .getByRole("textbox", { name: "Caption for photo.png" })
         .fill("Caption saved before navigation.");
       await page.evaluate((action) => window.history[action](), direction);
-      await expect(page.locator(".gallery-item-modal--inline")).toHaveAttribute("inert", "");
+      await expect(page.locator(".gallery-item-dialog--inline")).toHaveAttribute("inert", "");
       await expect(confirmation(page)).toHaveCount(0);
       await page.keyboard.press("Escape");
       await page.keyboard.press("ArrowRight");
@@ -469,12 +473,12 @@ for (const direction of ["back", "forward"] as const) {
         direction === "back" ? 1 : 0,
       );
       release();
-      await expect(page.locator(".gallery-item-modal")).toHaveCount(0);
+      await expect(page.locator(".gallery-item-dialog")).toHaveCount(0);
       await expect(page.getByRole("button", { name: "View clip.mp4", exact: true })).toHaveCount(
         direction === "back" ? 0 : 1,
       );
       const saved = await page.request.get(
-        `/api/caption?path=${encodeURIComponent(path.join(direction === "back" ? WORKSPACE : previous, "photo.png"))}`,
+        `/api/caption?path=${encodeURIComponent(path.join(direction === "back" ? parent : previous, "photo.png"))}`,
       );
       expect((await saved.json()).description).toBe("Caption saved before navigation.");
       await expect(confirmation(page)).toHaveCount(0);
@@ -485,7 +489,7 @@ for (const direction of ["back", "forward"] as const) {
 }
 
 test("browser discard closes persistent settings and clears their draft", async ({ page }) => {
-  const previous = await openParentFolder(page);
+  const { previous } = await openParentFolder(page);
   await page.getByRole("button", { name: "Open settings", exact: true }).click();
   const settings = page.getByRole("dialog", { name: "Settings", exact: true });
   await settings.getByText("Light", { exact: true }).click();
@@ -503,7 +507,7 @@ for (const direction of ["back", "forward"] as const) {
   test(`failed captions protect browser ${direction} and reload until discarded`, async ({
     page,
   }) => {
-    const previous = await openParentFolder(page);
+    const { previous } = await openParentFolder(page);
     if (direction === "forward") {
       await browserBack(page);
       await expect.poll(() => new URL(page.url()).searchParams.get("path")).toBe(previous);
@@ -533,7 +537,7 @@ for (const direction of ["back", "forward"] as const) {
     await expect(caption).toHaveText("Unsaved caption draft.");
     await page.evaluate((action) => window.history[action](), direction);
     await confirmation(page).getByRole("button", { name: "Discard", exact: true }).click();
-    await expect(page.locator(".gallery-item-modal")).toHaveCount(0);
+    await expect(page.locator(".gallery-item-dialog")).toHaveCount(0);
     await expect(page).not.toHaveURL(currentUrl);
   });
 }
@@ -551,9 +555,9 @@ for (const key of ["Home", "End", "ArrowLeft", "ArrowRight", "Control+Enter"]) {
 test("browser Back keeps instructions and the URL until discard is confirmed", async ({
   page,
 }, testInfo) => {
-  const previous = await openParentFolder(page);
+  const { previous } = await openParentFolder(page);
   const currentUrl = page.url();
-  await page.getByRole("button", { name: "Edit instructions", exact: true }).click();
+  await page.getByRole("button", { name: /^(Edit|Create) instructions$/ }).click();
   const editor = page.getByRole("dialog", { name: "Folder instructions" });
   const prompt = editor.getByRole("textbox", { name: "System prompt" });
   await prompt.fill("Unsaved instruction draft.");
@@ -605,20 +609,20 @@ test("browser Back protects nested video project settings", async ({ page }) => 
     .getByRole("button", { name: "Open clip.mp4 in the video editor", exact: true })
     .click();
   await page.getByRole("button", { name: /^Project settings:/ }).click();
-  const modal = page.getByRole("dialog", { name: "Project settings", exact: true });
-  await modal.getByLabel("Width", { exact: true }).fill("800");
+  const dialog = page.getByRole("dialog", { name: "Project settings", exact: true });
+  await dialog.getByLabel("Width", { exact: true }).fill("800");
   await browserBack(page);
   await expect(confirmation(page)).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(modal.getByLabel("Width", { exact: true })).toHaveValue("800");
+  await expect(dialog.getByLabel("Width", { exact: true })).toHaveValue("800");
   await browserBack(page);
   await confirmation(page).getByRole("button", { name: "Discard", exact: true }).click();
-  await expect(modal).toHaveCount(0);
+  await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Project name" })).toHaveCount(0);
 });
 
 test("browser Back discards gallery edits once before changing folders", async ({ page }) => {
-  const previous = await openParentFolder(page);
+  const { previous } = await openParentFolder(page);
   await page.getByRole("button", { name: "View photo.png", exact: true }).click();
   await rotate(page);
   await browserBack(page);
@@ -635,7 +639,7 @@ test("browser Back discards gallery edits once before changing folders", async (
 });
 
 test("browser Forward preserves a draft when navigation is cancelled", async ({ page }) => {
-  const previous = await openParentFolder(page);
+  const { previous } = await openParentFolder(page);
   const nextUrl = page.url();
   await browserBack(page);
   await expect.poll(() => new URL(page.url()).searchParams.get("path")).toBe(previous);

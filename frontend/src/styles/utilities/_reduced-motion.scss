@@ -2,10 +2,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   // `:not()`s: an exiting element still carries its entrance class, so `animation: none` would wipe the exit name and never fire `animationend`.
-  .modal-panel--enter,
-  [class*="__backdrop"]:not(.modal-backdrop--exit),
-  .jobs-modal__panel:not(.modal-panel--exit),
-  .stats-modal__panel:not(.modal-panel--exit),
+  .dialog-panel--enter,
+  [class*="__backdrop"]:not(.dialog-backdrop--exit),
+  .jobs-dialog__panel:not(.dialog-panel--exit),
+  .stats-dialog__panel:not(.dialog-panel--exit),
   .notifications__toast:not(.notifications__toast--exiting) {
     animation: none;
   }
@@ -15,7 +15,7 @@
     display: none;
   }
 
-  .stats-modal__meter-fill {
+  .stats-dialog__meter-fill {
     transition: none;
   }
 
@@ -53,10 +53,10 @@
   }
 
   // Exits keep a 1ms duration so `animationend` still unmounts the jobs drawer and toasts.
-  .modal-panel--exit,
-  .modal-backdrop--exit,
-  .jobs-modal__panel.modal-panel--exit,
-  .stats-modal__panel.modal-panel--exit,
+  .dialog-panel--exit,
+  .dialog-backdrop--exit,
+  .jobs-dialog__panel.dialog-panel--exit,
+  .stats-dialog__panel.dialog-panel--exit,
   .notifications__toast--exiting {
     animation-duration: 1ms;
   }

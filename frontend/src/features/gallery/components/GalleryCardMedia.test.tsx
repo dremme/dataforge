@@ -54,7 +54,7 @@ describe("GalleryCardMedia", () => {
     expect(container.querySelector(".card__media-placeholder")).toBeNull();
   });
 
-  it("loads captured frames on modal close without scrolling", () => {
+  it("loads captured frames on dialog close without scrolling", () => {
     vi.spyOn(scrollRoot, "getGalleryMediaZones").mockReturnValue(visible);
     const { container, rerender } = render(
       <ThumbnailProvider paused>

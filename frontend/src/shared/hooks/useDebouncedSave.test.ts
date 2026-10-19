@@ -34,6 +34,30 @@ describe("useDebouncedSave", () => {
     expect(save).toHaveBeenCalledTimes(1);
   });
 
+  it("reports saving while a write runs, even after a newer edit shows pending", async () => {
+    let finish!: () => void;
+    const save = vi.fn<() => Promise<void>>(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { result } = setupHook({ save });
+    act(() => {
+      result.current.setBaseline({ path: "photo.png", text: "" });
+      result.current.scheduleSave({ path: "photo.png", text: "A lake" });
+      void result.current.flushPendingSave();
+    });
+    expect(result.current.saving).toBe(true);
+    act(() => result.current.scheduleSave({ path: "photo.png", text: "A lake at dusk" }));
+    expect(result.current.saveState).toBe("pending");
+    expect(result.current.saving).toBe(true);
+    await act(async () => {
+      finish();
+    });
+    expect(result.current.saving).toBe(false);
+  });
+
   it("returns failure until a failed save is retried or discarded", async () => {
     const save = vi
       .fn<(payload: Payload) => Promise<void>>()

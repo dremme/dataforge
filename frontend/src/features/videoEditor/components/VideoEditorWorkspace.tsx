@@ -22,14 +22,12 @@ import { formatApiError } from "@/shared/api/http";
 import { isEditableTarget, isTextEntryTarget } from "@/shared/lib/isEditableTarget";
 import { matchesShortcut, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { readStoredJson, writeStored } from "@/shared/lib/storage";
-import { Modal, ModalButton } from "@/shared/ui/Modal";
+import { Dialog, DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
-import { ModalShell } from "@/shared/ui/ModalShell";
-import {
-  ModalNavigationContext,
-  ModalNavigationPendingContext,
-} from "@/shared/ui/modalNavigationContext";
-import { useModalNavigationDraft } from "@/shared/hooks/useModalNavigationDraft";
+import { DialogShell } from "@/shared/ui/DialogShell";
+import { DialogNavigationContext } from "@/shared/ui/dialogNavigationContext";
+import { DialogSuspendedContext } from "@/shared/ui/dialogSuspendedContext";
+import { useDialogNavigationDraft } from "@/shared/hooks/useDialogNavigationDraft";
 import type {
   GalleryItem,
   VideoProjectDocument,
@@ -116,23 +114,23 @@ import {
   type TimeRange,
 } from "@/features/videoEditor/lib/timeline";
 import { ClipInspector } from "./ClipInspector";
-import { DeleteVideoProjectModal } from "./DeleteVideoProjectModal";
+import { DeleteVideoProjectDialog } from "./DeleteVideoProjectDialog";
 import { EditorTopBar } from "./EditorTopBar";
-import { ExportModal } from "./ExportModal";
+import { ExportDialog } from "./ExportDialog";
 import { MediaBrowser, type MediaView } from "./MediaBrowser";
 import { MediaProblems } from "./MediaProblems";
-import { PasteAttributesModal } from "./PasteAttributesModal";
+import { PasteAttributesDialog } from "./PasteAttributesDialog";
 import {
   PreviewPanel,
   type PreviewMode,
   type SourceRange,
   type SourceTransport,
 } from "./PreviewPanel";
-import { ProjectSettingsModal } from "./ProjectSettingsModal";
+import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
 import { SourceIssues } from "./SourceIssues";
 import { Splitter } from "./Splitter";
 import { Timeline, TIMELINE_ORIGIN_PX, TRACK_HEADER_PX, type TimelineTool } from "./Timeline";
-import { VersionsModal } from "./VersionsModal";
+import { VersionsDialog } from "./VersionsDialog";
 import { MAX_PX_PER_SECOND, MIN_PX_PER_SECOND, TimelineToolbar } from "./TimelineToolbar";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
 import { useChanged } from "@/shared/hooks/useChanged";
@@ -224,7 +222,7 @@ export function VideoEditorWorkspace({
 
   if (!document) {
     return (
-      <ModalShell
+      <DialogShell
         block="video-editor"
         label="Video editor"
         onClose={onExit}
@@ -258,7 +256,7 @@ export function VideoEditorWorkspace({
             )}
           </div>
         </div>
-      </ModalShell>
+      </DialogShell>
     );
   }
   return (
@@ -368,9 +366,9 @@ function EditorSession({
   const mediaProblems = useMediaProblems(engine);
 
   const clipboard = useEditorClipboard();
-  const navigationPending = useContext(ModalNavigationPendingContext);
-  const navigation = useContext(ModalNavigationContext);
-  const modalOpen =
+  const parentSuspended = useContext(DialogSuspendedContext);
+  const navigation = useContext(DialogNavigationContext);
+  const dialogOpen =
     exportOpen || settingsOpen || leaveOpen || deleteOpen || versionsOpen || attributesOpen;
   const locations = useMemo(
     () => sourceLocations(state.sources, project.sources),
@@ -739,7 +737,7 @@ function EditorSession({
   // Back, Forward or any other way out saves first; a failed save asks before going. A reload
   // or a closed tab cannot wait for a save, so the browser asks while one is owed.
   const owesSaveRef = useLatestRef(state.saveState !== "new" && state.saveState !== "saved");
-  useModalNavigationDraft({
+  useDialogNavigationDraft({
     unsavedChanges: false,
     blocked: leaveOpen,
     beforeLeave: confirmLeave,
@@ -758,8 +756,8 @@ function EditorSession({
 
   const draftPath = state.path;
   useEffect(() => {
-    if (draftPath && !navigationPending) onRelocate?.({ kind: "project", path: draftPath });
-  }, [draftPath, navigationPending, onRelocate]);
+    if (draftPath && !parentSuspended) onRelocate?.({ kind: "project", path: draftPath });
+  }, [draftPath, parentSuspended, onRelocate]);
 
   const openDraft = useCallback(
     async (path: string) => {
@@ -934,10 +932,10 @@ function EditorSession({
     [engine, project.frame_rate],
   );
 
-  // Keys reach the editor only outside form controls and while none of its modals is open.
+  // Keys reach the editor only outside form controls and while none of its dialogs is open.
   // Undo and redo also reach it from sliders and the like, which have no history of their own.
   const keysRef = useLatestRef((event: KeyboardEvent) => {
-    if (modalOpen || menuOpen || event.defaultPrevented) return;
+    if (dialogOpen || menuOpen || event.defaultPrevented) return;
     const run = (action: () => void) => {
       event.preventDefault();
       action();
@@ -1052,7 +1050,7 @@ function EditorSession({
     setLayout((current) => ({ ...current, [key]: next(current[key]) }));
 
   return (
-    <ModalShell
+    <DialogShell
       block="video-editor"
       label={`Video editor: ${project.name}`}
       onClose={() => void requestExit()}
@@ -1060,7 +1058,7 @@ function EditorSession({
       scrollLock="video-editor-open"
       nested={false}
       enterAnimation="none"
-      suspended={modalOpen || menuOpen}
+      suspended={dialogOpen || menuOpen}
     >
       <div className="video-editor__frame" style={gridStyle}>
         <EditorTopBar
@@ -1355,9 +1353,9 @@ function EditorSession({
         </section>
       </div>
 
-      <ModalNavigationPendingContext.Provider value={navigationPending || leaveOpen}>
+      <DialogSuspendedContext.Provider value={parentSuspended || leaveOpen}>
         {exportOpen && (
-          <ExportModal
+          <ExportDialog
             project={project}
             range={range}
             selectionSpan={
@@ -1376,7 +1374,7 @@ function EditorSession({
           />
         )}
         {deleteOpen && state.path && (
-          <DeleteVideoProjectModal
+          <DeleteVideoProjectDialog
             name={project.name}
             onClose={() => setDeleteOpen(false)}
             onDelete={async () => {
@@ -1391,7 +1389,7 @@ function EditorSession({
           />
         )}
         {attributesOpen && attributeDonor && (
-          <PasteAttributesModal
+          <PasteAttributesDialog
             donorLabel={clipLabel(project, attributeDonor)}
             targetCount={selectedClips.length}
             groups={attributeGroups}
@@ -1404,14 +1402,14 @@ function EditorSession({
           />
         )}
         {versionsOpen && (
-          <VersionsModal
+          <VersionsDialog
             project={project}
             onRestore={restoreVersion}
             onClose={() => setVersionsOpen(false)}
           />
         )}
         {settingsOpen && (
-          <ProjectSettingsModal
+          <ProjectSettingsDialog
             project={project}
             onCancel={() => setSettingsOpen(false)}
             onSave={(patch) => {
@@ -1420,9 +1418,9 @@ function EditorSession({
             }}
           />
         )}
-      </ModalNavigationPendingContext.Provider>
+      </DialogSuspendedContext.Provider>
       {leaveOpen && (
-        <Modal
+        <Dialog
           title="Your latest changes are not saved"
           description={
             <>
@@ -1433,7 +1431,7 @@ function EditorSession({
           onClose={cancelLeave}
           footer={
             <>
-              <ModalButton
+              <DialogButton
                 label="Exit"
                 variant="danger"
                 onClick={() => {
@@ -1441,8 +1439,8 @@ function EditorSession({
                   onExit();
                 }}
               />
-              <ModalButton label="Cancel" variant="secondary" onClick={cancelLeave} />
-              <ModalButton
+              <DialogButton label="Cancel" variant="secondary" onClick={cancelLeave} />
+              <DialogButton
                 label={state.saveState === "conflict" ? "Save as new" : "Retry save"}
                 variant="primary"
                 busy={leaveRetrying}
@@ -1462,7 +1460,7 @@ function EditorSession({
           }
         />
       )}
-    </ModalShell>
+    </DialogShell>
   );
 }
 

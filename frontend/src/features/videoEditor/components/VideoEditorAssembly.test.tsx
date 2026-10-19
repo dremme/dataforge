@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VideoProjectDocument, VideoProjectSourceInfo } from "@/shared/types";
-import { makeItem } from "@/test/galleryItemModal";
+import { makeItem } from "@/test/galleryItemDialog";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { makeClip, makeProject, makeSource } from "@/test/videoProject";
@@ -175,9 +175,9 @@ describe("VideoEditorWorkspace assembly", () => {
 
     await select("still\\.png");
     fireEvent.keyDown(document.body, { key: "V", ctrlKey: true, shiftKey: true });
-    const modal = await screen.findByRole("dialog", { name: "Paste attributes" });
-    await user.click(within(modal).getByRole("checkbox", { name: "Fades" }));
-    await user.click(within(modal).getByRole("button", { name: "Paste" }));
+    const dialog = await screen.findByRole("dialog", { name: "Paste attributes" });
+    await user.click(within(dialog).getByRole("checkbox", { name: "Fades" }));
+    await user.click(within(dialog).getByRole("button", { name: "Paste" }));
 
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Paste attributes" })).not.toBeInTheDocument(),

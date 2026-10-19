@@ -1,0 +1,15 @@
+@use "../abstracts/mixins" as *;
+
+html.confirm-dialog-open,
+html.gallery-item-dialog-open,
+html.duplicate-resolver-dialog-open,
+html.issue-resolver-dialog-open,
+html.jobs-dialog-open,
+html.quick-action-open,
+html.stats-dialog-open,
+html.folder-instructions-dialog-open,
+html.training-sample-dialog-open,
+html.settings-dialog-open,
+html.video-editor-open {
+  @include dialog-scroll-lock;
+}

@@ -14,7 +14,7 @@ interface InstructionFileSourceProps {
   kind: InstructionKind;
 }
 
-/** Names the instruction file a job will read, for a modal footer. */
+/** Names the instruction file a job will read, for a dialog footer. */
 export function InstructionFileSource({ state, kind }: InstructionFileSourceProps) {
   const { filename, icon } = FILES[kind];
 

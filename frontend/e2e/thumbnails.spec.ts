@@ -65,7 +65,9 @@ for (const mode of ["Large cards", "Small cards", "List"]) {
   });
 }
 
-test("a captured video frame loads after closing the modal without scrolling", async ({ page }) => {
+test("a captured video frame loads after closing the dialog without scrolling", async ({
+  page,
+}) => {
   test.setTimeout(60000);
   const folder = await fixtureFolder();
   const backend = fileURLToPath(new URL("../../backend/", import.meta.url));

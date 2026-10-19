@@ -311,7 +311,7 @@ type GallerySort = Literal[
 type ThemePreference = Literal["system", "light", "dark"]
 
 
-class JobsDrawerFilters(BaseModel):
+class JobsDialogFilters(BaseModel):
     #: Empty means every type.
     job_types: list[JobType] = Field(default_factory=list)
     status: JobHistoryStatus | Literal["all"] = "all"
@@ -373,7 +373,7 @@ class UiSettingsResponse(BaseModel):
     theme: ThemePreference = "system"
     #: On by default: accepting a ComfyUI candidate would otherwise lose the original's metadata.
     keep_candidate_metadata: bool = True
-    jobs_drawer_filters: JobsDrawerFilters = Field(default_factory=JobsDrawerFilters)
+    jobs_drawer_filters: JobsDialogFilters = Field(default_factory=JobsDialogFilters)
     gallery_cards: GalleryCardSettings = Field(default_factory=GalleryCardSettings)
     editor: EditorSettings = Field(default_factory=EditorSettings)
 
@@ -384,7 +384,7 @@ class UiSettingsUpdate(BaseModel):
     show_automation_specs: bool | None = None
     theme: ThemePreference | None = None
     keep_candidate_metadata: bool | None = None
-    jobs_drawer_filters: JobsDrawerFilters | None = None
+    jobs_drawer_filters: JobsDialogFilters | None = None
     gallery_cards: GalleryCardSettings | None = None
     editor: EditorSettings | None = None
 

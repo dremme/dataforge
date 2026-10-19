@@ -1,4 +1,4 @@
-$modal-backdrop-blur: 10px;
+$dialog-backdrop-blur: 10px;
 
 $radius: 14px;
 $radius-sm: 8px;
@@ -16,11 +16,11 @@ $focus-ring-space: 0.3125rem;
 $job-panel-gutter: 0.625rem;
 // A docked sticky header's own inset around its frosted surface.
 $sticky-dock-padding: 0.5rem;
-$modal-gutter: 1.5rem;
-$modal-media-max-height: min(36vh, 500px);
-$modal-stage-padding-block: 1.25rem;
+$dialog-gutter: 1.5rem;
+$dialog-media-max-height: min(36vh, 500px);
+$dialog-stage-padding-block: 1.25rem;
 // A media stage held at this height fits every aspect ratio, so paging never resizes its panel.
-$modal-media-stage-height: calc(#{$modal-media-max-height} + #{2 * $modal-stage-padding-block});
+$dialog-media-stage-height: calc(#{$dialog-media-max-height} + #{2 * $dialog-stage-padding-block});
 $progress-height: 0.375rem;
 
 $disabled-opacity: 0.5;
@@ -37,13 +37,13 @@ $icon-size-xl: 2.25rem; // 36px — one and a half
 $icon-stroke: 2px;
 $icon-stroke-sm: 1.5px;
 
-// Not visual-order: the drawer outranks base modals because its header trigger sits behind every 1000-level backdrop. Sticky section headers dock above gallery cards (z up to 2).
+// Not visual-order: the drawer outranks base dialogs because its header trigger sits behind every 1000-level backdrop. Sticky section headers dock above gallery cards (z up to 2).
 $z-index-sticky-section-header: 14;
 $z-index-drawer: 1050;
-$z-index-modal: 1000;
+$z-index-dialog: 1000;
 // Opens from inside the jobs drawer, so it has to clear it.
 $z-index-lightbox: 1075;
-// A whole workspace over the gallery; its own modals (confirm level) still open above it.
+// A whole workspace over the gallery; its own dialogs (confirm level) still open above it.
 $z-index-video-editor: 1080;
 // Background exports in the gallery: under every overlay, over the page.
 $z-index-export-tracker: 990;

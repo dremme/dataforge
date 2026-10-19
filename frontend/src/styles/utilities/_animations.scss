@@ -92,7 +92,7 @@
   }
 }
 
-@keyframes modal-backdrop-enter {
+@keyframes dialog-backdrop-enter {
   from {
     opacity: 0;
   }
@@ -102,7 +102,7 @@
   }
 }
 
-@keyframes modal-panel-enter {
+@keyframes dialog-panel-enter {
   from {
     opacity: 0;
     transform: translate3d(0, 0.5rem, 0) scale(0.985);
@@ -114,7 +114,7 @@
   }
 }
 
-@keyframes modal-backdrop-exit {
+@keyframes dialog-backdrop-exit {
   from {
     opacity: 1;
   }
@@ -124,7 +124,7 @@
   }
 }
 
-@keyframes modal-panel-exit {
+@keyframes dialog-panel-exit {
   from {
     opacity: 1;
     transform: none;

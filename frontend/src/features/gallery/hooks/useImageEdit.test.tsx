@@ -8,7 +8,7 @@ import {
 } from "@/features/gallery/api/imageEdit";
 import { useImageEdit, type UseImageEditOptions } from "./useImageEdit";
 import { AppProviders } from "@/test/AppProviders";
-import { makeItem } from "@/test/galleryItemModal";
+import { makeItem } from "@/test/galleryItemDialog";
 import { HOME_PATH } from "@/test/fixtures";
 import type { GalleryItem, ImageEditResponse, ImageEditSpec } from "@/shared/types";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
@@ -131,7 +131,7 @@ describe("useImageEdit", () => {
   });
 
   describe("mode", () => {
-    it("turns the mode on and off through the flag the modal owns", async () => {
+    it("turns the mode on and off through the flag the dialog owns", async () => {
       const { result, setEditMode, rerender, initial } = await renderReady({ editMode: false });
 
       act(() => result.current.toggleEditMode());

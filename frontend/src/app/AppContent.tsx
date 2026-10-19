@@ -42,7 +42,7 @@ export function AppContent() {
     selectionActions,
     automation,
     quickAction,
-    statsDrawer,
+    statsDialog,
     settings,
     shortcuts,
     duplicateResolver,
@@ -146,7 +146,7 @@ export function AppContent() {
             hasInstructions={Boolean(folder?.has_sysprompt || folder?.has_caption_rules)}
             onEditInstructions={gallery.openSysPrompt}
             onNavigate={navigateTo}
-            onCreateFolder={createFolder.openModal}
+            onCreateFolder={createFolder.openDialog}
             onOpenSettings={settings.openSettings}
             onOpenVideoEditor={() => folder && openEditor({ kind: "new", path: folder.path })}
             videoEditorDisabled={!folder || folderNotFound}
@@ -180,8 +180,8 @@ export function AppContent() {
                 mediaTypeFilterCounts: query.mediaTypeFilterCounts,
                 fileFilter: query.fileFilter,
                 fileFilterCounts: query.fileFilterCounts,
-                statsOpen: statsDrawer.statsOpen,
-                onToggleStats: statsDrawer.toggleStats,
+                statsOpen: statsDialog.statsOpen,
+                onToggleStats: statsDialog.toggleStats,
                 onSearchQueryChange: query.setSearchQuery,
                 onSearchRegexChange: query.setSearchRegex,
                 onSearchNamesChange: query.setSearchNames,
@@ -208,8 +208,8 @@ export function AppContent() {
                 subfolders={subfolders}
                 filteredSubfolders={filteredSubfolders}
                 onNavigate={navigateTo}
-                onRenameFolder={renameFolder.openModal}
-                onDeleteFolder={deleteFolder.openModal}
+                onRenameFolder={renameFolder.openDialog}
+                onDeleteFolder={deleteFolder.openDialog}
                 items={items}
                 filteredItems={query.filteredItems}
                 filterEmptyState={query.filterEmptyState}
@@ -257,7 +257,7 @@ export function AppContent() {
               gallery={{
                 selectedPath: gallery.selectedPath,
                 selectedIndex: gallery.selectedIndex,
-                modalItems: gallery.modalItems,
+                dialogItems: gallery.dialogItems,
                 searchQuery: query.searchQuery,
                 searchRegex: query.searchRegex,
                 hasCaptionBackup: folder?.has_caption_backup ?? false,
@@ -286,19 +286,19 @@ export function AppContent() {
                 onSaved: gallery.onInstructionsSaved,
               }}
               stats={{
-                open: statsDrawer.statsOpen,
+                open: statsDialog.statsOpen,
                 items,
-                onClose: statsDrawer.closeStats,
+                onClose: statsDialog.closeStats,
                 onSearchWord: (word) => {
                   query.setSearchNames(false);
                   query.setSearchQuery(word);
-                  statsDrawer.closeStats();
+                  statsDialog.closeStats();
                 },
               }}
               duplicateResolver={duplicateResolver.overlay}
               candidateReview={candidateReview.overlay}
               jobStart={automation.jobStartConfirm}
-              automation={automation.modals}
+              automation={automation.dialogs}
               fileImport={{
                 overwritePrompt: fileDrop.overwritePrompt,
                 busy: fileDrop.importing,

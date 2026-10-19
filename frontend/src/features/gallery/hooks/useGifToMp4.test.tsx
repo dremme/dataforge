@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { convertGifToMp4, fetchGifToMp4State } from "@/features/gallery/api/gifToMp4";
 import { useGifToMp4, type UseGifToMp4Options } from "./useGifToMp4";
 import { AppProviders } from "@/test/AppProviders";
-import { makeItem } from "@/test/galleryItemModal";
+import { makeItem } from "@/test/galleryItemDialog";
 import { HOME_PATH } from "@/test/fixtures";
 import type { GifToMp4Response } from "@/shared/types";
 
@@ -100,7 +100,7 @@ describe("useGifToMp4", () => {
     expect(convertMock).not.toHaveBeenCalled();
   });
 
-  it("drops a pending prompt when the modal moves to another item", async () => {
+  it("drops a pending prompt when the dialog moves to another item", async () => {
     fetchStateMock.mockResolvedValue({ path: GIF, target: MP4, target_exists: true });
     const { result, rerender, initial } = renderConversion();
 
@@ -115,7 +115,7 @@ describe("useGifToMp4", () => {
     expect(convertMock).not.toHaveBeenCalled();
   });
 
-  it("does not attach a late overwrite prompt to the item the modal moved to", async () => {
+  it("does not attach a late overwrite prompt to the item the dialog moved to", async () => {
     let release: (value: {
       path: string;
       target: string;
@@ -143,7 +143,7 @@ describe("useGifToMp4", () => {
     expect(convertMock).not.toHaveBeenCalled();
   });
 
-  it("converts the item it was clicked on, even after the modal advances", async () => {
+  it("converts the item it was clicked on, even after the dialog advances", async () => {
     let release = () => {};
     convertMock.mockImplementation(async () => {
       await new Promise<void>((resolve) => {

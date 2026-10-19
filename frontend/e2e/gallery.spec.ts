@@ -222,7 +222,7 @@ test("keeps a large filtered gallery virtualized while inspecting media", async 
   await expect(page.locator(".gallery-section__header")).not.toHaveClass(/--floating/);
   expect(await page.locator(".card").count()).toBeLessThan(2000);
   await page.locator(".card").first().click();
-  await expect(page.locator(".gallery-item-modal--inline")).toBeVisible();
+  await expect(page.locator(".gallery-item-dialog--inline")).toBeVisible();
   await page.locator(".main").evaluate((node) => {
     node.scrollTop = 15000;
   });

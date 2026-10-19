@@ -74,7 +74,7 @@ describe("VideoEditTimeline", () => {
   });
 
   it("takes focus on pointerdown, which the drag guard would otherwise suppress", () => {
-    // Focus is what exempts the handle from the modal's next/prev arrows. Without it a
+    // Focus is what exempts the handle from the dialog's next/prev arrows. Without it a
     // nudge moves to the next gallery item instead of the trim point.
     renderTimeline();
     Element.prototype.setPointerCapture = vi.fn<(pointerId: number) => void>();
@@ -224,7 +224,7 @@ describe("VideoEditTimeline", () => {
     expect(screen.getByRole("button", { name: "Play preview" })).toBeDisabled();
   });
 
-  it("locks itself rather than racing other modal work", () => {
+  it("locks itself rather than racing other dialog work", () => {
     const props = renderTimeline({ disabled: true });
 
     fireEvent.keyDown(startHandle(), { key: "ArrowRight" });

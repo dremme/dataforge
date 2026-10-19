@@ -142,7 +142,7 @@ export function AdjustTools({ controls, disabled }: AdjustToolsProps) {
     };
   }, [measureOverflow]);
 
-  // scrollIntoView would also scroll the modal; only the strip may move.
+  // scrollIntoView would also scroll the dialog; only the strip may move.
   useLayoutEffect(() => {
     const strip = stripRef.current;
     const tab = strip?.querySelector<HTMLElement>('[aria-selected="true"]');

@@ -2,10 +2,10 @@
 @use "../abstracts/mixins" as *;
 
 .backend-unavailable {
-  @include modal-shell($z-index-backend-unavailable);
-  background: var(--modal-backdrop);
-  backdrop-filter: blur($modal-backdrop-blur);
-  -webkit-backdrop-filter: blur($modal-backdrop-blur);
+  @include dialog-shell($z-index-backend-unavailable);
+  background: var(--dialog-backdrop);
+  backdrop-filter: blur($dialog-backdrop-blur);
+  -webkit-backdrop-filter: blur($dialog-backdrop-blur);
 
   .empty-state {
     width: min(32rem, 100%);

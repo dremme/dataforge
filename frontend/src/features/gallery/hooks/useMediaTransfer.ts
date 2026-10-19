@@ -180,7 +180,7 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
     transferPicker,
     overwritePrompt,
     transferring,
-    transferModalOpen: transferPicker !== null || overwritePrompt !== null,
+    transferDialogOpen: transferPicker !== null || overwritePrompt !== null,
     openTransferPicker,
     closeTransferPicker,
     closeOverwritePrompt,

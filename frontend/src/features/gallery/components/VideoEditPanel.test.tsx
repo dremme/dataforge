@@ -387,7 +387,7 @@ describe("VideoEditPanel", () => {
       expect(readout.textContent).not.toMatch(/%/);
     });
 
-    it("locks every control while other modal work is in flight", () => {
+    it("locks every control while other dialog work is in flight", () => {
       renderPanel(makeEdit({ dirty: true }), { busy: true });
 
       expect(tool("Speed")).toBeDisabled();

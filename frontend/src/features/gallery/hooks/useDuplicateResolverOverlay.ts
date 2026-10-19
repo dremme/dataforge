@@ -9,7 +9,7 @@ import type { DuplicateGroup } from "@/shared/types";
 export interface DuplicateResolverFocus {
   /** The file whose group alone is shown; listings never say which group that is. */
   path: string;
-  /** Runs in the same commit that opens the resolver, so the file's modal never overlaps it. */
+  /** Runs in the same commit that opens the resolver, so the file's dialog never overlaps it. */
   onOpen: () => void;
 }
 
@@ -21,7 +21,7 @@ export function useDuplicateResolverOverlay(
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
-  // A ref: the modal settles its last group and closes in one tick, before state would update.
+  // A ref: the dialog settles its last group and closes in one tick, before state would update.
   const returnPathRef = useRef<string | null>(null);
   // Assume the worst until the backend says otherwise: a stale true skips confirmation.
   const [deletesToTrash, setDeletesToTrash] = useState(false);

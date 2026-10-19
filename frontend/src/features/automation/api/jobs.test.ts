@@ -95,7 +95,7 @@ describe("automation API", () => {
     );
   });
 
-  it("maps the settings modals onto their wire fields", () => {
+  it("maps the settings dialogs onto their wire fields", () => {
     expect(
       trainLoraBody({
         loraName: "sample_train_v1",

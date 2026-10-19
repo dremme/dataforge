@@ -70,7 +70,7 @@ test("free crop readouts reflect the visible image and video rectangles", async 
   await page.mouse.up();
   await expect(readout).toHaveCSS("opacity", "0");
 
-  await page.locator(".gallery-item-modal__close").click();
+  await page.locator(".gallery-item-dialog__close").click();
   await page
     .getByRole("alertdialog", { name: "Discard changes?" })
     .getByRole("button", { name: "Discard", exact: true })

@@ -475,7 +475,7 @@ describe("Toolbar", () => {
 
   it("does not focus search while an overlay is open", async () => {
     const user = userEvent.setup();
-    const lock = acquireScrollLock("confirm-modal-open");
+    const lock = acquireScrollLock("confirm-dialog-open");
     try {
       renderToolbar();
 

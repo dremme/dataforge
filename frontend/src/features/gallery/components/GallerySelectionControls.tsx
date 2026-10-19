@@ -69,7 +69,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
   useGlobalShortcut(
     SHORTCUTS.clearSelection,
     (event) => {
-      if (event.target instanceof Element && event.target.closest(".gallery-item-modal"))
+      if (event.target instanceof Element && event.target.closest(".gallery-item-dialog"))
         return false;
       if (visibleSelectedCount > 0) clearSelectedPaths();
       else exitSelectionMode();

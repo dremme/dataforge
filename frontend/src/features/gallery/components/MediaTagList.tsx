@@ -12,7 +12,7 @@ function percent(confidence: number): number {
 }
 
 /**
- * One row, always rendered: the paging modal reserves its height, so it shows the strongest
+ * One row, always rendered: the paging dialog reserves its height, so it shows the strongest
  * tags that fit and counts the rest, and a file with none keeps the row. Hidden tags stay
  * readable to assistive tech, so the count is for sighted readers only.
  */

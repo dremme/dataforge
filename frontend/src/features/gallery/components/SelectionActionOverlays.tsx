@@ -1,11 +1,11 @@
 import type { MediaTransferMode } from "@/features/gallery/api/media";
 import type { MediaTransferPrompt } from "@/features/gallery/hooks/useMediaTransfer";
 import { pathBaseName } from "@/features/gallery/lib/mediaActionMessages";
-import { FileImportOverwriteModal } from "@/features/folder/components/FileImportOverwriteModal";
-import { TransferMediaModal } from "@/features/gallery/components/TransferMediaModal";
+import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
+import { TransferMediaDialog } from "@/features/gallery/components/TransferMediaDialog";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
-import { ConfirmModal } from "@/shared/ui/ConfirmModal";
-import type { ModalScopeInfo } from "@/shared/ui/ModalScope";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 export interface SelectionActionOverlaysProps {
   currentFolder: string | undefined;
@@ -40,7 +40,7 @@ export function SelectionActionOverlays({
   onConfirmDelete,
   onCancelDelete,
 }: SelectionActionOverlaysProps) {
-  const scope: ModalScopeInfo | undefined = currentFolder
+  const scope: DialogScopeInfo | undefined = currentFolder
     ? {
         itemCount: selectedCount,
         folderLabel: pathBaseName(currentFolder),
@@ -65,7 +65,7 @@ export function SelectionActionOverlays({
   return (
     <>
       {transferPicker && currentFolder && (
-        <TransferMediaModal
+        <TransferMediaDialog
           mode={transferPicker}
           currentFolder={currentFolder}
           scope={scope}
@@ -79,7 +79,7 @@ export function SelectionActionOverlays({
       )}
 
       {overwritePrompt && (
-        <FileImportOverwriteModal
+        <FileImportOverwriteDialog
           conflicts={overwritePrompt.conflicts}
           busy={transferring !== null}
           descriptionSuffix={
@@ -94,7 +94,7 @@ export function SelectionActionOverlays({
       )}
 
       {deleteConfirmOpen && (
-        <ConfirmModal
+        <ConfirmDialog
           title={selectedCount === 1 ? "Delete file?" : "Delete selected files?"}
           scope={scope}
           description={deleteDescription}

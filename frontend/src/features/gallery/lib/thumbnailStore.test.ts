@@ -36,7 +36,7 @@ describe("thumbnail demand", () => {
     expect(store.getSnapshot(frame.url)).toEqual({ status: "ready", src: frame.url });
   });
 
-  it("resumes the latest screenshots after a modal pause", () => {
+  it("resumes the latest screenshots after a dialog pause", () => {
     const owner = {};
     store.setPaused(true);
     store.setDemand(owner, [{ ...frame, url: "/old.jpg" }]);

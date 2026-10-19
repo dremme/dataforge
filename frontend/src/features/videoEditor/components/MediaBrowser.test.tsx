@@ -3,7 +3,7 @@ import { createEvent, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { HOME_PATH } from "@/test/fixtures";
-import { makeItem } from "@/test/galleryItemModal";
+import { makeItem } from "@/test/galleryItemDialog";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { MediaBrowser, type MediaView } from "./MediaBrowser";

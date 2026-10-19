@@ -28,23 +28,23 @@ export function SettingsPageTabs<P extends { id: string; label: string }>({
 
   return (
     <>
-      <div {...tabs.tabListProps} aria-label={label} className="settings-modal__pages">
+      <div {...tabs.tabListProps} aria-label={label} className="settings-dialog__pages">
         {pages.map((page) => (
           <button
             key={page.id}
             {...tabs.tabProps(page.id)}
             className={classNames(
-              "settings-modal__page-tab",
-              page.id === active && "settings-modal__page-tab--active",
+              "settings-dialog__page-tab",
+              page.id === active && "settings-dialog__page-tab--active",
             )}
           >
             {page.label}
-            {isEdited(page) && <span className="settings-modal__tab-dot" aria-label="Unsaved" />}
+            {isEdited(page) && <span className="settings-dialog__tab-dot" aria-label="Unsaved" />}
           </button>
         ))}
       </div>
       {pages.map((page) => (
-        <div key={page.id} {...tabs.panelProps(page.id)} className="settings-modal__body">
+        <div key={page.id} {...tabs.panelProps(page.id)} className="settings-dialog__body">
           {renderPage(page)}
         </div>
       ))}

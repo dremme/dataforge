@@ -14,13 +14,13 @@ describe("App: captions", () => {
     await user.click(await screen.findByRole("button", { name: /Vacation/ }));
     await user.click(await screen.findByRole("button", { name: "Create instructions" }));
 
-    const modal = await screen.findByRole("dialog", { name: "Folder instructions" });
-    const editor = await within(modal).findByRole("textbox", { name: "System prompt" });
+    const dialog = await screen.findByRole("dialog", { name: "Folder instructions" });
+    const editor = await within(dialog).findByRole("textbox", { name: "System prompt" });
     expect(editor).toHaveValue("");
-    expect(within(modal).getByText("..\\.sysprompt")).toHaveAttribute("title", HOME_PATH);
+    expect(within(dialog).getByText("..\\.sysprompt")).toHaveAttribute("title", HOME_PATH);
 
-    await user.click(within(modal).getByRole("button", { name: "Copy from parent" }));
-    await user.click(within(modal).getByRole("button", { name: "Save" }));
+    await user.click(within(dialog).getByRole("button", { name: "Copy from parent" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(await screen.findByRole("button", { name: "Edit instructions" })).toBeInTheDocument();
     const saved = fetchMock.mock.calls.find(
@@ -42,9 +42,11 @@ describe("App: captions", () => {
 
     await user.click(screen.getByRole("button", { name: "Edit instructions" }));
 
-    const modal = await screen.findByRole("dialog", { name: "Folder instructions" });
-    const editor = await within(modal).findByRole("textbox", { name: "System prompt" });
-    expect(within(modal).getByRole("heading", { name: "Folder instructions" })).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "Folder instructions" });
+    const editor = await within(dialog).findByRole("textbox", { name: "System prompt" });
+    expect(
+      within(dialog).getByRole("heading", { name: "Folder instructions" }),
+    ).toBeInTheDocument();
     expect(editor).toHaveValue(`${HOME_SYSPROMPT}\n`);
 
     await user.clear(editor);
@@ -55,7 +57,7 @@ describe("App: captions", () => {
     });
   });
 
-  it("keeps the gallery modal open after captioning on the missing-caption filter", async () => {
+  it("keeps the gallery dialog open after captioning on the missing-caption filter", async () => {
     const user = userEvent.setup();
     const { fetchMock } = installMockBackend();
     await renderApp();
@@ -69,8 +71,8 @@ describe("App: captions", () => {
 
     await user.click(screen.getByRole("button", { name: "View beach.jpg" }));
 
-    const modal = await screen.findByRole("complementary", { name: "Viewing beach.jpg" });
-    const caption = within(modal).getByRole("textbox", { name: "Caption for beach.jpg" });
+    const dialog = await screen.findByRole("complementary", { name: "Viewing beach.jpg" });
+    const caption = within(dialog).getByRole("textbox", { name: "Caption for beach.jpg" });
     await user.type(caption, "Sandy shoreline at dusk.");
 
     await waitFor(() => {

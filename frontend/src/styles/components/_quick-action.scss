@@ -2,13 +2,13 @@
 @use "../abstracts/mixins" as *;
 
 .quick-action {
-  @include modal-shell($z-index-confirm);
+  @include dialog-shell($z-index-confirm);
   align-items: flex-start;
   // Top-anchored so the list grows down from a fixed input and the field does not walk up as results change.
   padding-top: min(6vh, 5rem);
 
   &__backdrop {
-    @include modal-backdrop;
+    @include dialog-backdrop;
   }
 
   &__panel {
@@ -19,7 +19,7 @@
     // Sizes to content (list capped at MAX_RESULT_ROWS). 100% is the flex content box and only bites on a window too short for 8 rows.
     max-height: 100%;
     overflow: hidden;
-    @include modal-panel-surface;
+    @include dialog-panel-surface;
   }
 
   &__search {

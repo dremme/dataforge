@@ -1,5 +1,5 @@
 import { useCallback, useState, type RefObject } from "react";
-import { useGalleryItemModal } from "@/features/gallery/hooks/useGalleryItemModal";
+import { useGalleryItemDialog } from "@/features/gallery/hooks/useGalleryItemDialog";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import type { GalleryItem } from "@/shared/types";
 import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
@@ -35,7 +35,7 @@ export function useGalleryOverlays({
   const {
     selectedPath,
     selectedIndex,
-    modalItems,
+    dialogItems,
     openGalleryItem: openGalleryItemBase,
     closeGalleryItem,
     goToPrevious,
@@ -43,7 +43,7 @@ export function useGalleryOverlays({
     goToIndex,
     removeGalleryItem,
     renameGalleryItem,
-  } = useGalleryItemModal(images, filteredItems, folderResetToken);
+  } = useGalleryItemDialog(images, filteredItems, folderResetToken);
 
   if (useChanged(folderResetToken)) {
     setInstructionsOpen(false);
@@ -71,12 +71,12 @@ export function useGalleryOverlays({
 
   const closeInstructions = useCallback(() => setInstructionsOpen(false), []);
 
-  useScrollLock(instructionsOpen, "folder-instructions-modal-open", mainRef);
+  useScrollLock(instructionsOpen, "folder-instructions-dialog-open", mainRef);
 
   return {
     selectedPath,
     selectedIndex,
-    modalItems,
+    dialogItems,
     openGalleryItem,
     closeGalleryItem,
     goToPrevious,

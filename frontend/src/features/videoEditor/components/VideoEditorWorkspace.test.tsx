@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/api/http";
 import type { VideoProjectClip, VideoProjectDocument } from "@/shared/types";
-import { makeItem } from "@/test/galleryItemModal";
+import { makeItem } from "@/test/galleryItemDialog";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import * as api from "@/features/videoEditor/api/videoProjects";
@@ -232,10 +232,10 @@ describe("VideoEditorWorkspace", () => {
     await user.type(name, "Trip{Enter}");
     await user.click(screen.getByRole("button", { name: "Back to gallery" }));
 
-    const modal = await screen.findByRole("alertdialog", {
+    const dialog = await screen.findByRole("alertdialog", {
       name: "Your latest changes are not saved",
     });
-    expect(modal).toHaveTextContent("Disk full");
+    expect(dialog).toHaveTextContent("Disk full");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(onExit).not.toHaveBeenCalled();
@@ -503,7 +503,7 @@ describe("VideoEditorWorkspace", () => {
       "Bold",
     );
   });
-  it("exports from the modal and follows the export in the top bar", async () => {
+  it("exports from the dialog and follows the export in the top bar", async () => {
     const user = userEvent.setup();
     const running = {
       id: "job",
@@ -522,8 +522,8 @@ describe("VideoEditorWorkspace", () => {
     renderEditor();
 
     await user.click(await screen.findByRole("button", { name: "Export" }));
-    const modal = await screen.findByRole("dialog", { name: "Export video" });
-    await user.click(within(modal).getByRole("button", { name: "Export" }));
+    const dialog = await screen.findByRole("dialog", { name: "Export video" });
+    await user.click(within(dialog).getByRole("button", { name: "Export" }));
 
     expect(await screen.findByText("Exporting clip-edited.mp4 40%")).toBeInTheDocument();
     expect(api.startVideoProjectExport).toHaveBeenCalledWith(

@@ -9,7 +9,7 @@ export function useComfyWorkflowFlag(path: string | undefined): boolean {
   const { data } = useQuery({
     queryKey: ["comfy-workflow-flag", path],
     queryFn: async () => {
-      // The badge can wait; the image the modal opened for cannot.
+      // The badge can wait; the image the dialog opened for cannot.
       await new Promise<void>((resolve) => deferNonCriticalWork(resolve));
       return (await fetchComfyWorkflow(path!)).has_workflow;
     },

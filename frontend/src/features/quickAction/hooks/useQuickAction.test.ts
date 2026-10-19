@@ -68,9 +68,9 @@ describe("useQuickAction", () => {
     expect(result.current.open).toBe(false);
   });
 
-  it("does not open while a modal, modal or drawer is up, but still blocks printing", () => {
+  it("does not open while a dialog is up, but still blocks printing", () => {
     const { result } = renderHook(() => useQuickAction());
-    const handle = acquireScrollLock("confirm-modal-open");
+    const handle = acquireScrollLock("confirm-dialog-open");
 
     try {
       const event = pressQuickAction();
@@ -85,7 +85,7 @@ describe("useQuickAction", () => {
   it("opens once the overlay that blocked it is gone", () => {
     const { result } = renderHook(() => useQuickAction());
 
-    const handle = acquireScrollLock("confirm-modal-open");
+    const handle = acquireScrollLock("confirm-dialog-open");
     pressQuickAction();
     expect(result.current.open).toBe(false);
 

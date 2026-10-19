@@ -185,7 +185,7 @@ describe("App: quick action bar", () => {
     expect(screen.queryByRole("dialog", { name: "Quick actions" })).not.toBeInTheDocument();
   });
 
-  it("opens a job's modal, the same one the automation menu opens", async () => {
+  it("opens a job's dialog, the same one the automation menu opens", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();
@@ -201,7 +201,7 @@ describe("App: quick action bar", () => {
     expect(screen.queryByRole("dialog", { name: "Quick actions" })).not.toBeInTheDocument();
   });
 
-  it("routes a confirm-only job type to its confirmation instead of a modal", async () => {
+  it("routes a confirm-only job type to its confirmation instead of a dialog", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();
@@ -262,7 +262,7 @@ describe("App: quick action bar", () => {
     expect(within(recent).getAllByRole("option")[0]).toHaveTextContent("Find & replace");
   });
 
-  it("stays shut while a modal is open, and opens again once it is dismissed", async () => {
+  it("stays shut while a dialog is open, and opens again once it is dismissed", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();

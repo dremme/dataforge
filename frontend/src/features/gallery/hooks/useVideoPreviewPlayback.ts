@@ -133,7 +133,7 @@ export function useVideoPreviewPlayback(
       if (!video.paused && outOfBand()) loop.lap();
       const marker = playheadRef.current;
       if (marker) {
-        // Straight to the node: through state this would re-render the modal every frame.
+        // Straight to the node: through state this would re-render the dialog every frame.
         marker.style.left = trackPercent(loop.current.currentTime, optionsRef.current.duration);
       }
       frame = !loop.current.paused || loop.handingOff ? requestAnimationFrame(tick) : 0;

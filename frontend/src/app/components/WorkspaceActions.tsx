@@ -18,7 +18,7 @@ import {
   jobWarningMessage,
   progressPercent,
 } from "@/features/jobs/lib/jobs";
-import { CancelJobModal } from "@/features/jobs/components/CancelJobModal";
+import { CancelJobDialog } from "@/features/jobs/components/CancelJobDialog";
 import { JobStatusBadge } from "@/features/jobs/components/JobStatusBadge";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { failedCountFromStats } from "@/features/jobs/lib/jobFileResults";
@@ -99,7 +99,7 @@ function ToolsGroup({
   );
 }
 
-// No scope line: each job's confirmation modal states which files it targets. Auto-caption has
+// No scope line: each job's confirmation dialog states which files it targets. Auto-caption has
 // its own button, so the menu lists only the secondary jobs. Wide groups sit outside the wrapping
 // row so their text cannot widen the panel's max-content width.
 function ToolsMenuItems(props: ToolsMenuItemsProps) {
@@ -281,7 +281,7 @@ export function WorkspaceActions({ panel }: ToolsMenuProps) {
         </button>
       </Tooltip>
       {confirmingCancel && job && active && (
-        <CancelJobModal
+        <CancelJobDialog
           job={job}
           onConfirm={() => {
             setConfirmingCancel(false);

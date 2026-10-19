@@ -81,7 +81,7 @@ for (const overlays of [false, true]) {
       // Blur cuts from the Adjust canvas while it is live; credit that to the visible player.
       const record = (canvas: keyof typeof drawn, source: unknown) => {
         const videos = Array.from(
-          document.querySelectorAll<HTMLVideoElement>(".gallery-item-modal__video"),
+          document.querySelectorAll<HTMLVideoElement>(".gallery-item-dialog__video"),
         );
         const video =
           source instanceof HTMLVideoElement
@@ -148,7 +148,7 @@ for (const overlays of [false, true]) {
       const seeks: { slot: number; visible: boolean; time: number; now: number }[] = [];
       const audio: number[] = [];
       const videos = Array.from(
-        document.querySelectorAll<HTMLVideoElement>(".gallery-item-modal__video"),
+        document.querySelectorAll<HTMLVideoElement>(".gallery-item-dialog__video"),
       );
       const visible = (video: HTMLVideoElement) => {
         const style = getComputedStyle(video);

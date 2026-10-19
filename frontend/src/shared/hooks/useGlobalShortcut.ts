@@ -6,7 +6,7 @@ import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export interface GlobalShortcutOptions {
   enabled?: boolean;
-  /** Also fire while a modal, modal or drawer holds the scroll lock. */
+  /** Also fire while a dialog holds the scroll lock. */
   whenLocked?: boolean;
   /** Also fire while focus is in a text field or editor. */
   inEditable?: boolean;

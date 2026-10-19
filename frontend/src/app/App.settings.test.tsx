@@ -31,10 +31,10 @@ describe("App: settings", () => {
     const user = await renderHome();
 
     await user.click(screen.getByRole("button", { name: "Open settings" }));
-    const modal = await screen.findByRole("dialog", { name: "Settings" });
-    expect(within(modal).getByRole("radiogroup", { name: "Color scheme" })).toBeVisible();
+    const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    expect(within(dialog).getByRole("radiogroup", { name: "Color scheme" })).toBeVisible();
 
-    await user.click(within(modal).getByRole("button", { name: "Cancel" }));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog", { name: "Settings" })).not.toBeInTheDocument();
   });
 

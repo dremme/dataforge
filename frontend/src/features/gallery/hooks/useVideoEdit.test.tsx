@@ -8,7 +8,7 @@ import {
 } from "@/features/gallery/api/videoEdit";
 import { useVideoEdit, type UseVideoEditOptions } from "./useVideoEdit";
 import { AppProviders } from "@/test/AppProviders";
-import { makeItem } from "@/test/galleryItemModal";
+import { makeItem } from "@/test/galleryItemDialog";
 import { HOME_PATH } from "@/test/fixtures";
 import type { VideoEditStateResponse } from "@/shared/types";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";

@@ -30,12 +30,12 @@
   --danger-hover: rgba(252, 165, 165, 0.22);
   --surface-hover: rgba(255, 255, 255, 0.05);
   --overlay: rgba(0, 0, 0, 0.45);
-  --modal-backdrop: rgba(0, 0, 0, 0.62);
-  --modal-backdrop-blur: #{$modal-backdrop-blur};
+  --dialog-backdrop: rgba(0, 0, 0, 0.62);
+  --dialog-backdrop-blur: #{$dialog-backdrop-blur};
   --bg-soft: rgba(23, 26, 33, 0.25);
   --body-glow: rgba(124, 156, 255, 0.18);
   --card-hover-border: rgba(255, 255, 255, 0.14);
-  --modal-stage-glow: rgba(124, 156, 255, 0.06);
+  --dialog-stage-glow: rgba(124, 156, 255, 0.06);
   --shimmer-mid: rgba(255, 255, 255, 0.07);
   --initial-loading-glow: rgba(124, 156, 255, 0.14);
   --caption-input-bg: rgba(0, 0, 0, 0.2);
@@ -136,7 +136,7 @@
   --control-height-sm: #{$control-height-sm};
   --control-height-xs: #{$control-height-xs};
   --panel-padding: #{$panel-padding};
-  --modal-gutter: #{$modal-gutter};
+  --dialog-gutter: #{$dialog-gutter};
   --progress-height: #{$progress-height};
 
   --disabled-opacity: #{$disabled-opacity};

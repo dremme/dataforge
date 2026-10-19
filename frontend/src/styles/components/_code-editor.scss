@@ -7,7 +7,7 @@
   width: 100%;
 
   &__toolbar {
-    @include modal-editor-header;
+    @include dialog-editor-header;
     align-items: center;
     justify-content: flex-start;
     gap: 0.375rem;
@@ -190,7 +190,7 @@
     opacity: 0.9;
   }
 
-  // Rendered in the editor's own stacking context, so it must clear the modal it sits in.
+  // Rendered in the editor's own stacking context, so it must clear the dialog it sits in.
   .cm-tooltip.cm-tooltip-autocomplete {
     z-index: $z-index-anchored;
     background: var(--bg-elevated);
@@ -243,7 +243,7 @@
     }
 
     input.cm-textfield {
-      @include modal-form-input(0);
+      @include dialog-form-input(0);
       display: inline-block;
       width: auto;
       padding: 0 1em;

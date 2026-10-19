@@ -31,6 +31,8 @@ export function useDebouncedSave<T>({
   const pendingSaveRef = useRef<T | null>(null);
   const failedSaveRef = useRef<T | null>(null);
   const inFlightRef = useRef<Promise<boolean> | null>(null);
+  // Mirrors `inFlightRef` for rendering; a newer edit can show "pending" while a save still runs.
+  const [saving, setSaving] = useState(false);
 
   const saveRef = useLatestRef(save);
   const isUnchangedRef = useLatestRef(isUnchanged);
@@ -88,8 +90,11 @@ export function useDebouncedSave<T>({
         }
       })();
       inFlightRef.current = request;
+      setSaving(true);
       void request.then(() => {
-        if (inFlightRef.current === request) inFlightRef.current = null;
+        if (inFlightRef.current !== request) return;
+        inFlightRef.current = null;
+        setSaving(false);
       });
       return request;
     },
@@ -169,6 +174,7 @@ export function useDebouncedSave<T>({
   const invalidateInFlight = useCallback(() => {
     invalidate();
     inFlightRef.current = null;
+    setSaving(false);
     clearFeedbackTimer();
   }, [clearFeedbackTimer, invalidate]);
 
@@ -207,8 +213,6 @@ export function useDebouncedSave<T>({
     };
   }, [clearFeedbackTimer, flushPendingSave, invalidate]);
 
-  const isSaving = useCallback(() => inFlightRef.current !== null, []);
-
   return {
     saveState,
     saveError,
@@ -219,6 +223,6 @@ export function useDebouncedSave<T>({
     invalidateInFlight,
     hasUnsavedChanges,
     discardPendingSave,
-    isSaving,
+    saving,
   };
 }

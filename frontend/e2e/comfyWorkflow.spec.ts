@@ -87,12 +87,12 @@ for (const viewport of [
     await page.goto(`/?path=${encodeURIComponent(folder)}`);
     await page.getByRole("button", { name: "View scene_00001_.png", exact: true }).click();
     await page.getByRole("button", { name: /ComfyUI/ }).click();
-    const modal = page.getByRole("dialog", { name: "ComfyUI workflow" });
-    await expect(modal.getByRole("button", { name: "Close", exact: true })).toHaveCount(1);
-    const map = modal.getByRole("group", { name: "Workflow map" });
+    const dialog = page.getByRole("dialog", { name: "ComfyUI workflow" });
+    await expect(dialog.getByRole("button", { name: "Close", exact: true })).toHaveCount(1);
+    const map = dialog.getByRole("group", { name: "Workflow map" });
     await expect(map.getByRole("button", { name: "Pass 1: Base pass" })).toBeAttached();
     await expect(map.locator("svg text")).toHaveCount(0);
-    const boxes = await map.locator(".comfy-workflow-modal__map-node").evaluateAll((nodes) =>
+    const boxes = await map.locator(".comfy-workflow-dialog__map-node").evaluateAll((nodes) =>
       nodes.map((node) => {
         const rect = node.getBoundingClientRect();
         return { label: node.textContent!, x: rect.x, y: rect.y, width: rect.width };
@@ -119,7 +119,7 @@ for (const viewport of [
     await page.screenshot({ path: testInfo.outputPath("map-output.png"), animations: "disabled" });
     await map.getByRole("button", { name: "Pass 2: Refine pass" }).click();
     await expect(
-      modal.locator(".comfy-workflow-modal__pass-label").getByText("Refine pass"),
+      dialog.locator(".comfy-workflow-dialog__pass-label").getByText("Refine pass"),
     ).toBeVisible();
   });
 
@@ -176,28 +176,28 @@ for (const viewport of [
     await page.goto(`/?path=${encodeURIComponent(folder)}`);
     await page.getByRole("button", { name: `View ${name}`, exact: true }).click();
     await page.getByRole("button", { name: /ComfyUI/ }).click();
-    const modal = page.getByRole("dialog", { name: "ComfyUI workflow" });
-    await expect(modal.getByText(/2 outputs share a naming pattern/)).toBeVisible();
+    const dialog = page.getByRole("dialog", { name: "ComfyUI workflow" });
+    await expect(dialog.getByText(/2 outputs share a naming pattern/)).toBeVisible();
     // No filename match, so the first output is shown rather than an empty pane.
-    const prompts = modal.getByRole("group", { name: "Details", exact: true });
+    const prompts = dialog.getByRole("group", { name: "Details", exact: true });
     // The workflow map repeats prompt text in its boxes; these checks are about the prompt cards.
     const promptCard = (text: string) =>
       prompts
         .getByText(text, { exact: true })
-        .and(page.locator(":not(.comfy-workflow-modal__map *)"));
+        .and(page.locator(":not(.comfy-workflow-dialog__map *)"));
     await expect(promptCard("a quiet lake at sunrise")).toBeVisible();
-    await expect(modal.getByRole("button", { name: /Landscape render/ })).toHaveAttribute(
+    await expect(dialog.getByRole("button", { name: /Landscape render/ })).toHaveAttribute(
       "aria-current",
       "true",
     );
     // Layout height, not the bounding box: the opening animation scales the panel.
-    const panelHeight = () => modal.evaluate((element: HTMLElement) => element.offsetHeight);
+    const panelHeight = () => dialog.evaluate((element: HTMLElement) => element.offsetHeight);
     const firstHeight = await panelHeight();
     await expect(promptCard("a forest path in fog")).toHaveCount(0);
     await expect(prompts.getByText(`Node #${outputId} · SaveImage`)).toBeVisible();
     await expect(prompts.getByText(`Filename prefix: renders/${prefix}`)).toBeVisible();
     await expect(prompts.getByText("Selected for inspection — source unverified")).toBeVisible();
-    expect(await modal.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
       true,
     );
     await promptCard("a quiet lake at sunrise").scrollIntoViewIfNeeded();
@@ -206,7 +206,7 @@ for (const viewport of [
       animations: "disabled",
     });
 
-    await modal.getByRole("button", { name: /Forest render/ }).click();
+    await dialog.getByRole("button", { name: /Forest render/ }).click();
     await expect(promptCard("a forest path in fog")).toBeVisible();
     await expect(promptCard("a quiet lake at sunrise")).toHaveCount(0);
     // Picking an output must not resize the panel under the pointer.
@@ -266,8 +266,8 @@ test("linked GetNode settings are displayed for the likely output", async ({ pag
   const response = await responsePromise;
   const payload = (await response.json()) as ComfyWorkflowPromptsResponse;
   expect(payload.matched_node_id).toBe("8");
-  const modal = page.getByRole("dialog", { name: "ComfyUI workflow" });
-  await expect(modal.getByText("Likely output — matched by filename")).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "ComfyUI workflow" });
+  await expect(dialog.getByText("Likely output — matched by filename")).toBeVisible();
   for (const [label, value] of [
     ["Sampler", "euler"],
     ["Scheduler", "karras"],
@@ -275,7 +275,7 @@ test("linked GetNode settings are displayed for the likely output", async ({ pag
     ["Megapixels", "1.5"],
   ]) {
     await expect(
-      modal.getByText(label, { exact: true }).locator("..").getByText(value, { exact: true }),
+      dialog.getByText(label, { exact: true }).locator("..").getByText(value, { exact: true }),
     ).toBeVisible();
   }
   expect(payload.branches[0].prompts.map((prompt) => prompt.text)).toEqual([

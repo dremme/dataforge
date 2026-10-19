@@ -3,7 +3,7 @@ import { optionalThumbnailUrl } from "@/features/gallery/api/media";
 import { classNames } from "@/shared/lib/classNames";
 import type { OstrisTrainingSample } from "@/shared/types";
 import { Tooltip } from "@/shared/ui/Tooltip";
-import { TrainingSampleModal } from "./TrainingSampleModal";
+import { TrainingSampleDialog } from "./TrainingSampleDialog";
 
 const SAMPLE_THUMBNAIL_WIDTH = 240;
 
@@ -105,7 +105,7 @@ export function TrainingSamples({
       </div>
 
       {openIndex !== null && (
-        <TrainingSampleModal
+        <TrainingSampleDialog
           samples={availableSamples}
           index={openIndex}
           onIndexChange={setOpenIndex}

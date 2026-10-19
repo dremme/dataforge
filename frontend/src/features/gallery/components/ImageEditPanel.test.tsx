@@ -544,7 +544,7 @@ describe("ImageEditPanel", () => {
       expect(screen.queryByRole("button", { name: /Revert/ })).not.toBeInTheDocument();
     });
 
-    it("asks the modal to confirm a revert rather than doing it", async () => {
+    it("asks the dialog to confirm a revert rather than doing it", async () => {
       const user = userEvent.setup();
       const edit = makeEdit({ hasBackup: true });
       const props = renderPanel(edit);
@@ -562,7 +562,7 @@ describe("ImageEditPanel", () => {
       expect(screen.getByRole("button", { name: "Revert original" })).toBeDisabled();
     });
 
-    it("locks the panel while it is busy elsewhere in the modal", () => {
+    it("locks the panel while it is busy elsewhere in the dialog", () => {
       renderPanel(makeEdit({ dirty: true, hasBackup: true }), { busy: true });
 
       expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();

@@ -37,7 +37,7 @@ describe("App workspace", () => {
     installMockBackend();
     renderApp();
     const inspector = await openInspector(user);
-    const counter = inspector.querySelector(".gallery-item-modal__counter")!;
+    const counter = inspector.querySelector(".gallery-item-dialog__counter")!;
     const start = counter.textContent;
     expect(start).toMatch(/^\d+ \/ 3$/);
     // Focus stays on the clicked card, outside the inspector.
@@ -51,7 +51,7 @@ describe("App workspace", () => {
     const moved = screen.getByRole("complementary", { name: /^Viewing / });
     await user.click(within(moved).getByRole("button", { name: "Previous item" }));
     const back = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
-    expect(back.querySelector(".gallery-item-modal__counter")).toHaveTextContent(start!);
+    expect(back.querySelector(".gallery-item-dialog__counter")).toHaveTextContent(start!);
   });
 
   it("remembers the media presentation when reopening files and remounting the app", async () => {
@@ -109,7 +109,7 @@ describe("App workspace", () => {
       ).getByLabelText("Caption for sunset.png"),
     ).toHaveValue("A lake at sunset");
     expect(document.querySelector("main")).not.toHaveAttribute("inert");
-    expect(document.body).not.toHaveClass("gallery-item-modal-open");
+    expect(document.body).not.toHaveClass("gallery-item-dialog-open");
   });
 
   it("waits for caption saving before inspecting another file", async () => {
@@ -192,8 +192,8 @@ describe("App workspace", () => {
       expect(screen.queryByRole("button", { name: "View beach.jpg" })).not.toBeInTheDocument(),
     );
     await user.click(screen.getByRole("button", { name: "Auto-caption" }));
-    const modal = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
-    expect(modal).toHaveTextContent("Matching 1 file in Photos");
+    const dialog = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
+    expect(dialog).toHaveTextContent("Matching 1 file in Photos");
     await user.keyboard("{Escape}");
     await user.clear(search);
     await user.type(search, "no matching media");

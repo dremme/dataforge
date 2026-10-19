@@ -1,0 +1,331 @@
+import { useCallback, useState } from "react";
+import { saveInstructionFile, type InstructionKind } from "@/shared/api/folderInstructions";
+import { formatApiError } from "@/shared/api/http";
+import { CAPTION_RULES_FILENAME, SYSPROMPT_FILENAME } from "@/shared/constants";
+import { jobTypeLabelFor } from "@/features/jobs/lib/jobMeta";
+import { useFolderInstructions } from "@/shared/hooks/useFolderInstructions";
+import { useTabList } from "@/shared/hooks/useTabList";
+import { DialogShell } from "@/shared/ui/DialogShell";
+import { iconCopy, iconFilePlus, iconLoader2, iconX } from "@/shared/icons";
+import type { InstructionFileResponse, JobType } from "@/shared/types";
+import { classNames } from "@/shared/lib/classNames";
+import { formatCount } from "@/shared/lib/format";
+import { DialogButton } from "@/shared/ui/Dialog";
+import { useDiscardChanges } from "@/shared/hooks/useDiscardChanges";
+import { Icon } from "@/shared/ui/Icon";
+import { MarkdownEditor } from "@/shared/ui/MarkdownEditor";
+import { TokenEstimate } from "@/shared/ui/TokenEstimate";
+import { YamlEditor } from "@/shared/ui/YamlEditor";
+
+interface InstructionDocument {
+  label: string;
+  filename: string;
+  placeholder: string;
+  /** The job that reads the file; the backend refuses edits while one is queued or running. */
+  readBy: JobType;
+}
+
+const DOCUMENTS: Record<InstructionKind, InstructionDocument> = {
+  sysprompt: {
+    label: "System prompt",
+    filename: SYSPROMPT_FILENAME,
+    placeholder: "Write a system prompt for this folder...",
+    readBy: "auto_caption",
+  },
+  caption_rules: {
+    label: "Caption rules",
+    filename: CAPTION_RULES_FILENAME,
+    placeholder: "No caption rules for this folder. Write YAML here, or start from the template.",
+    readBy: "check_caption_rules",
+  },
+};
+
+const KINDS = Object.keys(DOCUMENTS) as InstructionKind[];
+
+/** Rules first on save: they are the document the backend can refuse. */
+const SAVE_ORDER: readonly InstructionKind[] = ["caption_rules", "sysprompt"];
+
+const NO_DRAFTS: Record<InstructionKind, string | null> = { sysprompt: null, caption_rules: null };
+
+interface FolderInstructionsDialogProps {
+  folderPath: string;
+  initialTab?: InstructionKind;
+  onClose: () => void;
+  onSaved: (kind: InstructionKind, saved: InstructionFileResponse) => void;
+}
+
+function FileSource({ file, filename }: { file: InstructionFileResponse; filename: string }) {
+  const parent = file.parent_folder !== null && (
+    <strong title={file.parent_folder}>{file.parent_relative_path}</strong>
+  );
+
+  if (file.has_file && parent) {
+    return (
+      <>
+        This folder's {filename}, replacing {parent}
+      </>
+    );
+  }
+  if (file.has_file) return <>This folder's {filename}</>;
+  if (parent) return <>Uses {parent} until this folder has its own</>;
+  return <>No {filename} yet; saving creates one here</>;
+}
+
+function lineCount(text: string): number {
+  return text.length === 0 ? 0 : text.replace(/\n$/, "").split("\n").length;
+}
+
+export function FolderInstructionsDialog({
+  folderPath,
+  initialTab = "sysprompt",
+  onClose,
+  onSaved,
+}: FolderInstructionsDialogProps) {
+  const [tab, setTab] = useState<InstructionKind>(initialTab);
+  const { state, instructions, setFile } = useFolderInstructions(folderPath);
+  // Null until edited, so the text shown follows whatever was last loaded or saved.
+  const [drafts, setDrafts] = useState(NO_DRAFTS);
+  const [errors, setErrors] = useState<Record<InstructionKind, string | null>>(NO_DRAFTS);
+  const [saving, setSaving] = useState(false);
+  const tabs = useTabList(KINDS, tab, setTab);
+
+  const textOf = (kind: InstructionKind) => drafts[kind] ?? instructions?.[kind].text ?? "";
+  const editedKinds = KINDS.filter(
+    (kind) => instructions !== null && textOf(kind) !== instructions[kind].text,
+  );
+  const edited = editedKinds.length > 0;
+  const unsavedNames = editedKinds.map((kind) => DOCUMENTS[kind].label.toLowerCase()).join(" and ");
+  const discard = useDiscardChanges({
+    unsavedChanges: edited,
+    busy: saving,
+    onNavigationDiscard: onClose,
+    description: `Your changes to the ${unsavedNames} will be lost. This cannot be undone.`,
+  });
+
+  const setDraft = useCallback((kind: InstructionKind, value: string | null) => {
+    setDrafts((current) => ({ ...current, [kind]: value }));
+    setErrors((current) => ({ ...current, [kind]: null }));
+  }, []);
+
+  const handleSave = async () => {
+    if (saving || !edited) return;
+
+    setSaving(true);
+    try {
+      for (const kind of SAVE_ORDER.filter((entry) => editedKinds.includes(entry))) {
+        try {
+          const saved = await saveInstructionFile(kind, folderPath, textOf(kind));
+          setFile(kind, saved);
+          setDraft(kind, null);
+          onSaved(kind, saved);
+        } catch (error) {
+          setErrors((current) => ({ ...current, [kind]: formatApiError(error) }));
+          setTab(kind);
+          return;
+        }
+      }
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // The one exit path: close button, Escape and backdrop all land here.
+  const requestClose = () => {
+    void discard.request(onClose);
+  };
+
+  const text = textOf(tab);
+
+  const renderToolbarAside = (kind: InstructionKind) => {
+    if (!instructions) return null;
+
+    const file = instructions[kind];
+    if (file.locked_by_job_id !== null) {
+      return (
+        <div className="folder-instructions-dialog__source">
+          <span className="folder-instructions-dialog__source-text">
+            Locked while <strong>{jobTypeLabelFor(DOCUMENTS[kind].readBy)}</strong> runs
+          </span>
+        </div>
+      );
+    }
+
+    const fill =
+      file.parent_folder !== null
+        ? { label: "Copy from parent", icon: iconCopy, text: file.parent_text }
+        : kind === "caption_rules"
+          ? { label: "Use template", icon: iconFilePlus, text: instructions.caption_rules_template }
+          : null;
+
+    return (
+      <div className="folder-instructions-dialog__source">
+        <span className="folder-instructions-dialog__source-text">
+          <FileSource file={file} filename={DOCUMENTS[kind].filename} />
+        </span>
+        {fill && textOf(kind).trim() === "" && (
+          <button
+            type="button"
+            className="folder-instructions-dialog__source-action"
+            disabled={saving}
+            onClick={() => setDraft(kind, fill.text)}
+          >
+            <Icon icon={fill.icon} className="folder-instructions-dialog__source-action-icon" />
+            {fill.label}
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const renderEditor = (kind: InstructionKind) => {
+    const file = instructions?.[kind];
+    if (!file) return null;
+
+    const details = DOCUMENTS[kind];
+    const editorProps = {
+      id: `${kind}-editor`,
+      className: classNames("code-editor--muted", errors[kind] && "code-editor--error"),
+      value: textOf(kind),
+      placeholder:
+        file.parent_relative_path === null
+          ? details.placeholder
+          : `This folder uses ${file.parent_relative_path}. Write here to replace it for this folder only.`,
+      "aria-label": details.label,
+      "aria-invalid": errors[kind] !== null,
+      editable: !saving && file.locked_by_job_id === null,
+      onChange: (value: string) => setDraft(kind, value),
+    };
+
+    if (kind === "sysprompt") {
+      return <MarkdownEditor {...editorProps} toolbarAside={renderToolbarAside(kind)} />;
+    }
+    return (
+      <div className="code-editor-wrapper">
+        <div className="code-editor-wrapper__toolbar">{renderToolbarAside(kind)}</div>
+        <YamlEditor {...editorProps} />
+      </div>
+    );
+  };
+
+  return (
+    <DialogShell
+      block="folder-instructions-dialog"
+      label="Folder instructions"
+      onClose={requestClose}
+      busy={saving}
+      suspended={discard.confirming}
+      escape="editor"
+      // useGalleryOverlays holds the session lock; measuring depth here would drop the blur.
+      nested={false}
+    >
+      <header className="folder-instructions-dialog__header">
+        <div className="folder-instructions-dialog__header-text">
+          <div className="folder-instructions-dialog__header-copy">
+            <h2 className="folder-instructions-dialog__title">Folder instructions</h2>
+            <p className="folder-instructions-dialog__subtitle">
+              The <strong>system prompt</strong> tells the model how to caption, and markdown helps
+              it follow. <strong>Caption rules</strong> are checked without a model. Both are saved
+              to this folder only and cover subfolders without their own; saving one empty removes
+              its file.
+            </p>
+          </div>
+        </div>
+        <div className="folder-instructions-dialog__header-actions">
+          <button
+            type="button"
+            className="folder-instructions-dialog__close"
+            onClick={requestClose}
+            disabled={saving}
+            aria-label="Close"
+          >
+            <Icon icon={iconX} />
+          </button>
+        </div>
+      </header>
+
+      <div
+        {...tabs.tabListProps}
+        aria-label="Folder instructions"
+        className="folder-instructions-dialog__tabs"
+      >
+        {KINDS.map((kind) => (
+          <button
+            key={kind}
+            {...tabs.tabProps(kind)}
+            className={classNames(
+              "folder-instructions-dialog__tab",
+              kind === tab && "folder-instructions-dialog__tab--active",
+            )}
+          >
+            {DOCUMENTS[kind].label}
+            {editedKinds.includes(kind) && (
+              <span className="folder-instructions-dialog__tab-dot" aria-hidden="true" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {KINDS.map((kind) => (
+        <div key={kind} {...tabs.panelProps(kind)} className="folder-instructions-dialog__body">
+          {state.status === "loading" && (
+            <p className="folder-instructions-dialog__status" role="status">
+              <Icon icon={iconLoader2} spin className="folder-instructions-dialog__status-icon" />
+              Loading folder instructions...
+            </p>
+          )}
+
+          {state.status === "error" && (
+            <p
+              className="folder-instructions-dialog__status folder-instructions-dialog__status--error"
+              role="alert"
+            >
+              Could not load the folder instructions. {state.message}
+            </p>
+          )}
+
+          {renderEditor(kind)}
+        </div>
+      ))}
+
+      {errors[tab] && (
+        <p className="folder-instructions-dialog__error" role="alert">
+          {errors[tab]}
+        </p>
+      )}
+
+      <footer className="folder-instructions-dialog__footer">
+        <div
+          className="folder-instructions-dialog__meta"
+          aria-label={tab === "sysprompt" ? "Prompt statistics" : "Rule statistics"}
+        >
+          {tab === "sysprompt" ? (
+            <TokenEstimate text={text} className="folder-instructions-dialog__meta-value" />
+          ) : (
+            <div className="folder-instructions-dialog__meta-value">
+              {formatCount(lineCount(text))} lines
+            </div>
+          )}
+        </div>
+
+        <DialogButton
+          label="Reset"
+          variant="secondary"
+          disabled={saving || !editedKinds.includes(tab)}
+          onClick={() => setDraft(tab, null)}
+        />
+        <DialogButton
+          label={saving ? "Saving..." : "Save"}
+          variant="primary"
+          busy={saving}
+          disabled={!edited}
+          onClick={() => {
+            void handleSave();
+          }}
+        />
+      </footer>
+
+      {discard.prompt}
+    </DialogShell>
+  );
+}

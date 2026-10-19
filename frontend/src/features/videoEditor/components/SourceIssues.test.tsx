@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { makeItem } from "@/test/galleryItemModal";
+import { makeItem } from "@/test/galleryItemDialog";
 import { makeClip, makeProject, makeSource } from "@/test/videoProject";
 import { SourceIssues } from "./SourceIssues";
 import type { GalleryItem } from "@/shared/types";

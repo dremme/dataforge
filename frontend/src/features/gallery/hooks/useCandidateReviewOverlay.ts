@@ -19,7 +19,7 @@ const NOTHING_TO_REVIEW = "No candidates are waiting for review.";
 
 export interface CandidateReviewFocus {
   path: string;
-  /** Runs in the same commit that opens the review, so the file's modal never overlaps it. */
+  /** Runs in the same commit that opens the review, so the file's dialog never overlaps it. */
   onOpen: () => void;
 }
 

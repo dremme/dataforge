@@ -74,7 +74,7 @@ export function useGifToMp4(options: UseGifToMp4Options): GifToMp4Conversion {
           });
           await optionsRef.current.onConverted?.();
         } catch (error) {
-          // Unguarded by mountedRef: the store outlives this modal, so a finish after close reports.
+          // Unguarded by mountedRef: the store outlives this dialog, so a finish after close reports.
           notify({
             variant: "danger",
             message: `Could not convert ${pathBaseName(sourcePath)}: ${formatApiError(error)}`,

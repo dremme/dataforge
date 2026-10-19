@@ -107,7 +107,7 @@ export function useGalleryItemCaption({
     invalidateInFlight,
     hasUnsavedChanges,
     discardPendingSave,
-    isSaving,
+    saving,
   } = useDebouncedSave<CaptionSavePayload>({
     errorMessage: "Failed to save caption",
     save: persistCaption,
@@ -229,7 +229,7 @@ export function useGalleryItemCaption({
     handleCaptionChange,
     revertCaption,
     retrySave,
-    isSaving,
+    saving,
     flushPendingSave,
     discardCaptionChanges: () => {
       discardPendingSave();

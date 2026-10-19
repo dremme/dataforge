@@ -1,0 +1,209 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+.candidate-review-dialog {
+  @include dialog-shell($z-index-dialog);
+
+  &__backdrop {
+    @include dialog-backdrop;
+  }
+
+  &__panel {
+    @include dialog-panel-surface;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(1600px, 100%);
+    height: 94vh;
+    max-height: 94vh;
+    overflow: hidden;
+  }
+
+  &__header {
+    @include dialog-chrome-header;
+  }
+
+  &__header-text {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-snug);
+    @include truncate;
+  }
+
+  &__counter {
+    @include count-pill-muted;
+    flex-shrink: 0;
+  }
+
+  &__close {
+    @include dialog-close-btn;
+  }
+
+  &__body {
+    @include app-scrollbar;
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--panel-padding);
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 50%, var(--dialog-stage-glow), transparent),
+      var(--bg-media);
+  }
+
+  // Two equal columns, never auto-fit: a wrapped before/after has stopped being a comparison. Capped and centred as one block so portrait frames are not pushed to the outer edges.
+  &__compare {
+    --stage-gap: 0.875rem;
+    --stage-max-h: min(70vh, calc(94vh - 13rem));
+    --pane-gap: 0.375rem;
+    --pane-label-h: 1rem;
+
+    display: grid;
+    align-content: center;
+    gap: var(--stage-gap);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: calc(var(--stage-max-h) * var(--stage-aspect, 1) * 2 + var(--stage-gap));
+    // No aspect ratio makes a pane taller than this, so paging never resizes the panel.
+    min-height: calc(var(--stage-max-h) + var(--pane-label-h) + var(--pane-gap));
+    margin-inline: auto;
+  }
+
+  &__pane {
+    display: flex;
+    flex-direction: column;
+    gap: var(--pane-gap);
+    min-width: 0;
+  }
+
+  &__pane-label {
+    line-height: var(--pane-label-h);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+    color: var(--text-muted);
+  }
+
+  // Same box on both panes so shared zoom (origin as percent) lands on the same region; a square would distort. Height cap is on the grid's max-width: a max-height here would clamp height while leaving column width alone.
+  &__stage {
+    width: 100%;
+    aspect-ratio: var(--stage-aspect, 1);
+    border-radius: var(--radius-sm);
+    background: var(--bg-media);
+    overflow: hidden;
+  }
+
+  // `zoomable-image` loads after this file, so these rules must out-specify it: its own rules size
+  // from the image's pixels, and a taller original would be cropped by `overflow: hidden`.
+  &__stage .zoomable-image__canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  &__stage .zoomable-image__img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  &__stage-video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  &__missing {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    font-size: var(--text-xs);
+    color: var(--text-subtle);
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem 1.5rem;
+    flex-shrink: 0;
+    padding: 0.75rem var(--panel-padding);
+    border-top: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  &__meta-item {
+    @include dialog-meta-item;
+  }
+
+  &__meta-value {
+    @include dialog-meta-value;
+  }
+
+  &__meta-label {
+    @include dialog-meta-label;
+  }
+
+  &__meta-divider {
+    @include dialog-meta-divider;
+  }
+
+  &__meta-times {
+    margin: 0 0.125rem;
+    color: var(--text-subtle);
+  }
+
+  &__meta-arrow {
+    @include icon-size-sm;
+    display: inline-block;
+    margin: 0 0.375rem;
+    color: var(--text-subtle);
+  }
+
+  &__meta-unit {
+    @include dialog-meta-unit;
+  }
+
+  &__warning {
+    @include inline-alert(warning);
+    margin: 0.875rem 0 0;
+
+    &-icon {
+      flex-shrink: 0;
+      @include icon-size(var(--icon-size-base));
+    }
+  }
+
+  &__error {
+    @include inline-alert(danger);
+    margin: 0.875rem 0 0;
+
+    &-icon {
+      flex-shrink: 0;
+      @include icon-size(var(--icon-size-base));
+    }
+  }
+
+  &__footer {
+    @include dialog-chrome-footer;
+    gap: 0.5625rem;
+    // Five actions; wrap so a narrow panel does not push Back off the edge.
+    flex-wrap: wrap;
+  }
+
+  // Sits with the actions, a little apart so it does not read as a fifth button.
+  &__keep-metadata {
+    margin-right: 0.5rem;
+  }
+}

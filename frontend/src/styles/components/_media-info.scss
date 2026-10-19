@@ -11,15 +11,15 @@
   border-bottom: 1px solid var(--border);
 
   &__item {
-    @include modal-meta-item;
+    @include dialog-meta-item;
   }
 
   &__value {
-    @include modal-meta-value;
+    @include dialog-meta-value;
   }
 
   &__unit {
-    @include modal-meta-unit;
+    @include dialog-meta-unit;
   }
 
   &__times {
@@ -28,11 +28,11 @@
   }
 
   &__label {
-    @include modal-meta-label;
+    @include dialog-meta-label;
   }
 
   &__divider {
-    @include modal-meta-divider;
+    @include dialog-meta-divider;
   }
 
   &__unavailable {
@@ -81,7 +81,7 @@
   }
 }
 
-// A fixed single row under the media details: paging modals reserve their height, so the row
+// A fixed single row under the media details: paging dialogs reserve their height, so the row
 // shows the tags that fit and an untagged file still keeps it.
 .media-tags {
   display: flex;
@@ -97,7 +97,7 @@
 
   &__label {
     flex: none;
-    @include modal-meta-label;
+    @include dialog-meta-label;
   }
 
   &__empty {

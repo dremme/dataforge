@@ -17,7 +17,7 @@ const EFFORTS: ReadonlyArray<RadioTileOption<ReasoningEffort>> = [
 
 interface ReasoningEffortSelectorProps {
   value: ReasoningEffort;
-  /** Radio group name; unique per modal so stacked modals stay independent. */
+  /** Radio group name; unique per dialog so stacked dialogs stay independent. */
   name: string;
   /** Accessible name for the group, e.g. "Caption reasoning effort". */
   groupLabel: string;
@@ -25,7 +25,7 @@ interface ReasoningEffortSelectorProps {
   onChange: (effort: ReasoningEffort) => void;
 }
 
-/** How hard the model reasons, for the vision-LLM job modals in reasoning mode. */
+/** How hard the model reasons, for the vision-LLM job dialogs in reasoning mode. */
 export function ReasoningEffortSelector({
   value,
   name,

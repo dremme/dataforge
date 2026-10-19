@@ -1,9 +1,9 @@
 import type { TrainingModel } from "@/shared/types";
-import type { ModalSelectOption } from "@/shared/ui/ModalSelect";
+import type { DialogSelectOption } from "@/shared/ui/DialogSelect";
 
 const TRAINING_MODEL_ENTRIES: Record<
   TrainingModel,
-  Omit<ModalSelectOption<TrainingModel>, "value">
+  Omit<DialogSelectOption<TrainingModel>, "value">
 > = {
   krea2_raw: { title: "Krea 2 Raw", group: "Image" },
   krea2_turbo: { title: "Krea 2 Turbo", group: "Image" },
@@ -14,7 +14,7 @@ const TRAINING_MODEL_ENTRIES: Record<
   h3_ref2va: { title: "MiniMax H3 Ref2VA", group: "Video" },
 };
 
-export const TRAINING_MODEL_OPTIONS: ReadonlyArray<ModalSelectOption<TrainingModel>> =
+export const TRAINING_MODEL_OPTIONS: ReadonlyArray<DialogSelectOption<TrainingModel>> =
   Object.entries(TRAINING_MODEL_ENTRIES).map(([value, entry]) => ({
     value: value as TrainingModel,
     ...entry,

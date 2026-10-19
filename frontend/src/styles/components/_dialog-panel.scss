@@ -1,0 +1,19 @@
+.dialog-panel {
+  // tabindex="-1" container, not a control: left alone it would draw the browser's default ring around the whole dialog.
+  &:focus {
+    outline: none;
+  }
+
+  &--enter {
+    animation: dialog-panel-enter 0.16s ease-out;
+  }
+
+  // `both` holds the end frame so the panel cannot flash back before unmount on `animationend`.
+  &--exit {
+    animation: dialog-panel-exit 0.14s ease-in both;
+  }
+}
+
+.dialog-backdrop--exit {
+  animation: dialog-backdrop-exit 0.14s ease-in both;
+}

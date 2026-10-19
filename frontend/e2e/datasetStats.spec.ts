@@ -47,7 +47,7 @@ test("statistics chart media creation dates above caption length", async ({ page
   await expect(chart.getByText("Media", { exact: true })).toHaveCount(0);
   await expect(chart.getByText("Creation date", { exact: true })).toHaveCount(0);
   await expect(chart.getByText("Jun 2026", { exact: true })).toBeVisible();
-  await expect(chart.locator(".stats-modal__timeline-y-axis span")).toHaveText(["0", "1"]);
+  await expect(chart.locator(".stats-dialog__timeline-y-axis span")).toHaveText(["0", "1"]);
   await expect(chart).not.toContainText("Sep");
   const timeline = (await drawer.getByRole("heading", { name: "Media created" }).boundingBox())!;
   const captions = (await drawer.getByRole("heading", { name: "Caption length" }).boundingBox())!;
@@ -86,20 +86,20 @@ test("statistics chart media creation dates above caption length", async ({ page
   for (const width of [1280, 720, 375]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(chart).toBeVisible();
-    const bar = (await chart.locator(".stats-modal__timeline-fill").first().boundingBox())!;
+    const bar = (await chart.locator(".stats-dialog__timeline-fill").first().boundingBox())!;
     expect(bar.height).toBeGreaterThan(bar.width);
     const label = (await chart.getByRole("term").first().boundingBox())!;
     expect(label.y).toBeGreaterThanOrEqual(bar.y + bar.height);
     const bounds = (await chart.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
-    const viewport = chart.locator(".stats-modal__timeline-viewport");
+    const viewport = chart.locator(".stats-dialog__timeline-viewport");
     expect(await viewport.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
       true,
     );
     await page.screenshot({ path: testInfo.outputPath(`creation-timeline-${width}.png`) });
   }
-  await chart.locator(".stats-modal__timeline-fill").first().hover();
+  await chart.locator(".stats-dialog__timeline-fill").first().hover();
   await expect(page.getByRole("tooltip")).toHaveText("Jun 1, 2026: 1 file");
 });
 
@@ -147,13 +147,13 @@ test("timeline bars grow on opening and replay when statistics reopen", async ({
 
   const drawer = page.getByRole("dialog", { name: "Dataset statistics" });
   const chart = drawer.getByRole("figure", { name: "Distribution by media creation date" });
-  const bar = chart.locator(".stats-modal__timeline-fill").first();
+  const bar = chart.locator(".stats-dialog__timeline-fill").first();
   await expect(bar).toBeVisible();
-  const finalHeight = (await chart.locator(".stats-modal__timeline-value").first().boundingBox())!
+  const finalHeight = (await chart.locator(".stats-dialog__timeline-value").first().boundingBox())!
     .height;
   const initialHeight = (await bar.boundingBox())!.height;
   expect(initialHeight).toBeLessThan(finalHeight / 2);
-  await expect(bar.locator(".stats-modal__timeline-count")).toHaveText("0");
+  await expect(bar.locator(".stats-dialog__timeline-count")).toHaveText("0");
 
   await page.clock.runFor(16 + COUNT_UP_MS / 2);
   const midwayHeight = (await bar.boundingBox())!.height;
@@ -163,14 +163,14 @@ test("timeline bars grow on opening and replay when statistics reopen", async ({
 
   await page.clock.runFor(COUNT_UP_MS);
   expect((await bar.boundingBox())!.height).toBeCloseTo(finalHeight, 0);
-  await expect(bar.locator(".stats-modal__timeline-count")).toHaveText("1");
+  await expect(bar.locator(".stats-dialog__timeline-count")).toHaveText("1");
   await drawer.getByRole("button", { name: "Close", exact: true }).click();
   await page.clock.runFor(250);
   await expect(drawer).toHaveCount(0);
   await trigger.click();
   await expect(bar).toBeVisible();
   expect((await bar.boundingBox())!.height).toBeLessThan(finalHeight / 2);
-  await expect(bar.locator(".stats-modal__timeline-count")).toHaveText("0");
+  await expect(bar.locator(".stats-dialog__timeline-count")).toHaveText("0");
   await page.clock.runFor(16 + COUNT_UP_MS);
   expect((await bar.boundingBox())!.height).toBeCloseTo(finalHeight, 0);
   await chart.screenshot({ path: testInfo.outputPath("creation-timeline-complete.png") });
@@ -186,7 +186,7 @@ test("period arrows browse months and years beside the caption", async ({ page }
   await grouping.getByText("Day", { exact: true }).click();
   const chart = page.getByRole("figure", { name: "Distribution by media creation date" });
   await expect(chart.getByText("Jan 2026", { exact: true })).toBeVisible();
-  const navigation = chart.locator(".stats-modal__timeline-navigation");
+  const navigation = chart.locator(".stats-dialog__timeline-navigation");
   const note = navigation.getByText("No media created in this period.");
   await expect(note).toBeVisible();
   const noteBounds = (await note.boundingBox())!;

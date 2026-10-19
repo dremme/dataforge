@@ -18,17 +18,17 @@ for (const action of ["Back", "Skip"]) {
     await page.goto(`/?path=${encodeURIComponent(folder)}`);
     await page.getByRole("button", { name: /^Review/ }).click();
     await page.getByRole("menuitem", { name: /^Caption issues/ }).click();
-    let modal = page.getByRole("dialog", { name: "Resolve caption issue for first.png" });
-    await modal.getByRole("button", { name: "Skip", exact: true }).click();
-    modal = page.getByRole("dialog", { name: "Resolve caption issue for second.png" });
-    const caption = modal.getByRole("textbox", { name: "Caption for second.png" });
+    let dialog = page.getByRole("dialog", { name: "Resolve caption issue for first.png" });
+    await dialog.getByRole("button", { name: "Skip", exact: true }).click();
+    dialog = page.getByRole("dialog", { name: "Resolve caption issue for second.png" });
+    const caption = dialog.getByRole("textbox", { name: "Caption for second.png" });
     await caption.fill("An unsaved caption draft.");
-    await modal.getByRole("button", { name: action, exact: true }).click();
+    await dialog.getByRole("button", { name: action, exact: true }).click();
     const confirmation = page.getByRole("alertdialog", { name: "Discard changes?" });
     await expect(confirmation).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(caption).toHaveText("An unsaved caption draft.");
-    await modal.getByRole("button", { name: action, exact: true }).click();
+    await dialog.getByRole("button", { name: action, exact: true }).click();
     await confirmation.getByRole("button", { name: "Discard", exact: true }).click();
     const next = action === "Back" ? "first" : "third";
     await expect(
@@ -54,11 +54,11 @@ async function openIssueResolver(page: Page, rules: string[] = []) {
   await page.goto(`/?path=${encodeURIComponent(folder)}`);
   await page.getByRole("button", { name: "View landscape.png", exact: true }).click();
   await page.getByRole("button", { name: "Resolve caption issue for landscape.png" }).click();
-  const modal = page.getByRole("dialog", { name: "Resolve caption issue for landscape.png" });
-  await modal.evaluate((element) =>
+  const dialog = page.getByRole("dialog", { name: "Resolve caption issue for landscape.png" });
+  await dialog.evaluate((element) =>
     Promise.all(element.getAnimations().map((animation) => animation.finished)),
   );
-  return modal;
+  return dialog;
 }
 
 for (const viewport of [
@@ -70,19 +70,19 @@ for (const viewport of [
     page,
   }, testInfo) => {
     await page.setViewportSize(viewport);
-    const modal = await openIssueResolver(page);
-    const meta = modal.getByRole("group", { name: "Media details" });
+    const dialog = await openIssueResolver(page);
+    const meta = dialog.getByRole("group", { name: "Media details" });
     await expect(meta).toContainText("Modified");
     await expect(meta).toContainText("Megapixels");
     await expect(meta).toContainText("Width × Height");
     await expect(meta).toContainText("Aspect ratio");
-    const stageBox = (await modal.locator(".issue-resolver-modal__stage").boundingBox())!;
+    const stageBox = (await dialog.locator(".issue-resolver-dialog__stage").boundingBox())!;
     const metaBox = (await meta.boundingBox())!;
     expect(Math.abs(metaBox.y - stageBox.y - stageBox.height)).toBeLessThan(1);
     expect(Math.abs(metaBox.x - stageBox.x)).toBeLessThan(1);
     expect(Math.abs(metaBox.width - stageBox.width)).toBeLessThan(1);
-    const details = modal.locator(".issue-resolver-modal__details");
-    const scroller = modal.locator(".cm-scroller");
+    const details = dialog.locator(".issue-resolver-dialog__details");
+    const scroller = dialog.locator(".cm-scroller");
     await expect(scroller).toBeVisible();
     await expect
       .poll(() => details.evaluate((element) => element.scrollHeight - element.clientHeight))
@@ -94,8 +94,8 @@ for (const viewport of [
     await page.mouse.wheel(0, 500);
     await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
     expect(await details.evaluate((element) => element.scrollTop)).toBe(0);
-    await expect(modal.getByText("Suggested changes")).toBeVisible();
-    await expect(modal.getByRole("button", { name: "Resolve", exact: true })).toBeVisible();
+    await expect(dialog.getByText("Suggested changes")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Resolve", exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("issue-editor.png") });
   });
 }
@@ -110,14 +110,17 @@ test("extra media height goes to the caption editor instead of stretching the is
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200"><rect width="1200" height="1200" fill="steelblue"/></svg>',
     }),
   );
-  const modal = await openIssueResolver(page);
-  await expect(modal.locator(".issue-resolver-modal__img")).toHaveJSProperty("naturalHeight", 1200);
-  const issues = modal.locator(".issue-resolver-modal__issue-card");
+  const dialog = await openIssueResolver(page);
+  await expect(dialog.locator(".issue-resolver-dialog__img")).toHaveJSProperty(
+    "naturalHeight",
+    1200,
+  );
+  const issues = dialog.locator(".issue-resolver-dialog__issue-card");
   await expect
     .poll(() =>
       issues.evaluate((element) => {
         const style = getComputedStyle(element);
-        const content = element.querySelector(".issue-resolver-modal__issue-row")!;
+        const content = element.querySelector(".issue-resolver-dialog__issue-row")!;
         return (
           element.clientHeight -
           content.getBoundingClientRect().height -
@@ -129,25 +132,25 @@ test("extra media height goes to the caption editor instead of stretching the is
     .toBeLessThanOrEqual(1);
   await expect
     .poll(() =>
-      modal
-        .locator(".issue-resolver-modal__caption-editor")
+      dialog
+        .locator(".issue-resolver-dialog__caption-editor")
         .evaluate((element) => element.clientHeight),
     )
     .toBeGreaterThan(280);
   await expect
-    .poll(() => modal.locator(".cm-scroller").evaluate((element) => element.clientHeight))
+    .poll(() => dialog.locator(".cm-scroller").evaluate((element) => element.clientHeight))
     .toBeGreaterThan(250);
   await page.screenshot({ path: testInfo.outputPath("caption-fills-space.png") });
 });
 
-test("the issue modal uses viewport space and contains overflowing findings", async ({
+test("the issue dialog uses viewport space and contains overflowing findings", async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
-  let modal = await openIssueResolver(page);
-  const initialHeight = await modal.evaluate((element: HTMLElement) => element.offsetHeight);
-  await modal.getByRole("button", { name: "Close", exact: true }).click();
-  modal = await openIssueResolver(
+  let dialog = await openIssueResolver(page);
+  const initialHeight = await dialog.evaluate((element: HTMLElement) => element.offsetHeight);
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  dialog = await openIssueResolver(
     page,
     Array.from(
       { length: 5 },
@@ -156,11 +159,11 @@ test("the issue modal uses viewport space and contains overflowing findings", as
     ),
   );
   await expect
-    .poll(() => modal.evaluate((element: HTMLElement) => element.offsetHeight))
+    .poll(() => dialog.evaluate((element: HTMLElement) => element.offsetHeight))
     .toBe(initialHeight);
-  const details = modal.locator(".issue-resolver-modal__details");
-  const issues = modal.locator(".issue-resolver-modal__issue-card");
-  const scroller = modal.locator(".cm-scroller");
+  const details = dialog.locator(".issue-resolver-dialog__details");
+  const issues = dialog.locator(".issue-resolver-dialog__issue-card");
+  const scroller = dialog.locator(".cm-scroller");
   await expect
     .poll(() => details.evaluate((element) => element.scrollHeight - element.clientHeight))
     .toBe(0);
@@ -172,7 +175,7 @@ test("the issue modal uses viewport space and contains overflowing findings", as
 
   await page.setViewportSize({ width: 1024, height: 600 });
   await expect
-    .poll(() => modal.evaluate((element: HTMLElement) => element.offsetHeight))
+    .poll(() => dialog.evaluate((element: HTMLElement) => element.offsetHeight))
     .toBeLessThanOrEqual(600 * 0.92 + 1);
   await expect
     .poll(() => details.evaluate((element) => element.scrollHeight - element.clientHeight))
@@ -185,7 +188,7 @@ test("the issue modal uses viewport space and contains overflowing findings", as
   await page.mouse.wheel(0, 500);
   await expect.poll(() => issues.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   expect(await details.evaluate((element) => element.scrollTop)).toBe(0);
-  await expect(modal.getByRole("button", { name: "Resolve", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Resolve", exact: true })).toBeVisible();
   await expect(scroller).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("limited-issues.png") });
 });

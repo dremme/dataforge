@@ -28,8 +28,8 @@
     color: var(--text);
     font-size: var(--text-sm);
     line-height: var(--leading-snug);
-    backdrop-filter: blur(var(--modal-backdrop-blur));
-    -webkit-backdrop-filter: blur(var(--modal-backdrop-blur));
+    backdrop-filter: blur(var(--dialog-backdrop-blur));
+    -webkit-backdrop-filter: blur(var(--dialog-backdrop-blur));
     box-shadow: var(--shadow);
     animation: notification-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
     will-change: opacity, transform;

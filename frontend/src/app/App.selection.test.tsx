@@ -226,7 +226,7 @@ describe("App: select-all shortcut", () => {
     expect(screen.getByRole("button", { name: "Select" })).toBeInTheDocument();
   });
 
-  it("does not select gallery items while an item modal is open", async () => {
+  it("does not select gallery items while an item dialog is open", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();
@@ -255,8 +255,8 @@ describe("App: selection actions keep the mode", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Delete selected files" }));
-    const confirmModal = await screen.findByRole("alertdialog", { name: "Delete file?" });
-    await user.click(within(confirmModal).getByRole("button", { name: "Delete" }));
+    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

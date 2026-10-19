@@ -65,25 +65,25 @@ for (const width of [1440, 768]) {
     await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
     await page.getByRole("button", { name: /^Review/ }).click();
     await page.getByRole("menuitem", { name: /^Pending candidates/ }).click();
-    const candidate = page.locator(".candidate-review-modal__panel");
+    const candidate = page.locator(".candidate-review-dialog__panel");
     await expect(candidate).toBeVisible();
     const candidateStage = (await candidate
-      .locator(".candidate-review-modal__stage")
+      .locator(".candidate-review-dialog__stage")
       .first()
       .boundingBox())!;
     expect(candidateStage.height).toBeGreaterThan(width >= 1000 ? 600 : 300);
-    const meta = (await candidate.locator(".candidate-review-modal__meta").boundingBox())!;
-    const footer = (await candidate.locator(".candidate-review-modal__footer").boundingBox())!;
+    const meta = (await candidate.locator(".candidate-review-dialog__meta").boundingBox())!;
+    const footer = (await candidate.locator(".candidate-review-dialog__footer").boundingBox())!;
     expect(Math.abs(meta.y + meta.height - footer.y)).toBeLessThan(1);
     await expect(candidate.getByRole("button", { name: "Accept", exact: true })).toBeVisible();
     await page.screenshot({ animations: "disabled", path: testInfo.outputPath("candidate.png") });
     await candidate.getByRole("button", { name: "Close", exact: true }).click();
     await page.getByRole("button", { name: /^Review/ }).click();
     await page.getByRole("menuitem", { name: /^Duplicate groups/ }).click();
-    const duplicates = page.locator(".duplicate-resolver-modal__panel");
+    const duplicates = page.locator(".duplicate-resolver-dialog__panel");
     await expect(duplicates).toBeVisible();
     const duplicateStage = (await duplicates
-      .locator(".duplicate-resolver-modal__card-stage")
+      .locator(".duplicate-resolver-dialog__card-stage")
       .first()
       .boundingBox())!;
     expect(duplicateStage.height).toBeGreaterThan(500);
@@ -123,21 +123,21 @@ test("a large duplicate group wraps into balanced rows that fill the panel", asy
   await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
   await page.getByRole("button", { name: /^Review/ }).click();
   await page.getByRole("menuitem", { name: /^Duplicate groups/ }).click();
-  const panel = page.locator(".duplicate-resolver-modal__panel");
+  const panel = page.locator(".duplicate-resolver-dialog__panel");
   await expect(panel).toBeVisible();
   // The entrance animation scales the panel; measure its resting layout.
   await panel.evaluate((element) => {
     for (const animation of element.getAnimations({ subtree: true })) animation.finish();
   });
-  const cards = await panel.locator(".duplicate-resolver-modal__card").all();
+  const cards = await panel.locator(".duplicate-resolver-dialog__card").all();
   const boxes = await Promise.all(cards.map(async (card) => (await card.boundingBox())!));
   const rows = new Set(boxes.map((box) => Math.round(box.y)));
   const columns = new Set(boxes.map((box) => Math.round(box.x)));
   expect([rows.size, columns.size]).toEqual([2, 3]);
   // Both rows fit the panel, so nothing scrolls and each file is large enough to compare.
-  const body = panel.locator(".duplicate-resolver-modal__body");
+  const body = panel.locator(".duplicate-resolver-dialog__body");
   expect(await body.evaluate((node) => node.scrollHeight <= node.clientHeight)).toBe(true);
-  const stages = await panel.locator(".duplicate-resolver-modal__card-stage").all();
+  const stages = await panel.locator(".duplicate-resolver-dialog__card-stage").all();
   const heights = await Promise.all(
     stages.map(async (stage) => (await stage.boundingBox())!.height),
   );

@@ -98,7 +98,7 @@ export function useGallerySession({
   const {
     selectedPath,
     selectedIndex,
-    modalItems,
+    dialogItems,
     openGalleryItem,
     closeGalleryItem,
     goToPrevious,
@@ -153,7 +153,7 @@ export function useGallerySession({
     [setFolder, syncBaseline],
   );
 
-  // Same commit so the item modal never overlaps the resolver.
+  // Same commit so the item dialog never overlaps the resolver.
   // Guard: a non-resolvable item opens the resolver empty with no close to return from.
   const onResolveGalleryItemIssue = useCallback(
     (item: GalleryItem) => {
@@ -287,7 +287,7 @@ export function useGallerySession({
     instructionsOpen,
     selectedPath,
     selectedIndex,
-    modalItems,
+    dialogItems,
     closeGalleryItem,
     focusView,
     setFocusView,

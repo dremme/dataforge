@@ -4,17 +4,17 @@ const SCROLL_LOCK_ALLOW_SELECTOR = "[data-scroll-lock-allow]";
 const CODE_MIRROR_SCROLLER_CLASS = "cm-scroller";
 
 const SCROLL_LOCK_CLASSES = [
-  "gallery-item-modal-open",
-  "issue-resolver-modal-open",
-  "duplicate-resolver-modal-open",
-  "candidate-review-modal-open",
-  "folder-instructions-modal-open",
-  "confirm-modal-open",
-  "jobs-modal-open",
-  "stats-modal-open",
-  "training-sample-modal-open",
+  "gallery-item-dialog-open",
+  "issue-resolver-dialog-open",
+  "duplicate-resolver-dialog-open",
+  "candidate-review-dialog-open",
+  "folder-instructions-dialog-open",
+  "confirm-dialog-open",
+  "jobs-dialog-open",
+  "stats-dialog-open",
+  "training-sample-dialog-open",
   "quick-action-open",
-  "settings-modal-open",
+  "settings-dialog-open",
   "video-editor-open",
 ] as const;
 

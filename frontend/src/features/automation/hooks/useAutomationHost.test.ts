@@ -65,7 +65,7 @@ afterEach(() => {
 });
 
 describe("useAutomationHost", () => {
-  it("opens the modal before backing up captions", async () => {
+  it("opens the dialog before backing up captions", async () => {
     const { result, startJob } = setupHost();
 
     await act(async () => {
@@ -73,15 +73,15 @@ describe("useAutomationHost", () => {
     });
 
     expect(result.current.jobStartConfirm.pending).toBeNull();
-    expect(result.current.modals.backupCaptions.open).toBe(true);
+    expect(result.current.dialogs.backupCaptions.open).toBe(true);
     expect(startJob).not.toHaveBeenCalled();
 
     await act(async () => {
-      result.current.modals.backupCaptions.onConfirm();
+      result.current.dialogs.backupCaptions.onConfirm();
     });
 
     expect(startJob).toHaveBeenCalledWith("backup_captions", "C:\\Photos", undefined, undefined);
-    expect(result.current.modals.backupCaptions.open).toBe(false);
+    expect(result.current.dialogs.backupCaptions.open).toBe(false);
   });
 
   it("waits for confirmation before restoring captions", async () => {
@@ -155,6 +155,6 @@ describe("useAutomationHost", () => {
       result.current.actions.onRequestStart("backup_captions");
     });
 
-    expect(result.current.modals.backupCaptions.open).toBe(true);
+    expect(result.current.dialogs.backupCaptions.open).toBe(true);
   });
 });

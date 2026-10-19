@@ -8,7 +8,7 @@ import {
 
 export function useScrollLock(
   active: boolean,
-  lockClass: ScrollLockClass = "gallery-item-modal-open",
+  lockClass: ScrollLockClass = "gallery-item-dialog-open",
   scrollElementRef?: RefObject<HTMLElement | null>,
 ): void {
   const handleRef = useRef<symbol | null>(null);

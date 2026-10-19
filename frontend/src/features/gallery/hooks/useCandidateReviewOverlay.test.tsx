@@ -33,7 +33,7 @@ describe("useCandidateReviewOverlay", () => {
     fetchFolderMock.mockReset();
   });
 
-  it("tells the caller each time the modal settles a candidate", () => {
+  it("tells the caller each time the dialog settles a candidate", () => {
     const onResolved = vi.fn<() => void>();
     const { result } = renderHook(() => useCandidateReviewOverlay(onResolved), { wrapper });
 

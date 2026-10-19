@@ -101,7 +101,7 @@ describe("FrameCaptureBar in time mode", () => {
     expect(screen.getByText("Frame times load with the video.")).toBeInTheDocument();
   });
 
-  it("locks the controls while other modal work runs", () => {
+  it("locks the controls while other dialog work runs", () => {
     renderTimeBar({ busy: true });
 
     expect(slider()).toBeDisabled();

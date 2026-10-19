@@ -26,7 +26,7 @@ describe("useScrollLock", () => {
     scrollHost.appendChild(allowed);
 
     renderHook(() =>
-      useScrollLock(true, "folder-instructions-modal-open", { current: scrollHost }),
+      useScrollLock(true, "folder-instructions-dialog-open", { current: scrollHost }),
     );
 
     const wheel = new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true });
@@ -51,7 +51,7 @@ describe("useScrollLock", () => {
     scroller.appendChild(document.createElement("p"));
     scrollHost.appendChild(scroller);
 
-    renderHook(() => useScrollLock(true, "gallery-item-modal-open", { current: scrollHost }));
+    renderHook(() => useScrollLock(true, "gallery-item-dialog-open", { current: scrollHost }));
 
     const wheel = new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true });
     const preventDefault = vi.spyOn(wheel, "preventDefault");
@@ -69,7 +69,7 @@ describe("useScrollLock", () => {
     document.body.appendChild(scrollHost);
 
     renderHook(() =>
-      useScrollLock(true, "folder-instructions-modal-open", { current: scrollHost }),
+      useScrollLock(true, "folder-instructions-dialog-open", { current: scrollHost }),
     );
 
     const wheel = new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true });
@@ -85,31 +85,31 @@ describe("useScrollLock", () => {
   it("shares one wheel listener across nested hooks", () => {
     const addSpy = vi.spyOn(document, "addEventListener");
 
-    const first = renderHook(() => useScrollLock(true, "gallery-item-modal-open"));
-    const second = renderHook(() => useScrollLock(true, "confirm-modal-open"));
+    const first = renderHook(() => useScrollLock(true, "gallery-item-dialog-open"));
+    const second = renderHook(() => useScrollLock(true, "confirm-dialog-open"));
 
     const wheelAdds = addSpy.mock.calls.filter(([eventName]) => eventName === "wheel");
     expect(wheelAdds).toHaveLength(1);
-    expect(document.documentElement.classList.contains("confirm-modal-open")).toBe(true);
+    expect(document.documentElement.classList.contains("confirm-dialog-open")).toBe(true);
 
     second.unmount();
-    expect(document.documentElement.classList.contains("gallery-item-modal-open")).toBe(true);
+    expect(document.documentElement.classList.contains("gallery-item-dialog-open")).toBe(true);
 
     first.unmount();
-    expect(document.documentElement.classList.contains("gallery-item-modal-open")).toBe(false);
+    expect(document.documentElement.classList.contains("gallery-item-dialog-open")).toBe(false);
   });
 
   it("updates the lock class without releasing the handle", () => {
     const { rerender } = renderHook(
-      ({ lockClass }: { lockClass: "gallery-item-modal-open" | "issue-resolver-modal-open" }) =>
+      ({ lockClass }: { lockClass: "gallery-item-dialog-open" | "issue-resolver-dialog-open" }) =>
         useScrollLock(true, lockClass),
-      { initialProps: { lockClass: "gallery-item-modal-open" } },
+      { initialProps: { lockClass: "gallery-item-dialog-open" } },
     );
 
-    expect(document.documentElement.classList.contains("gallery-item-modal-open")).toBe(true);
+    expect(document.documentElement.classList.contains("gallery-item-dialog-open")).toBe(true);
 
-    rerender({ lockClass: "issue-resolver-modal-open" });
-    expect(document.documentElement.classList.contains("gallery-item-modal-open")).toBe(false);
-    expect(document.documentElement.classList.contains("issue-resolver-modal-open")).toBe(true);
+    rerender({ lockClass: "issue-resolver-dialog-open" });
+    expect(document.documentElement.classList.contains("gallery-item-dialog-open")).toBe(false);
+    expect(document.documentElement.classList.contains("issue-resolver-dialog-open")).toBe(true);
   });
 });

@@ -10,7 +10,7 @@ const MODES: ReadonlyArray<RadioTileOption<AutomationMode>> = [
 
 interface AutomationModeSelectorProps {
   value: AutomationMode;
-  /** Radio group name; unique per modal so stacked modals stay independent. */
+  /** Radio group name; unique per dialog so stacked dialogs stay independent. */
   name: string;
   /** Accessible name for the group, e.g. "Caption mode". */
   groupLabel: string;
@@ -18,7 +18,7 @@ interface AutomationModeSelectorProps {
   onChange: (mode: AutomationMode) => void;
 }
 
-/** Reasoning / Instruct tiles shared by the vision-LLM job modals. */
+/** Reasoning / Instruct tiles shared by the vision-LLM job dialogs. */
 export function AutomationModeSelector({
   value,
   name,

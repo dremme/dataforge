@@ -8,7 +8,7 @@ from schemas import (
     EditorSettings,
     GalleryCardSettings,
     GallerySort,
-    JobsDrawerFilters,
+    JobsDialogFilters,
     ThemePreference,
     UiSettingsResponse,
 )
@@ -38,7 +38,7 @@ def update_ui_settings(
     show_automation_specs: bool | None = None,
     theme: ThemePreference | None = None,
     keep_candidate_metadata: bool | None = None,
-    jobs_drawer_filters: JobsDrawerFilters | None = None,
+    jobs_drawer_filters: JobsDialogFilters | None = None,
     gallery_cards: GalleryCardSettings | None = None,
     editor: EditorSettings | None = None,
 ) -> UiSettingsResponse:

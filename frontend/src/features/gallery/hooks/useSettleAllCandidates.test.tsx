@@ -161,7 +161,7 @@ describe("useSettleAllCandidates", () => {
     expect(acceptCandidatesMock).not.toHaveBeenCalled();
   });
 
-  it("accepts what the modal showed, not what changed while it was open", async () => {
+  it("accepts what the dialog showed, not what changed while it was open", async () => {
     acceptCandidatesMock.mockResolvedValue(batchResult({ settled: [LAKE] }));
     const { result, rerender } = renderSettleAll({ candidatePaths: [LAKE] });
 

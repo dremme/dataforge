@@ -67,7 +67,7 @@ test("edits a video into a saved project, reopens it from the gallery and delete
   await expect(versions).toBeVisible();
   await expect(versions.getByRole("button", { name: "Close", exact: true })).toHaveCount(1);
   await page.screenshot({
-    path: testInfo.outputPath("versions-modal.png"),
+    path: testInfo.outputPath("versions-dialog.png"),
     animations: "disabled",
   });
   await versions.getByRole("button", { name: "Close", exact: true }).click();

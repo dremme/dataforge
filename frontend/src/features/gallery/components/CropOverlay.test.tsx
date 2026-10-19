@@ -230,7 +230,7 @@ describe("CropOverlay", () => {
   });
 
   it("takes focus on pointerdown, which the drag guard would otherwise suppress", () => {
-    // Unfocused, the arrow keys fall through to the modal and navigate the gallery.
+    // Unfocused, the arrow keys fall through to the dialog and navigate the gallery.
     renderOverlay();
     const handle = screen.getByRole("button", { name: "Crop bottom-right corner" });
 
