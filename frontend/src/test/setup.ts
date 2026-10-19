@@ -56,14 +56,15 @@ vi.mock("@codemirror/search", () => ({
 }));
 
 function createVirtualizerMock(options: { count: number }) {
+  const items = Array.from({ length: options.count }, (_, index) => ({
+    key: index,
+    index,
+    start: index * 340,
+  }));
   return {
     getTotalSize: () => 340 * options.count,
-    getVirtualItems: () =>
-      Array.from({ length: options.count }, (_, index) => ({
-        key: index,
-        index,
-        start: index * 340,
-      })),
+    getVirtualItems: () => items,
+    measurementsCache: items,
     measureElement: () => {},
     measure: () => {},
     options: { scrollMargin: 0 },

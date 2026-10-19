@@ -7,6 +7,7 @@ import { useGalleryBackToTop } from "@/features/gallery/hooks/useGalleryBackToTo
 import { useGalleryColumns } from "@/features/gallery/hooks/useGalleryColumns";
 import { useGalleryListColumns } from "@/features/gallery/hooks/useGalleryListColumns";
 import { useGalleryScrollMargin } from "@/features/gallery/hooks/useGalleryScrollMargin";
+import { useInspectedCardAnchor } from "@/features/gallery/hooks/useInspectedCardAnchor";
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
 import { GalleryBackToTop } from "./GalleryBackToTop";
@@ -76,6 +77,17 @@ export function GalleryUniformGrid({
   useEffect(() => {
     measure();
   }, [captionLines, displayMode, measure]);
+
+  const indexByPath = useMemo(
+    () => new Map(items.map((item, index) => [item.path, index])),
+    [items],
+  );
+  // Row starts already include the scroll margin.
+  useInspectedCardAnchor(scrollElement, inspectedPath, String(columnCount), (path) => {
+    const index = indexByPath.get(path);
+    if (index === undefined) return null;
+    return virtualizer.measurementsCache[Math.floor(index / columnCount)]?.start ?? null;
+  });
 
   const rowAt = useCallback((index: number) => rows[index] ?? [], [rows]);
   useGalleryVisiblePrefetch(scrollElement, rowAt, rows.length, virtualizer);

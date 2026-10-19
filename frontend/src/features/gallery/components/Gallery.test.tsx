@@ -307,6 +307,110 @@ describe("Gallery", () => {
     }
   });
 
+  it("scrolls with the inspected card when a resize moves it", () => {
+    const observers = captureResizeObservers();
+    const inspected = LARGE_ITEMS[3];
+
+    try {
+      const { container } = render(
+        withGallerySelection(
+          <main className="main">
+            <Gallery
+              items={LARGE_ITEMS}
+              onSelect={vi.fn<(path: string) => void>()}
+              displayMode="large"
+            />
+          </main>,
+          { inspectedPath: inspected.path },
+        ),
+      );
+      const main = container.querySelector("main.main") as HTMLElement;
+      Object.defineProperty(main, "scrollTop", { value: 300, writable: true, configurable: true });
+      const cardTop = () => {
+        const title = screen.getByText(inspected.name, { selector: ".card__title" });
+        return Number.parseFloat((title.closest(".gallery-masonry-item") as HTMLElement).style.top);
+      };
+      const before = cardTop();
+
+      // The docked inspector narrows the gallery from three columns to two.
+      stubClientWidth(640);
+      act(() => observers.fire());
+
+      expect(cardTop()).not.toBe(before);
+      expect(main.scrollTop).toBe(300 + cardTop() - before);
+    } finally {
+      observers.restore();
+    }
+  });
+
+  it("scrolls back with the last inspected card when closing the inspector widens the gallery", () => {
+    const observers = captureResizeObservers();
+    const inspected = LARGE_ITEMS[3];
+    const gallery = (inspectedPath?: string) =>
+      withGallerySelection(
+        <main className="main">
+          <Gallery
+            items={LARGE_ITEMS}
+            onSelect={vi.fn<(path: string) => void>()}
+            displayMode="large"
+          />
+        </main>,
+        { inspectedPath },
+      );
+
+    try {
+      stubClientWidth(640);
+      const { container, rerender } = render(gallery(inspected.path));
+      const main = container.querySelector("main.main") as HTMLElement;
+      Object.defineProperty(main, "scrollTop", { value: 300, writable: true, configurable: true });
+      const cardTop = () => {
+        const title = screen.getByText(inspected.name, { selector: ".card__title" });
+        return Number.parseFloat((title.closest(".gallery-masonry-item") as HTMLElement).style.top);
+      };
+      const before = cardTop();
+
+      // Closing clears the inspected path a commit before the gallery regains its width.
+      rerender(gallery());
+      stubClientWidth(1000);
+      act(() => observers.fire());
+
+      expect(cardTop()).not.toBe(before);
+      expect(main.scrollTop).toBe(300 + cardTop() - before);
+    } finally {
+      observers.restore();
+    }
+  });
+
+  it("scrolls with the inspected small card when a resize moves it to a later row", () => {
+    const observers = captureResizeObservers();
+
+    try {
+      const { container } = render(
+        withGallerySelection(
+          <main className="main">
+            <Gallery
+              items={[imageItem, videoItem]}
+              onSelect={vi.fn<(path: string) => void>()}
+              displayMode="small"
+            />
+          </main>,
+          { inspectedPath: videoItem.path },
+        ),
+      );
+      const main = container.querySelector("main.main") as HTMLElement;
+      Object.defineProperty(main, "scrollTop", { value: 100, writable: true, configurable: true });
+
+      // One column puts the second card on the second row, 340px lower in the suite's mock.
+      stubClientWidth(180);
+      act(() => observers.fire());
+
+      expect(container.querySelectorAll(".gallery-row")).toHaveLength(2);
+      expect(main.scrollTop).toBe(440);
+    } finally {
+      observers.restore();
+    }
+  });
+
   it("changes the column count before the browser paints the resized gallery", () => {
     const observers = captureResizeObservers();
     const actEnvironment = Reflect.get(globalThis, "IS_REACT_ACT_ENVIRONMENT");

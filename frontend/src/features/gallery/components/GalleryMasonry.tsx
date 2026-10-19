@@ -2,6 +2,7 @@ import { useMemo, useRef, type CSSProperties } from "react";
 import { useGalleryBackToTop } from "@/features/gallery/hooks/useGalleryBackToTop";
 import { useGalleryColumns } from "@/features/gallery/hooks/useGalleryColumns";
 import { useGalleryScrollMargin } from "@/features/gallery/hooks/useGalleryScrollMargin";
+import { useInspectedCardAnchor } from "@/features/gallery/hooks/useInspectedCardAnchor";
 import { useScrollViewport } from "@/features/gallery/hooks/useScrollViewport";
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import { galleryLayoutFor } from "@/features/gallery/lib/layout";
@@ -68,6 +69,15 @@ export function GalleryMasonry({
         : UNMEASURED,
     [captionLines, columnCount, columnWidth, items, layout.gap, showTags],
   );
+
+  const indexByPath = useMemo(
+    () => new Map(items.map((item, index) => [item.path, index])),
+    [items],
+  );
+  useInspectedCardAnchor(scrollElement, inspectedPath, `${columnCount}:${width}`, (path) => {
+    const card = packed.cards[indexByPath.get(path) ?? -1];
+    return card ? scrollMargin + card.top : null;
+  });
 
   const overscanPx = layout.overscan * layout.rowEstimate;
   const viewHeight = viewport.height > 0 ? viewport.height : overscanPx;
