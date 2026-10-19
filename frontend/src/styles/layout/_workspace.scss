@@ -120,10 +120,27 @@
       animation: workspace-hammer-tap 0.65s ease-in-out;
     }
   }
+  // Headings stay put and each folder list scrolls on its own. Grid rows grow evenly up to their
+  // content, so a short list keeps its full height and a long one takes the rest.
   &__scroll {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, auto) minmax(0, auto);
+    align-content: start;
+    min-height: 0;
+    flex: 1;
+
+    section {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+  }
+  &__folders {
+    margin: 0 -0.75rem;
+    padding: 0 0.75rem;
     min-height: 0;
     overflow-y: auto;
-    flex: 1;
   }
   &__footer {
     display: flex;

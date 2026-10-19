@@ -259,44 +259,48 @@ export function WorkspaceSidebar({
                 <Icon icon={iconFolderHeart} />
                 <span>Favorites</span>
               </h2>
-              {favorites.map((entry, index) =>
-                folderRow(
-                  entry.path,
-                  folderButton(entry.path, entry.name, favoriteDragProps(index)),
-                  [
-                    rowAction(
-                      `Unfavorite ${entry.name}`,
-                      <Icon icon={iconHeart} />,
-                      () => setFavorite(entry.path, true),
-                      true,
-                    ),
-                  ],
-                ),
-              )}
-              {favorites.length === 0 && <p>No favorite folders yet.</p>}
+              <div className="workspace-sidebar__folders">
+                {favorites.map((entry, index) =>
+                  folderRow(
+                    entry.path,
+                    folderButton(entry.path, entry.name, favoriteDragProps(index)),
+                    [
+                      rowAction(
+                        `Unfavorite ${entry.name}`,
+                        <Icon icon={iconHeart} />,
+                        () => setFavorite(entry.path, true),
+                        true,
+                      ),
+                    ],
+                  ),
+                )}
+                {favorites.length === 0 && <p>No favorite folders yet.</p>}
+              </div>
             </section>
             <section aria-label="Recent folders">
               <h2>
                 <Icon icon={iconFolderClock} />
                 <span>Recent</span>
               </h2>
-              {recent.map((path) => {
-                const name = folderLeafName(path);
-                const actions = [
-                  rowAction(`Favorite ${name}`, <Icon icon={iconHeart} />, () =>
-                    setFavorite(path, false),
-                  ),
-                ];
-                // The open folder heads the list whether stored or not, so it cannot be removed.
-                if (!folderPathsEqual(path, currentFolder ?? ""))
-                  actions.push(
-                    rowAction(`Remove ${name} from recent folders`, <Icon icon={iconX} />, () => {
-                      forgetRecentFolder(path);
-                      setRecentRevision((revision) => revision + 1);
-                    }),
-                  );
-                return folderRow(path, folderButton(path, name), actions);
-              })}
+              <div className="workspace-sidebar__folders">
+                {recent.map((path) => {
+                  const name = folderLeafName(path);
+                  const actions = [
+                    rowAction(`Favorite ${name}`, <Icon icon={iconHeart} />, () =>
+                      setFavorite(path, false),
+                    ),
+                  ];
+                  // The open folder heads the list whether stored or not, so it cannot be removed.
+                  if (!folderPathsEqual(path, currentFolder ?? ""))
+                    actions.push(
+                      rowAction(`Remove ${name} from recent folders`, <Icon icon={iconX} />, () => {
+                        forgetRecentFolder(path);
+                        setRecentRevision((revision) => revision + 1);
+                      }),
+                    );
+                  return folderRow(path, folderButton(path, name), actions);
+                })}
+              </div>
             </section>
           </div>
         )}

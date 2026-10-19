@@ -188,12 +188,21 @@
   }
 }
 
+// Sticks to the bottom of the gallery's scroller rather than the viewport, so the button stays
+// over the gallery when the inspector docks beside it. Zero height keeps the layout unchanged.
+// Sticky insets start inside the scroller's padding, so bottom 0 already clears it by 2rem.
+.gallery-back-to-top-anchor {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  height: 0;
+}
+
 .gallery-back-to-top {
   @include icon-btn-round;
-  position: fixed;
-  right: 1.5rem;
-  bottom: 1.5rem;
-  z-index: 40;
+  position: absolute;
+  right: 1rem;
+  bottom: 0;
   box-shadow: var(--shadow);
   opacity: 0;
   visibility: hidden;
