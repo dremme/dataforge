@@ -29,7 +29,7 @@ test("auto-captions a still and a clip, and shows both captions back", async ({ 
   await dialog.getByRole("button", { name: "Start auto-caption" }).click();
 
   // Two real decodes and two model round trips; the poll that reports it is on its own clock.
-  await expectJobCompleted(page, "Auto-caption", 90_000);
+  await expectJobCompleted(page, "Auto-caption", WORKSPACE, 90_000);
 
   // Read back through the listing: proves the sidecar landed and the caption memo let go of it.
   // Retried: the listing is re-read once the job reports done, so it lands a moment later.

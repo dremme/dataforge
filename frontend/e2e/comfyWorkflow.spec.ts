@@ -4,7 +4,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { WORKSPACE } from "./workspace";
-import type { ComfyWorkflowPromptsResponse } from "../src/shared/types";
 
 const backend = fileURLToPath(new URL("../../backend/", import.meta.url));
 const python = path.join(
@@ -259,14 +258,9 @@ test("linked GetNode settings are displayed for the likely output", async ({ pag
 
   await page.goto(`/?path=${encodeURIComponent(folder)}`);
   await page.getByRole("button", { name: "View scene_00001_.png", exact: true }).click();
-  const responsePromise = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === "/api/comfy-workflow/prompts",
-  );
   await page.getByRole("button", { name: /ComfyUI/ }).click();
-  const response = await responsePromise;
-  const payload = (await response.json()) as ComfyWorkflowPromptsResponse;
-  expect(payload.matched_node_id).toBe("8");
   const dialog = page.getByRole("dialog", { name: "ComfyUI workflow" });
+  await expect(dialog.getByText("Node #8 · SaveImage")).toBeVisible();
   await expect(dialog.getByText("Likely output — matched by filename")).toBeVisible();
   for (const [label, value] of [
     ["Sampler", "euler"],
@@ -278,9 +272,13 @@ test("linked GetNode settings are displayed for the likely output", async ({ pag
       dialog.getByText(label, { exact: true }).locator("..").getByText(value, { exact: true }),
     ).toBeVisible();
   }
-  expect(payload.branches[0].prompts.map((prompt) => prompt.text)).toEqual([
-    "a quiet lake at sunrise",
-  ]);
+  // The workflow map repeats prompt text in its boxes; this check is about the prompt card.
+  await expect(
+    dialog
+      .getByRole("group", { name: "Details", exact: true })
+      .getByText("a quiet lake at sunrise", { exact: true })
+      .and(page.locator(":not(.comfy-workflow-dialog__map *)")),
+  ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("linked-settings.png"),
     animations: "disabled",

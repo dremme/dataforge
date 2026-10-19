@@ -98,10 +98,14 @@ async function openVideoProject(page: Page, extraHistory = 0) {
     .click();
 }
 
-async function openTrainingDialog(page: Page) {
+// Before the app loads: its first poll decides whether the training action is offered.
+async function mockAiToolkit(page: Page) {
   await page.route("**/api/external/ostris/jobs", (route) =>
     route.fulfill({ json: { jobs: [], active_count: 0, available: true, revision: 1 } }),
   );
+}
+
+async function openTrainingDialog(page: Page) {
   await page.getByRole("button", { name: "Tools", exact: true }).click();
   await page.getByRole("menuitem", { name: /^Quick LoRA training/ }).click();
   return page.getByRole("dialog", { name: "Start LoRA training?" });
@@ -399,6 +403,7 @@ test("keeping nested edits after autosave preserves the editor's Back and Forwar
 test("repeated Back followed by Keep editing preserves both nested training drafts", async ({
   page,
 }) => {
+  await mockAiToolkit(page);
   const { parent, previous } = await openParentFolder(page);
   await openFolderCard(page, previous);
   await page.getByRole("button", { name: path.basename(parent), exact: true }).click();
@@ -584,6 +589,7 @@ test("browser Back keeps instructions and the URL until discard is confirmed", a
 });
 
 test("browser Back protects drafts in both levels of the training form", async ({ page }) => {
+  await mockAiToolkit(page);
   await openParentFolder(page);
   const currentUrl = page.url();
   const parent = await openTrainingDialog(page);

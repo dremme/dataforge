@@ -44,7 +44,7 @@ test("resets only color adjustments through the auto-adjust dialog", async ({ pa
     replace_adjustments: false,
     reset_adjustments: true,
   });
-  await expectJobCompleted(page, "Auto-adjust", 30_000);
+  await expectJobCompleted(page, "Auto-adjust", WORKSPACE, 30_000);
 
   const state = (await (await page.request.get(editUrl)).json()) as ImageEditStateResponse;
   expect(state.spec?.crop).toEqual(crop);

@@ -54,10 +54,18 @@ export function systemText(request: ModelRequest): string {
 }
 
 /** A clean finish leaves no activity strip, so the outcome is read from the jobs drawer. */
-export async function expectJobCompleted(page: Page, jobLabel: string, timeout: number) {
+/** Scoped to the test's folder: an earlier test's job of the same type may still be listed. */
+export async function expectJobCompleted(
+  page: Page,
+  jobLabel: string,
+  folder: string,
+  timeout: number,
+) {
   await page.getByRole("button", { name: /^Open automation jobs/ }).click();
   const drawer = page.getByRole("dialog", { name: "Automation jobs" });
-  const card = drawer.getByRole("article", { name: new RegExp(`^${jobLabel} job for `) }).first();
+  const card = drawer
+    .getByRole("article", { name: `${jobLabel} job for ${path.basename(folder)}`, exact: true })
+    .first();
   await expect(card).toContainText("Completed", { timeout });
   await page.keyboard.press("Escape");
   await expect(drawer).toHaveCount(0);

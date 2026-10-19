@@ -62,7 +62,7 @@ test("previews caption edits without writes, then starts the normal backed-up jo
   await expect(samples.getByRole("listitem")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Start edit captions" }).click();
   await expect(dialog).not.toBeVisible();
-  await expectJobCompleted(page, "Edit captions", 30_000);
+  await expectJobCompleted(page, "Edit captions", folder, 30_000);
   for (const name of names) {
     expect(fs.readFileSync(path.join(folder, `${name}.txt`), "utf-8")).not.toBe(original);
     expect(fs.readFileSync(path.join(folder, ".backup", `${name}.txt`), "utf-8")).toBe(original);

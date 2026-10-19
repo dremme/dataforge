@@ -70,7 +70,7 @@ for (const job of ["Find & replace", "Edit captions"] as const) {
       );
       await start.click();
       await expect(dialog).not.toBeVisible();
-      await expectJobCompleted(page, job, 30_000);
+      await expectJobCompleted(page, job, folder, 30_000);
       expect(fs.readFileSync(path.join(folder, "photo.txt"), "utf-8")).not.toBe(original);
       if (backup) {
         expect(fs.readFileSync(path.join(folder, ".backup", "photo.txt"), "utf-8")).toBe(original);
@@ -106,7 +106,7 @@ test("Backup captions always overwrites existing copies without a checkbox", asy
   });
   await dialog.getByRole("button", { name: "Back up captions", exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  await expectJobCompleted(page, "Backup captions", 30_000);
+  await expectJobCompleted(page, "Backup captions", folder, 30_000);
   expect(fs.readFileSync(path.join(folder, ".backup", "photo.txt"), "utf-8")).toBe(current);
   expect(fs.readFileSync(path.join(folder, "photo.txt"), "utf-8")).toBe(current);
 });
@@ -157,6 +157,6 @@ test("compares captions with their backup before restoring them", async ({ page 
   });
   await dialog.getByRole("button", { name: "Restore 1 caption", exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  await expectJobCompleted(page, "Restore captions", 30_000);
+  await expectJobCompleted(page, "Restore captions", folder, 30_000);
   expect(fs.readFileSync(path.join(folder, "photo.txt"), "utf-8")).toBe(backedUp);
 });
