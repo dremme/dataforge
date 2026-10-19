@@ -33,10 +33,12 @@ test("edits a video into a saved project, reopens it from the gallery and delete
   // The editor opens on the video at 00:00; the fixture clip has no sound.
   const name = page.getByRole("textbox", { name: "Project name" });
   await expect(name).toBeVisible();
-  await expect(page.getByRole("button", { name: /^clip\.mp4, 00:00 to 00:02/ })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: /^clip\.mp4, 00:00:00:00 to 00:00:02:00/ }),
+  ).toHaveCount(1);
 
   await page.getByRole("button", { name: "Add title" }).click();
-  const title = page.getByRole("button", { name: /^Title, 00:00 to / });
+  const title = page.getByRole("button", { name: /^Title, 00:00:00:00 to / });
   await expect(title).toBeVisible();
 
   // Undo and redo from the keyboard, on QWERTY and on a layout that swaps Z and Y.
@@ -92,7 +94,7 @@ test("edits a video into a saved project, reopens it from the gallery and delete
     .getByRole("button", { name: "Open the video project E2E cut in the video editor" })
     .click();
   await expect(name).toHaveValue("E2E cut");
-  await expect(page.getByRole("button", { name: /^Title, 00:00 to / })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Title, 00:00:00:00 to / })).toBeVisible();
 
   // Deleting leaves the workspace as the other specs expect it.
   await page.getByRole("button", { name: "Project actions" }).click();
