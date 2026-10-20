@@ -12,7 +12,7 @@ import { setEditorClipboard } from "@/features/videoEditor/lib/clipboardStore";
 import { VideoEditorWorkspace } from "./VideoEditorWorkspace";
 import type {
   listVideoProjectExports,
-  listVideoProjects,
+  listAllVideoProjects,
   probeVideoProjectSource,
   saveVideoProject,
   startVideoProject,
@@ -24,7 +24,7 @@ vi.mock("@/features/videoEditor/api/videoProjects", async (importOriginal) => {
     ...actual,
     startVideoProject: vi.fn<typeof startVideoProject>(),
     saveVideoProject: vi.fn<typeof saveVideoProject>(),
-    listVideoProjects: vi.fn<typeof listVideoProjects>(),
+    listAllVideoProjects: vi.fn<typeof listAllVideoProjects>(),
     listVideoProjectExports: vi.fn<typeof listVideoProjectExports>(),
     probeVideoProjectSource: vi.fn<typeof probeVideoProjectSource>(),
   };
@@ -107,7 +107,7 @@ describe("VideoEditorWorkspace assembly", () => {
       revision: 1,
       updated_at: "",
     });
-    vi.mocked(api.listVideoProjects).mockResolvedValue({ projects: [] });
+    vi.mocked(api.listAllVideoProjects).mockResolvedValue({ projects: [] });
     vi.mocked(api.listVideoProjectExports).mockResolvedValue({ exports: [] });
     vi.mocked(api.probeVideoProjectSource).mockResolvedValue(take);
   });

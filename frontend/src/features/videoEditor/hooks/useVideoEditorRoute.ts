@@ -16,6 +16,12 @@ export interface VideoEditorRoute {
   /** The session's file moved, e.g. a new project's first save made a draft. */
   relocate: (request: VideoEditorRequest) => void;
   /**
+   * Moves the open session to a file in another folder, leaving history as if it had been
+   * opened from that folder's gallery. ``showFolder`` turns the editor's entry into the folder's;
+   * the session stays mounted while the address passes through it.
+   */
+  switchTo: (request: VideoEditorRequest, showFolder: () => Promise<unknown>) => Promise<void>;
+  /**
    * Leaves once the editor has saved or the user chose to drop changes, so it passes the
    * editor's blocker. ``then`` runs back in the gallery.
    */
@@ -33,8 +39,12 @@ export function useVideoEditorRoute(onClosed: () => void): VideoEditorRoute {
   const atAddress = editorRequestAt(location.pathname, location.search);
   const [session, setSession] = useState(atAddress);
   const [moved, setMoved] = useState<VideoEditorRequest | null>(null);
-  // ``moved`` only names an editor address; null there is the gallery, never a relocation.
-  const relocatedHere = moved !== null && sameRequest(atAddress, moved);
+  const [passingGallery, setPassingGallery] = useState(false);
+  // ``moved`` only names an editor address; null there is the gallery, never a relocation,
+  // except on the way through it to ``moved``.
+  const arrived = moved !== null && sameRequest(atAddress, moved);
+  const relocatedHere = arrived || (passingGallery && atAddress === null);
+  if (passingGallery && arrived) setPassingGallery(false);
   if (!sameRequest(atAddress, session) && !relocatedHere) {
     setSession(atAddress);
     setMoved(null);
@@ -79,6 +89,16 @@ export function useVideoEditorRoute(onClosed: () => void): VideoEditorRoute {
     [router],
   );
 
+  const switchTo = useCallback(
+    async (request: VideoEditorRequest, showFolder: () => Promise<unknown>) => {
+      setMoved(request);
+      setPassingGallery(true);
+      await showFolder();
+      open(request);
+    },
+    [open],
+  );
+
   const close = useCallback(
     (then?: () => void) => {
       const { pathname, search, state } = router.history.location;
@@ -104,5 +124,5 @@ export function useVideoEditorRoute(onClosed: () => void): VideoEditorRoute {
     [router],
   );
 
-  return { request: session, open, relocate, close };
+  return { request: session, open, relocate, switchTo, close };
 }

@@ -51,6 +51,7 @@ import {
   suggestVideoProjectAdjust,
   startVideoProjectExport,
 } from "@/features/videoEditor/api/videoProjects";
+import { folderPathsEqual } from "@/features/folder/lib/folderPath";
 import { withAuto, withoutAuto } from "@/features/gallery/lib/autoAdjust";
 import type { VideoEditorRequest } from "@/features/videoEditor/context/VideoEditorContext";
 import { EDITOR_ROUTE } from "@/features/videoEditor/lib/editorLocation";
@@ -143,6 +144,11 @@ interface VideoEditorWorkspaceProps {
   onOpenInGallery: (path: string) => void;
   /** Told the draft once saving makes or changes one, so the address reopens it. */
   onRelocate?: (request: VideoEditorRequest) => void;
+  /**
+   * Moves the app to a draft's other folder before the session loads it, so the media browser
+   * shows that folder's files and the address and history read as if opened from its gallery.
+   */
+  onOpenProject?: (path: string) => Promise<void>;
 }
 
 const MESSAGE_MS = 7000;
@@ -193,6 +199,7 @@ export function VideoEditorWorkspace({
   onExit,
   onOpenInGallery,
   onRelocate,
+  onOpenProject,
 }: VideoEditorWorkspaceProps) {
   const [document, setDocument] = useState<VideoProjectDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -265,6 +272,7 @@ export function VideoEditorWorkspace({
       onExit={onExit}
       onOpenInGallery={onOpenInGallery}
       onRelocate={onRelocate}
+      onOpenProject={onOpenProject}
     />
   );
 }
@@ -309,6 +317,7 @@ function EditorSession({
   onExit,
   onOpenInGallery,
   onRelocate,
+  onOpenProject,
 }: EditorSessionProps) {
   const state = useVideoProject(document);
   const { project } = state;
@@ -766,6 +775,9 @@ function EditorSession({
       }
       try {
         const opened = await openVideoProject(path);
+        if (onOpenProject && !folderPathsEqual(opened.folder, state.folder)) {
+          await onOpenProject(path);
+        }
         engine.pause();
         state.load(opened);
         setSelection(new Set());
@@ -777,7 +789,7 @@ function EditorSession({
         setMessage(formatApiError(caught));
       }
     },
-    [engine, setSelection, state],
+    [engine, onOpenProject, setSelection, state],
   );
 
   const resolveSource = useCallback(
@@ -1107,7 +1119,6 @@ function EditorSession({
               <MediaBrowser
                 tab={browserTab}
                 onTab={setBrowserTab}
-                folder={state.folder}
                 items={folderItems}
                 usedPaths={usedPaths}
                 view={layout.mediaView}

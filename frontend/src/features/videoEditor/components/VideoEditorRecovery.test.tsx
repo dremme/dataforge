@@ -10,7 +10,7 @@ import { VideoEditorWorkspace } from "./VideoEditorWorkspace";
 import type {
   listVideoProjectExports,
   listVideoProjectVersions,
-  listVideoProjects,
+  listAllVideoProjects,
   makeCompatibleCopy,
   openVideoProject,
   probeVideoProjectSource,
@@ -27,7 +27,7 @@ vi.mock("@/features/videoEditor/api/videoProjects", async (importOriginal) => {
     startVideoProject: vi.fn<typeof startVideoProject>(),
     openVideoProject: vi.fn<typeof openVideoProject>(),
     saveVideoProject: vi.fn<typeof saveVideoProject>(),
-    listVideoProjects: vi.fn<typeof listVideoProjects>(),
+    listAllVideoProjects: vi.fn<typeof listAllVideoProjects>(),
     listVideoProjectExports: vi.fn<typeof listVideoProjectExports>(),
     probeVideoProjectSource: vi.fn<typeof probeVideoProjectSource>(),
     makeCompatibleCopy: vi.fn<typeof makeCompatibleCopy>(),
@@ -76,7 +76,7 @@ describe("VideoEditorWorkspace recovery", () => {
     installMockBackend();
     vi.mocked(api.startVideoProject).mockResolvedValue(document());
     vi.mocked(api.saveVideoProject).mockResolvedValue({ path: DRAFT, revision: 1, updated_at: "" });
-    vi.mocked(api.listVideoProjects).mockResolvedValue({ projects: [] });
+    vi.mocked(api.listAllVideoProjects).mockResolvedValue({ projects: [] });
     vi.mocked(api.listVideoProjectExports).mockResolvedValue({ exports: [] });
   });
   afterEach(() => vi.restoreAllMocks());

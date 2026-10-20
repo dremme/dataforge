@@ -476,6 +476,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse({ projects: (folder && options.videoProjects?.[folder]) || [] });
     }
 
+    if (url.pathname === "/api/video-projects/all") {
+      const projects = Object.values(options.videoProjects ?? {}).flat();
+      projects.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+      return jsonResponse({ projects });
+    }
+
     if (url.pathname === "/api/video-projects/fonts") {
       return jsonResponse({
         families: [

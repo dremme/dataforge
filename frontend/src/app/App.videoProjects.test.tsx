@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/api/http";
 import type { VideoProjectDocument, VideoProjectSummary } from "@/shared/types";
 import * as videoProjectsApi from "@/features/videoEditor/api/videoProjects";
-import { HOME_PATH } from "@/test/fixtures";
+import { HOME_PATH, VACATION_PATH } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
@@ -99,6 +99,55 @@ describe("App video projects", () => {
     await user.click(screen.getByRole("button", { name: "Back to gallery" }));
     await waitFor(() => expect(requestsTo(listUrl).length).toBeGreaterThan(reads));
     expect(screen.queryByRole("textbox", { name: "Project name" })).not.toBeInTheDocument();
+  });
+
+  it("opens a draft from another folder there, as its gallery would", async () => {
+    const user = userEvent.setup();
+    const tripPath = `${VACATION_PATH}\\lake-edit.video-project.json`;
+    const trip = { ...summary, path: tripPath, name: "Mountain trip" };
+    installMockBackend({ videoProjects: { [HOME_PATH]: [summary], [VACATION_PATH]: [trip] } });
+    vi.spyOn(videoProjectsApi, "openVideoProject").mockImplementation(async (path) => {
+      const document = draft();
+      if (path !== tripPath) return document;
+      return {
+        ...document,
+        path: tripPath,
+        folder: VACATION_PATH,
+        project: { ...document.project, id: "q", name: "Mountain trip" },
+      };
+    });
+    renderApp();
+    const section = await screen.findByRole("region", { name: "Video projects" });
+    await user.click(
+      within(section).getByRole("button", {
+        name: "Open the video project Lake trip in the video editor",
+      }),
+    );
+    expect(await screen.findByRole("textbox", { name: "Project name" })).toHaveValue("Lake trip");
+
+    await user.click(screen.getByRole("tab", { name: "Projects" }));
+    let editorLeft = false;
+    const watch = new MutationObserver(() => {
+      if (!document.querySelector(".video-editor")) editorLeft = true;
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+    await user.click(await screen.findByRole("button", { name: "Open Mountain trip" }));
+
+    await waitFor(() => expect(projectName()).toHaveValue("Mountain trip"));
+    await waitFor(() => expect(at()).toEqual({ pathname: "/editor/project", path: tripPath }));
+    watch.disconnect();
+    // The session stays mounted: the gallery never shows, and the browser keeps its tab.
+    expect(editorLeft).toBe(false);
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("tab", { name: "Media" }));
+    expect(await screen.findByRole("button", { name: "Preview lake.png" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Back to gallery" }));
+    await waitFor(() => expect(projectName()).not.toBeInTheDocument());
+    expect(at()).toEqual({ pathname: "/", path: VACATION_PATH });
+    act(() => window.history.back());
+    await waitFor(() => expect(at()).toEqual({ pathname: "/", path: HOME_PATH }));
+    expect(await screen.findByRole("region", { name: "Video projects" })).toBeInTheDocument();
   });
 
   it("opens an empty project in the open folder from the sidebar", async () => {

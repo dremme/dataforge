@@ -34,6 +34,7 @@ export function AppContent() {
     filteredSubfolders,
     items,
     navigateTo,
+    showFolderUnderEditor,
     createFolder,
     renameFolder,
     deleteFolder,
@@ -88,6 +89,13 @@ export function AppContent() {
       isOpen: editorRequest !== null,
     }),
     [editorRequest, openEditor],
+  );
+  // History as the gallery's own way in, its folder under the editor, so Back lands there.
+  const { switchTo: switchEditor } = editor;
+  const openProjectElsewhere = useCallback(
+    (path: string) =>
+      switchEditor({ kind: "project", path }, () => showFolderUnderEditor(parentFolderPath(path))),
+    [showFolderUnderEditor, switchEditor],
   );
 
   // An export lands in the listing once the folder watcher reports it; open it then.
@@ -320,6 +328,7 @@ export function AppContent() {
               onExit={() => closeEditor()}
               onOpenInGallery={openExport}
               onRelocate={editor.relocate}
+              onOpenProject={openProjectElsewhere}
             />
           )}
           <VideoExportTracker hidden={editorRequest !== null} onOpen={openExport} />

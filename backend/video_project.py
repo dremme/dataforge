@@ -396,29 +396,30 @@ def thumbnail_path(folder: Path, project: VideoProject) -> str | None:
     return None
 
 
+def summarize_draft(path: Path) -> VideoProjectSummary | None:
+    """None for a draft that cannot be read."""
+    try:
+        project = read_project_file(path)
+    except (OSError, ValueError):
+        return None
+    initial = next((s for s in project.sources if s.id == project.initial_source_id), None)
+    return VideoProjectSummary(
+        path=str(path),
+        name=project.name,
+        updated_at=project.updated_at,
+        duration=project_duration(project),
+        clip_count=len(project.clips),
+        initial_source_name=initial.name if initial else None,
+        thumbnail_path=thumbnail_path(path.parent, project),
+    )
+
+
 def list_drafts(folder: Path) -> list[VideoProjectSummary]:
-    summaries: list[VideoProjectSummary] = []
     try:
         entries = [entry for entry in folder.iterdir() if is_draft_file(entry)]
     except OSError:
         return []
-    for entry in entries:
-        try:
-            project = read_project_file(entry)
-        except (OSError, ValueError):
-            continue
-        initial = next((s for s in project.sources if s.id == project.initial_source_id), None)
-        summaries.append(
-            VideoProjectSummary(
-                path=str(entry),
-                name=project.name,
-                updated_at=project.updated_at,
-                duration=project_duration(project),
-                clip_count=len(project.clips),
-                initial_source_name=initial.name if initial else None,
-                thumbnail_path=thumbnail_path(folder, project),
-            )
-        )
+    summaries = [summary for entry in entries if (summary := summarize_draft(entry))]
     summaries.sort(key=lambda summary: summary.updated_at, reverse=True)
     return summaries
 

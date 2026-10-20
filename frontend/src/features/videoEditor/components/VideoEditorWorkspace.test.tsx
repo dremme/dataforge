@@ -14,7 +14,7 @@ import type {
   cancelVideoProjectExport,
   deleteVideoProject,
   listVideoProjectExports,
-  listVideoProjects,
+  listAllVideoProjects,
   openVideoProject,
   probeVideoProjectSource,
   saveVideoProject,
@@ -30,7 +30,7 @@ vi.mock("@/features/videoEditor/api/videoProjects", async (importOriginal) => {
     startVideoProject: vi.fn<typeof startVideoProject>(),
     saveVideoProject: vi.fn<typeof saveVideoProject>(),
     listVideoProjectExports: vi.fn<typeof listVideoProjectExports>(),
-    listVideoProjects: vi.fn<typeof listVideoProjects>(),
+    listAllVideoProjects: vi.fn<typeof listAllVideoProjects>(),
     openVideoProject: vi.fn<typeof openVideoProject>(),
     deleteVideoProject: vi.fn<typeof deleteVideoProject>(),
     probeVideoProjectSource: vi.fn<typeof probeVideoProjectSource>(),
@@ -172,7 +172,7 @@ describe("VideoEditorWorkspace", () => {
       updated_at: "",
     });
     vi.mocked(api.listVideoProjectExports).mockResolvedValue({ exports: [] });
-    vi.mocked(api.listVideoProjects).mockResolvedValue({ projects: [] });
+    vi.mocked(api.listAllVideoProjects).mockResolvedValue({ projects: [] });
   });
 
   it("opens on the video at 00:00 with its sound linked on its own track", async () => {
@@ -663,7 +663,7 @@ describe("VideoEditorWorkspace", () => {
     const user = userEvent.setup();
     const other = { ...startingDocument(), path: "C:\\media\\other.video-project.json" };
     other.project = { ...other.project, name: "Other cut" };
-    vi.mocked(api.listVideoProjects).mockResolvedValue({
+    vi.mocked(api.listAllVideoProjects).mockResolvedValue({
       projects: [
         { path: other.path, name: "Other cut", updated_at: "", duration: 4, clip_count: 2 },
       ],
@@ -678,6 +678,47 @@ describe("VideoEditorWorkspace", () => {
     await waitFor(() =>
       expect(screen.getByRole("textbox", { name: "Project name" })).toHaveValue("Other cut"),
     );
+  });
+
+  it("moves the app to a draft's other folder, then opens it in place", async () => {
+    const user = userEvent.setup();
+    const elsewhere = "C:\\trips\\beach-edit.video-project.json";
+    vi.mocked(api.listAllVideoProjects).mockResolvedValue({
+      projects: [{ path: elsewhere, name: "Beach", updated_at: "", duration: 4, clip_count: 2 }],
+    });
+    const saved = saveMock.getMockImplementation();
+    saveMock.mockRejectedValue(new ApiError(500, "The disk is full"));
+    const beach = { ...startingDocument(), path: elsewhere, folder: "C:\\trips" };
+    beach.project = { ...beach.project, name: "Beach" };
+    vi.mocked(api.openVideoProject).mockResolvedValue(beach);
+    const onOpenProject = vi.fn<(path: string) => Promise<void>>(async () => {});
+    renderWithProviders(
+      <VideoEditorWorkspace
+        request={{ kind: "video", path: "C:\\media\\clip.mp4" }}
+        items={[]}
+        onExit={vi.fn<() => void>()}
+        onOpenInGallery={vi.fn<(path: string) => void>()}
+        onOpenProject={onOpenProject}
+      />,
+    );
+    const name = await screen.findByRole("textbox", { name: "Project name" });
+    await user.clear(name);
+    await user.type(name, "Changed{Enter}");
+    await user.click(screen.getByRole("tab", { name: "Projects" }));
+
+    await user.click(await screen.findByRole("button", { name: "Open Beach" }));
+    expect(
+      await screen.findByText("Save this project before opening another; it has unsaved changes."),
+    ).toBeInTheDocument();
+    expect(onOpenProject).not.toHaveBeenCalled();
+
+    saveMock.mockImplementation(saved!);
+    await user.click(screen.getByRole("button", { name: "Open Beach" }));
+    await waitFor(() => expect(name).toHaveValue("Beach"));
+    expect(onOpenProject).toHaveBeenCalledWith(elsewhere);
+    expect(api.openVideoProject).toHaveBeenCalledWith(elsewhere);
+    // Still the same session: the browser stays on its tab.
+    expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("relinks a missing source to another file of the folder", async () => {

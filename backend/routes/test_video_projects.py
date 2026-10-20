@@ -9,6 +9,8 @@ from urllib.parse import quote
 from ffmpeg_bin import ffmpeg_path
 from routes._test_client import client
 from testing_fixtures import TempMediaFolder, playable_video_bytes, write_image, write_wav
+from video_project import new_empty_project, save_project
+from video_project_index import known_draft_paths
 
 
 def write_video(root: Path, name: str = "clip.mp4") -> Path:
@@ -176,6 +178,44 @@ class AutoAdjustEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200, response.text)
             self.assertIn("saturation", response.json()["suggestion"])
+
+
+class AllProjectsEndpointTests(unittest.TestCase):
+    def all_paths(self, *roots: Path) -> list[str]:
+        listing = client.get("/api/video-projects/all")
+        self.assertEqual(listing.status_code, 200, listing.text)
+        return [
+            project["path"]
+            for project in listing.json()["projects"]
+            if Path(project["path"]).parent in roots
+        ]
+
+    def save_new(self, root: Path, name: str) -> str:
+        document = client.get(f"/api/video-projects/new?folder={quote(str(root))}").json()
+        project = {**document["project"], "name": name}
+        saved = client.put(
+            "/api/video-projects/project",
+            json={"folder": str(root), "path": None, "base_revision": None, "project": project},
+        )
+        self.assertEqual(saved.status_code, 200, saved.text)
+        return saved.json()["path"]
+
+    def test_drafts_from_every_folder_the_app_has_seen_are_listed_newest_first(self) -> None:
+        with TempMediaFolder() as first, TempMediaFolder() as second:
+            # Written behind the app's back: it is found once its folder is listed.
+            elsewhere, _ = save_project(second, None, None, new_empty_project())
+            saved = self.save_new(first, "Trip")
+            self.assertEqual(self.all_paths(first, second), [saved])
+
+            client.get(f"/api/video-projects?folder={quote(str(second))}")
+            self.assertEqual(self.all_paths(first, second), [saved, str(elsewhere)])
+
+            client.delete(f"/api/video-projects/project?path={quote(saved)}")
+            self.assertEqual(self.all_paths(first, second), [str(elsewhere)])
+
+            elsewhere.unlink()
+            self.assertEqual(self.all_paths(first, second), [])
+            self.assertNotIn(str(elsewhere), map(str, known_draft_paths()))
 
 
 class ExportEndpointTests(unittest.TestCase):

@@ -58,6 +58,11 @@ export function useAppWorkspace() {
     (path?: string) => requestTransition(() => navigateToBase(path)),
     [navigateToBase, requestTransition],
   );
+  /** Turns the open editor's entry into this folder's, for the editor to reopen over it. */
+  const showFolderUnderEditor = useCallback(
+    (path: string) => navigateToBase(path, "swap"),
+    [navigateToBase],
+  );
 
   const folderNotFound = error?.kind === "folder-not-found";
 
@@ -337,6 +342,7 @@ export function useAppWorkspace() {
     mainRef,
     transitionRef,
     folder,
+    showFolderUnderEditor,
     loading,
     refreshing,
     error,

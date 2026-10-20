@@ -31,11 +31,12 @@ export function entryKeyOf(location: HistoryLocation): string | undefined {
   return typeof key === "string" ? key : undefined;
 }
 
-export type HistoryMode = "push" | "replace" | "none";
+export type HistoryMode = "push" | "replace" | "swap" | "none";
 
 /**
  * Records ``path`` as the folder shown and returns the entry's key. A replace keeps the entry's
- * key and, over the editor, its address: the editor's file names the folder there.
+ * key and, over the editor, its address: the editor's file names the folder there. A swap turns
+ * the current entry, the editor's included, into a new folder entry with a key of its own.
  */
 export function syncFolderHistory(
   router: RegisteredRouter,
@@ -45,6 +46,18 @@ export function syncFolderHistory(
   if (mode === "none") return undefined;
   const location = router.history.location;
   const search = path ? { path } : {};
+
+  if (mode === "swap") {
+    const entryKey = mintEntryKey();
+    void router.navigate({
+      to: "/",
+      search,
+      replace: true,
+      ignoreBlocker: true,
+      state: { entryKey },
+    });
+    return entryKey;
+  }
 
   if (mode === "replace") {
     const entryKey = entryKeyOf(location) ?? mintEntryKey();

@@ -38,6 +38,11 @@ export function listVideoProjects(folder: string): Promise<VideoProjectListRespo
   return requestJson(`${BASE}?${new URLSearchParams({ folder })}`);
 }
 
+/** Every draft the app has seen, in any folder, newest first. */
+export function listAllVideoProjects(): Promise<VideoProjectListResponse> {
+  return requestJson(`${BASE}/all`);
+}
+
 export function saveVideoProject(
   folder: string,
   path: string | null,

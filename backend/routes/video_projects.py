@@ -57,10 +57,12 @@ from video_project import (
     source_kind_for,
     source_states,
     start_document,
+    summarize_draft,
 )
 from video_project_compat import make_compatible_copy
 from video_project_export import FFMPEG_MISSING_MESSAGE, export_manager
 from video_project_grades import delete_grade, list_grades, save_grade
+from video_project_index import forget_draft, known_draft_paths, remember_drafts
 from video_project_media import filmstrip, waveform
 from video_project_render import build_frame, render_title_image
 from video_project_versions import (
@@ -126,7 +128,22 @@ def new_video_project(
 def list_video_projects(
     folder: str = Query(..., description="Absolute path to the folder holding the drafts"),
 ) -> VideoProjectListResponse:
-    return VideoProjectListResponse(projects=list_drafts(resolve_folder(folder)))
+    projects = list_drafts(resolve_folder(folder))
+    remember_drafts(Path(project.path) for project in projects)
+    return VideoProjectListResponse(projects=projects)
+
+
+@router.get("/video-projects/all", response_model=VideoProjectListResponse)
+def list_all_video_projects() -> VideoProjectListResponse:
+    """Every draft the app has seen, in any folder, newest first."""
+    projects = []
+    for path in known_draft_paths():
+        if not path.is_file():
+            forget_draft(path)
+        elif is_draft_file(path) and (summary := summarize_draft(path)):
+            projects.append(summary)
+    projects.sort(key=lambda summary: summary.updated_at, reverse=True)
+    return VideoProjectListResponse(projects=projects)
 
 
 @router.get("/video-projects/project", response_model=VideoProjectDocument)
@@ -162,6 +179,11 @@ def save_video_project(body: VideoProjectSaveRequest) -> VideoProjectSaveRespons
     except Exception:
         # The draft is saved; a missing checkpoint only shortens the version history.
         logger.warning("Could not record a checkpoint of %s", saved_path.name, exc_info=True)
+    try:
+        remember_drafts([saved_path])
+    except Exception:
+        # The draft is saved; it is indexed again when its folder is next listed.
+        logger.warning("Could not index %s", saved_path.name, exc_info=True)
     return VideoProjectSaveResponse(
         path=str(saved_path), revision=saved.revision, updated_at=saved.updated_at
     )
@@ -182,6 +204,7 @@ def delete_video_project(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OSError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    forget_draft(project_path)
     if project_id is not None:
         delete_project_versions(project_id)
     return Response(status_code=204)

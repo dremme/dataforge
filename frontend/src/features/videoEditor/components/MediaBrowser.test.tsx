@@ -2,7 +2,7 @@ import { useState, type ComponentProps } from "react";
 import { createEvent, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { HOME_PATH } from "@/test/fixtures";
+import { HOME_PATH, VACATION_PATH } from "@/test/fixtures";
 import { makeItem } from "@/test/galleryItemDialog";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
@@ -25,7 +25,6 @@ function Harness(props: Partial<ComponentProps<typeof MediaBrowser>>) {
     <MediaBrowser
       tab={tab}
       onTab={setTab}
-      folder={HOME_PATH}
       items={ITEMS}
       usedPaths={new Set([ITEMS[0].path])}
       view={view}
@@ -103,37 +102,40 @@ describe("MediaBrowser", () => {
     expect(screen.getByText(/This folder has no MP4/)).toBeInTheDocument();
   });
 
-  it("lists the folder's drafts and opens one, the open draft staying put", async () => {
+  it("lists drafts from every folder, newest first, and opens one", async () => {
     const user = userEvent.setup();
-    const draft = (name: string) => ({
-      path: `${HOME_PATH}\\${name}.video-project.json`,
+    const draft = (folder: string, name: string, updated_at: string) => ({
+      path: `${folder}\\${name}.video-project.json`,
       name,
-      updated_at: "2026-10-01T10:00:00Z",
+      updated_at,
       duration: 12,
       clip_count: 3,
     });
-    installMockBackend({ videoProjects: { [HOME_PATH]: [draft("Trip"), draft("Party")] } });
+    const trip = draft(VACATION_PATH, "Trip", "2026-10-02T10:00:00Z");
+    const party = draft(HOME_PATH, "Party", "2026-10-01T10:00:00Z");
+    installMockBackend({ videoProjects: { [HOME_PATH]: [party], [VACATION_PATH]: [trip] } });
     const onOpenProject = vi.fn<(path: string) => void>();
-    renderWithProviders(
-      <Harness currentProjectPath={draft("Party").path} onOpenProject={onOpenProject} />,
-    );
+    renderWithProviders(<Harness currentProjectPath={party.path} onOpenProject={onOpenProject} />);
 
     await user.click(screen.getByRole("tab", { name: "Projects" }));
     await user.click(await screen.findByRole("button", { name: "Open Trip" }));
 
-    expect(onOpenProject).toHaveBeenCalledWith(draft("Trip").path);
-    const open = screen.getByRole("button", { name: "Open Party" });
-    expect(open).toBeDisabled();
-    expect(within(open).getByText("Open")).toBeInTheDocument();
+    expect(onOpenProject).toHaveBeenCalledWith(trip.path);
+    const rows = screen.getAllByRole("button", { name: /^Open / });
+    expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(["Open Trip", "Open Party"]);
+    expect(within(rows[0]).getByText("Vacation")).toHaveAttribute("title", VACATION_PATH);
+    expect(within(rows[1]).getByText("Photos")).toHaveAttribute("title", HOME_PATH);
+    expect(rows[1]).toBeDisabled();
+    expect(within(rows[1]).getByText("Open")).toBeInTheDocument();
   });
 
-  it("says so when the folder has no drafts yet", async () => {
+  it("says so when there are no drafts yet", async () => {
     const user = userEvent.setup();
     installMockBackend();
     renderWithProviders(<Harness />);
 
     await user.click(screen.getByRole("tab", { name: "Projects" }));
 
-    expect(await screen.findByText("No saved drafts in this folder yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No saved drafts yet.")).toBeInTheDocument();
   });
 });

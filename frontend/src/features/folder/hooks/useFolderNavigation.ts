@@ -168,7 +168,7 @@ export function useFolderNavigation(
     async (path?: string, historyMode: HistoryMode = "push") => {
       if (historyMode === "push" && path && foldersMatch(folder?.path, path)) return;
 
-      if (historyMode === "push") {
+      if (historyMode === "push" || historyMode === "swap") {
         saveOutgoingScroll();
       }
       setScrollIntent({ id: ++scrollIntentIdRef.current, mode: "reset", path, target: 0 });

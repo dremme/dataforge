@@ -18,7 +18,8 @@ import { Icon } from "@/shared/ui/Icon";
 import type { GalleryItem } from "@/shared/types";
 import { AudioWaveform } from "@/features/gallery/components/AudioWaveform";
 import { galleryItemThumbnailPreviewUrl } from "@/features/gallery/lib/thumbnail";
-import { useVideoProjectList } from "@/features/videoEditor/hooks/useVideoProjectList";
+import { folderLeafName, parentFolderPath } from "@/features/folder/lib/folderPath";
+import { useAllVideoProjects } from "@/features/videoEditor/hooks/useVideoProjectList";
 import { editorMediaKind, type EditorMediaKind } from "@/features/videoEditor/lib/mediaKinds";
 import { formatTimecode } from "@/features/videoEditor/lib/timeline";
 import { SOURCE_DRAG_TYPE } from "./Timeline";
@@ -44,7 +45,6 @@ const KIND_ICONS: Record<EditorMediaKind, typeof iconFilm> = {
 interface MediaBrowserProps {
   tab: "media" | "projects";
   onTab: (tab: "media" | "projects") => void;
-  folder: string;
   items: GalleryItem[];
   /** Files the timeline already uses, marked so the unused ones stand out. */
   usedPaths: Set<string>;
@@ -60,7 +60,6 @@ interface MediaBrowserProps {
 export function MediaBrowser({
   tab,
   onTab,
-  folder,
   items,
   usedPaths,
   view,
@@ -109,11 +108,7 @@ export function MediaBrowser({
           onAdd={onAdd}
         />
       ) : (
-        <ProjectList
-          folder={folder}
-          currentProjectPath={currentProjectPath}
-          onOpen={onOpenProject}
-        />
+        <ProjectList currentProjectPath={currentProjectPath} onOpen={onOpenProject} />
       )}
     </aside>
   );
@@ -316,23 +311,22 @@ function MediaRow({
 }
 
 function ProjectList({
-  folder,
   currentProjectPath,
   onOpen,
 }: {
-  folder: string;
   currentProjectPath: string | null;
   onOpen: (path: string) => void;
 }) {
-  const query = useVideoProjectList(folder);
+  const query = useAllVideoProjects();
   return (
     <div className="video-editor__browser-body">
       <p className="video-editor__browser-note">
-        Drafts in this folder save as you edit. Open one to delete it from its menu.
+        Drafts save as you edit. Open one to delete it from its menu.
       </p>
       <ul className="video-editor__project-list" data-scroll-lock-allow>
         {(query.data ?? []).map((summary) => {
           const open = summary.path === currentProjectPath;
+          const folder = parentFolderPath(summary.path);
           return (
             <li key={summary.path}>
               <button
@@ -350,6 +344,9 @@ function ProjectList({
                 </span>
                 <span className="video-editor__media-text">
                   <span className="video-editor__media-name">{summary.name}</span>
+                  <span className="video-editor__media-meta" title={folder}>
+                    {folderLeafName(folder)}
+                  </span>
                   <span className="video-editor__media-meta">
                     {formatTimecode(summary.duration)} · {summary.clip_count} clips
                   </span>
@@ -366,7 +363,7 @@ function ProjectList({
       {query.isSuccess && query.data.length === 0 && (
         <div className="video-editor__empty">
           <Icon icon={iconClapperboard} />
-          <p>No saved drafts in this folder yet.</p>
+          <p>No saved drafts yet.</p>
         </div>
       )}
       {query.isError && (
