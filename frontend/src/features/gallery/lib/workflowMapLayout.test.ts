@@ -83,8 +83,21 @@ describe("layoutWorkflowMap", () => {
     expect(Math.max(...layout.nodes.map((node) => node.y))).toBe(placed("out").y);
   });
 
-  it("keeps the pass wider than preparations in separate columns", () => {
-    expect(placed("model").width).toBeLessThan(placed("base").width);
+  it("sizes passes like preparations, so the gutters between columns run unbroken", () => {
+    const grouped = layoutWorkflowMap(SEMANTIC_MAP);
+    const box = (id: string) => grouped.nodes.find((node) => node.node.id === id)!;
+
+    expect(new Set(grouped.nodes.map((node) => node.width)).size).toBe(1);
+    expect(box("base").x).toBeCloseTo(box("positive").x);
+  });
+
+  it("stacks each model directly above its LoRAs rather than above the next model", () => {
+    const grouped = layoutWorkflowMap(SEMANTIC_MAP);
+    const box = (id: string) => grouped.nodes.find((node) => node.node.id === id)!;
+    const rowBelow = (id: string) => box(id).y + box(id).height + 36;
+
+    expect(box("lora-a").y).toBe(rowBelow("model-a"));
+    expect(box("lora-b").y).toBe(rowBelow("model-b"));
   });
 
   it("sets sources side by side just above the box they feed", () => {
@@ -263,12 +276,13 @@ describe("layoutWorkflowMap", () => {
     }
   });
 
-  it("draws shared connections with long curves instead of a bend at every row", () => {
+  it("runs a connection that skips rows straight down one lane, bending only at its ends", () => {
     const grouped = layoutWorkflowMap(SEMANTIC_MAP);
     const shared = grouped.edges.find((edge) => edge.from === "vae" && edge.to === "out")!;
+    const straight = shared.path.match(/C [^C]*? (\S+) (\S+) L (\S+) (\S+) C/)!;
 
-    expect(shared.path).not.toContain("L");
-    expect(shared.path.match(/C/g)!.length).toBeLessThanOrEqual(3);
+    expect(shared.path.match(/C/g)).toHaveLength(2);
+    expect(straight[1]).toBe(straight[3]);
   });
 
   it("places every dependency above its consumer and keeps boxes apart", () => {

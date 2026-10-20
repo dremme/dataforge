@@ -259,22 +259,11 @@ describe("ComfyWorkflowMap", () => {
     expect(screen.getByText("0High")).toHaveClass("comfy-workflow-dialog__map-label-tail");
   });
 
-  it("names a generated input by its stage and prompt, and a loaded one by its file", async () => {
+  it("names a loaded input by its media and file", async () => {
     const user = userEvent.setup();
-    const prompt = "a red bicycle against a brick wall, photographed at noon";
     render(
       <ComfyWorkflowMap
         map={[
-          {
-            id: "5",
-            kind: "input",
-            label: prompt,
-            detail: [prompt],
-            status: "ran",
-            feeds: ["8"],
-            media: "image",
-            source: "Reference image",
-          },
           {
             id: "11",
             kind: "input",
@@ -293,17 +282,9 @@ describe("ComfyWorkflowMap", () => {
       />,
     );
 
-    // A prompt is prose, so it is cut at its end, not split like a file name.
-    const generated = box(prompt);
-    expect(generated.querySelector(".comfy-workflow-dialog__map-label-tail")).toBeNull();
-    await user.hover(generated);
-    const tip = await screen.findByRole("tooltip");
-    expect(tip).toHaveTextContent("Generated image");
-    expect(tip).toHaveTextContent("Reference image");
-    await user.unhover(generated);
-
     await user.hover(box("voice"));
-    await waitFor(() => expect(screen.getByRole("tooltip")).toHaveTextContent("Audio input"));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("clips/voice.wav");
+    const tip = await screen.findByRole("tooltip");
+    expect(tip).toHaveTextContent("Audio input");
+    expect(tip).toHaveTextContent("clips/voice.wav");
   });
 });

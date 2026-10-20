@@ -68,7 +68,6 @@ def _map_node(node: MapNode) -> ComfyMapNode:
         feeds=node.feeds,
         role=node.role,
         media=node.media,
-        source=node.source,
     )
 
 

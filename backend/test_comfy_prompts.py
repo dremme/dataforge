@@ -327,7 +327,7 @@ class PromptExtractionTests(unittest.TestCase):
             ["a harbour at night", "blurry"],
         )
 
-    def test_an_upstream_generation_stage_is_not_part_of_the_output(self) -> None:
+    def test_an_upstream_generation_stage_is_part_of_the_output(self) -> None:
         graph = {
             "1": LOADER,
             "2": _encode("a mountain lake at sunrise"),
@@ -344,12 +344,11 @@ class PromptExtractionTests(unittest.TestCase):
 
         self.assertEqual(
             [prompt.text for prompt in result.branches[0].prompts],
-            ["the camera pans across the water"],
+            ["the camera pans across the water", "a mountain lake at sunrise"],
         )
-        self.assertEqual(result.branches[0].parameters, [])
         self.assertEqual(result.orphan_prompts, [])
 
-    def test_a_sampled_video_stops_at_the_image_stage_that_made_its_first_frame(self) -> None:
+    def test_a_sampled_video_includes_the_image_stage_that_made_its_first_frame(self) -> None:
         graph = {
             "1": LOADER,
             "2": {"class_type": "PrimitiveStringMultiline", "inputs": {"value": "a portrait"}},
@@ -379,11 +378,11 @@ class PromptExtractionTests(unittest.TestCase):
 
         branches = {branch.node_id: branch for branch in result.branches}
         video = branches["12"]
-        self.assertEqual([prompt.text for prompt in video.prompts], ["she turns to the window"])
         self.assertEqual(
-            {(parameter.label, parameter.value) for parameter in video.parameters},
-            {("Seed", "3"), ("VAE", "video.safetensors")},
+            [prompt.text for prompt in video.prompts], ["she turns to the window", "a portrait"]
         )
+        self.assertEqual([stage.node_id for stage in video.stages], ["4", "9"])
+        self.assertIn(("Seed", "3"), _pairs(video.stages[1].parameters))
         self.assertEqual([prompt.text for prompt in branches["13"].prompts], ["a portrait"])
 
     def test_a_detailer_refines_its_stage_rather_than_starting_a_new_one(self) -> None:
@@ -447,8 +446,10 @@ class PromptExtractionTests(unittest.TestCase):
         self.assertEqual(
             [prompt.text for prompt in branch.prompts], ["a lighthouse in a storm", "blurry"]
         )
-        self.assertIn(("Seed", "2"), {(p.label, p.value) for p in branch.parameters})
-        self.assertNotIn(("Seed", "1"), {(p.label, p.value) for p in branch.parameters})
+        self.assertEqual(
+            [_pairs(stage.parameters) & {("Seed", "1"), ("Seed", "2")} for stage in branch.stages],
+            [{("Seed", "1")}, {("Seed", "2")}],
+        )
 
     def test_filename_picks_the_output_that_wrote_the_file(self) -> None:
         graph = {
@@ -1447,46 +1448,53 @@ def _reference_graph() -> dict:
 
 
 class MapInputTests(unittest.TestCase):
-    """Media coming into an output's stage: loaded files and earlier stages' results."""
+    """What comes into an output's chain: loaded files, and earlier stages as passes."""
 
     def _branch(self, graph: dict):
         with TempMediaFolder() as root:
             result = extract_workflow_prompts(_write(root, "bicycle_00001_.png", graph))
         return next(branch for branch in result.branches if branch.node_id == "10")
 
-    def test_an_earlier_stage_result_is_an_input_named_by_its_prompt_and_stage(self) -> None:
+    def test_an_earlier_stage_is_a_pass_fed_by_its_own_prompt(self) -> None:
         branch = self._branch(_reference_graph())
 
-        inputs = {node.id: node for node in branch.map if node.kind == "input"}
-        generated = inputs["5"]
+        self.assertEqual([node.id for node in branch.map if node.kind == "pass"], ["4", "8"])
+        self.assertIn(("4", "8"), _map_edges(branch))
+        self.assertIn(("prompt:2:positive", "4"), _map_edges(branch))
+        self.assertEqual([node.id for node in branch.map if node.kind == "input"], ["11"])
+
+    def test_an_earlier_stages_detailer_is_a_pass_with_its_prompt(self) -> None:
+        graph = _reference_graph()
+        graph["13"] = _encode("a detailed face")
+        graph["14"] = {
+            "class_type": "FaceDetailer",
+            "inputs": {
+                "image": ["5", 0],
+                "model": ["1", 0],
+                "positive": ["13", 0],
+                "negative": ["3", 0],
+            },
+        }
+        graph["7"]["inputs"]["ref_image"] = ["14", 0]
+
+        branch = self._branch(graph)
+
+        self.assertEqual([stage.node_id for stage in branch.stages], ["4", "14", "8"])
         self.assertEqual(
-            (generated.label, generated.media, generated.source),
-            ("a red bicycle against a brick wall", "image", "Reference image"),
+            [prompt.text for prompt in branch.prompts if prompt.role == "positive"],
+            [
+                "the bicycle rolls down the street",
+                "a detailed face",
+                "a  red bicycle\nagainst a brick wall",
+            ],
         )
-        self.assertEqual(generated.detail, ["a  red bicycle\nagainst a brick wall"])
-        self.assertIn(("5", "8"), _map_edges(branch))
-        # The earlier stage's own boxes stay off this output's map.
-        self.assertNotIn("4", {node.id for node in branch.map})
 
     def test_a_loaded_audio_file_is_an_audio_input(self) -> None:
         branch = self._branch(_reference_graph())
 
         audio = next(node for node in branch.map if node.id == "11")
-        self.assertEqual(
-            (audio.kind, audio.label, audio.media, audio.source), ("input", "voice", "audio", None)
-        )
+        self.assertEqual((audio.kind, audio.label, audio.media), ("input", "voice", "audio"))
         self.assertIn(("11", "8"), _map_edges(branch))
-
-    def test_a_latent_handed_on_from_an_earlier_pass_is_no_input(self) -> None:
-        graph = _reference_graph()
-        graph["8"]["inputs"]["latent_image"] = ["4", 0]
-
-        branch = self._branch(graph)
-
-        self.assertNotIn("4", {node.id for node in branch.map if node.kind == "input"})
-        self.assertEqual(
-            {node.media for node in branch.map if node.kind == "input"}, {"image", "audio"}
-        )
 
 
 def _one_pass_graph() -> dict:

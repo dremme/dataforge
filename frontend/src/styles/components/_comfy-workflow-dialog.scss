@@ -10,8 +10,9 @@
   overflow: hidden;
 }
 
-// Picking another output must not resize the panel, so a list reserves the full height.
-.dialog__panel.comfy-workflow-dialog:has(.comfy-workflow-dialog__outputs-field) {
+// The panel holds its full height from the loading skeleton on: tracing can take seconds, and
+// neither the loaded details nor picking another output may then resize it.
+.dialog__panel.comfy-workflow-dialog:has(.comfy-workflow-dialog__body) {
   height: min(88vh, 50rem);
 }
 
@@ -609,6 +610,42 @@
 
   &__copy-icon {
     @include icon-size-sm;
+  }
+
+  // ---- Loading skeleton ----------------------------------------------------------------------------
+
+  // A placeholder has nothing to scroll to; whatever does not fit is cut off.
+  &__details--skeleton {
+    overflow: hidden;
+  }
+
+  &__skeleton-line {
+    @include skeleton-line(0.625rem);
+    @include skeleton-shimmer;
+
+    &--title {
+      height: 0.875rem;
+      width: 55%;
+    }
+
+    &--pill {
+      height: 1rem;
+      width: 4.5rem;
+      border-radius: var(--radius-pill);
+    }
+  }
+
+  &__skeleton-tile {
+    height: 2.625rem;
+    border-radius: var(--radius-sm);
+    @include skeleton-shimmer;
+  }
+
+  &__skeleton-map {
+    flex-shrink: 0;
+    height: 12rem;
+    border-radius: var(--radius-sm);
+    @include skeleton-shimmer;
   }
 
   &__status {

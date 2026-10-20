@@ -123,8 +123,6 @@ class MapNode:
     role: ComfyPromptRole | None = None
     #: Set on an input box: what kind of media it is.
     media: ComfyMediaKind | None = None
-    #: Set on an input an earlier stage generated: that stage's name.
-    source: str | None = None
 
 
 @dataclass
@@ -285,8 +283,8 @@ def _stage_ancestors(
     """Ancestors up to the nearest generation stage, excluding earlier stages' results.
 
     Past a generator, another sampler or an earlier result (an upstream image, a first pass's
-    latent) is provenance rather than this output's settings. Nodes the stage reaches directly,
-    such as a prompt shared with an earlier stage, still count.
+    latent) belongs to an earlier stage, whose size is not the file's. Nodes the stage reaches
+    directly, such as a prompt shared with an earlier stage, still count.
     """
     samplers, generators, results = stages
     order = [root]
@@ -608,43 +606,6 @@ def _output_media(node: object) -> ComfyMediaKind:
     return "audio" if "audio" in inputs and not {"image", "images"} & inputs else "image"
 
 
-def _media_of(input_name: str) -> ComfyMediaKind | None:
-    """What an input that takes another stage's result carries, judged by its name.
-
-    None for a latent: one sampler handing its latent to the next, as a high-noise pass does
-    to its low-noise one, is a chain of passes, not media coming in.
-    """
-    lowered = input_name.lower()
-    if "latent" in lowered or lowered == "samples":
-        return None
-    return "audio" if "audio" in lowered else "video" if "video" in lowered else "image"
-
-
-def _is_earlier_result(
-    graph: dict[str, dict], editor: dict[str, EditorNode], node_id: str, members: set[str]
-) -> bool:
-    """Whether a node outside the branch carries an earlier stage's result into it.
-
-    Upstream of it a sampler runs, and none of the branch's own passes does; that tells a
-    reference image apart from the latent handed between two passes of the branch itself.
-    """
-    samples = _is_sampling_node(graph.get(node_id))
-    seen = {node_id}
-    queue = [node_id]
-    while queue:
-        for source in _sources(graph, editor, queue.pop()):
-            if source in seen:
-                continue
-            seen.add(source)
-            if source in members:
-                if _is_sampling_node(graph.get(source)):
-                    return False
-                continue
-            samples = samples or _is_sampling_node(graph.get(source))
-            queue.append(source)
-    return samples
-
-
 def _prompt_box_id(prompt: PromptText) -> str:
     return f"prompt:{prompt.node_id}:{prompt.input_name}"
 
@@ -662,16 +623,13 @@ def _branch_map(
     live: set[str],
     bypassed: set[str],
     prompts: list[PromptText],
-    stages: tuple[set[str], set[str], set[str]],
-    subgraph_labels: dict[str, str],
 ) -> list[MapNode]:
     """The output's passes and what feeds them: models, LoRAs, CLIPs, VAEs, media and prompts.
 
     Each box links to the nearest boxes downstream. A prompt never blocks the walk, since its
     text often sits on a node that also takes the image or the model. A chain of LoRA loaders
-    is one box, and so are twin loaders of one file, such as one per subgraph. An earlier
-    stage's result, such as a generated reference image, is an input box named by that stage's
-    prompt. Empty when nothing on the branch samples.
+    is one box, and so are twin loaders of one file, such as one per subgraph. Empty when
+    nothing on the branch samples.
     """
     boxes = {step: box for step in members if step != root and (box := _map_box(graph, step))}
     if not any(kind == "pass" for kind, _, _ in boxes.values()):
@@ -680,10 +638,6 @@ def _branch_map(
     for prompt in prompts:
         prompt_ids.setdefault(prompt.node_id, []).append(_prompt_box_id(prompt))
 
-    member_set = set(members)
-    earlier: dict[str, bool] = {}
-    # Earlier stages' results by node: the media they carry, judged by the input they enter.
-    generated: dict[str, ComfyMediaKind] = {}
     edges: set[tuple[str, str]] = set()
     walkers = [step for step, box in boxes.items() if box[0] in ("pass", "loras")]
     for target in [root, *walkers]:
@@ -691,7 +645,7 @@ def _branch_map(
         seen = {target}
         queue = [target]
         while queue:
-            for input_name, source in _linked_inputs(graph, editor, queue.pop()):
+            for source in _sources(graph, editor, queue.pop()):
                 if source in seen:
                     continue
                 seen.add(source)
@@ -701,13 +655,6 @@ def _branch_map(
                     if not (boxes[source][0] == "model" and target == root):
                         edges.add((source, target))
                     continue
-                if source not in member_set:
-                    if source not in earlier:
-                        earlier[source] = _is_earlier_result(graph, editor, source, member_set)
-                    if earlier[source] and (kind := _media_of(input_name)) is not None:
-                        generated.setdefault(source, kind)
-                        edges.add((source, target))
-                        continue
                 queue.append(source)
 
     def status(step: str) -> ComfyPassStatus:
@@ -742,19 +689,6 @@ def _branch_map(
         for step, box in boxes.items()
         if box[0] == "input" and (kind := _loaded_media(graph.get(step)))
     }
-    sources: dict[str, str] = {}
-    for step, kind in generated.items():
-        stage = _stage_ancestors(graph, step, stages)
-        made = next((p for p in _collect_prompts(graph, stage) if p.role == "positive"), None)
-        # The subgraph that made it names it best, else the earlier stage's sampler.
-        named = subgraph_labels.get(_instance_id(step)) if ":" in step else None
-        sources[step] = named or next(
-            (_node_title(graph[s]) or _node_class(graph[s]) for s in stage if s in stages[0]),
-            "An earlier stage",
-        )
-        label, detail = _prompt_box_text(made.text) if made else (sources[step], [])
-        nodes[step] = ("input", label, detail, status(step))
-        media[step] = kind
     for step, (kind, label, detail) in boxes.items():
         if kind == "loras":
             if head(step) != step:
@@ -802,7 +736,6 @@ def _branch_map(
             feeds=sorted(feeds[node_id], key=ordered.index),
             role=roles.get(node_id),
             media=media.get(node_id),
-            source=sources.get(node_id),
         )
         for node_id in ordered
     ]
@@ -1435,11 +1368,13 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
         if node_id not in outputs:
             continue
 
-        # Earlier stages are excluded from the branch but still feed it, so they are no orphans.
-        covered.update(_ancestors(graph, node_id))
-        ancestry = _stage_ancestors(graph, node_id, stages)
+        # The whole chain that made the file, earlier stages such as a reference image included.
+        ancestry = _ancestors(graph, node_id)
+        covered.update(ancestry)
         live = _live_nodes(graph, node_id)
         ran = [step for step in ancestry if step in live]
+        # Only the stage that made the file sets its size; an earlier stage has its own.
+        sized = [step for step in _stage_ancestors(graph, node_id, stages) if step in live]
         prefix = _declared_name(graph, node, "filename_prefix")
         filename = _declared_name(graph, node, "filename")
         bypassed = _bypassed_on_path(graph, editor, node_id, set(ancestry))
@@ -1454,8 +1389,6 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
             live,
             set(bypassed),
             prompts,
-            stages,
-            subgraph_labels,
         )
         parameters, loras = _collect_parameters(graph, shared)
 
@@ -1473,8 +1406,8 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
                 loras=loras,
                 stages=passes,
                 map=branch_map,
-                widths=_declared_sizes(graph, ran, "width"),
-                heights=_declared_sizes(graph, ran, "height"),
+                widths=_declared_sizes(graph, sized, "width"),
+                heights=_declared_sizes(graph, sized, "height"),
             )
         )
 

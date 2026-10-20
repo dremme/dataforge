@@ -71,8 +71,9 @@ function glyph(node: ComfyMapNode): AppIcon | null {
 
 /** Whether a label is a file name, whose end tells it apart, so it is cut in the middle. */
 function isFileName(node: ComfyMapNode): boolean {
-  if (node.kind === "input") return !node.source;
-  return node.kind === "model" || node.kind === "clip" || node.kind === "vae";
+  return (
+    node.kind === "input" || node.kind === "model" || node.kind === "clip" || node.kind === "vae"
+  );
 }
 
 function kindName(node: ComfyMapNode, passNumber: number | undefined): string {
@@ -82,7 +83,7 @@ function kindName(node: ComfyMapNode, passNumber: number | undefined): string {
   }
   if (node.kind === "input" && node.media) {
     const { media } = node;
-    return node.source ? `Generated ${media}` : `${media[0].toUpperCase()}${media.slice(1)} input`;
+    return `${media[0].toUpperCase()}${media.slice(1)} input`;
   }
   return KIND_NAMES[node.kind];
 }
@@ -120,7 +121,6 @@ function MapTip({
 }) {
   const Glyph = glyph(node);
   const notRun = PASS_NOT_RUN[node.status];
-  const generated = node.kind === "input" && Boolean(node.source);
   const leading = PASS_TIP_SETTINGS.flatMap((label) =>
     settings.filter((parameter) => parameter.label === label),
   );
@@ -137,12 +137,6 @@ function MapTip({
 
       {node.kind === "pass" && <span className="workflow-map-tip__title">{node.label}</span>}
       {node.kind === "output" && <span className="workflow-map-tip__title">{output}</span>}
-      {generated && (
-        <>
-          <span className="workflow-map-tip__title">{node.source}</span>
-          {node.detail[0] && <span className="workflow-map-tip__prompt">{node.detail[0]}</span>}
-        </>
-      )}
       {isFileName(node) && node.detail.map((path) => <FilePath key={path} path={path} />)}
       {node.kind === "prompt" && (
         <span className="workflow-map-tip__prompt">{node.detail[0] ?? node.label}</span>

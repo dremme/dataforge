@@ -404,6 +404,55 @@ function BranchDetails({
   );
 }
 
+const SKELETON_PROMPT_LINES = [
+  ["100%", "92%", "64%"],
+  ["100%", "48%"],
+];
+const SKELETON_SETTING_COUNT = 6;
+
+/** The details column's outline, in the body slot the loaded details fill. */
+function DetailsSkeleton() {
+  return (
+    <div
+      className="comfy-workflow-dialog__body"
+      role="status"
+      aria-label="Loading workflow"
+      aria-busy="true"
+    >
+      <div className="dialog__field comfy-workflow-dialog__details-field" aria-hidden="true">
+        <div className="dialog__label">
+          Details
+          <Icon icon={iconLoader2} spin className="comfy-workflow-dialog__status-icon" />
+        </div>
+        <div className="comfy-workflow-dialog__details comfy-workflow-dialog__details--skeleton">
+          <div className="comfy-workflow-dialog__selected-output">
+            <span className="comfy-workflow-dialog__skeleton-line comfy-workflow-dialog__skeleton-line--title" />
+            <span className="comfy-workflow-dialog__skeleton-line" style={{ width: "40%" }} />
+          </div>
+          {SKELETON_PROMPT_LINES.map((widths, index) => (
+            <div key={index} className="comfy-workflow-dialog__prompt">
+              <span className="comfy-workflow-dialog__skeleton-line comfy-workflow-dialog__skeleton-line--pill" />
+              {widths.map((width, line) => (
+                <span
+                  key={line}
+                  className="comfy-workflow-dialog__skeleton-line"
+                  style={{ width }}
+                />
+              ))}
+            </div>
+          ))}
+          <div className="comfy-workflow-dialog__parameters">
+            {Array.from({ length: SKELETON_SETTING_COUNT }, (_, index) => (
+              <span key={index} className="comfy-workflow-dialog__skeleton-tile" />
+            ))}
+          </div>
+          <span className="comfy-workflow-dialog__skeleton-map" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ComfyWorkflowDialog({ mediaPath, mediaName, onClose }: ComfyWorkflowDialogProps) {
   const { loading, error, data } = useComfyWorkflowPrompts(mediaPath, true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -440,12 +489,7 @@ export function ComfyWorkflowDialog({ mediaPath, mediaName, onClose }: ComfyWork
       description={description}
       onClose={onClose}
     >
-      {loading && (
-        <p className="comfy-workflow-dialog__status">
-          <Icon icon={iconLoader2} spin className="comfy-workflow-dialog__status-icon" />
-          Loading
-        </p>
-      )}
+      {loading && <DetailsSkeleton />}
 
       {error && <p className="comfy-workflow-dialog__status">{error}</p>}
 

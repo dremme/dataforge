@@ -1193,8 +1193,6 @@ class ComfyMapNode(BaseModel):
     role: ComfyPromptRole | None = None
     #: Set on an input or output box: what kind of media it is.
     media: ComfyMediaKind | None = None
-    #: Set on an input an earlier stage generated: that stage's name.
-    source: str | None = None
 
 
 class ComfyOutputBranch(BaseModel):

@@ -55,6 +55,26 @@ describe("ComfyWorkflowDialog", () => {
     vi.restoreAllMocks();
   });
 
+  it("holds the details' place with a skeleton until the workflow is read", async () => {
+    let resolve: (response: ComfyWorkflowPromptsResponse) => void = () => {};
+    vi.spyOn(api, "fetchComfyWorkflowPrompts").mockReturnValue(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    renderWithQueryClient(
+      <ComfyWorkflowDialog mediaPath="C:\\Photos\\a.png" mediaName="a.png" onClose={() => {}} />,
+    );
+
+    const skeleton = await screen.findByRole("status", { name: "Loading workflow" });
+    expect(skeleton).toHaveClass("comfy-workflow-dialog__body");
+    expect(skeleton).toHaveAttribute("aria-busy", "true");
+
+    resolve(makeResponse({ branches: [makeBranch()] }));
+    expect(await screen.findByRole("group", { name: "Details" })).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Loading workflow" })).not.toBeInTheDocument();
+  });
+
   it("opens on the likely output and keeps its badge when inspecting another branch", async () => {
     const user = userEvent.setup();
     renderDialog(
