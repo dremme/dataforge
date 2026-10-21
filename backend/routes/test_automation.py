@@ -102,6 +102,7 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
             "reasoning_effort": "low",
             "preserve_thinking": False,
             "instruction": "Rewrite in present tense.",
+            "vision": True,
             "backup": False,
         },
     ),

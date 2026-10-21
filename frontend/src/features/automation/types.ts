@@ -62,6 +62,7 @@ export type AutomationDialogsState = {
       instruction: string,
       reasoningEffort: ReasoningEffort,
       preserveThinking: boolean,
+      vision: boolean,
       backup: boolean,
     ) => void,
     JobSettingsByType["edit_captions"]

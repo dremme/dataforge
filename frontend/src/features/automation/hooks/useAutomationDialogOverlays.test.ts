@@ -546,6 +546,7 @@ describe("useAutomationDialogOverlays edit captions", () => {
         "Rewrite in present tense.",
         "low",
         false,
+        true,
         false,
       );
     });
@@ -559,6 +560,7 @@ describe("useAutomationDialogOverlays edit captions", () => {
         instruction: "Rewrite in present tense.",
         reasoning_effort: "low",
         preserve_thinking: false,
+        vision: true,
         backup: false,
       },
       undefined,

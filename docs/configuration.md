@@ -6,7 +6,7 @@ Use **Settings** to connect services and tune AI jobs. Browsing, manual captioni
 
 ## Connect a vision model
 
-Auto-caption and Verify captions need an OpenAI-compatible chat-completions server that accepts images. Edit captions sends text only. Install and run the model server separately, then:
+Auto-caption and Verify captions need an OpenAI-compatible chat-completions server that accepts images. Edit captions sends text only unless **Send media** is on. Install and run the model server separately, then:
 
 1. Open **Settings > Vision model > Server** (`Ctrl+,`).
 2. Enter the API URL, including `/v1`, and a key if required. The default URL is `http://127.0.0.1:8888/v1`.
@@ -83,6 +83,7 @@ Choose **Reasoning** to let the model think before answering, or **Instruct** fo
 | **Caption audio**      | Auto-caption                                 | Off; sends audio alongside video frames                                                                                        |
 | **Additional context** | Verify captions                              | Optional dataset facts for the checker                                                                                         |
 | **Edit instruction**   | Edit captions                                | Required text describing the rewrite                                                                                           |
+| **Send media**         | Edit captions                                | Off; sends each file's image or video keyframes so the edit can check and add visible details                                  |
 
 **Back up captions first** in Edit captions and Find & replace starts enabled every run and is not remembered. It refreshes existing backups before editing. Backup captions always overwrites existing copies. Set captions requires overwrite permission anew. Watermark always overwrites existing output files in `watermarked/`.
 
@@ -212,7 +213,7 @@ The default endpoints are local. Using a remote endpoint sends the following dat
 | -------------------- | -------------------------------------------------------------------------------------------------------- | --------------------- |
 | Auto-caption         | Downscaled image/video frames, draft caption, system-prompt instructions, optionally 15 seconds of audio | `OPENAI_API_BASE_URL` |
 | Verify captions      | Downscaled image/video frames, caption, additional context; no audio                                     | `OPENAI_API_BASE_URL` |
-| Edit captions        | Caption and edit instruction; no media                                                                   | `OPENAI_API_BASE_URL` |
+| Edit captions        | Caption and edit instruction; with **Send media**, also downscaled image/video frames                    | `OPENAI_API_BASE_URL` |
 | Process with ComfyUI | Source media and workflow inputs                                                                         | `COMFY_BASE_URL`      |
 | Quick LoRA training  | Dataset folder path and training configuration, including prompts; no media upload                       | `OSTRIS_BASE_URL`     |
 

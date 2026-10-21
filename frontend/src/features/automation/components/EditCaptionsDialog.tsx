@@ -32,6 +32,7 @@ interface EditCaptionsDialogProps {
     instruction: string,
     reasoningEffort: ReasoningEffort,
     preserveThinking: boolean,
+    vision: boolean,
     backup: boolean,
   ) => void;
   onCancel: () => void;
@@ -52,12 +53,14 @@ export function EditCaptionsDialog({
     initialSettings.reasoning_effort,
   );
   const [preserveThinking, setPreserveThinking] = useState(initialSettings.preserve_thinking);
+  const [vision, setVision] = useState(initialSettings.vision);
   // Reset on every open so opting out only applies to the current run.
   const [backup, setBackup] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const instructionRef = useRef<HTMLTextAreaElement>(null);
   const instructionId = useId();
   const preserveThinkingId = useId();
+  const visionId = useId();
   const errorId = useId();
 
   const request = {
@@ -65,6 +68,7 @@ export function EditCaptionsDialog({
     mode,
     reasoning_effort: reasoningEffort,
     preserve_thinking: preserveThinking,
+    vision,
     paths: selectedPaths,
   };
   const preview = useQuery({
@@ -98,8 +102,17 @@ export function EditCaptionsDialog({
 
     setError(null);
     // Starting the job is what stores these, exactly as it is for every other dialog.
-    onConfirm(mode, instruction.trim(), reasoningEffort, preserveThinking, backup);
-  }, [backup, controlsBusy, instruction, mode, onConfirm, preserveThinking, reasoningEffort]);
+    onConfirm(mode, instruction.trim(), reasoningEffort, preserveThinking, vision, backup);
+  }, [
+    backup,
+    controlsBusy,
+    instruction,
+    mode,
+    onConfirm,
+    preserveThinking,
+    reasoningEffort,
+    vision,
+  ]);
 
   return (
     <GuardedDialog
@@ -109,14 +122,17 @@ export function EditCaptionsDialog({
         instruction !== initialSettings.instruction ||
         reasoningEffort !== initialSettings.reasoning_effort ||
         preserveThinking !== initialSettings.preserve_thinking ||
+        vision !== initialSettings.vision ||
         !backup
       }
       scope={scope}
       title="Start edit captions?"
       description={
         <>
-          Rewrites each caption with <VisionModelBadge /> from your instruction. Only the caption
-          text is sent, never the media.
+          Rewrites each caption with <VisionModelBadge /> from your instruction.{" "}
+          {vision
+            ? "Each caption is sent with its image or video keyframes."
+            : "Only the caption text is sent, never the media."}
         </>
       }
       panelClassName="edit-captions-dialog"
@@ -181,6 +197,24 @@ export function EditCaptionsDialog({
             <p className="dialog__hint">Keeps earlier reasoning in the prompt.</p>
           </div>
 
+          <div>
+            <label className="dialog__checkbox" htmlFor={visionId}>
+              <input
+                id={visionId}
+                type="checkbox"
+                className="dialog__checkbox-input"
+                checked={vision}
+                onChange={(event) => setVision(event.target.checked)}
+                disabled={controlsBusy}
+              />
+              <span className="dialog__checkbox-box" aria-hidden="true" />
+              <span className="dialog__checkbox-label">Send media</span>
+            </label>
+            <p className="dialog__hint">Edits can check what the media shows.</p>
+          </div>
+        </div>
+
+        <div className="dialog__field">
           <CaptionBackupOption checked={backup} disabled={controlsBusy} onChange={setBackup} />
         </div>
 

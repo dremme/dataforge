@@ -920,6 +920,10 @@ class EditCaptionsJobSettings(BaseModel):
     )
     #: Unconstrained so an empty instruction is the job's own 400.
     instruction: str = ""
+    vision: bool = Field(
+        default=False,
+        description="Send each caption's image or video keyframes along with it.",
+    )
 
 
 class EditCaptionsStartRequest(JobSelectionRequest, EditCaptionsJobSettings):

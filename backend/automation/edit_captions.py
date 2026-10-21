@@ -1,4 +1,7 @@
-"""Rewrite existing captions with the local model, from a user instruction."""
+"""Rewrite existing captions with the local model, from a user instruction.
+
+With vision on, each caption's image or video keyframes go along so the edit can check and add
+what the media shows."""
 
 from __future__ import annotations
 
@@ -17,6 +20,17 @@ from automation.llm import (
     strip_code_fences,
 )
 from automation.selection import filter_media_list, list_folder_media
+from automation.vision import (
+    FRAME_ERROR,
+    MediaFrames,
+    MediaKind,
+    MediaLoadError,
+    keyframe_sentence,
+    load_media_images,
+    media_kind_for,
+    media_kind_max_pixels,
+    request_vision_text,
+)
 from captions import (
     CAPTION_CHANGED_STATUS,
     NO_CAPTION_STATUS,
@@ -42,6 +56,7 @@ PROCESSED_STAT_KEYS = (
     REJECTED,
     NO_CAPTION_STATUS,
     "read_error",
+    FRAME_ERROR,
     "api_error",
     "write_error",
     CAPTION_CHANGED_STATUS,
@@ -49,6 +64,8 @@ PROCESSED_STAT_KEYS = (
 
 MIN_EDIT_LENGTH_RATIO = 0.25
 MAX_EDIT_LENGTH_RATIO = 4.0
+# With the media in hand an edit may rightly grow a short caption past the ratio.
+MAX_VISION_EDIT_CHARS = 1500
 
 # Floor for a collapsed caption ("shorten to one sentence"); not ``DRAFT_CAPTION_THRESHOLD``.
 MIN_EDITED_CAPTION_CHARS = 40
@@ -56,8 +73,32 @@ MIN_EDITED_CAPTION_CHARS = 40
 _QUOTE_PAIRS = (('"', '"'), ("'", "'"), ("“", "”"))
 
 
-def build_edit_system_prompt(instruction: str) -> str:
-    """Assemble the system prompt once per job so the prefix cache stays warm."""
+#: What the model is sent alongside the caption, and how the rules refer to it.
+_VISION_MEDIA_WORDING: dict[MediaKind, tuple[str, str]] = {
+    "image": ("the image it describes", "the image"),
+    "video": ("keyframes from the video it describes", "the keyframes"),
+}
+
+
+def build_edit_system_prompt(instruction: str, *, media_kind: MediaKind | None = None) -> str:
+    """Assemble the system prompt once per job so the prefix cache stays warm.
+
+    ``media_kind`` is set only when the media is sent with the caption."""
+    if media_kind is None:
+        given = "The caption text is all you are given."
+        keep_rule = (
+            "- Keep every detail the caption already states, unless the edit is to remove it."
+        )
+        add_rule = "- Add nothing the caption does not already state."
+    else:
+        sent, seen = _VISION_MEDIA_WORDING[media_kind]
+        given = f"You are also given {sent}. Use {seen} to check and add what the edit asks for."
+        keep_rule = (
+            "- Keep every detail the caption already states, unless the edit is to remove or "
+            "correct it."
+        )
+        add_rule = f"- Add only details the edit asks for that are clearly visible in {seen}."
+
     sections = [
         textwrap.dedent(
             """
@@ -65,24 +106,19 @@ def build_edit_system_prompt(instruction: str) -> str:
             You are a caption editor for LoRA training data.
             """
         ).strip(),
-        textwrap.dedent(
-            """
-            # Objective
-            Rewrite the caption you are given so that it satisfies the requested edit, and
-            return the rewritten caption. The caption text is all you are given.
-            """
-        ).strip(),
+        "# Objective\nRewrite the caption you are given so that it satisfies the requested "
+        f"edit, and return the rewritten caption. {given}",
         f"# Edit to apply\n{instruction.strip()}",
         # Keep this list to judging; output mechanics here once regressed verify-captions.
-        textwrap.dedent(
-            """
-            # Rules
-            - Make the requested edit and change nothing else.
-            - Keep every detail the caption already states, unless the edit is to remove it.
-            - Add nothing the caption does not already state.
-            - When the edit does not apply to this caption, return the caption unchanged.
-            """
-        ).strip(),
+        "\n".join(
+            (
+                "# Rules",
+                "- Make the requested edit and change nothing else.",
+                keep_rule,
+                add_rule,
+                "- When the edit does not apply to this caption, return the caption unchanged.",
+            )
+        ),
         textwrap.dedent(
             """
             # Output Format
@@ -96,9 +132,33 @@ def build_edit_system_prompt(instruction: str) -> str:
     return "\n\n".join(sections)
 
 
-def build_edit_user_text(caption: str) -> str:
+def build_edit_system_prompts(instruction: str, *, vision: bool) -> dict[MediaKind, str]:
+    """One prompt per media kind; without vision both kinds share the text-only prompt."""
+    if not vision:
+        prompt = build_edit_system_prompt(instruction)
+        return {"image": prompt, "video": prompt}
+    return {
+        kind: build_edit_system_prompt(instruction, media_kind=kind)
+        for kind in _VISION_MEDIA_WORDING
+    }
+
+
+def build_edit_user_text(
+    caption: str,
+    media_kind: MediaKind | None = None,
+    frame_count: int = 1,
+    seconds: float | None = None,
+) -> str:
+    """``media_kind`` is set only when the media is sent with the caption."""
+    if media_kind == "video":
+        media_line = f"{keyframe_sentence(frame_count, seconds)}\n"
+    elif media_kind == "image":
+        media_line = "The image this caption describes is attached.\n"
+    else:
+        media_line = ""
     return (
         f"Caption to edit:\n{caption.strip()}\n\n"
+        f"{media_line}"
         "Apply the edit from the system instructions to this caption. "
         "Output only the edited caption."
     )
@@ -124,14 +184,17 @@ def clean_edited_caption(raw_text: str) -> str:
     return strip_wrapping_quotes(strip_code_fences(clean_model_text(raw_text))).strip()
 
 
-def edit_rejection_reason(original: str, edited: str) -> str | None:
+def edit_rejection_reason(original: str, edited: str, *, vision: bool = False) -> str | None:
     """Why this reply is not an edited caption, or ``None`` when it is."""
     edited = edited.strip()
     if not edited:
         return "The model returned no text."
 
     reference = len(original.strip())
-    if len(edited) > reference * MAX_EDIT_LENGTH_RATIO:
+    ceiling = reference * MAX_EDIT_LENGTH_RATIO
+    if vision:
+        ceiling = max(ceiling, MAX_VISION_EDIT_CHARS)
+    if len(edited) > ceiling:
         return "The model returned far more text than the caption it was given."
 
     if len(edited) < reference * MIN_EDIT_LENGTH_RATIO and len(edited) < MIN_EDITED_CAPTION_CHARS:
@@ -165,7 +228,28 @@ def edit_caption(
     mode: AutomationMode = "instruct",
     effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
+    frames: MediaFrames | None = None,
+    media_kind: MediaKind = "image",
+    attempt: int = 1,
 ) -> str | None:
+    """Text-only unless ``frames`` is given; ``attempt`` only reaches JPEG quality."""
+    if frames is not None:
+        seconds = frames.timestamps[-1] if frames.timestamps else None
+        return request_vision_text(
+            client,
+            system_prompt,
+            frames.images,
+            build_edit_user_text(caption, media_kind, len(frames.images), seconds),
+            max_pixels=media_kind_max_pixels(media_kind, seconds=seconds),
+            mode=mode,
+            effort=effort,
+            preserve_thinking=preserve_thinking,
+            model=model,
+            max_tokens=max_tokens,
+            timestamps=frames.timestamps,
+            attempt=attempt,
+        )
+
     return run_chat_completion(
         client,
         [
@@ -183,8 +267,9 @@ def edit_caption(
 def process_media(
     client,
     media_path: Path,
-    system_prompt: str,
+    system_prompts: dict[MediaKind, str],
     *,
+    vision: bool = False,
     model: str | None = None,
     mode: AutomationMode = "instruct",
     effort: str = DEFAULT_REASONING_EFFORT,
@@ -198,15 +283,26 @@ def process_media(
         if status != "ok" or ref_caption is None:
             return None, status, None
 
-    def attempt(_number: int) -> ModelOutcome[str]:
+    media_kind = media_kind_for(media_path)
+    frames: MediaFrames | None = None
+    if vision:
+        loaded = load_media_images(media_path)
+        if isinstance(loaded, MediaLoadError):
+            return None, loaded.status, loaded.message or "Could not read the media."
+        frames = loaded
+
+    def attempt(number: int) -> ModelOutcome[str]:
         raw = edit_caption(
             client,
-            system_prompt,
+            system_prompts[media_kind],
             ref_caption,
             model=model,
             mode=mode,
             effort=effort,
             preserve_thinking=preserve_thinking,
+            frames=frames,
+            media_kind=media_kind,
+            attempt=number,
         )
         if raw is None:
             return ModelOutcome(
@@ -215,7 +311,7 @@ def process_media(
             )
 
         edited = clean_edited_caption(raw)
-        reason = edit_rejection_reason(ref_caption, edited)
+        reason = edit_rejection_reason(ref_caption, edited, vision=vision)
         if reason is not None:
             return ModelOutcome(status=REJECTED, value=edited, message=reason)
 
@@ -238,12 +334,13 @@ def preview_caption_edits(
     mode: AutomationMode = "instruct",
     reasoning_effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
+    vision: bool = False,
     selected_paths: list[Path] | None = None,
 ) -> EditCaptionsPreviewResponse:
     """Try the job's edit on up to three readable captions without writing sidecars."""
     validate_edit_captions_folder(folder, instruction=instruction)
     media_files = filter_media_list(list_edit_captions_media(folder), selected_paths)
-    system_prompt = build_edit_system_prompt(instruction)
+    system_prompts = build_edit_system_prompts(instruction, vision=vision)
     resolved_model = get_openai_model()
     samples: list[CaptionEditPreviewSample] = []
 
@@ -255,7 +352,8 @@ def preview_caption_edits(
             edited, status, message = process_media(
                 client,
                 media_path,
-                system_prompt,
+                system_prompts,
+                vision=vision,
                 model=resolved_model,
                 mode=mode,
                 effort=reasoning_effort,
@@ -286,6 +384,7 @@ def _initial_job_stats(total: int) -> dict[str, int]:
         REJECTED: 0,
         NO_CAPTION_STATUS: 0,
         "read_error": 0,
+        FRAME_ERROR: 0,
         "api_error": 0,
         "write_error": 0,
         CAPTION_CHANGED_STATUS: 0,
@@ -302,13 +401,14 @@ def run_edit_captions_job(
     mode: AutomationMode = "instruct",
     reasoning_effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
+    vision: bool = False,
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
     validate_edit_captions_folder(folder, instruction=instruction)
 
-    system_prompt = build_edit_system_prompt(instruction)
+    system_prompts = build_edit_system_prompts(instruction, vision=vision)
     media_files = filter_media_list(list_edit_captions_media(folder), selected_paths)
     resolved_model = model if model is not None else get_openai_model()
 
@@ -327,7 +427,8 @@ def run_edit_captions_job(
             edited, status, message = process_media(
                 client,
                 media_path,
-                system_prompt,
+                system_prompts,
+                vision=vision,
                 model=resolved_model,
                 mode=mode,
                 effort=reasoning_effort,

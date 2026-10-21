@@ -9,8 +9,10 @@ from testing_fixtures import isolate_test_database
 isolate_test_database()
 
 from automation.edit_captions import (
+    MAX_VISION_EDIT_CHARS,
     MIN_EDITED_CAPTION_CHARS,
     build_edit_system_prompt,
+    build_edit_system_prompts,
     build_edit_user_text,
     clean_edited_caption,
     edit_caption,
@@ -20,7 +22,13 @@ from automation.edit_captions import (
     validate_edit_captions_folder,
 )
 from automation.llm import MAX_MODEL_ATTEMPTS
-from testing_fixtures import FakeChatClient, TempMediaFolder, write_media, write_txt_caption
+from testing_fixtures import (
+    FakeChatClient,
+    TempMediaFolder,
+    image_urls,
+    write_media,
+    write_txt_caption,
+)
 
 INSTRUCTION = "Rewrite in present tense."
 ORIGINAL = "A woman in a red coat walked along the wet street."
@@ -455,6 +463,78 @@ class EditCaptionsRequestTests(unittest.TestCase):
         self.assertIsInstance(user_message["content"], str)
         self.assertIn(ORIGINAL, user_message["content"])
         self.assertEqual(client.last["extra_body"]["reasoning_effort"], "low")
+
+
+class EditCaptionsVisionTests(unittest.TestCase):
+    def test_the_vision_prompts_name_the_media_and_keep_four_rules(self) -> None:
+        prompts = build_edit_system_prompts(INSTRUCTION, vision=True)
+
+        for kind, media in (("image", "the image"), ("video", "keyframes")):
+            with self.subTest(kind=kind):
+                prompt = prompts[kind]
+                objective = prompt[prompt.index("# Objective") : prompt.index("# Edit to apply")]
+                self.assertIn(media, objective)
+                self.assertNotIn("all you are given", objective)
+                self.assertEqual(_rules_section(prompt).count("\n- "), 4)
+                self.assertNotIn("Add nothing the caption does not already state", prompt)
+
+    def test_without_vision_both_kinds_share_the_text_only_prompt(self) -> None:
+        prompts = build_edit_system_prompts(INSTRUCTION, vision=False)
+
+        self.assertEqual(prompts["image"], build_edit_system_prompt(INSTRUCTION))
+        self.assertEqual(prompts["video"], prompts["image"])
+
+    def test_a_vision_run_sends_the_image_with_the_caption(self) -> None:
+        client = FakeChatClient(EDITED)
+        with TempMediaFolder() as root:
+            media = _captioned(root, "photo.png")
+
+            with patch("automation.edit_captions.model_client") as factory:
+                factory.return_value.__enter__.return_value = client
+                result = _run(root, vision=True)
+
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(_caption_text(media), EDITED)
+            self.assertEqual(len(image_urls(client.last["messages"])), 1)
+            self.assertIn("the image it describes", client.last["messages"][0]["content"])
+            user_text = client.last["messages"][1]["content"][-1]["text"]
+            self.assertIn(ORIGINAL, user_text)
+
+    def test_a_text_only_run_sends_no_media(self) -> None:
+        client = FakeChatClient(EDITED)
+        with TempMediaFolder() as root:
+            _captioned(root, "photo.png")
+
+            with patch("automation.edit_captions.model_client") as factory:
+                factory.return_value.__enter__.return_value = client
+                _run(root)
+
+            self.assertIsInstance(client.last["messages"][1]["content"], str)
+
+    def test_a_video_without_keyframes_counts_a_frame_error_and_is_left_alone(self) -> None:
+        with TempMediaFolder() as root:
+            media = _captioned(root, "clip.mp4")
+
+            with (
+                patch("automation.vision.extract_video_keyframes", return_value=None),
+                patch("automation.edit_captions.edit_caption") as model,
+            ):
+                result = _run(root, vision=True)
+
+            model.assert_not_called()
+            self.assertEqual(result["stats"]["frame_error"], 1)
+            self.assertEqual(result["processed"], 1)
+            self.assertEqual(_caption_text(media), ORIGINAL)
+
+    def test_vision_lets_a_short_caption_grow_past_the_ratio(self) -> None:
+        original = "A woman standing outdoors."
+        expanded = "A woman in a long red coat and black boots stands on a wet street. " * 3
+
+        self.assertIsNotNone(edit_rejection_reason(original, expanded))
+        self.assertIsNone(edit_rejection_reason(original, expanded, vision=True))
+        self.assertIsNotNone(
+            edit_rejection_reason(original, "x" * (MAX_VISION_EDIT_CHARS + 1), vision=True)
+        )
 
 
 if __name__ == "__main__":

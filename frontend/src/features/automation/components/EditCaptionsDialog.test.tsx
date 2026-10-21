@@ -85,6 +85,7 @@ describe("EditCaptionsDialog", () => {
         mode: "thinking",
         reasoning_effort: "low",
         preserve_thinking: false,
+        vision: false,
         paths,
       },
       expect.any(AbortSignal),
@@ -210,6 +211,7 @@ describe("EditCaptionsDialog", () => {
       "low",
       true,
       false,
+      false,
     );
   });
 
@@ -229,6 +231,31 @@ describe("EditCaptionsDialog", () => {
       "Rewrite in present tense.",
       "medium",
       false,
+      false,
+      true,
+    );
+  });
+
+  it("sends the media with each caption once Send media is checked", async () => {
+    const user = userEvent.setup();
+    vi.mocked(previewCaptionEdits).mockResolvedValue({ samples: [] });
+    const onConfirm = renderDialog({ instruction: "Add the clothing colours." });
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAccessibleDescription(/Only the caption text is sent/);
+
+    await user.click(screen.getByLabelText("Send media"));
+    expect(dialog).toHaveAccessibleDescription(/sent with its image or video keyframes/);
+    await user.click(screen.getByRole("button", { name: "Dry run" }));
+    await waitFor(() => expect(previewCaptionEdits).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(previewCaptionEdits).mock.calls[0]?.[1]).toMatchObject({ vision: true });
+    await confirm(user);
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      "instruct",
+      "Add the clothing colours.",
+      "medium",
+      true,
+      true,
       true,
     );
   });
@@ -239,7 +266,14 @@ describe("EditCaptionsDialog", () => {
 
     await confirm(user);
 
-    expect(onConfirm).toHaveBeenCalledWith("instruct", "Drop the colours.", "medium", true, true);
+    expect(onConfirm).toHaveBeenCalledWith(
+      "instruct",
+      "Drop the colours.",
+      "medium",
+      true,
+      false,
+      true,
+    );
   });
 
   it("refuses a blank instruction", async () => {

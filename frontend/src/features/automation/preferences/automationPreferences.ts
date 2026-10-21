@@ -67,6 +67,7 @@ export function emptyAutomationSettings(folderPath: string): AutomationSettings 
       reasoning_effort: DEFAULT_REASONING_EFFORT,
       preserve_thinking: DEFAULT_PRESERVE_THINKING,
       instruction: "",
+      vision: false,
     },
     batch_rename: { stem: "", start_number: 1 },
     find_duplicates: { threshold: "near" },

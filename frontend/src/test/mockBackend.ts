@@ -654,6 +654,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           reasoning_effort: "medium",
           preserve_thinking: true,
           instruction: "",
+          vision: false,
         },
         batch_rename: { stem: "", start_number: 1 },
         find_duplicates: { threshold: "near" },

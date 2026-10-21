@@ -108,7 +108,9 @@ starting the job. The preview uses up to three readable captions in filename ord
 dialog's frozen matching results or selection, with the same model settings as the job. It highlights removed and
 added text, marks unchanged captions, and reports model failures without changing files or
 backups. Changing the instruction or model controls clears the preview. The full job generates
-fresh results, so its wording may differ from the samples.
+fresh results, so its wording may differ from the samples. Turn on **Send media** to send each
+caption's image or video keyframes along, so an instruction such as adding clothing colours can
+draw on what the media shows; without it the model sees only the caption text.
 
 ## Tags
 
@@ -180,7 +182,7 @@ Jobs run in the background. While a job runs, **Cancel job** replaces Auto-capti
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Auto-caption**                           | Generates `.txt` captions from media and folder instructions; needs a [model connection](configuration.md#connect-a-vision-model), skips finished captions, and retries short results according to the [draft threshold](configuration.md#vision-model-settings) |
 | **Verify captions** / **Lint captions**    | Write issue findings; captions stay unchanged                                                                                                                                                                                                                    |
-| **Edit captions**                          | AI text rewrite; the model sees no media. **Back up captions first** starts on each run                                                                                                                                                                          |
+| **Edit captions**                          | AI text rewrite; the model sees the media only with **Send media**. **Back up captions first** starts on each run                                                                                                                                                |
 | **Set captions**                           | Writes one caption to all files; existing captions need overwrite permission                                                                                                                                                                                     |
 | **Find & replace**                         | Replaces text/regex or adds a prefix/suffix, across lines too (regex `^`/`$` match at each line); previews counts and examples before writing                                                                                                                    |
 | **Find duplicates**                        | Writes groups for review; deletes media only when confirmed in the resolver                                                                                                                                                                                      |

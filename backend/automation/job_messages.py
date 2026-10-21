@@ -274,8 +274,9 @@ def edit_captions_failure_message(stats: dict[str, int]) -> str | None:
     """Errors only; ``rejected`` and ``no_caption`` are warnings, not failures."""
     api_errors = _count(stats, "api_error")
     read_errors = _count(stats, "read_error")
+    frame_errors = _count(stats, "frame_error")
     write_errors = _count(stats, "write_error")
-    if api_errors + read_errors + write_errors == 0:
+    if api_errors + read_errors + frame_errors + write_errors == 0:
         return None
 
     parts = [
@@ -288,6 +289,11 @@ def edit_captions_failure_message(stats: dict[str, int]) -> str | None:
             ),
             (read_errors, "1 caption could not be read", "{n} captions could not be read"),
             (
+                frame_errors,
+                "1 video could not yield keyframes",
+                "{n} videos could not yield keyframes",
+            ),
+            (
                 write_errors,
                 "1 caption could not be backed up or written",
                 "{n} captions could not be backed up or written",
@@ -297,6 +303,6 @@ def edit_captions_failure_message(stats: dict[str, int]) -> str | None:
     ]
     summary = "; ".join(parts) + "."
 
-    if api_errors and not read_errors and not write_errors:
+    if api_errors and not read_errors and not frame_errors and not write_errors:
         return f"{summary} {_model_server_hint('model')}"
     return summary

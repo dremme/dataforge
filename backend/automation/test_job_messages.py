@@ -148,6 +148,12 @@ class EditCaptionsFailureMessageTests(unittest.TestCase):
         self.assertIn("2 captions could not be backed up or written", message)
         self.assertNotIn("local model server", message)
 
+    def test_vision_frame_errors_fail_the_job_without_the_server_pointer(self) -> None:
+        message = edit_captions_failure_message({"frame_error": 2}) or ""
+
+        self.assertIn("2 videos could not yield keyframes", message)
+        self.assertNotIn("local model server", message)
+
     def test_mixed_errors_are_all_named(self) -> None:
         message = (
             edit_captions_failure_message({"api_error": 1, "read_error": 1, "write_error": 1}) or ""

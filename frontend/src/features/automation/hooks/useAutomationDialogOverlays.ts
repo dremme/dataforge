@@ -187,6 +187,7 @@ export function useAutomationDialogOverlays({
           instruction: string,
           reasoningEffort: ReasoningEffort,
           preserveThinking: boolean,
+          vision: boolean,
           backup: boolean,
         ) =>
           startJobFromDialog("edit_captions", {
@@ -194,6 +195,7 @@ export function useAutomationDialogOverlays({
             instruction,
             reasoning_effort: reasoningEffort,
             preserve_thinking: preserveThinking,
+            vision,
             backup,
           }),
       },
