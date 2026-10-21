@@ -1,3 +1,4 @@
+import { createEffectsChain, type EffectsChain } from "@/shared/lib/audioEffects";
 import { ADJUST_PREVIEW_LUT_SIZE } from "@/shared/constants";
 import { AdjustRenderer } from "@/features/gallery/lib/adjustRenderer";
 import {
@@ -20,13 +21,17 @@ import { clipEnd, projectDuration, sourceById, type Clip, type Project } from ".
 
 /** Drift a playing element may build up before it is put back on the clock. */
 const PLAYING_DRIFT_SECONDS = 0.12;
+/** How long each move of a scrub sounds, as an editor's audio scrub does; moves run together. */
+export const SCRUB_GRAIN_MS = 90;
+/** How long sound just started may take to move before the clock runs on without it. */
+const SOUND_START_SECONDS = 0.5;
+/** A late element is sent at most this far ahead of the clock, however slow its last seek was. */
+const MAX_SEEK_LEAD_SECONDS = 2;
 /** How early an upcoming clip is cued, so the cut does not wait for a seek. */
 const CUE_AHEAD_SECONDS = 1.5;
-/** Elements kept for clips this far from the playhead are released. */
-const KEEP_AROUND_SECONDS = 8;
 /** The colour-adjusted copy of a clip is drawn no wider than this. */
 export const MAX_ADJUST_WIDTH = 960;
-/** A video that has shown no picture this long after it was asked for is reported as stuck. */
+/** Media that has loaded nothing this long after it was asked for is reported as stuck. */
 export const MEDIA_STALL_MS = 15000;
 /** Samples per meter reading: about 21 ms at 48 kHz, short enough to catch a transient. */
 const METER_WINDOW = 1024;
@@ -89,6 +94,11 @@ export interface SourceLocation {
 
 export type EngineListener = (time: number) => void;
 
+/** Names the noise-reduced proxy of one source at one strength. */
+export function audioProxyKey(location: SourceLocation, strength: number): string {
+  return `${location.path}|${location.version}|${strength.toFixed(4)}`;
+}
+
 interface AdjustSlot {
   canvas: HTMLCanvasElement;
   staging: HTMLCanvasElement;
@@ -97,9 +107,11 @@ interface AdjustSlot {
 }
 
 /**
- * Plays a project into one canvas. The clock is the wall clock while every visible clip is ready,
- * and holds while one is still loading, so sound and picture never drift apart around a cut.
- * Each clip owns its media element: two clips of one file can show at once in a dissolve.
+ * Plays a project into one canvas, as an editor's viewer does: playback and every seek during it
+ * preroll, holding the clock until each picture and sound at the playhead can play, and then run
+ * on the wall clock. A video that falls behind after that drops frames and is sent ahead to meet
+ * the clock, so the sound never stutters for it. Each clip owns its media element: two clips of
+ * one file can show at once in a dissolve.
  */
 export class PreviewEngine {
   private project: Project | null = null;
@@ -108,7 +120,13 @@ export class PreviewEngine {
   private videos = new Map<string, HTMLVideoElement>();
   private audios = new Map<string, HTMLAudioElement>();
   private gains = new Map<string, GainNode>();
+  /** Each sound clip's EQ, between its element and its gain. */
+  private chains = new Map<string, EffectsChain>();
+  /** Rendered proxies by ``audioProxyKey``; a clip plays its source until its proxy is in. */
+  private proxies: ReadonlyMap<string, string> = new Map();
   private images = new Map<string, HTMLImageElement>();
+  /** How far ahead of the clock each element is sent when it falls behind: its seeks' cost. */
+  private seekLeads = new WeakMap<HTMLMediaElement, number>();
   private adjusters = new Map<string, AdjustSlot>();
   private audioContext: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -126,6 +144,11 @@ export class PreviewEngine {
   private time = 0;
   private playing = false;
   private waiting = false;
+  /** Whether sound has moved since playback last started; until then it may take longer. */
+  private soundMoved = false;
+  /** True for a moment after each scrub, while the sound at the paused playhead plays. */
+  private scrubbing = false;
+  private scrubTimer = 0;
 
   attach(canvas: HTMLCanvasElement | null): void {
     this.canvas = canvas;
@@ -146,6 +169,12 @@ export class PreviewEngine {
     this.render();
   }
 
+  /** A clip whose proxy arrives swaps to it in place, as a relinked file does. */
+  setProxies(proxies: ReadonlyMap<string, string>): void {
+    this.proxies = proxies;
+    this.sync();
+  }
+
   get duration(): number {
     return this.project ? projectDuration(this.project) : 0;
   }
@@ -158,7 +187,7 @@ export class PreviewEngine {
     return this.playing;
   }
 
-  /** True while playback holds for a clip that is not ready to show. */
+  /** True while playback prerolls: a picture or sound at the playhead cannot play yet. */
   get isWaiting(): boolean {
     return this.waiting;
   }
@@ -210,21 +239,36 @@ export class PreviewEngine {
 
   seek(time: number): void {
     this.time = Math.max(0, Math.min(time, this.duration));
-    this.clockStart = this.time;
-    this.wallStart = performance.now();
+    const waiting = this.waiting;
+    if (this.playing) this.preroll();
     this.sync();
     this.render();
     this.emit();
+    if (this.waiting !== waiting) this.emitState();
+  }
+
+  /** A seek from dragging the playhead; while paused, the sound there plays for a moment. */
+  scrub(time: number): void {
+    if (!this.playing) {
+      this.ensureAudioContext();
+      this.scrubbing = true;
+      window.clearTimeout(this.scrubTimer);
+      this.scrubTimer = window.setTimeout(() => {
+        this.scrubbing = false;
+        this.sync();
+      }, SCRUB_GRAIN_MS);
+    }
+    this.seek(time);
   }
 
   play(): void {
     if (this.playing || !this.project) return;
     if (this.time >= this.duration - 1e-3) this.time = 0;
     this.ensureAudioContext();
+    window.clearTimeout(this.scrubTimer);
+    this.scrubbing = false;
     this.playing = true;
-    this.clockStart = this.time;
-    this.wallStart = performance.now();
-    this.sync();
+    this.preroll();
     this.emitState();
     this.loop();
   }
@@ -235,9 +279,11 @@ export class PreviewEngine {
     this.waiting = false;
     // A paused playhead sits on a frame, so stepping and cutting start from one, but never past
     // the end: rounding there can land on a frame the project does not reach. One that ran to the
-    // end stays there, or rounding down from it would leave `play` nothing to rewind from.
+    // end stays there, or rounding down from it would leave `play` nothing to rewind from. It
+    // stops on the picture's frame, as an editor does, so the picture needs no seek to show it.
     if (this.project && this.time < this.duration) {
-      const frame = Math.round(this.time * this.project.frame_rate) / this.project.frame_rate;
+      const at = this.shownTime() ?? this.time;
+      const frame = Math.round(at * this.project.frame_rate) / this.project.frame_rate;
       this.time = Math.min(frame, this.duration);
     }
     cancelAnimationFrame(this.frameRequest);
@@ -255,6 +301,8 @@ export class PreviewEngine {
   /** Releases media and audio; StrictMode may keep using the engine afterwards, and can. */
   dispose(): void {
     this.pause();
+    window.clearTimeout(this.scrubTimer);
+    this.scrubbing = false;
     for (const [id, element] of this.videos) this.release(this.videos, id, element);
     for (const [id, element] of this.audios) this.release(this.audios, id, element);
     for (const slot of this.adjusters.values()) slot.renderer?.dispose();
@@ -275,20 +323,10 @@ export class PreviewEngine {
 
   private loop = (): void => {
     if (!this.playing) return;
-    const ready = this.activeVideosReady();
-    if (ready) {
-      if (this.waiting) {
-        // Pick the clock up from where it held, not from where the wall clock ran to.
-        this.clockStart = this.time;
-        this.wallStart = performance.now();
-      }
-      this.time = this.clockStart + (performance.now() - this.wallStart) / 1000;
-    } else {
-      this.clockStart = this.time;
-      this.wallStart = performance.now();
-    }
-    if (this.waiting === ready) {
-      this.waiting = !ready;
+    if (!this.waiting) {
+      this.tick();
+    } else if (this.mediaReady()) {
+      this.roll();
       this.emitState();
     }
     if (this.time >= this.duration) {
@@ -302,15 +340,88 @@ export class PreviewEngine {
     this.frameRequest = requestAnimationFrame(this.loop);
   };
 
-  private activeVideosReady(): boolean {
-    if (!this.project) return true;
-    for (const layer of layersAt(this.project, pictureTime(this.project, this.time))) {
-      if (layer.clip.kind !== "video") continue;
-      const element = this.videos.get(layer.clip.id);
-      if (this.sourceFor(layer.clip)?.missing) continue;
-      // A file that cannot play would hold the clock forever; it shows as a marked box instead.
-      if (this.failureFor(layer.clip)) continue;
-      if (!element || element.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return false;
+  /**
+   * Moves the clock on. Sound being heard leads it, as in an editor, so a sound slow to start
+   * holds the picture with it instead of drifting from it. The clock never runs back; with no
+   * sound playing, or one that strayed or stopped moving for longer than it is allowed, it runs
+   * on the wall clock, and the sound is put back on it like any late element.
+   */
+  private tick(): void {
+    const now = performance.now();
+    const wall = this.clockStart + (now - this.wallStart) / 1000;
+    const heard = this.heardTime();
+    const allowed = this.soundMoved ? PLAYING_DRIFT_SECONDS : SOUND_START_SECONDS;
+    if (heard === null || Math.abs(heard - wall) > allowed) {
+      this.time = wall;
+    } else if (heard > this.time) {
+      this.time = heard;
+      this.clockStart = heard;
+      this.wallStart = now;
+      this.soundMoved = true;
+    }
+  }
+
+  /** Where the first sound playing at the playhead is on the timeline. */
+  private heardTime(): number | null {
+    const project = this.project;
+    if (!project) return null;
+    for (const voice of voicesAt(project, pictureTime(project, this.time))) {
+      const element = this.audios.get(voice.clip.id);
+      if (!element || element.paused || element.seeking) continue;
+      if (element.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) continue;
+      const { clip } = voice;
+      return clip.start + (element.currentTime - clip.source_in) / clip.speed;
+    }
+    return null;
+  }
+
+  /** Where the top video's picture is on the timeline, while it plays within the allowed drift. */
+  private shownTime(): number | null {
+    const project = this.project;
+    if (!project) return null;
+    const top = layersAt(project, pictureTime(project, this.time))
+      .filter((layer) => layer.clip.kind === "video")
+      .pop();
+    const element = top && this.videos.get(top.clip.id);
+    if (!top || !element || element.paused || element.seeking) return null;
+    if (element.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return null;
+    const { clip } = top;
+    const time = clip.start + (element.currentTime - clip.source_in) / clip.speed;
+    const onClip = time >= clip.start && time < clipEnd(clip);
+    return onClip && Math.abs(time - this.time) <= PLAYING_DRIFT_SECONDS ? time : null;
+  }
+
+  /** Cues every element at the playhead, paused, and starts the clock at once if all can play. */
+  private preroll(): void {
+    this.waiting = true;
+    this.sync();
+    if (this.mediaReady()) this.roll();
+  }
+
+  /** Starts the clock from where it held; the next sync starts the elements together. */
+  private roll(): void {
+    this.waiting = false;
+    this.soundMoved = false;
+    this.clockStart = this.time;
+    this.wallStart = performance.now();
+  }
+
+  /** Whether every picture and sound at the playhead can play now. */
+  private mediaReady(): boolean {
+    const project = this.project;
+    if (!project) return true;
+    const time = pictureTime(project, this.time);
+    const fades = transitionFades(project);
+    const pictures = layersAt(project, time, fades).map((layer) => layer.clip);
+    const sounds = voicesAt(project, time, fades).map((voice) => voice.clip);
+    for (const clip of [...pictures, ...sounds]) {
+      const pool: Map<string, HTMLMediaElement> | null =
+        clip.kind === "video" ? this.videos : clip.kind === "audio" ? this.audios : null;
+      // Missing or failed media would hold the clock forever; it shows as a marked box instead.
+      if (!pool || !this.urlFor(clip) || this.failureFor(clip)) continue;
+      const element = pool.get(clip.id);
+      if (!element || element.seeking) return false;
+      if (element.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return false;
     }
     return true;
   }
@@ -361,19 +472,37 @@ export class PreviewEngine {
     element.addEventListener("error", () =>
       this.fail(pool, id, element, problemFromError(element.error)),
     );
-    if (!(element instanceof HTMLVideoElement)) return;
-    // A file whose only picture stream the browser cannot decode may still load its sound.
-    element.addEventListener("loadedmetadata", () => {
-      if (element.videoWidth === 0) this.fail(pool, id, element, "no-picture");
-    });
+    if (element instanceof HTMLVideoElement) {
+      // A file whose only picture stream the browser cannot decode may still load its sound.
+      element.addEventListener("loadedmetadata", () => {
+        if (element.videoWidth === 0) this.fail(pool, id, element, "no-picture");
+      });
+    }
+    // Only the first load counts: a scrub or a play start can catch loaded media mid-seek.
+    let loaded = false;
+    element.addEventListener("loadeddata", () => (loaded = true), { once: true });
     // A background tab may defer loading media, so the wait only counts while it is shown.
     const check = () => {
-      if (pool.get(id) !== element) return;
+      if (pool.get(id) !== element || loaded) return;
       if (document.visibilityState === "hidden") window.setTimeout(check, MEDIA_STALL_MS);
       else if (element.readyState < HTMLMediaElement.HAVE_CURRENT_DATA && !element.error)
         this.fail(pool, id, element, "stalled");
     };
     window.setTimeout(check, MEDIA_STALL_MS);
+  }
+
+  /** Learns what the element's seeks cost, averaged over the last few, as its lead. */
+  private measureSeeks(element: HTMLMediaElement): void {
+    let started: number | null = null;
+    element.addEventListener("seeking", () => (started = performance.now()));
+    element.addEventListener("seeked", () => {
+      if (started === null) return;
+      const seconds = ((performance.now() - started) / 1000) * element.playbackRate;
+      const before = this.seekLeads.get(element);
+      const lead = before === undefined ? seconds : (before + seconds) / 2;
+      this.seekLeads.set(element, Math.min(MAX_SEEK_LEAD_SECONDS, lead));
+      started = null;
+    });
   }
 
   private sourceFor(clip: Clip): SourceLocation | undefined {
@@ -383,7 +512,9 @@ export class PreviewEngine {
   private urlFor(clip: Clip): string | null {
     const location = this.sourceFor(clip);
     if (!location || location.missing) return null;
-    return mediaUrl(location.path, location.version);
+    const strength = clip.kind === "audio" ? clip.audio_effects.noise_reduction : 0;
+    const proxy = strength > 0 ? this.proxies.get(audioProxyKey(location, strength)) : undefined;
+    return proxy ?? mediaUrl(location.path, location.version);
   }
 
   private release<T extends HTMLMediaElement>(pool: Map<string, T>, id: string, element: T): void {
@@ -393,6 +524,8 @@ export class PreviewEngine {
     pool.delete(id);
     this.gains.get(id)?.disconnect();
     this.gains.delete(id);
+    this.chains.get(id)?.disconnect();
+    this.chains.delete(id);
   }
 
   private videoFor(clip: Clip): HTMLVideoElement | null {
@@ -410,13 +543,18 @@ export class PreviewEngine {
       element.preload = "auto";
       element.dataset.url = url;
       element.src = url;
-      const redraw = () => {
-        if (!this.playing) this.render();
+      // A paused element skips seeks while one is under way, so the one that lands catches up
+      // with the playhead before drawing: a fast scrub would otherwise stop on a stale frame.
+      const settle = () => {
+        if (this.playing) return;
+        this.sync();
+        this.render();
       };
-      element.addEventListener("loadeddata", redraw);
-      element.addEventListener("seeked", redraw);
+      element.addEventListener("loadeddata", settle);
+      element.addEventListener("seeked", settle);
       this.videos.set(clip.id, element);
       this.watchForFailure(this.videos, clip.id, element);
+      this.measureSeeks(element);
     }
     return element;
   }
@@ -437,6 +575,7 @@ export class PreviewEngine {
       element.preservesPitch = true;
       this.audios.set(clip.id, element);
       this.watchForFailure(this.audios, clip.id, element);
+      this.measureSeeks(element);
       this.connectGain(clip.id, element);
     }
     return element;
@@ -476,9 +615,12 @@ export class PreviewEngine {
     if (!this.audioContext || !this.master || this.gains.has(id)) return;
     try {
       const source = this.audioContext.createMediaElementSource(element);
+      const chain = createEffectsChain(this.audioContext);
       const gain = this.audioContext.createGain();
-      source.connect(gain).connect(this.master);
+      source.connect(chain.input);
+      chain.output.connect(gain).connect(this.master);
       this.gains.set(id, gain);
+      this.chains.set(id, chain);
     } catch {
       // Already routed, or the browser refused; the element's own volume still works.
     }
@@ -491,41 +633,35 @@ export class PreviewEngine {
     const time = pictureTime(project, this.time);
     const fades = transitionFades(project);
     const visible = new Set(layersAt(project, time, fades).map((layer) => layer.clip.id));
+    const rolling = this.playing && !this.waiting;
 
     for (const clip of project.clips) {
       if (clip.kind !== "video") continue;
-      const near =
-        clip.start - KEEP_AROUND_SECONDS < time && time < clipEnd(clip) + KEEP_AROUND_SECONDS;
       const existing = this.videos.get(clip.id);
-      if (!near) {
-        if (existing) this.release(this.videos, clip.id, existing);
-        continue;
-      }
       const active = visible.has(clip.id);
-      const upcoming = !active && clip.start > time && clip.start - time < CUE_AHEAD_SECONDS;
-      if (!active && !upcoming) {
-        existing?.pause();
+      if (!active && !isUpcoming(clip, time)) {
+        if (existing) this.release(this.videos, clip.id, existing);
         continue;
       }
       const element = this.videoFor(clip);
       if (!element) continue;
       const target = active ? sourceTimeAt(clip, time) : clip.source_in;
-      this.place(element, clip, target, active && this.playing);
+      this.place(element, clip, target, active && rolling);
     }
 
     const voices = new Map(voicesAt(project, time, fades).map((voice) => [voice.clip.id, voice]));
     for (const clip of project.clips) {
       if (clip.kind !== "audio") continue;
       const voice = voices.get(clip.id);
-      const upcoming = clip.start > time && clip.start - time < CUE_AHEAD_SECONDS;
       const existing = this.audios.get(clip.id);
-      if (!voice && !upcoming) {
-        existing?.pause();
+      if (!voice && !isUpcoming(clip, time)) {
+        if (existing) this.release(this.audios, clip.id, existing);
         continue;
       }
       const element = this.audioFor(clip);
       if (!element) continue;
       const level = voice?.gain ?? 0;
+      this.chains.get(clip.id)?.update(clip.audio_effects);
       const gain = this.gains.get(clip.id);
       if (gain) {
         gain.gain.value = level;
@@ -534,7 +670,7 @@ export class PreviewEngine {
         element.volume = Math.min(1, level);
       }
       const target = voice ? sourceTimeAt(clip, time) : clip.source_in;
-      this.place(element, clip, target, Boolean(voice) && this.playing && !this.waiting);
+      this.place(element, clip, target, Boolean(voice) && (rolling || this.scrubbing));
     }
   }
 
@@ -559,12 +695,17 @@ export class PreviewEngine {
     const frame = 1 / (sourceById(this.project as Project, clip.source_id)?.frame_rate ?? 30);
     const drift = Math.abs(element.currentTime - target);
     if (run) {
-      if (element.paused) {
-        element.currentTime = target;
-        void element.play().catch(() => undefined);
-      } else if (drift > PLAYING_DRIFT_SECONDS) {
-        element.currentTime = target;
+      // Every seek costs a decode from the last keyframe: one already on the frame starts as is,
+      // and a late one is sent as far ahead as its seeks take, to land where the clock will be.
+      // A scrub has no clock to meet: its sound plays from the playhead.
+      const late = drift > (element.paused ? frame / 2 : PLAYING_DRIFT_SECONDS);
+      if (late && !element.seeking) {
+        const behind = this.playing && element.currentTime < target;
+        const lead = behind ? (this.seekLeads.get(element) ?? 0) : 0;
+        const last = clip.source_in + clip.duration * clip.speed - frame;
+        element.currentTime = Math.min(target + lead, Math.max(target, last));
       }
+      if (element.paused) void element.play().catch(() => undefined);
     } else {
       if (!element.paused) element.pause();
       if (drift > frame / 2 && !element.seeking) element.currentTime = target;
@@ -579,8 +720,8 @@ export class PreviewEngine {
     const context = canvas.getContext("2d");
     if (!context) return;
     const layers = layersAt(project, pictureTime(project, this.time));
-    // A seek takes a shown video's frame away for a moment; drawing then would flash the
-    // placeholder, so the last picture stays up until `seeked` draws the new one.
+    // A seek takes a shown video's frame away for a moment, and a late one has none while it
+    // catches up; drawing then would flash the placeholder, so the last picture stays up.
     if (layers.some((layer) => this.isBetweenFrames(layer.clip))) return;
     const scale = canvas.width / project.width;
     context.setTransform(1, 0, 0, 1, 0, 0);
@@ -649,12 +790,18 @@ export class PreviewEngine {
     context.restore();
   }
 
-  /** A video that has shown a frame but has none to give right now, as while it seeks. */
+  /**
+   * A video with no frame to give right now: one that has shown a frame, as while it seeks, or
+   * any while playback runs, which drops its frames until it catches up.
+   */
   private isBetweenFrames(clip: Clip): boolean {
-    if (clip.kind !== "video") return false;
+    if (clip.kind !== "video" || !this.urlFor(clip) || this.failureFor(clip)) return false;
     const element = this.videos.get(clip.id);
+    const rolling = this.playing && !this.waiting;
+    if (!element) return rolling;
     return (
-      element?.dataset.shown === "1" && element.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+      (rolling || element.dataset.shown === "1") &&
+      element.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
     );
   }
 
@@ -765,6 +912,15 @@ export class PreviewEngine {
     context.textBaseline = "middle";
     context.fillText(label, 0, 0);
   }
+}
+
+/**
+ * Whether a clip that is not playing yet gets its element now. No others keep one: each element
+ * holds an open request even while paused, and the browser allows six per server, so one left
+ * behind for a clip already played starves the clip under the playhead.
+ */
+function isUpcoming(clip: Clip, time: number): boolean {
+  return clip.start > time && clip.start - time < CUE_AHEAD_SECONDS;
 }
 
 /** Theme tokens resolved at draw time, so the canvas follows the same colours as the page. */

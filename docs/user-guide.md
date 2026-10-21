@@ -128,11 +128,12 @@ Open a file's editor, make changes, then **Apply**. Editor changes render from t
 
 - **Images:** crop to preset ratios or a free crop, rotate by quarter turns, mirror, resize by scale or exact dimensions, and use Adjust.
 - **Videos:** trim on the timeline, crop, resize, change speed or volume, mute, and use Adjust. Rendering shows progress and can be cancelled.
+- **Audio:** trim on the waveform, fade in and out, set the volume, limit peaks or normalize to -14 LUFS, change speed or pitch, shape the sound with the EQ, and reduce noise. See [Edit audio](#edit-audio).
 - **Masks:** add blur, pixelate, or blackout regions to images or videos.
 - **Frames:** **Save frame as JPG** writes a video/GIF frame beside the source, named with its timestamp or frame number.
 - **GIF to MP4:** converts at 24 fps and asks before overwriting an MP4 of the same name.
 
-Image editing supports JPG/JPEG, PNG, WebP, and BMP; video editing supports MP4, MOV, and M4V when the browser can decode them. See [supported formats](#supported-formats).
+Image editing supports JPG/JPEG, PNG, WebP, and BMP; video editing supports MP4, MOV, and M4V when the browser can decode them; audio editing supports WAV, MP3, and FLAC. See [supported formats](#supported-formats).
 
 While resizing a crop, the preview shows its pixel dimensions. Free crops also show their aspect ratio.
 
@@ -143,6 +144,19 @@ Adjust provides Exposure, Brilliance, Highlights, Shadows, Contrast, Brightness,
 The **Auto** wand analyzes the original inside the crop, excluding masks; videos are sampled within the trimmed range. It adjusts exposure, contrast, color intensity, and color casts toward a natural look. Its slider sets the amount; click the selected wand again to turn it off.
 
 Hold the compare button to see the original. Click the preview to inspect at output resolution when it exceeds the displayed size, then move the pointer to pan. Live preview needs WebGL 2; saving still works if preview is unavailable.
+
+### Edit audio
+
+The audio editor plays the original while you work. Its tools:
+
+- **Trim:** drag the handles on the waveform or set them at the playhead; the length presets keep that many seconds.
+- **Fades:** fade in and out by the chosen seconds of the result. **Equal power** sounds even to the ear; **Linear** dips in the middle.
+- **Volume:** a gain from 25% to 200%. **Limit peaks** holds peaks under -1 dB; **Normalize** brings the sound to -14 LUFS, then limits peaks. The preview plays a normalize at its measured gain, but does not limit.
+- **Speed:** changes the length and keeps the pitch. **Pitch** moves it up to 12 semitones either way and keeps the length.
+- **EQ:** **Low cut** removes rumble and **High cut** hiss; **Bass**, **Mid**, and **Treble** lift or lower their range by up to 12 dB.
+- **Clean:** noise reduction learns the noise from the file's quietest half second and lowers it everywhere, by up to 30 dB at full strength.
+
+Noise reduction and pitch are rendered on the server before you hear them, and the footer shows **Preparing preview...** meanwhile. The saved file is made from that same render. A file keeps its format: a WAV keeps its sample format, a FLAC its bit depth, and an MP3 its bitrate, tags, and cover. MP3 is re-encoded once per edit, always from the original.
 
 ### Auto-adjust a batch
 
@@ -188,7 +202,7 @@ For model recommendations, setup, all variables, and troubleshooting, see [Confi
 
 ## Supported formats
 
-All listed formats appear in the gallery and take `.txt` captions. Images and videos can be sent to AI caption jobs or ComfyUI; audio is for listening and hand captioning only, and every job skips it. The chosen workflow or training model must support the actual media; gallery support does not guarantee integration compatibility.
+All listed formats appear in the gallery and take `.txt` captions. Images and videos can be sent to AI caption jobs or ComfyUI; audio can be listened to, edited, and captioned by hand, and every job skips it. The chosen workflow or training model must support the actual media; gallery support does not guarantee integration compatibility.
 
 | Format             | Gallery                                                       | Editing / Auto-adjust | Strip metadata   | Watermark | Embedded ComfyUI workflow |
 | ------------------ | ------------------------------------------------------------- | --------------------- | ---------------- | --------- | ------------------------- |
@@ -198,7 +212,7 @@ All listed formats appear in the gallery and take `.txt` captions. Images and vi
 | GIF                | Animation and frame capture                                   | Convert to MP4 first  | —                | Yes       | —                         |
 | MP4, MOV, M4V      | Playback and frame capture, if the browser supports the codec | Video                 | Yes              | Yes       | Yes                       |
 | AVI, MKV, WMV, FLV | Thumbnail only                                                | —                     | —                | —         | —                         |
-| WAV, MP3, FLAC     | Waveform and playback                                         | —                     | —                | —         | —                         |
+| WAV, MP3, FLAC     | Waveform and playback                                         | Audio                 | —                | —         | —                         |
 
 GIF captioning and verification use its first frame. Video caption jobs sample frames across the clip, even for containers without browser playback. GIF-to-MP4 conversion uses 24 fps and asks before overwriting an existing MP4. A watermarked GIF stays an animated GIF with the original frame timing, loop count, and transparency.
 

@@ -27,6 +27,25 @@ WATERMARK_EXTENSIONS = IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS | {GIF_EXTENSION}
 VIDEO_EDIT_EXTENSIONS = ISOBMFF_EXTENSIONS
 VIDEO_EDIT_MUXERS = {".mp4": "mp4", ".m4v": "mp4", ".mov": "mov"}
 
+# Edited in place, so each keeps its own format: the muxer is the one it was written with.
+AUDIO_EDIT_MUXERS = {".wav": "wav", ".mp3": "mp3", ".flac": "flac"}
+
+# Sound shaping, shared by the gallery's audio edit and the editor's audio clips. The bands are
+# RBJ biquads: ffmpeg's filters and the browser's BiquadFilterNode draw the same curves from
+# these numbers, which is what lets the preview play what the render writes.
+AUDIO_EQ_BASS_HZ = 120.0
+AUDIO_EQ_MID_HZ = 1000.0
+AUDIO_EQ_TREBLE_HZ = 6000.0
+AUDIO_EQ_MID_Q = 1.0
+AUDIO_EQ_MAX_DB = 12.0
+AUDIO_LOW_CUT_MIN_HZ = 20.0
+AUDIO_LOW_CUT_MAX_HZ = 500.0
+AUDIO_HIGH_CUT_MIN_HZ = 2000.0
+AUDIO_HIGH_CUT_MAX_HZ = 20000.0
+# Noise reduction at full strength: afftdn's reduction in dB. More starts to sound underwater.
+AUDIO_NOISE_REDUCTION_MAX_DB = 30.0
+AUDIO_PITCH_MAX_SEMITONES = 12
+
 # The multi-track editor previews in the browser and renders with ffmpeg; GIF stays out.
 VIDEO_PROJECT_VIDEO_EXTENSIONS = ISOBMFF_EXTENSIONS
 VIDEO_PROJECT_IMAGE_EXTENSIONS = IMAGE_EXTENSIONS
@@ -295,6 +314,17 @@ SHARED_CONSTANTS: dict[str, object] = {
     "VIDEO_EXTENSIONS": sorted(VIDEO_EXTENSIONS),
     "VIDEO_EDIT_EXTENSIONS": sorted(VIDEO_EDIT_EXTENSIONS),
     "AUDIO_EXTENSIONS": sorted(AUDIO_EXTENSIONS),
+    "AUDIO_EDIT_EXTENSIONS": sorted(AUDIO_EDIT_MUXERS),
+    "AUDIO_EQ_BASS_HZ": AUDIO_EQ_BASS_HZ,
+    "AUDIO_EQ_MID_HZ": AUDIO_EQ_MID_HZ,
+    "AUDIO_EQ_TREBLE_HZ": AUDIO_EQ_TREBLE_HZ,
+    "AUDIO_EQ_MID_Q": AUDIO_EQ_MID_Q,
+    "AUDIO_EQ_MAX_DB": AUDIO_EQ_MAX_DB,
+    "AUDIO_LOW_CUT_MIN_HZ": AUDIO_LOW_CUT_MIN_HZ,
+    "AUDIO_LOW_CUT_MAX_HZ": AUDIO_LOW_CUT_MAX_HZ,
+    "AUDIO_HIGH_CUT_MIN_HZ": AUDIO_HIGH_CUT_MIN_HZ,
+    "AUDIO_HIGH_CUT_MAX_HZ": AUDIO_HIGH_CUT_MAX_HZ,
+    "AUDIO_PITCH_MAX_SEMITONES": AUDIO_PITCH_MAX_SEMITONES,
     "VIDEO_PROJECT_VIDEO_EXTENSIONS": sorted(VIDEO_PROJECT_VIDEO_EXTENSIONS),
     "VIDEO_PROJECT_IMAGE_EXTENSIONS": sorted(VIDEO_PROJECT_IMAGE_EXTENSIONS),
     "VIDEO_PROJECT_AUDIO_EXTENSIONS": sorted(VIDEO_PROJECT_AUDIO_EXTENSIONS),

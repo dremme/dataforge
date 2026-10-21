@@ -6,6 +6,12 @@ from time import monotonic
 from fastapi import APIRouter, HTTPException, Query, Response
 
 import events
+from audio_edit import FFMPEG_MISSING_MESSAGE as AUDIO_FFMPEG_MISSING_MESSAGE
+from audio_edit import apply_audio_edit, measure_loudness, read_audio_edit_spec, revert_audio_edit
+from audio_edit import expected_output_seconds as expected_audio_seconds
+from audio_edit import is_identity_spec as is_identity_audio_spec
+from audio_effects import audio_proxy, needs_proxy, probe_audio
+from audio_info import audio_duration
 from color_auto import image_analysis_pixels, suggest_adjust, video_analysis_pixels
 from comfy_candidates import (
     CandidateBusyError,
@@ -14,7 +20,7 @@ from comfy_candidates import (
     describe_candidate_state,
     reject_candidate,
 )
-from constants import MEDIA_MIME_TYPES
+from constants import AUDIO_PITCH_MAX_SEMITONES, MEDIA_MIME_TYPES
 from edit_sidecars import (
     EditBusyError,
     backup_path_for,
@@ -22,6 +28,7 @@ from edit_sidecars import (
     original_path_for,
     render_slot,
 )
+from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled
 from filesystem import MediaPreviewError, open_file_in_default_viewer
 from gif_frames import (
@@ -48,6 +55,7 @@ from media_transfer import TransferMode, preview_media_transfer, transfer_media_
 from routes._helpers import (
     resolve_candidate_media,
     resolve_candidate_source,
+    resolve_editable_audio,
     resolve_editable_image,
     resolve_editable_video,
     resolve_folder,
@@ -56,8 +64,14 @@ from routes._helpers import (
     resolve_media_file,
     resolve_optional_gif_file,
     resolve_optional_media_file,
+    resolve_sounding_file,
 )
 from schemas import (
+    AudioEditEvent,
+    AudioEditResponse,
+    AudioEditSpec,
+    AudioEditStateResponse,
+    AudioLoudnessResponse,
     AutoAdjustResponse,
     ComfyCandidateBatchRequest,
     ComfyCandidateBatchResponse,
@@ -156,7 +170,7 @@ _GIF_TO_MP4_ERRORS: dict[type[Exception], ErrorStatus] = {
     EditBusyError: (409, "This GIF is already being converted"),
     FfmpegCancelled: (409, "The conversion was cancelled"),
 }
-_VIDEO_EDIT_ERRORS: dict[type[Exception], ErrorStatus] = {
+_RENDER_EDIT_ERRORS: dict[type[Exception], ErrorStatus] = {
     EditBusyError: 409,
     FfmpegCancelled: (409, "The edit was cancelled"),
     ValueError: 400,
@@ -412,10 +426,11 @@ def serve_thumbnail(
     )
 
 
-VIDEO_EDIT_EVENT_MIN_INTERVAL_SECONDS = 0.25
+EDIT_EVENT_MIN_INTERVAL_SECONDS = 0.25
 
 
-def _video_edit_progress(media: Path, tab: str, duration: float | None):
+def _edit_progress(tab: str, event: Callable[[float], dict[str, object]]):
+    """Throttled, and addressed to the tab that asked; ``None`` without one."""
     if not tab:
         return None
 
@@ -424,16 +439,22 @@ def _video_edit_progress(media: Path, tab: str, duration: float | None):
     def publish(seconds: float) -> None:
         nonlocal last_published
         now = monotonic()
-        if now - last_published < VIDEO_EDIT_EVENT_MIN_INTERVAL_SECONDS:
+        if now - last_published < EDIT_EVENT_MIN_INTERVAL_SECONDS:
             return
 
         last_published = now
-        events.publish_to_tabs(
-            [tab],
-            VideoEditEvent(path=str(media), seconds=seconds, duration=duration).model_dump(),
-        )
+        events.publish_to_tabs([tab], event(seconds))
 
     return publish
+
+
+def _video_edit_progress(media: Path, tab: str, duration: float | None):
+    return _edit_progress(
+        tab,
+        lambda seconds: VideoEditEvent(
+            path=str(media), seconds=seconds, duration=duration
+        ).model_dump(),
+    )
 
 
 @router.get("/media/video-edit", response_model=VideoEditStateResponse)
@@ -476,7 +497,7 @@ def edit_video(
                 media, body, on_progress=on_progress, should_cancel=should_cancel, probe=probe
             )
     except (EditBusyError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
-        raise _http_error(exc, _VIDEO_EDIT_ERRORS, missing_tool=FFMPEG_MISSING_MESSAGE) from exc
+        raise _http_error(exc, _RENDER_EDIT_ERRORS, missing_tool=FFMPEG_MISSING_MESSAGE) from exc
 
 
 @router.post("/media/video-edit/auto", response_model=AutoAdjustResponse)
@@ -498,7 +519,7 @@ def auto_adjust_video(
         )
         return AutoAdjustResponse(suggestion=suggest_adjust(pixels, weights))
     except (ValueError, OSError) as exc:
-        raise _http_error(exc, _VIDEO_EDIT_ERRORS) from exc
+        raise _http_error(exc, _RENDER_EDIT_ERRORS) from exc
 
 
 @router.post("/media/video-edit/cancel", status_code=204)
@@ -521,7 +542,159 @@ def revert_video(
         with render_slot(media):
             return revert_video_edit(media)
     except (EditBusyError, ValueError, OSError) as exc:
-        raise _http_error(exc, _VIDEO_EDIT_ERRORS) from exc
+        raise _http_error(exc, _RENDER_EDIT_ERRORS) from exc
+
+
+@router.get("/media/audio-edit", response_model=AudioEditStateResponse)
+def read_audio_edit(
+    path: str = Query(..., description="Absolute path to an audio file"),
+) -> AudioEditStateResponse:
+    """What the editor needs to re-open on a file it has already changed."""
+    media = resolve_editable_audio(path)
+
+    # The editor plays the original, and trims are measured against it.
+    try:
+        duration = audio_duration(original_path_for(media))
+    except OSError:
+        duration = None
+    return AudioEditStateResponse(
+        path=str(media),
+        has_backup=backup_path_for(media).is_file(),
+        duration=duration,
+        spec=read_audio_edit_spec(media),
+    )
+
+
+@router.post("/media/audio-edit", response_model=AudioEditResponse)
+def edit_audio(
+    path: str = Query(..., description="Absolute path to an audio file"),
+    tab: str = Query("", description="Client tab id, so progress reaches the right stream"),
+    body: AudioEditSpec = ...,
+) -> AudioEditResponse:
+    """Render the spec from the untouched original and put it back under the same name."""
+    media = resolve_editable_audio(path)
+
+    if is_identity_audio_spec(body):
+        raise HTTPException(status_code=400, detail="This edit would not change the sound")
+
+    executable = ffmpeg_path()
+    if not executable:
+        raise HTTPException(status_code=503, detail=AUDIO_FFMPEG_MISSING_MESSAGE)
+    probe = probe_audio(executable, original_path_for(media))
+    duration = expected_audio_seconds(body, probe.duration)
+    on_progress = _edit_progress(
+        tab,
+        lambda seconds: AudioEditEvent(
+            path=str(media), seconds=seconds, duration=duration
+        ).model_dump(),
+    )
+
+    try:
+        with render_slot(media) as should_cancel:
+            return apply_audio_edit(
+                media, body, ffmpeg=executable, on_progress=on_progress, should_cancel=should_cancel
+            )
+    except (EditBusyError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
+        raise _http_error(
+            exc, _RENDER_EDIT_ERRORS, missing_tool=AUDIO_FFMPEG_MISSING_MESSAGE
+        ) from exc
+
+
+@router.post("/media/audio-edit/loudness", response_model=AudioLoudnessResponse)
+def measure_audio_loudness(
+    path: str = Query(..., description="Absolute path to an audio file"),
+    body: AudioEditSpec = ...,
+) -> AudioLoudnessResponse:
+    """The loudness of the sound as the spec shapes it, before its level stage, so the preview
+    plays a normalize at the gain the render will use. Takes no render slot: it only reads."""
+    source = original_path_for(resolve_editable_audio(path))
+
+    try:
+        return AudioLoudnessResponse(integrated_lufs=measure_loudness(source, body))
+    except (ThumbnailError, ValueError, RuntimeError, OSError) as exc:
+        raise _http_error(
+            exc, _RENDER_EDIT_ERRORS, missing_tool=AUDIO_FFMPEG_MISSING_MESSAGE
+        ) from exc
+
+
+@router.post("/media/audio-edit/cancel", status_code=204)
+def cancel_audio_edit(
+    path: str = Query(..., description="Absolute path to an audio file"),
+) -> Response:
+    """Stop an in-flight render. Silent when there is none: it may have just finished."""
+    cancel_render(resolve_editable_audio(path))
+
+    return Response(status_code=204)
+
+
+@router.post("/media/audio-edit/revert", response_model=AudioEditResponse)
+def revert_audio(
+    path: str = Query(..., description="Absolute path to an audio file"),
+) -> AudioEditResponse:
+    media = resolve_editable_audio(path)
+
+    try:
+        with render_slot(media):
+            return revert_audio_edit(media)
+    except (EditBusyError, ValueError, OSError) as exc:
+        raise _http_error(exc, _RENDER_EDIT_ERRORS) from exc
+
+
+def _audio_proxy_file(path: str, original: bool, noise_reduction: float, pitch: int) -> Path:
+    media = resolve_sounding_file(path)
+    if not needs_proxy(noise_reduction, pitch):
+        raise HTTPException(status_code=400, detail="This sound needs no proxy")
+    executable = ffmpeg_path()
+    if not executable:
+        raise HTTPException(status_code=503, detail=AUDIO_FFMPEG_MISSING_MESSAGE)
+    source = original_path_for(media) if original else media
+    try:
+        return audio_proxy(executable, source, noise_reduction=noise_reduction, pitch=pitch)
+    except (ThumbnailError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+_PROXY_NOISE_DESCRIPTION = "Noise reduction strength, 0 to 1"
+_PROXY_PITCH_DESCRIPTION = "Pitch move in semitones"
+
+
+@router.get("/media/audio-proxy")
+def serve_audio_proxy(
+    path: str = Query(..., description="Absolute path to an audio or video file"),
+    noise_reduction: float = Query(0.0, ge=0.0, le=1.0, description=_PROXY_NOISE_DESCRIPTION),
+    pitch: int = Query(
+        0,
+        ge=-AUDIO_PITCH_MAX_SEMITONES,
+        le=AUDIO_PITCH_MAX_SEMITONES,
+        description=_PROXY_PITCH_DESCRIPTION,
+    ),
+    original: bool = Query(False, description=_ORIGINAL_DESCRIPTION),
+    v: str | None = Query(None, description="Client cache-busting token"),
+) -> Response:
+    """The file's sound with its noise reduced and pitch moved, for the preview to play."""
+    proxy = _audio_proxy_file(path, original, noise_reduction, pitch)
+    # MediaFileResponse: cache pruning deletes these files mid-stream.
+    return MediaFileResponse(
+        proxy, media_type="audio/flac", headers={"Cache-Control": _cache_control(v)}
+    )
+
+
+@router.post("/media/audio-proxy", status_code=204)
+def prepare_audio_proxy(
+    path: str = Query(..., description="Absolute path to an audio or video file"),
+    noise_reduction: float = Query(0.0, ge=0.0, le=1.0, description=_PROXY_NOISE_DESCRIPTION),
+    pitch: int = Query(
+        0,
+        ge=-AUDIO_PITCH_MAX_SEMITONES,
+        le=AUDIO_PITCH_MAX_SEMITONES,
+        description=_PROXY_PITCH_DESCRIPTION,
+    ),
+    original: bool = Query(False, description=_ORIGINAL_DESCRIPTION),
+) -> Response:
+    """Render the proxy now and answer once it is ready, so the preview switches to it without a
+    stall."""
+    _audio_proxy_file(path, original, noise_reduction, pitch)
+    return Response(status_code=204)
 
 
 @router.get("/media/image-edit", response_model=ImageEditStateResponse)

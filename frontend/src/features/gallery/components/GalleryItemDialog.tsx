@@ -27,7 +27,11 @@ import {
   renameMedia,
   type MediaTransferMode,
 } from "@/features/gallery/api/media";
-import { galleryItemMediaUrl, galleryItemWaveformUrl } from "@/features/gallery/lib/thumbnail";
+import {
+  galleryItemMediaUrl,
+  galleryItemWaveformUrl,
+  mediaCacheKey,
+} from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { useComfyWorkflowFlag } from "@/features/gallery/hooks/useComfyWorkflowFlag";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
@@ -40,6 +44,8 @@ import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution"
 import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
 import { useImageEdit } from "@/features/gallery/hooks/useImageEdit";
 import { useVideoEdit } from "@/features/gallery/hooks/useVideoEdit";
+import { useAudioEdit } from "@/features/gallery/hooks/useAudioEdit";
+import { audioOriginalWaveformUrl } from "@/features/gallery/api/audioEdit";
 import { useVideoFrameCapture } from "@/features/gallery/hooks/useVideoFrameCapture";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { getScrollLockDepth } from "@/shared/hooks/scrollLockManager";
@@ -73,6 +79,7 @@ import { splitFileName } from "@/features/gallery/lib/fileName";
 import { isDuplicateItem } from "@/features/gallery/lib/duplicates";
 import {
   isAudio,
+  isEditableAudio,
   isEditableImage,
   isEditableVideo,
   isGif,
@@ -113,6 +120,7 @@ import { MaskOverlay } from "./MaskOverlay";
 import { ImageEditPanel } from "./ImageEditPanel";
 import { ImageEditStage } from "./ImageEditStage";
 import { VideoEditPanel } from "./VideoEditPanel";
+import { AudioEditPanel } from "./AudioEditPanel";
 import { ZoomableImage } from "./ZoomableImage";
 import { AudioWaveform } from "./AudioWaveform";
 import { imageOriginalUrl } from "@/features/gallery/api/imageEdit";
@@ -162,6 +170,11 @@ interface GalleryItemDialogProps {
   transitionRef?: RefObject<WorkspaceTransition | null>;
   suspended?: boolean;
 }
+
+/** The edited sound's pictures, in pixels: the stage's big one and the trim track's strip. */
+const AUDIO_STAGE_WAVEFORM_WIDTH = 1200;
+const AUDIO_STAGE_WAVEFORM_HEIGHT = 240;
+const AUDIO_TRACK_WAVEFORM_HEIGHT = 64;
 
 export function GalleryItemDialog({
   items,
@@ -300,12 +313,22 @@ export function GalleryItemDialog({
     setEditMode,
   });
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioEdit = useAudioEdit({
+    item,
+    audioRef,
+    onEdited: onCopied,
+    editMode,
+    setEditMode,
+  });
+
   const gifToMp4 = useGifToMp4({ item, onConverted: onCopied });
 
   const { transferPicker, overwritePrompt, transferring } = transfer;
   const otherWorkBusy =
     leaving || deleting || renaming || transferring !== null || gifToMp4.converting;
-  const busy = otherWorkBusy || frameCapture.saving || videoEdit.applying || imageEdit.applying;
+  const editApplying = videoEdit.applying || imageEdit.applying || audioEdit.applying;
+  const busy = otherWorkBusy || frameCapture.saving || editApplying;
   const parentSuspended = useContext(DialogSuspendedContext);
   const otherOverlayOpen =
     parentSuspended ||
@@ -316,7 +339,12 @@ export function GalleryItemDialog({
     comfyWorkflowOpen ||
     transfer.transferDialogOpen ||
     gifToMp4.conflict !== null;
-  const activeEdit = item && isEditableVideo(item) ? videoEdit : imageEdit;
+  const activeEdit =
+    item && isEditableVideo(item)
+      ? videoEdit
+      : item && isEditableAudio(item)
+        ? audioEdit
+        : imageEdit;
   const unsavedEdits = editMode && (activeEdit.dirty || activeEdit.adjust.autoPending);
   useDialogNavigationDraft({
     unsavedChanges: captionDirty,
@@ -402,7 +430,7 @@ export function GalleryItemDialog({
 
   if (
     (editMode || revertConfirmOpen) &&
-    (!item || (!isEditableVideo(item) && !isEditableImage(item)))
+    (!item || (!isEditableVideo(item) && !isEditableImage(item) && !isEditableAudio(item)))
   ) {
     setEditMode(false);
     setRevertConfirmOpen(false);
@@ -426,6 +454,13 @@ export function GalleryItemDialog({
       videoEdit.toggleEditMode();
     });
   }, [requestDiscard, videoEdit]);
+
+  const toggleAudioEditMode = useCallback(() => {
+    void requestDiscard(() => {
+      setFrameMode(false);
+      audioEdit.toggleEditMode();
+    });
+  }, [requestDiscard, audioEdit]);
 
   const toggleImageEditMode = useCallback(() => {
     void requestDiscard(() => {
@@ -556,7 +591,8 @@ export function GalleryItemDialog({
     videoEditor && item && isVideo(item) && hasExtension(item.name, VIDEO_PROJECT_VIDEO_EXTENSIONS),
   );
   const canEditImageItem = item ? isEditableImage(item) : false;
-  const editing = editMode && (canEditVideoItem || canEditImageItem);
+  const canEditAudioItem = item ? isEditableAudio(item) : false;
+  const editing = editMode && (canEditVideoItem || canEditImageItem || canEditAudioItem);
   const inline =
     Boolean(onFocusViewChange) && !focusView && !narrow && !editing && !frameCapture.frameMode;
   const editExpanded = editing || frameCapture.frameMode;
@@ -672,6 +708,26 @@ export function GalleryItemDialog({
   useEscapeKey(exitEditMode, editing && !busy && !childOverlayOpen);
 
   if (!item) return null;
+
+  // The original's sound: what the trims and the preview are measured against.
+  const originalWaveform = (width: number, height: number) =>
+    canEditAudioItem && audioEdit.ready
+      ? audioOriginalWaveformUrl(
+          item.path,
+          audioEdit.duration,
+          width,
+          height,
+          `${mediaCacheKey(item.modified_at, item.size) ?? ""}-${audioEdit.hasBackup ? 1 : 0}`,
+        )
+      : undefined;
+  const audioStageWaveform = originalWaveform(
+    AUDIO_STAGE_WAVEFORM_WIDTH,
+    AUDIO_STAGE_WAVEFORM_HEIGHT,
+  );
+  const audioTrackWaveform = originalWaveform(
+    AUDIO_STAGE_WAVEFORM_WIDTH,
+    AUDIO_TRACK_WAVEFORM_HEIGHT,
+  );
 
   const mediaLabel = mediaLabelFor(item);
   const nameParts = splitFileName(item.name);
@@ -792,6 +848,25 @@ export function GalleryItemDialog({
                   aria-pressed={editMode}
                   aria-label={
                     editMode ? `Exit video editing for ${item.name}` : `Edit ${item.name}`
+                  }
+                >
+                  <Icon icon={iconSquarePen} />
+                </button>
+              </Tooltip>
+            )}
+            {canEditAudioItem && (
+              <Tooltip content={editMode ? "Exit audio editing" : "Edit audio"}>
+                <button
+                  type="button"
+                  className={classNames(
+                    "gallery-item-dialog__edit-toggle",
+                    editMode && "gallery-item-dialog__edit-toggle--active",
+                  )}
+                  onClick={toggleAudioEditMode}
+                  disabled={busy}
+                  aria-pressed={editMode}
+                  aria-label={
+                    editMode ? `Exit audio editing for ${item.name}` : `Edit ${item.name}`
                   }
                 >
                   <Icon icon={iconSquarePen} />
@@ -1068,6 +1143,20 @@ export function GalleryItemDialog({
                 />
               )}
             </>
+          ) : itemIsAudio && editMode && canEditAudioItem ? (
+            <div className="gallery-item-dialog__audio">
+              <AudioWaveform
+                src={audioStageWaveform ?? galleryItemWaveformUrl(item)}
+                className="gallery-item-dialog__waveform"
+              />
+              <audio
+                // The hook sets the source: the original, or the proxy that carries its effects.
+                key={`${item.path}#edit`}
+                ref={audioRef}
+                preload="auto"
+                onLoadedMetadata={(event) => audioEdit.handleLoadedMetadata(event.currentTarget)}
+              />
+            </div>
           ) : itemIsAudio ? (
             <div className="gallery-item-dialog__audio">
               <AudioWaveform
@@ -1156,6 +1245,15 @@ export function GalleryItemDialog({
         {editMode && canEditVideoItem && (
           <VideoEditPanel
             edit={videoEdit}
+            busy={otherWorkBusy}
+            onRevertRequested={() => setRevertConfirmOpen(true)}
+          />
+        )}
+
+        {editMode && canEditAudioItem && (
+          <AudioEditPanel
+            edit={audioEdit}
+            waveformUrl={audioTrackWaveform}
             busy={otherWorkBusy}
             onRevertRequested={() => setRevertConfirmOpen(true)}
           />
@@ -1478,10 +1576,11 @@ export function GalleryItemDialog({
           }
           confirmLabel="Restore"
           confirmVariant="danger"
-          busy={videoEdit.applying || imageEdit.applying}
+          busy={editApplying}
           onConfirm={() => {
             setRevertConfirmOpen(false);
             if (canEditVideoItem) videoEdit.revert();
+            else if (canEditAudioItem) audioEdit.revert();
             else imageEdit.revert();
           }}
           onCancel={() => setRevertConfirmOpen(false)}

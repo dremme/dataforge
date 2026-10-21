@@ -59,6 +59,7 @@ import { KeyedSlider, KeyframeBar } from "./KeyframeControls";
 import { MarkersPanel } from "./MarkersPanel";
 import { MixPanel, type MixEdit, type TrackEdit } from "./MixPanel";
 import { MultiClipInspector, type BatchEdit } from "./MultiClipInspector";
+import { SoundPanel } from "./SoundPanel";
 import { TimecodeField } from "./TimecodeField";
 
 const COLOR_GROUPS: { label: string; tools: { id: AdjustTool; label: string }[] }[] = [
@@ -199,6 +200,8 @@ interface ClipInspectorProps {
   autoPending: boolean;
   /** Asks the wand for the selected clip; the workspace applies what it suggests. */
   onAuto: () => void;
+  /** Sound clips whose noise-reduced proxy is still rendering. */
+  preparingSound: ReadonlySet<string>;
 }
 
 export function ClipInspector(props: ClipInspectorProps) {
@@ -234,6 +237,7 @@ function InspectorContent({
   onDelete,
   autoPending,
   onAuto,
+  preparingSound,
 }: ClipInspectorProps) {
   const transition = project.transitions.find((item) => item.id === transitionId);
   if (transition) {
@@ -345,6 +349,7 @@ function InspectorContent({
       <MultiClipInspector
         project={project}
         selection={selection}
+        preparingSound={preparingSound}
         onBatchEdit={onBatchEdit}
         onBatchLength={onBatchLength}
         onPasteAttributes={onPasteAttributes}
@@ -545,6 +550,16 @@ function InspectorContent({
             </div>
           </div>
         </Panel>
+      )}
+
+      {clip.kind === "audio" && (
+        <SoundPanel
+          effects={clip.audio_effects}
+          preparing={preparingSound.has(clip.id)}
+          onChange={(change, final) =>
+            onEdit({ audio_effects: { ...clip.audio_effects, ...change } }, final)
+          }
+        />
       )}
 
       {clip.kind === "title" && clip.title && <TitlePanel clip={clip} onEdit={onEdit} />}

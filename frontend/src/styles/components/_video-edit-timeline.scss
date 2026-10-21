@@ -4,6 +4,7 @@
 $track-height: 0.625rem;
 $handle-width: 0.625rem;
 $handle-height: 1.5rem;
+$sound-track-height: 2.5rem;
 
 .video-edit-timeline {
   display: flex;
@@ -124,6 +125,55 @@ $handle-height: 1.5rem;
 
   &__handle--end {
     left: var(--trim-end, 100%);
+  }
+
+  // The audio edit draws the original's sound in a taller track, the kept band as a tint over
+  // it and the fades as wedges cut from that band.
+  &--sound &__track {
+    height: $sound-track-height;
+
+    &::before {
+      height: 100%;
+      border-radius: var(--radius-sm);
+    }
+  }
+
+  &--sound &__selection,
+  &--sound &__dropped {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  &--sound &__selection {
+    background: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--accent-border);
+  }
+
+  &__waveform {
+    position: absolute;
+    inset: 0.125rem 0;
+    background: var(--text-subtle);
+    mask: var(--waveform-src) center / 100% 100% no-repeat;
+    pointer-events: none;
+  }
+
+  &__fade {
+    position: absolute;
+    inset-block: 0;
+    background: var(--accent-border);
+    pointer-events: none;
+  }
+
+  &__fade--in {
+    left: var(--trim-start, 0%);
+    width: calc(var(--fade-in-end, 0%) - var(--trim-start, 0%));
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+  }
+
+  &__fade--out {
+    left: var(--fade-out-start, 100%);
+    width: calc(var(--trim-end, 100%) - var(--fade-out-start, 100%));
+    clip-path: polygon(0 0, 100% 0, 100% 100%);
   }
 
   &__times {

@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 import threading
+from itertools import chain
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
@@ -37,6 +38,8 @@ _lock_guard = threading.Lock()
 _generation_locks: dict[str, threading.Lock] = {}
 
 THUMBNAIL_SUFFIX = ".webp"
+#: Sound rendered for the preview to play (``audio_effects.audio_proxy``); evicted with the rest.
+AUDIO_PROXY_SUFFIX = ".flac"
 # In-progress renders share the shard folder; a different suffix keeps eviction off them.
 PARTIAL_SUFFIX = ".partial"
 
@@ -250,7 +253,8 @@ def _cached_thumbnails() -> list[tuple[float, int, Path]]:
     """``(last use, size, path)``, oldest first. Uses max(atime, mtime) because many mounts use ``noatime``."""
     entries: list[tuple[float, int, Path]] = []
 
-    for path in get_thumbnail_cache_dir().rglob(f"*{THUMBNAIL_SUFFIX}"):
+    root = get_thumbnail_cache_dir()
+    for path in chain(root.rglob(f"*{THUMBNAIL_SUFFIX}"), root.rglob(f"*{AUDIO_PROXY_SUFFIX}")):
         try:
             stat = path.stat()
         except OSError:

@@ -182,6 +182,7 @@ export {
   SkipForward as iconSkipForward,
   SlidersHorizontal as iconSliders,
   Sparkles as iconSparkles,
+  Broom as iconBroom,
   SpellCheck2 as iconSpellCheck2,
   SquarePen as iconSquarePen,
   SquareSplitHorizontal as iconSquareSplitHorizontal,

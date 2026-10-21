@@ -126,6 +126,8 @@ interface TimelineProps {
   onCommit: (next: Project) => void;
   onError: (message: string) => void;
   onSeek: (time: number) => void;
+  /** A seek from dragging the playhead along the ruler, which sounds the audio there. */
+  onScrub: (time: number) => void;
   onDropSource: (path: string, time: number, trackId: string) => void;
   onTracks: (next: Project) => void;
   onZoom: (pxPerSecond: number) => void;
@@ -192,6 +194,7 @@ export function Timeline({
   onCommit,
   onError,
   onSeek,
+  onScrub,
   onDropSource,
   onTracks,
   onZoom,
@@ -444,7 +447,7 @@ export function Timeline({
   function handleRulerPointerDown(event: ReactPointerEvent) {
     if (event.button !== 0) return;
     startDrag(event, { kind: "scrub" });
-    onSeek(frame(timeAt(event.clientX)));
+    onScrub(frame(timeAt(event.clientX)));
   }
 
   /** The blade's cut line, drawn over the lane under the pointer without a React render. */
@@ -476,7 +479,7 @@ export function Timeline({
     }
     const time = timeAt(event.clientX);
     if (drag.kind === "scrub") {
-      onSeek(frame(time));
+      onScrub(frame(time));
       return;
     }
     if (drag.kind === "range") {

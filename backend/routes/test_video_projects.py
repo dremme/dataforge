@@ -6,11 +6,13 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import quote
 
+from edit_sidecars import backup_path_for
 from ffmpeg_bin import ffmpeg_path
 from routes._test_client import client
 from testing_fixtures import TempMediaFolder, playable_video_bytes, write_image, write_wav
 from video_project import new_empty_project, save_project
 from video_project_index import known_draft_paths
+from video_project_media import waveform
 
 
 def write_video(root: Path, name: str = "clip.mp4") -> Path:
@@ -113,6 +115,21 @@ class ProjectEndpointTests(unittest.TestCase):
             self.assertEqual(strip.status_code, 200, strip.text)
             self.assertEqual(strip.headers["content-type"], "image/webp")
             self.assertEqual(wave.status_code, 200, wave.text)
+
+    def test_the_waveform_of_an_edited_file_can_be_drawn_from_its_original(self) -> None:
+        """The gallery's audio edit trims against the original, so it draws that one."""
+        with TempMediaFolder() as root:
+            sound = write_wav(root, "voice.wav", seconds=1)
+            write_wav(root, "long.wav", seconds=3).replace(backup_path_for(sound))
+            query = f"path={quote(str(sound))}&start=0&duration=3&width=300&height=40"
+
+            with patch("routes.video_projects.waveform", wraps=waveform) as drawn:
+                live = client.get(f"/api/video-projects/waveform?{query}")
+                original = client.get(f"/api/video-projects/waveform?{query}&original=1")
+
+            self.assertEqual((live.status_code, original.status_code), (200, 200))
+            self.assertEqual(drawn.call_args_list[0].args[1], sound)
+            self.assertEqual(drawn.call_args_list[1].args[1], backup_path_for(sound))
 
 
 class TitleEndpointTests(unittest.TestCase):

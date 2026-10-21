@@ -19,7 +19,6 @@ title image, and a still's EXIF orientation is applied the way the gallery shows
 from __future__ import annotations
 
 import math
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from itertools import pairwise
@@ -27,22 +26,21 @@ from pathlib import Path
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 
+from audio_effects import eq_filters
+from audio_level import MEASURE_FILTER, audio_level_filters
 from automation.watermark import resolve_watermark_font
 from color_adjust import adjust_lut, is_adjust_identity, is_global_identity, write_cube
 from constants import (
     VIDEO_PROJECT_DUCK_RAMP_SECONDS,
-    VIDEO_PROJECT_LOUDNESS_TARGET_LUFS,
     VIDEO_PROJECT_MIN_CLIP_SECONDS,
     VIDEO_PROJECT_QUALITY_PRESETS,
     VIDEO_PROJECT_SIZE_PRESET_SHORT_SIDES,
     VIDEO_PROJECT_TIME_EPSILON,
-    VIDEO_PROJECT_TRUE_PEAK_CEILING_DB,
 )
 from image_io import displayed_image
 from schemas import (
     VideoEditSpec,
     VideoProject,
-    VideoProjectAudioLevel,
     VideoProjectClip,
     VideoProjectExportSettings,
     VideoProjectExportSpan,
@@ -69,9 +67,6 @@ from video_project_animation import (
 )
 
 AUDIO_SAMPLE_RATE = 48000
-#: The limiter runs at four times the rate, so it also sees the peaks between samples.
-LIMITER_OVERSAMPLING = 4
-
 GRAPH_FILE_NAME = "graph.txt"
 #: Animated sound is re-evaluated this many samples apart: about 5 ms at 48 kHz.
 ENVELOPE_SAMPLES = 256
@@ -263,6 +258,12 @@ class RenderInputs:
 
 
 ColorProbe = Callable[[Path], StreamColor]
+#: The file a clip's sound is read from: the source, or its noise-reduced proxy.
+SoundSource = Callable[[Path, VideoProjectClip], Path]
+
+
+def plain_sound(path: Path, clip: VideoProjectClip) -> Path:
+    return path
 
 
 @dataclass(frozen=True, slots=True)
@@ -466,6 +467,7 @@ def _audio_chain(
         filters.append(atempo_chain(clip.speed))
     filters.append(f"atrim=duration={_seconds(clip.duration)}")
     filters.append("asetpts=PTS-STARTPTS")
+    filters += eq_filters(clip.audio_effects)
     envelope = clip.keyframes.gain
     if is_animated(envelope):
         filters += [
@@ -567,7 +569,12 @@ def _picture_links(
 
 
 def _mix_links(
-    project: VideoProject, folder: Path, inputs: RenderInputs, *, duration: float
+    project: VideoProject,
+    folder: Path,
+    inputs: RenderInputs,
+    *,
+    duration: float,
+    sound_source: SoundSource,
 ) -> tuple[list[str], str]:
     """Every audible clip summed per track, the tracks summed over silence of the full length.
     Sums are plain, so a gain of 1 everywhere leaves each clip as it is."""
@@ -592,7 +599,7 @@ def _mix_links(
             if clip.kind != "audio" or is_silent(clip):
                 continue
             source = sources[clip.source_id or ""]
-            index = _audio_input(inputs, folder / source.name, clip)
+            index = _audio_input(inputs, sound_source(folder / source.name, clip), clip)
             links.append(_audio_chain(clip, count, f"{index}:a", effective_fades(clip, overlaps)))
             voices.append(f"aud{count}")
             count += 1
@@ -629,23 +636,6 @@ def _mix_links(
     return links, "mix"
 
 
-def audio_level_filters(level: VideoProjectAudioLevel, measured_lufs: float | None) -> list[str]:
-    """Normalization is one linear gain to the target, so the mix keeps its own dynamics. The
-    limiter runs oversampled, so true peaks, not just samples, stay under the ceiling."""
-    if level == "unchanged":
-        return []
-    filters: list[str] = []
-    if level == "normalize" and measured_lufs is not None and math.isfinite(measured_lufs):
-        filters.append(f"volume={VIDEO_PROJECT_LOUDNESS_TARGET_LUFS - measured_lufs:.3f}dB")
-    ceiling = 10 ** (VIDEO_PROJECT_TRUE_PEAK_CEILING_DB / 20)
-    filters += [
-        f"aresample={AUDIO_SAMPLE_RATE * LIMITER_OVERSAMPLING}",
-        f"alimiter=limit={ceiling:.6f}:level=disabled:latency=1",
-        f"aresample={AUDIO_SAMPLE_RATE}",
-    ]
-    return filters
-
-
 def _checked_duration(project: VideoProject) -> float:
     duration = project_duration(project)
     if duration <= 0:
@@ -664,6 +654,7 @@ def build_render(
     probe_color: ColorProbe,
     measured_lufs: float | None = None,
     span: VideoProjectExportSpan | None = None,
+    sound_source: SoundSource = plain_sound,
 ) -> RenderPlan:
     """Write the graph and every layer file into ``workspace``, where ffmpeg must run.
     ``normalize`` needs ``measured_lufs``, the mix's loudness from ``build_mix_measure`` over the
@@ -689,9 +680,11 @@ def build_render(
         finish = [f"trim=start_frame={start_frame}", "setpts=PTS-STARTPTS", *finish]
     links.append(f"[{base}]{','.join(finish)},format=yuv420p[vout]")
 
-    mix_links, mix = _mix_links(part, folder, inputs, duration=window.composed)
+    mix_links, mix = _mix_links(
+        part, folder, inputs, duration=window.composed, sound_source=sound_source
+    )
     links += mix_links
-    level = audio_level_filters(settings.audio_level, measured_lufs)
+    level = audio_level_filters(settings.audio_level, measured_lufs, AUDIO_SAMPLE_RATE)
     stages = [*_span_audio(window), *level, f"atrim=duration={_seconds(duration)}"]
     links.append(f"[{mix}]{','.join(stages)}[aout]")
 
@@ -755,12 +748,15 @@ def build_mix_measure(
     executable: str,
     workspace: Path,
     span: VideoProjectExportSpan | None = None,
+    sound_source: SoundSource = plain_sound,
 ) -> list[str]:
     """A sound-only pass that logs the unprocessed mix's loudness; see ``parse_loudness``."""
     window = render_window(project, span)
     inputs = RenderInputs(arguments=[])
-    links, mix = _mix_links(window.project, folder, inputs, duration=window.composed)
-    stages = [*_span_audio(window), "ebur128=peak=true:framelog=quiet"]
+    links, mix = _mix_links(
+        window.project, folder, inputs, duration=window.composed, sound_source=sound_source
+    )
+    stages = [*_span_audio(window), MEASURE_FILTER]
     links.append(f"[{mix}]{','.join(stages)}[aout]")
     (workspace / GRAPH_FILE_NAME).write_text(";\n".join(links), encoding="utf-8")
     return [
@@ -768,35 +764,6 @@ def build_mix_measure(
         *inputs.arguments,
         *("-/filter_complex", GRAPH_FILE_NAME, "-map", "[aout]", "-f", "null", "-"),
     ]
-
-
-def build_file_measure(executable: str, media: Path) -> list[str]:
-    """Logs a finished file's loudness; see ``parse_loudness``."""
-    return [
-        *(executable, "-nostdin", "-hide_banner", "-nostats", "-loglevel", "info"),
-        *("-i", str(media), "-map", "0:a:0", "-af", "ebur128=peak=true:framelog=quiet"),
-        *("-f", "null", "-"),
-    ]
-
-
-_INTEGRATED = re.compile(r"Integrated loudness:\s*I:\s*(-?[\d.]+|-inf) LUFS")
-_TRUE_PEAK = re.compile(r"True peak:\s*Peak:\s*(-?[\d.]+|-inf) dBFS")
-
-
-@dataclass(frozen=True, slots=True)
-class Loudness:
-    #: -inf for silence, which the measurement's gate leaves out entirely.
-    integrated_lufs: float
-    true_peak_db: float
-
-
-def parse_loudness(log: str) -> Loudness | None:
-    """The last ``ebur128`` summary in an ffmpeg log, or None when there is none."""
-    integrated = _INTEGRATED.findall(log)
-    peak = _TRUE_PEAK.findall(log)
-    if not integrated or not peak:
-        return None
-    return Loudness(float(integrated[-1]), float(peak[-1]))
 
 
 def frame_index(time: float, frame_rate: float) -> int:

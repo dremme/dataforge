@@ -12,6 +12,7 @@ from PIL import ImageFont
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import run_ffmpeg
 from schemas import (
+    AudioEffects,
     VideoProject,
     VideoProjectClip,
     VideoProjectExportSettings,
@@ -27,6 +28,7 @@ from testing_fixtures import TempMediaFolder, write_image, write_wav
 from video_edit import StreamColor
 from video_project import new_id, probe_source_file, source_from_info
 from video_project_render import (
+    GRAPH_FILE_NAME,
     audible_tracks,
     build_render,
     export_size,
@@ -209,6 +211,61 @@ class AudibleTrackTests(unittest.TestCase):
         )  # fmt: skip
 
         self.assertEqual([t.id for t in audible_tracks(project)], ["a1"])
+
+
+class SoundEffectTests(unittest.TestCase):
+    def sounding(self, root: Path, **effects: float) -> VideoProject:
+        write_wav(root, "tone.wav", seconds=2)
+        sound = VideoProjectClip(
+            id="sound", track_id="a1", kind="audio", source_id="tone.wav", start=0, duration=1,
+            audio_effects=AudioEffects(**effects),
+        )  # fmt: skip
+        return project_with(root, [spacer(1), sound], sources=["tone.wav"])
+
+    def graph(self, root: Path, project: VideoProject, sound_source=None) -> tuple[str, list[str]]:
+        with tempfile.TemporaryDirectory() as workspace:
+            plan = build_render(
+                project,
+                root,
+                root / "out.mp4",
+                settings=VideoProjectExportSettings(),
+                executable="ffmpeg",
+                workspace=Path(workspace),
+                probe_color=lambda _path: StreamColor(),
+                **({"sound_source": sound_source} if sound_source else {}),
+            )
+            return (Path(workspace) / GRAPH_FILE_NAME).read_text(encoding="utf-8"), plan.command
+
+    def test_a_clip_is_shaped_after_its_retime_and_before_its_gain(self) -> None:
+        with TempMediaFolder() as root:
+            graph, _ = self.graph(root, self.sounding(root, low_cut=120, treble=4))
+
+        chain = next(line for line in graph.split(";\n") if line.endswith("[aud0]"))
+        self.assertLess(chain.index("atrim=duration"), chain.index("highpass=f=120"))
+        self.assertLess(chain.index("highpass"), chain.index("highshelf=g=4"))
+
+    def test_noise_reduction_reads_the_sound_from_its_source(self) -> None:
+        """The export hands in the proxy the preview played; the plan only reads what it is given."""
+        with TempMediaFolder() as root:
+            proxy = root / "proxy.flac"
+            asked: list[tuple[Path, float]] = []
+
+            def sound(path: Path, clip: VideoProjectClip) -> Path:
+                asked.append((path, clip.audio_effects.noise_reduction))
+                return proxy
+
+            _, command = self.graph(root, self.sounding(root, noise_reduction=0.5), sound)
+
+        self.assertEqual(asked, [(root / "tone.wav", 0.5)])
+        self.assertIn(str(proxy), command)
+        self.assertNotIn(str(root / "tone.wav"), command)
+
+    def test_only_sound_clips_carry_sound_effects(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Only sound clips"):
+            VideoProjectClip(
+                id="t", track_id="v1", kind="title", start=0, duration=1,
+                title=VideoProjectTitle(text="Hi"), audio_effects=AudioEffects(bass=3),
+            )  # fmt: skip
 
 
 class TitleImageTests(unittest.TestCase):

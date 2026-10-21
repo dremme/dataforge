@@ -9,9 +9,10 @@ export interface PlaybackRange {
   end: number;
 }
 
-export interface UseVideoPreviewPlaybackOptions {
-  videoRef: RefObject<HTMLVideoElement | null>;
-  standbyVideoRef?: RefObject<HTMLVideoElement | null>;
+/** Generic over the element so an `<audio>` laps the same way; only videos hand off. */
+export interface UseVideoPreviewPlaybackOptions<Media extends HTMLMediaElement = HTMLVideoElement> {
+  videoRef: RefObject<Media | null>;
+  standbyVideoRef?: RefObject<Media | null>;
   /** Edit mode: elsewhere the native controls own the element. */
   active: boolean;
   /** The element remounts on this, and a ref never re-runs an effect. */
@@ -22,24 +23,24 @@ export interface UseVideoPreviewPlaybackOptions {
   getRange: () => PlaybackRange;
 }
 
-export interface VideoPreviewPlayback {
-  activeMediaRef: RefObject<HTMLVideoElement | null>;
+export interface VideoPreviewPlayback<Media extends HTMLMediaElement = HTMLVideoElement> {
+  activeMediaRef: RefObject<Media | null>;
   playing: boolean;
   /** Discrete positions only - a seek, a pause, a lap. Playback moves the marker itself. */
   playheadTime: number;
   playheadRef: RefObject<HTMLDivElement | null>;
   seekTo: (seconds: number) => void;
   togglePlay: () => void;
-  syncFrom: (video: HTMLVideoElement) => void;
+  syncFrom: (video: Media) => void;
 }
 
 /**
  * Keeps preview playback inside the trim band and drives the marker, on frames rather than on
  * `timeupdate`: four events a second overshoot the out point and step the marker.
  */
-export function useVideoPreviewPlayback(
-  options: UseVideoPreviewPlaybackOptions,
-): VideoPreviewPlayback {
+export function useVideoPreviewPlayback<Media extends HTMLMediaElement = HTMLVideoElement>(
+  options: UseVideoPreviewPlaybackOptions<Media>,
+): VideoPreviewPlayback<Media> {
   const { videoRef, standbyVideoRef, active, itemPath } = options;
 
   const [playing, setPlaying] = useState(false);
@@ -67,7 +68,7 @@ export function useVideoPreviewPlayback(
     [videoRef],
   );
 
-  const syncFrom = useCallback((video: HTMLVideoElement) => {
+  const syncFrom = useCallback((video: Media) => {
     setPlaying(!video.paused);
     setPlayheadTime(video.currentTime);
   }, []);
@@ -148,18 +149,18 @@ export function useVideoPreviewPlayback(
       setPlayheadTime(loop.current.currentTime);
     };
 
-    const handlePlay = (video: HTMLVideoElement) => {
+    const handlePlay = (video: HTMLMediaElement) => {
       if (video !== loop.current) return;
       setPlaying(true);
       start();
     };
-    const handlePause = (video: HTMLVideoElement) => {
+    const handlePause = (video: HTMLMediaElement) => {
       if (video !== loop.current || loop.handingOff) return;
       setPlaying(false);
       stop();
     };
     // The element stops itself at the end of the file, where no frame of ours can reach it.
-    const handleEnded = (video: HTMLVideoElement) => {
+    const handleEnded = (video: HTMLMediaElement) => {
       if (video !== loop.current) return;
       loop.lap();
       if (loop.handingOff) {
@@ -168,11 +169,11 @@ export function useVideoPreviewPlayback(
       }
     };
     // Frames are throttled to about one a second in a background tab; playback is not.
-    const handleTimeUpdate = (video: HTMLVideoElement) => {
+    const handleTimeUpdate = (video: HTMLMediaElement) => {
       if (video === loop.current && !video.paused && outOfBand()) loop.lap();
     };
     // The element snaps to a frame; without this the marker keeps the time we asked for.
-    const handleSeeked = (video: HTMLVideoElement) => {
+    const handleSeeked = (video: HTMLMediaElement) => {
       if (video === loop.current && video.paused && !loop.handingOff) {
         setPlayheadTime(video.currentTime);
       }

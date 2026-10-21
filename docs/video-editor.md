@@ -206,6 +206,12 @@ Audio clips on the same track may overlap the next clip; the overlap automatical
 
 The **Fades** setting in the clip's **Audio** panel controls fades and crossfades. **Equal power**, the default, keeps crossfade loudness steady; **Linear** dips in the middle.
 
+### Shape the sound
+
+An audio clip's **Sound** panel has the gallery audio editor's EQ and noise reduction: **Low cut**, **Bass**, **Mid**, **Treble**, **High cut**, and **Noise reduction**. Select several audio clips, for example every clip on a track, to set them all at once. **Paste attributes** can copy them as **EQ and noise reduction**.
+
+The EQ plays live. Noise reduction is rendered on the server first; the clip plays unprocessed while the panel says **Preparing noise reduction...**. The export reads that same render, so the clip stays in sync with its picture and sounds as previewed.
+
 ### Track levels and speech ducking
 
 **Mix** sets the level of each audio track and the **Master** level. Click a track's microphone button to mark it as speech. While one of its clips sounds, other tracks lower to **Duck to**, easing down just before the speech and back up afterward. Ducking follows the speech clips' timing.
@@ -220,6 +226,8 @@ The transport shows the resolution used to draw the monitor. It also reports whe
 - **Scopes** (waveform button) shows a luma waveform, an RGB histogram, and the proportion of the monitor picture crushed to black or clipped to white. Scopes measure the displayed preview.
 - **Compare with this frame** (split-square button) holds the current frame as a reference. Move to another shot or adjust this one, then drag the divider to compare the held frame on the left with the live picture on the right.
 - **Safe-area guides** overlays guides to help position picture and text.
+
+Playback, and every jump during it, starts once the picture and sound at the playhead are ready; the monitor shows **Preparing media...** meanwhile. The picture then follows the sound. If a video cannot keep up, the monitor skips its frames instead of interrupting the sound. Pausing stops on the frame shown. Dragging the playhead along the ruler or the monitor's playhead slider plays the sound under it, through the same mix as playback.
 
 ### Preview problems
 

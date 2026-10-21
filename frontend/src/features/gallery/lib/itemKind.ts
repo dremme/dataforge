@@ -1,4 +1,5 @@
 import {
+  AUDIO_EDIT_EXTENSIONS,
   AUDIO_EXTENSIONS,
   GIF_EXTENSION,
   IMAGE_EDIT_EXTENSIONS,
@@ -9,6 +10,7 @@ import type { GalleryItem } from "@/shared/types";
 
 const VIDEO_EXTENSION_SET = new Set<string>(VIDEO_EXTENSIONS);
 const AUDIO_EXTENSION_SET = new Set<string>(AUDIO_EXTENSIONS);
+const AUDIO_EDIT_EXTENSION_SET = new Set<string>(AUDIO_EDIT_EXTENSIONS);
 const VIDEO_EDIT_EXTENSION_SET = new Set<string>(VIDEO_EDIT_EXTENSIONS);
 const IMAGE_EDIT_EXTENSION_SET = new Set<string>(IMAGE_EDIT_EXTENSIONS);
 
@@ -41,7 +43,7 @@ export function isAudioName(name: string): boolean {
   return extension !== null && AUDIO_EXTENSION_SET.has(extension);
 }
 
-/** Listed and playable only: no job, editor, or frame tool takes audio yet. */
+/** Listed, playable and editable in place; no job takes audio. */
 export function isAudio(item: GalleryItem): boolean {
   if (item.media_type) {
     return item.media_type === "audio";
@@ -66,6 +68,13 @@ export function isEditableVideo(item: GalleryItem): boolean {
 
   const extension = extensionOf(item);
   return extension !== null && VIDEO_EDIT_EXTENSION_SET.has(extension);
+}
+
+export function isEditableAudio(item: GalleryItem): boolean {
+  if (!isAudio(item)) return false;
+
+  const extension = extensionOf(item);
+  return extension !== null && AUDIO_EDIT_EXTENSION_SET.has(extension);
 }
 
 /** Guarded on isMotion too: a Pillow round-trip would flatten a GIF's animation. */

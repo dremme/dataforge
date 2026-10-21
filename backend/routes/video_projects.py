@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import ValidationError
 
 from color_auto import image_analysis_pixels, suggest_adjust, video_analysis_pixels
+from edit_sidecars import original_path_for
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, run_ffmpeg
 from filesystem import normalize_user_path
@@ -416,14 +417,17 @@ def video_project_waveform(
     duration: float = Query(..., gt=0.0, description="Seconds the stretch lasts"),
     width: int = Query(512, ge=1),
     height: int = Query(96, ge=1),
+    original: bool = Query(False, description="Draw the untouched original of an edited file"),
     v: str | None = Query(None, description="Client cache-busting token"),
 ) -> Response:
-    """The sound of one stretch of a file, one lane per channel, at the pixel size drawn."""
+    """The sound of one stretch of a file, one lane per channel, at the pixel size drawn. The
+    gallery's audio edit asks for the original, which its trims are measured against."""
     media = _editor_source(path)
     if source_kind_for(media) == "image":
         raise HTTPException(status_code=400, detail="An image has no sound")
+    drawn = original_path_for(media) if original else media
     return _timeline_picture(
-        lambda executable: waveform(executable, media, start, duration, width, height)
+        lambda executable: waveform(executable, drawn, start, duration, width, height)
     )
 
 

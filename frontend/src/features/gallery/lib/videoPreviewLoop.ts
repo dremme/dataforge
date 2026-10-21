@@ -3,8 +3,13 @@ const PRESENT_TIMEOUT_MS = 150;
 // Consecutive failed preparations or handoffs before laps stop re-arming the standby.
 const MAX_FAILURES = 3;
 
+function hasFrameCallbacks(media: HTMLMediaElement): media is HTMLVideoElement {
+  return typeof (media as Partial<HTMLVideoElement>).requestVideoFrameCallback === "function";
+}
+
 interface LoopOptions {
-  videos: readonly HTMLVideoElement[];
+  /** A lone player laps by seeking; frame callbacks are a video's, used for a handoff. */
+  videos: readonly HTMLMediaElement[];
   getRange: () => { start: number; end: number };
   getFrameDuration: () => number;
   onSwitch: (index: number) => void;
@@ -14,7 +19,7 @@ interface LoopOptions {
 /** Prepares the next decoder while the visible decoder plays, without changing trim precision. */
 export class VideoPreviewLoop {
   private index = 0;
-  private prepared: { video: HTMLVideoElement; start: number; end: number } | null = null;
+  private prepared: { video: HTMLMediaElement; start: number; end: number } | null = null;
   private pending: { start: number; end: number } | null = null;
   private failures = 0;
   private cancelPending: (() => void) | null = null;
@@ -24,11 +29,11 @@ export class VideoPreviewLoop {
 
   constructor(private readonly options: LoopOptions) {}
 
-  get current(): HTMLVideoElement {
+  get current(): HTMLMediaElement {
     return this.options.videos[this.index];
   }
 
-  private get standby(): HTMLVideoElement | undefined {
+  private get standby(): HTMLMediaElement | undefined {
     return this.options.videos[1 - this.index];
   }
 
@@ -65,7 +70,7 @@ export class VideoPreviewLoop {
     const cleanup = () => {
       window.clearTimeout(timer);
       window.clearTimeout(presentationTimer);
-      if (frame) video.cancelVideoFrameCallback(frame);
+      if (frame && hasFrameCallbacks(video)) video.cancelVideoFrameCallback(frame);
       video.removeEventListener("loadedmetadata", seek);
       video.removeEventListener("loadeddata", ready);
       video.removeEventListener("canplay", ready);
@@ -106,7 +111,7 @@ export class VideoPreviewLoop {
       started = true;
       // Timed from the seek, so a slow first load of the file does not count against it.
       timer = window.setTimeout(fail, SEEK_TIMEOUT_MS);
-      if (typeof video.requestVideoFrameCallback === "function") {
+      if (hasFrameCallbacks(video)) {
         frame = video.requestVideoFrameCallback((_now, metadata) => {
           frame = 0;
           presented = Math.abs(metadata.mediaTime - start) <= this.options.getFrameDuration();
@@ -180,7 +185,7 @@ export class VideoPreviewLoop {
     };
     const cleanup = () => {
       window.clearTimeout(timer);
-      if (frame) incoming.cancelVideoFrameCallback(frame);
+      if (frame && hasFrameCallbacks(incoming)) incoming.cancelVideoFrameCallback(frame);
       if (animation) cancelAnimationFrame(animation);
       incoming.removeEventListener("playing", playing);
     };
@@ -216,7 +221,7 @@ export class VideoPreviewLoop {
     incoming.volume = outgoing.volume;
     incoming.muted = true;
     outgoing.pause();
-    if (typeof incoming.requestVideoFrameCallback === "function") {
+    if (hasFrameCallbacks(incoming)) {
       frame = incoming.requestVideoFrameCallback(() => {
         frame = 0;
         switchPlayer();

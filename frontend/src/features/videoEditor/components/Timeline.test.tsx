@@ -48,6 +48,7 @@ function renderTimeline(
     onCommit: vi.fn<(next: Project) => void>(),
     onError: vi.fn<(message: string) => void>(),
     onSeek: vi.fn<(time: number) => void>(),
+    onScrub: vi.fn<(time: number) => void>(),
     onDropSource: vi.fn<(path: string, time: number, trackId: string) => void>(),
     onTracks: vi.fn<(next: Project) => void>(),
     onZoom: vi.fn<(pxPerSecond: number) => void>(),
@@ -283,8 +284,10 @@ describe("Timeline", () => {
     ]);
   });
 
-  it("seeks from the ruler and from empty lane space, which also clears the selection", () => {
-    const { onSeek, onSelect, lanes, scroller } = renderTimeline({ selection: ["first"] });
+  it("scrubs from the ruler and seeks from empty lane space, which also clears the selection", () => {
+    const { onSeek, onScrub, onSelect, lanes, scroller } = renderTimeline({
+      selection: ["first"],
+    });
 
     fireEvent.pointerDown(screen.getByRole("slider", { name: "Timeline position" }), {
       button: 0,
@@ -292,7 +295,8 @@ describe("Timeline", () => {
     });
     fireEvent.pointerMove(scroller, { clientX: at(0.8) });
     fireEvent.pointerUp(scroller);
-    expect(onSeek.mock.calls.map(([time]) => time)).toEqual([0.5, 0.8]);
+    expect(onScrub.mock.calls.map(([time]) => time)).toEqual([0.5, 0.8]);
+    expect(onSeek).not.toHaveBeenCalled();
 
     fireEvent.pointerDown(lanes, { button: 0, clientX: at(2.5), clientY: V1_Y });
     expect(onSelect).toHaveBeenLastCalledWith(new Set(), null);
@@ -451,6 +455,7 @@ describe("Timeline", () => {
         onCommit={vi.fn<(next: Project) => void>()}
         onError={vi.fn<(message: string) => void>()}
         onSeek={vi.fn<(time: number) => void>()}
+        onScrub={vi.fn<(time: number) => void>()}
         onDropSource={vi.fn<(path: string, time: number, trackId: string) => void>()}
         onTracks={vi.fn<(next: Project) => void>()}
         onZoom={vi.fn<(pxPerSecond: number) => void>()}

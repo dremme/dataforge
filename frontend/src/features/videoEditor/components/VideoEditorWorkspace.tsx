@@ -56,6 +56,7 @@ import { withAuto, withoutAuto } from "@/features/gallery/lib/autoAdjust";
 import type { VideoEditorRequest } from "@/features/videoEditor/context/VideoEditorContext";
 import { EDITOR_ROUTE } from "@/features/videoEditor/lib/editorLocation";
 import { useMediaProblems, usePlayheadTime } from "@/features/videoEditor/hooks/usePlayhead";
+import { useAudioProxies } from "@/features/videoEditor/hooks/useAudioProxies";
 import { useVideoExports } from "@/features/videoEditor/hooks/useVideoExports";
 import { VIDEO_PROJECTS_QUERY_KEY } from "@/features/videoEditor/hooks/useVideoProjectList";
 import {
@@ -408,6 +409,8 @@ function EditorSession({
 
   useEffect(() => () => engine.dispose(), [engine]);
   useEffect(() => engine.setProject(project, locations), [engine, project, locations]);
+  const audioProxies = useAudioProxies(project, locations);
+  useEffect(() => engine.setProxies(audioProxies.ready), [engine, audioProxies.ready]);
 
   useEffect(() => {
     if (!message) return;
@@ -599,6 +602,13 @@ function EditorSession({
     (time: number) => {
       setPreviewMode("timeline");
       engine.seek(time);
+    },
+    [engine],
+  );
+  const scrubTimeline = useCallback(
+    (time: number) => {
+      setPreviewMode("timeline");
+      engine.scrub(time);
     },
     [engine],
   );
@@ -1265,6 +1275,7 @@ function EditorSession({
                     onDelete={deleteSelection}
                     autoPending={selectedClips.length === 1 && autoPending.has(selectedClips[0].id)}
                     onAuto={() => selectedClips[0] && void autoAdjustClip(selectedClips[0])}
+                    preparingSound={audioProxies.preparing}
                   />
                 </div>
               </aside>
@@ -1354,6 +1365,7 @@ function EditorSession({
               onCommit={state.commit}
               onError={setMessage}
               onSeek={seekTimeline}
+              onScrub={scrubTimeline}
               onDropSource={(path, time, trackId) => void addSource(path, time, trackId)}
               onTracks={(next) => state.commit(next)}
               onZoom={zoom}

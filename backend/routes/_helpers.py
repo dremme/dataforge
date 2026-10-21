@@ -4,12 +4,15 @@ from fastapi import HTTPException
 
 from automation import job_outcome
 from constants import (
+    AUDIO_EDIT_MUXERS,
+    AUDIO_EXTENSIONS,
     CANDIDATE_SOURCE_EXTENSIONS,
     GALLERY_EXTENSIONS,
     GIF_EXTENSION,
     IMAGE_EDIT_EXTENSIONS,
     IMAGE_EXTENSIONS,
     VIDEO_EDIT_EXTENSIONS,
+    VIDEO_EXTENSIONS,
 )
 from filesystem import normalize_user_path, resolve_folder
 from schemas import JobResponse
@@ -18,6 +21,7 @@ __all__ = [
     "job_response",
     "resolve_candidate_media",
     "resolve_candidate_source",
+    "resolve_editable_audio",
     "resolve_editable_image",
     "resolve_editable_video",
     "resolve_folder",
@@ -26,6 +30,7 @@ __all__ = [
     "resolve_media_file",
     "resolve_optional_gif_file",
     "resolve_optional_media_file",
+    "resolve_sounding_file",
 ]
 
 
@@ -57,6 +62,28 @@ def resolve_image_file(path: str) -> Path:
         raise HTTPException(
             status_code=400, detail="Only image files can be opened in the image viewer"
         )
+
+    return file_path
+
+
+def resolve_editable_audio(path: str) -> Path:
+    file_path = resolve_media_file(path)
+
+    if file_path.suffix.lower() not in AUDIO_EDIT_MUXERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{file_path.suffix} files cannot be edited as audio",
+        )
+
+    return file_path
+
+
+def resolve_sounding_file(path: str) -> Path:
+    """An audio file, or a video whose sound the editor uses."""
+    file_path = resolve_media_file(path)
+
+    if file_path.suffix.lower() not in AUDIO_EXTENSIONS | VIDEO_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"{file_path.suffix} files have no sound")
 
     return file_path
 

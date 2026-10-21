@@ -1,10 +1,16 @@
 from itertools import pairwise
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from constants import (
     ADJUST_MAX_HUE,
+    AUDIO_EQ_MAX_DB,
+    AUDIO_HIGH_CUT_MAX_HZ,
+    AUDIO_HIGH_CUT_MIN_HZ,
+    AUDIO_LOW_CUT_MAX_HZ,
+    AUDIO_LOW_CUT_MIN_HZ,
+    AUDIO_PITCH_MAX_SEMITONES,
     AUTO_ADJUST_DEFAULT_AMOUNT,
     DEFAULT_GALLERY_SORT,
     DEFAULT_RESIZE_MEGAPIXELS,
@@ -1595,9 +1601,9 @@ type VideoProjectTitleAlign = Literal["left", "center", "right"]
 type VideoProjectSizePreset = Literal["source", "480p", "720p", "1080p", "1440p", "2160p"]
 type VideoProjectOrientation = Literal["landscape", "portrait", "square"]
 type VideoProjectQuality = Literal["standard", "high", "small"]
-#: ``limit`` holds true peaks under the ceiling; ``normalize`` also brings the mix to the
-#: loudness target first. ``unchanged`` sums the clips as they are and can clip.
-type VideoProjectAudioLevel = Literal["unchanged", "limit", "normalize"]
+#: ``limit`` holds true peaks under the ceiling; ``normalize`` also brings the sound to the
+#: loudness target first. ``unchanged`` leaves the level as it is, which can clip.
+type AudioLevel = Literal["unchanged", "limit", "normalize"]
 #: ``changed`` means the file's size or modification time no longer matches the recorded one.
 type VideoProjectSourceState = Literal["ok", "missing", "changed"]
 type VideoProjectExportStatus = Literal["running", "completed", "failed", "cancelled"]
@@ -1615,6 +1621,93 @@ MAX_PROJECT_MARKERS = 500
 
 type HexColor = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
 type ProjectId = Annotated[str, StringConstraints(min_length=1, max_length=64)]
+
+
+type EqGain = Annotated[float, Field(ge=-AUDIO_EQ_MAX_DB, le=AUDIO_EQ_MAX_DB)]
+
+
+class AudioEffects(BaseModel):
+    """Sound shaping, each 0 at rest. Noise reduction runs first, then the bands low to high."""
+
+    #: Hz, 0 for off: a high-pass that removes rumble below it.
+    low_cut: float = 0.0
+    #: Hz, 0 for off: a low-pass that removes hiss above it.
+    high_cut: float = 0.0
+    #: Shelf and peak gains in dB.
+    bass: EqGain = 0.0
+    mid: EqGain = 0.0
+    treble: EqGain = 0.0
+    noise_reduction: float = Field(0.0, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _check(self) -> "AudioEffects":
+        if self.low_cut and not AUDIO_LOW_CUT_MIN_HZ <= self.low_cut <= AUDIO_LOW_CUT_MAX_HZ:
+            raise ValueError(
+                f"The low cut runs from {AUDIO_LOW_CUT_MIN_HZ:g} to {AUDIO_LOW_CUT_MAX_HZ:g} Hz"
+            )
+        if self.high_cut and not AUDIO_HIGH_CUT_MIN_HZ <= self.high_cut <= AUDIO_HIGH_CUT_MAX_HZ:
+            raise ValueError(
+                f"The high cut runs from {AUDIO_HIGH_CUT_MIN_HZ:g} to {AUDIO_HIGH_CUT_MAX_HZ:g} Hz"
+            )
+        return self
+
+
+class AudioEditSpec(BaseModel):
+    """Always applied to the untouched original in a single pass; every field defaults to identity.
+
+    Forbids other fields: a same-stem video or image keeps its spec in the same ``.edit.json``,
+    and reading one of those as an audio edit would show changes this file never had."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    trim_start: float = Field(0.0, ge=0.0)
+    #: ``None`` runs to the end.
+    trim_end: float | None = Field(None, gt=0.0)
+    #: Seconds of the output, so a retime does not stretch them.
+    fade_in: float = Field(0.0, ge=0.0)
+    fade_out: float = Field(0.0, ge=0.0)
+    fade_curve: VideoProjectFadeCurve = "equal_power"
+    #: Gain: 1 unchanged, up to 2 for a boost. A file of silence is not an edit worth having.
+    volume: float = Field(1.0, gt=0.0, le=MAX_EDIT_VOLUME)
+    level: AudioLevel = "unchanged"
+    #: Changes the length and keeps the pitch.
+    speed: float = Field(1.0, ge=MIN_EDIT_SPEED, le=MAX_EDIT_SPEED)
+    #: Semitones; keeps the length.
+    pitch: int = Field(0, ge=-AUDIO_PITCH_MAX_SEMITONES, le=AUDIO_PITCH_MAX_SEMITONES)
+    effects: AudioEffects = Field(default_factory=AudioEffects)
+
+    @model_validator(mode="after")
+    def _check(self) -> "AudioEditSpec":
+        if self.trim_end is not None:
+            if self.trim_end <= self.trim_start:
+                raise ValueError("The trim end must come after the trim start")
+            kept = self.trim_end - self.trim_start
+            if kept < MIN_TRIM_SECONDS:
+                raise ValueError(f"A trim must keep at least {MIN_TRIM_SECONDS} seconds")
+            if self.fade_in + self.fade_out > kept / self.speed + VIDEO_PROJECT_TIME_EPSILON:
+                raise ValueError("The fades cannot be longer than the sound they shape")
+        return self
+
+
+class AudioEditStateResponse(BaseModel):
+    path: str
+    has_backup: bool
+    #: Of the original, which is what the editor plays and what a trim is measured against.
+    duration: float | None = None
+    spec: AudioEditSpec | None
+
+
+class AudioEditResponse(BaseModel):
+    path: str
+    size: int
+    modified_at: str
+    duration: float | None = None
+    has_backup: bool
+
+
+class AudioLoudnessResponse(BaseModel):
+    #: ``None`` for silence, which loudness gating leaves out entirely.
+    integrated_lufs: float | None
 
 
 class VideoProjectSource(BaseModel):
@@ -1772,6 +1865,8 @@ class VideoProjectClip(BaseModel):
     fade_out: float = Field(0.0, ge=0.0)
     #: Audio clips only: the shape of its fades and of the crossfades it takes part in.
     fade_curve: VideoProjectFadeCurve = "equal_power"
+    #: Audio clips only.
+    audio_effects: AudioEffects = Field(default_factory=AudioEffects)
     title: VideoProjectTitle | None = None
     keyframes: VideoProjectKeyframes = Field(default_factory=VideoProjectKeyframes)
 
@@ -1795,6 +1890,8 @@ class VideoProjectClip(BaseModel):
                 raise ValueError("Only pictures and titles animate a transform")
         elif keys.gain:
             raise ValueError("Only sound clips carry a gain envelope")
+        if self.kind != "audio" and self.audio_effects != AudioEffects():
+            raise ValueError("Only sound clips carry sound effects")
         return self
 
 
@@ -1823,7 +1920,7 @@ class VideoProjectExportSettings(BaseModel):
     orientation: VideoProjectOrientation | None = None
     quality: VideoProjectQuality = "standard"
     copy_caption: bool = False
-    audio_level: VideoProjectAudioLevel = "limit"
+    audio_level: AudioLevel = "limit"
 
 
 class VideoProjectMix(BaseModel):
@@ -2206,6 +2303,17 @@ class VideoEditEvent(BaseModel):
     duration: float | None = None
 
 
+class AudioEditEvent(BaseModel):
+    """Addressed to the tab that asked, not broadcast."""
+
+    type: Literal["audio_edit"] = "audio_edit"
+    path: str
+    #: Position in the rendered output, in seconds.
+    seconds: float
+    #: ``None`` when the source duration was unknown.
+    duration: float | None = None
+
+
 class VideoProjectExportEvent(BaseModel):
     """Broadcast to every tab, so an export left running in the background stays visible."""
 
@@ -2265,6 +2373,7 @@ type ServerEvent = Annotated[
     | HeartbeatEvent
     | FolderEvent
     | VideoEditEvent
+    | AudioEditEvent
     | VideoProjectExportEvent
     | NotificationEvent
     | TaggingEvent

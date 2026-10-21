@@ -1,8 +1,10 @@
 import { useCallback, useRef, type CSSProperties, type PointerEvent, type RefObject } from "react";
 import { iconPause, iconPlay, iconVolume2, iconVolumeX } from "@/shared/icons";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
 import { outputTime, trackPercent } from "@/features/gallery/lib/videoEdit";
+import { AudioWaveform } from "./AudioWaveform";
 
 const COARSE_STEP_SECONDS = 1;
 
@@ -20,14 +22,20 @@ interface VideoEditTimelineProps {
   /** Playback drives the marker through this node without a React render per frame. */
   playheadRef?: RefObject<HTMLDivElement | null>;
   playing: boolean;
-  muted: boolean;
+  /** Without a mute toggle the button is left out: the audio edit is all sound. */
+  muted?: boolean;
   ready: boolean;
   disabled: boolean;
   onTrimStartChange: (seconds: number) => void;
   onTrimEndChange: (seconds: number) => void;
   onSeek: (seconds: number) => void;
   onTogglePlay: () => void;
-  onToggleMuted: () => void;
+  onToggleMuted?: () => void;
+  /** Drawn behind the trim band; the sound's own picture of what a trim keeps. */
+  waveformUrl?: string;
+  /** Output seconds, drawn as ramps at the ends of the kept band. */
+  fadeIn?: number;
+  fadeOut?: number;
 }
 
 export function VideoEditTimeline({
@@ -47,6 +55,9 @@ export function VideoEditTimeline({
   onSeek,
   onTogglePlay,
   onToggleMuted,
+  waveformUrl,
+  fadeIn = 0,
+  fadeOut = 0,
 }: VideoEditTimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   // Where the handle was grabbed, so it slides with the pointer instead of centring on it.
@@ -125,7 +136,7 @@ export function VideoEditTimeline({
   const percent = (seconds: number) => trackPercent(seconds, span);
 
   return (
-    <div className="video-edit-timeline">
+    <div className={classNames("video-edit-timeline", waveformUrl && "video-edit-timeline--sound")}>
       <button
         type="button"
         className="video-edit-timeline__play"
@@ -136,14 +147,16 @@ export function VideoEditTimeline({
         <Icon icon={playing ? iconPause : iconPlay} />
       </button>
 
-      <button
-        type="button"
-        className="video-edit-timeline__mute"
-        onClick={onToggleMuted}
-        aria-label={muted ? "Unmute preview" : "Mute preview"}
-      >
-        <Icon icon={muted ? iconVolumeX : iconVolume2} />
-      </button>
+      {onToggleMuted && (
+        <button
+          type="button"
+          className="video-edit-timeline__mute"
+          onClick={onToggleMuted}
+          aria-label={muted ? "Unmute preview" : "Mute preview"}
+        >
+          <Icon icon={muted ? iconVolumeX : iconVolume2} />
+        </button>
+      )}
 
       <div
         ref={trackRef}
@@ -153,12 +166,22 @@ export function VideoEditTimeline({
             "--trim-start": percent(trimStart),
             "--trim-end": percent(trimEnd),
             "--playhead": percent(playheadTime),
+            // Fades are output seconds; the track is source seconds.
+            "--fade-in-end": percent(Math.min(trimEnd, trimStart + fadeIn * speed)),
+            "--fade-out-start": percent(Math.max(trimStart, trimEnd - fadeOut * speed)),
           } as CSSProperties
         }
         onPointerDown={handleTrackPointerDown}
         role="group"
         aria-label="Trim range"
       >
+        {waveformUrl && (
+          <AudioWaveform src={waveformUrl} className="video-edit-timeline__waveform" />
+        )}
+        {fadeIn > 0 && <div className="video-edit-timeline__fade video-edit-timeline__fade--in" />}
+        {fadeOut > 0 && (
+          <div className="video-edit-timeline__fade video-edit-timeline__fade--out" />
+        )}
         <div className="video-edit-timeline__dropped video-edit-timeline__dropped--head" />
         <div className="video-edit-timeline__dropped video-edit-timeline__dropped--tail" />
         <div className="video-edit-timeline__selection" />

@@ -49,6 +49,7 @@ function renderInspector(overrides: Partial<ComponentProps<typeof ClipInspector>
     onDelete: vi.fn<() => void>(),
     autoPending: false,
     onAuto: vi.fn<() => void>(),
+    preparingSound: new Set<string>(),
     ...overrides,
   };
   return { ...props, ...renderWithProviders(<ClipInspector {...props} />) };
@@ -225,6 +226,40 @@ describe("ClipInspector", () => {
     fireEvent.change(screen.getByRole("slider", { name: "Gain" }), { target: { value: "1.5" } });
     expect(onEdit).toHaveBeenCalledWith({ gain: 1.5 }, false);
     expect(screen.queryByRole("button", { name: "Color" })).not.toBeInTheDocument();
+  });
+
+  it("shapes a sound clip's EQ and noise reduction in its Sound section", () => {
+    const { onEdit } = renderInspector({ selection: [sound] });
+
+    fireEvent.change(screen.getByRole("slider", { name: "Mid" }), { target: { value: "-4" } });
+    expect(onEdit).toHaveBeenLastCalledWith(
+      { audio_effects: { ...sound.audio_effects, mid: -4 } },
+      false,
+    );
+    // A cut below its range is off, and a high cut at the top stops cutting.
+    fireEvent.change(screen.getByRole("slider", { name: "Low cut" }), { target: { value: "10" } });
+    expect(onEdit).toHaveBeenLastCalledWith(
+      { audio_effects: { ...sound.audio_effects, low_cut: 0 } },
+      false,
+    );
+    fireEvent.change(screen.getByRole("slider", { name: "Noise reduction" }), {
+      target: { value: "0.4" },
+    });
+    expect(onEdit).toHaveBeenLastCalledWith(
+      { audio_effects: { ...sound.audio_effects, noise_reduction: 0.4 } },
+      false,
+    );
+    expect(screen.queryByText("Preparing noise reduction...")).not.toBeInTheDocument();
+  });
+
+  it("says when a sound clip still plays its source while its proxy renders", () => {
+    renderInspector({ selection: [sound], preparingSound: new Set([sound.id]) });
+    expect(screen.getByText("Preparing noise reduction...")).toBeInTheDocument();
+  });
+
+  it("leaves the Sound section off pictures", () => {
+    renderInspector({ selection: [video] });
+    expect(screen.queryByRole("slider", { name: "Noise reduction" })).not.toBeInTheDocument();
   });
 
   it("crops and grades from their folded sections, and resets each", async () => {

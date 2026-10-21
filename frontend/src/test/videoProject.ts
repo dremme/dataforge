@@ -1,3 +1,4 @@
+import { RESTING_EFFECTS } from "@/shared/lib/audioEffects";
 import type { VideoProjectClip, VideoProjectSource, VideoProjectTrack } from "@/shared/types";
 import { restingAdjust, type Project } from "@/features/videoEditor/lib/timeline";
 
@@ -48,6 +49,7 @@ export function makeClip(
     fade_in: 0,
     fade_out: 0,
     fade_curve: "equal_power",
+    audio_effects: { ...RESTING_EFFECTS },
     title: null,
     keyframes: { x: [], y: [], scale: [], rotation: [], opacity: [], gain: [] },
     ...patch,

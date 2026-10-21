@@ -2,6 +2,7 @@ import {
   VIDEO_PROJECT_QUALITY_PRESETS,
   VIDEO_PROJECT_SIZE_PRESET_SHORT_SIDES,
 } from "@/shared/constants";
+import { fadeCurveLevel } from "@/shared/lib/audioEffects";
 import type { VideoProjectExportSettings, VideoProjectOrientation } from "@/shared/types";
 import {
   clipEnd,
@@ -122,12 +123,9 @@ export function transitionFades(project: Project): {
 
 export type Fades = ReturnType<typeof transitionFades>;
 
-/** A ramp's level for ``progress`` 0..1; equal power is ffmpeg's quarter sine, ``qsin``. */
+/** Pictures fade linearly; sound takes its clip's curve. */
 function fadeShape(clip: Clip, progress: number): number {
-  const level = Math.min(1, Math.max(0, progress));
-  return clip.kind === "audio" && clip.fade_curve === "equal_power"
-    ? Math.sin((level * Math.PI) / 2)
-    : level;
+  return fadeCurveLevel(clip.kind === "audio" ? clip.fade_curve : "linear", progress);
 }
 
 /** 0..1 at ``time``: the fade in and out ramps, a dissolve or crossfade counted as a fade. */

@@ -24,6 +24,8 @@ from time import monotonic
 
 import events
 import notifications
+from audio_effects import audio_proxy, needs_proxy
+from audio_level import build_file_measure, parse_loudness
 from captions import caption_path_for
 from constants import (
     GALLERY_EXTENSIONS,
@@ -38,6 +40,7 @@ from media_group import media_group_paths
 from schemas import (
     NotificationVariant,
     VideoProject,
+    VideoProjectClip,
     VideoProjectExportEvent,
     VideoProjectExportSpan,
     VideoProjectExportState,
@@ -53,14 +56,22 @@ from video_project import (
     source_states,
     used_source_ids,
 )
-from video_project_render import (
-    build_file_measure,
-    build_mix_measure,
-    build_render,
-    parse_loudness,
-)
+from video_project_render import SoundSource, build_mix_measure, build_render
 
 logger = logging.getLogger(__name__)
+
+
+def clip_sound_source(executable: str) -> SoundSource:
+    """A clip with noise reduction reads the proxy its preview played, so both hear one render."""
+
+    def sound(path: Path, clip: VideoProjectClip) -> Path:
+        strength = clip.audio_effects.noise_reduction
+        if not needs_proxy(strength):
+            return path
+        return audio_proxy(executable, path, noise_reduction=strength)
+
+    return sound
+
 
 FFMPEG_MISSING_MESSAGE = "ffmpeg is required to export a video"
 EXPORT_TIMEOUT_SECONDS = 6 * 3600
@@ -319,6 +330,7 @@ class ExportManager:
             self._publish(record)
 
         plan_duration = [0.0]
+        sound_source = clip_sound_source(executable)
         try:
             with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as workspace:
                 measured = None
@@ -330,6 +342,7 @@ class ExportManager:
                             executable=executable,
                             workspace=Path(workspace),
                             span=span,
+                            sound_source=sound_source,
                         ),
                         should_cancel=record.cancel.is_set,
                         timeout=EXPORT_TIMEOUT_SECONDS,
@@ -349,6 +362,7 @@ class ExportManager:
                     probe_color=lambda path: probe_stream_color(executable, path),
                     measured_lufs=measured,
                     span=span,
+                    sound_source=sound_source,
                 )
                 plan_duration[0] = plan.duration
                 run_ffmpeg(

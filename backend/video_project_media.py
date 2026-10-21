@@ -43,7 +43,7 @@ def _lock_for(key: str) -> threading.Lock:
         return _locks.setdefault(key, threading.Lock())
 
 
-def _cache_path(source: Path, kind: str, *parts: object) -> Path:
+def cache_path(source: Path, kind: str, *parts: object, suffix: str = THUMBNAIL_SUFFIX) -> Path:
     stat = source.stat()
     key = "|".join(
         [str(source.resolve()), kind, f"{stat.st_mtime_ns}:{stat.st_size}"]
@@ -51,10 +51,10 @@ def _cache_path(source: Path, kind: str, *parts: object) -> Path:
         + [str(TIMELINE_MEDIA_VERSION)]
     )
     digest = hashlib.sha256(key.encode()).hexdigest()
-    return get_thumbnail_cache_dir() / "timeline" / digest[:2] / f"{digest}{THUMBNAIL_SUFFIX}"
+    return get_thumbnail_cache_dir() / "timeline" / digest[:2] / f"{digest}{suffix}"
 
 
-def _cached(destination: Path, build) -> Path:
+def cached_render(destination: Path, build) -> Path:
     if destination.is_file():
         return destination
     with _lock_for(str(destination)):
@@ -69,7 +69,7 @@ def _cached(destination: Path, build) -> Path:
         try:
             build(partial)
             if not partial.is_file() or partial.stat().st_size == 0:
-                raise ThumbnailUnavailableError("ffmpeg produced no picture")
+                raise ThumbnailUnavailableError("ffmpeg produced nothing")
             os.replace(partial, destination)
         finally:
             partial.unlink(missing_ok=True)
@@ -122,8 +122,8 @@ def filmstrip(
     count = max(1, min(FILMSTRIP_MAX_FRAMES, count))
     height = max(FILMSTRIP_MIN_HEIGHT, min(FILMSTRIP_MAX_HEIGHT, height)) // 2 * 2
     times = filmstrip_times(start, end, count)
-    destination = _cache_path(source, "filmstrip", f"{start:.2f}", f"{end:.2f}", count, height)
-    return _cached(
+    destination = cache_path(source, "filmstrip", f"{start:.2f}", f"{end:.2f}", count, height)
+    return cached_render(
         destination,
         lambda partial: run_ffmpeg(
             filmstrip_command(executable, source, partial, times, height),
@@ -188,8 +188,8 @@ def waveform(
     width = max(WAVEFORM_MIN_WIDTH, min(WAVEFORM_MAX_WIDTH, width))
     height = max(WAVEFORM_MIN_HEIGHT, min(WAVEFORM_MAX_HEIGHT, height))
     duration = max(WAVEFORM_MIN_SECONDS, duration)
-    destination = _cache_path(source, "waveform", f"{start:.6f}", f"{duration:.6f}", width, height)
-    return _cached(
+    destination = cache_path(source, "waveform", f"{start:.6f}", f"{duration:.6f}", width, height)
+    return cached_render(
         destination,
         lambda partial: run_ffmpeg(
             waveform_command(executable, source, partial, start, duration, width, height),

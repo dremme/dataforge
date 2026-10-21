@@ -1,3 +1,4 @@
+import { RESTING_EFFECTS } from "@/shared/lib/audioEffects";
 import {
   VIDEO_PROJECT_UNTITLED_NAME,
   VIDEO_PROJECT_MAX_TRACKS,
@@ -930,6 +931,7 @@ export function placeSource(
     fade_in: 0,
     fade_out: 0,
     fade_curve: "equal_power",
+    audio_effects: { ...RESTING_EFFECTS },
     title: null,
     keyframes: noKeyframes(),
   };
@@ -1004,6 +1006,7 @@ export function addTitle(
     fade_in: 0,
     fade_out: 0,
     fade_curve: "equal_power",
+    audio_effects: { ...RESTING_EFFECTS },
     keyframes: noKeyframes(),
     title: {
       text: "Title",

@@ -132,6 +132,17 @@
     color: var(--text-subtle);
   }
 
+  // A dial beside the presets, as wide as the row allows.
+  &__dial {
+    display: flex;
+    flex: 1 1 10rem;
+    max-width: 26rem;
+
+    .ruler-dial {
+      width: 100%;
+    }
+  }
+
   &__tool-controls {
     display: flex;
     flex: 1 1 auto;

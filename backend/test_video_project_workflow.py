@@ -7,6 +7,7 @@ delivered file rather than on the graph text.
 
 from __future__ import annotations
 
+import math
 import re
 import subprocess
 import tempfile
@@ -19,10 +20,13 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
+import numpy as np
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image
 
+from audio_effects import audio_proxy, eq_filters
+from audio_level import build_file_measure, parse_loudness
 from constants import (
     VIDEO_PROJECT_LOUDNESS_TARGET_LUFS,
     VIDEO_PROJECT_MAX_CHECKPOINTS,
@@ -32,6 +36,7 @@ from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import run_ffmpeg
 from routes import router
 from schemas import (
+    AudioEffects,
     ColorAdjust,
     VideoProject,
     VideoProjectClip,
@@ -47,13 +52,7 @@ from video_edit import StreamColor
 from video_project import probe_source_file, source_from_info
 from video_project_compat import make_compatible_copy
 from video_project_export import ExportManager
-from video_project_render import (
-    build_file_measure,
-    build_frame,
-    build_mix_measure,
-    build_render,
-    parse_loudness,
-)
+from video_project_render import build_frame, build_mix_measure, build_render
 from video_project_versions import (
     delete_project_versions,
     list_versions,
@@ -424,6 +423,118 @@ class AudioProtectionTests(unittest.TestCase):
         loudness = parse_loudness(log)
         assert loudness is not None
         self.assertEqual(loudness.integrated_lufs, float("-inf"))
+
+
+def samples_of(media: Path, start: float, seconds: float) -> np.ndarray:
+    out = subprocess.run(
+        [
+            ffmpeg(),
+            "-v",
+            "error",
+            "-ss",
+            f"{start}",
+            "-t",
+            f"{seconds}",
+            "-i",
+            str(media),
+            "-map",
+            "0:a:0",
+            "-ac",
+            "1",
+            "-ar",
+            "48000",
+            "-f",
+            "f32le",
+            "-",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout
+    return np.frombuffer(out, dtype="<f4").astype(np.float64)
+
+
+def level_db(samples: np.ndarray) -> float:
+    return 20 * math.log10(math.sqrt(float(np.mean(samples**2))) + 1e-12)
+
+
+class SoundEffectTests(unittest.TestCase):
+    """The export against the shared builders: the EQ the preview mirrors, the proxy it plays."""
+
+    def sounding(self, root: Path, name: str, effects: AudioEffects) -> VideoProject:
+        return project(
+            root,
+            [name],
+            [
+                VideoProjectClip(
+                    id="spacer",
+                    track_id="v1",
+                    kind="title",
+                    start=0,
+                    duration=2,
+                    title=VideoProjectTitle(text=""),
+                ),
+                VideoProjectClip(
+                    id="sound",
+                    track_id="a1",
+                    kind="audio",
+                    source_id=name,
+                    start=0,
+                    duration=2,
+                    audio_effects=effects,
+                ),
+            ],
+            width=64,
+            height=48,
+            export=VideoProjectExportSettings(audio_level="unchanged", quality="high"),
+        )
+
+    def export(self, root: Path, edit: VideoProject) -> Path:
+        manager = ExportManager()
+        state = wait_for(manager, manager.start(root, edit, None).id)
+        self.assertEqual(state.status, "completed", state.error)
+        return Path(state.output_path)
+
+    def test_an_equalized_clip_exports_as_the_shared_filters_shape_it(self) -> None:
+        with TempMediaFolder() as root:
+            write_tone(root, "tone.wav", 0.3)
+            effects = AudioEffects(mid=-12)
+            exported = self.export(root, self.sounding(root, "tone.wav", effects))
+            direct = generate(
+                root,
+                "direct.wav",
+                "-i",
+                str(root / "tone.wav"),
+                "-af",
+                ",".join(eq_filters(effects)),
+            )
+            self.assertAlmostEqual(
+                level_db(samples_of(exported, 0.5, 1)),
+                level_db(samples_of(direct, 0.5, 1)),
+                delta=0.3,
+            )
+            self.assertLess(level_db(samples_of(exported, 0.5, 1)), -20)
+
+    def test_a_noise_reduced_clip_exports_the_proxy_in_place(self) -> None:
+        with TempMediaFolder() as root:
+            generate(
+                root,
+                "room.wav",
+                *("-f", "lavfi", "-i", "anoisesrc=a=0.02:d=2:r=48000:s=7"),
+                *("-f", "lavfi", "-i", "aevalsrc=0.6*eq(n\\,48000):s=48000:d=2"),
+                *("-filter_complex", "amix=inputs=2:normalize=0"),
+            )
+            effects = AudioEffects(noise_reduction=0.6)
+            exported = samples_of(self.export(root, self.sounding(root, "room.wav", effects)), 0, 2)
+            proxy = samples_of(audio_proxy(ffmpeg(), root / "room.wav", noise_reduction=0.6), 0, 2)
+
+            gap = slice(24000, 43000)
+            self.assertAlmostEqual(level_db(exported[gap]), level_db(proxy[gap]), delta=1)
+            self.assertLess(
+                level_db(exported[gap]), level_db(samples_of(root / "room.wav", 0, 2)[gap]) - 12
+            )
+            # The click stays at one second, within AAC's own smear.
+            click = int(np.argmax(np.abs(exported[44000:52000]))) + 44000
+            self.assertLessEqual(abs(click - 48000), 48)
 
 
 class CompatibleCopyTests(unittest.TestCase):

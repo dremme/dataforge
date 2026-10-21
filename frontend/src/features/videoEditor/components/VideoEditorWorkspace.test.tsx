@@ -1,3 +1,4 @@
+import { RESTING_EFFECTS } from "@/shared/lib/audioEffects";
 import { createEvent, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,6 +63,7 @@ function clip(id: string, track: string, kind: VideoProjectClip["kind"]): VideoP
     fade_in: 0,
     fade_out: 0,
     fade_curve: "equal_power",
+    audio_effects: { ...RESTING_EFFECTS },
     title: null,
     keyframes: { x: [], y: [], scale: [], rotation: [], opacity: [], gain: [] },
   };

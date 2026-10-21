@@ -437,7 +437,7 @@ function TimelinePreview({
           disabled={duration <= 0}
           aria-label="Playhead"
           aria-valuetext={formatTimecode(time, project.frame_rate)}
-          onChange={(event) => engine.seek(Number(event.target.value) / project.frame_rate)}
+          onChange={(event) => engine.scrub(Number(event.target.value) / project.frame_rate)}
         />
         <div className="video-editor__transport">
           <TimecodeField

@@ -7,6 +7,9 @@ import { GradePresets } from "./GradePresets";
 import { InspectorHeader, Panel, ResetButton, Slider } from "./InspectorParts";
 import { TimecodeField } from "./TimecodeField";
 
+import { effectsEqual } from "@/shared/lib/audioEffects";
+import { SoundPanel } from "./SoundPanel";
+
 /** Returns the change for one clip, or null when the setting does not apply to it. */
 export type BatchEdit = (patch: (clip: Clip) => Partial<Clip> | null, final: boolean) => void;
 
@@ -20,6 +23,8 @@ interface MultiClipInspectorProps {
   onPasteAttributes?: () => void;
   /** Link and delete, which the single-clip view words differently. */
   actions: ReactNode;
+  /** Sound clips whose noise-reduced proxy is still rendering. */
+  preparingSound: ReadonlySet<string>;
 }
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
@@ -41,6 +46,7 @@ export function MultiClipInspector({
   onBatchLength,
   onPasteAttributes,
   actions,
+  preparingSound,
 }: MultiClipInspectorProps) {
   const frame = 1 / project.frame_rate;
   const seconds = (value: number) => `${value.toFixed(2)} s`;
@@ -120,6 +126,23 @@ export function MultiClipInspector({
             }
           />
         </Panel>
+      )}
+
+      {audio.length > 0 && (
+        <SoundPanel
+          effects={audio[0].audio_effects}
+          mixed={audio.some((clip) => !effectsEqual(clip.audio_effects, audio[0].audio_effects))}
+          preparing={audio.some((clip) => preparingSound.has(clip.id))}
+          onChange={(change, final) =>
+            onBatchEdit(
+              (clip) =>
+                clip.kind === "audio"
+                  ? { audio_effects: { ...clip.audio_effects, ...change } }
+                  : null,
+              final,
+            )
+          }
+        />
       )}
 
       {visual.length > 0 && (

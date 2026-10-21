@@ -1,3 +1,4 @@
+import { RESTING_EFFECTS } from "@/shared/lib/audioEffects";
 import { describe, expect, it } from "vitest";
 import {
   audibleTrackIds,
@@ -47,6 +48,7 @@ function clip(
     fade_in: 0,
     fade_out: 0,
     fade_curve: "equal_power",
+    audio_effects: { ...RESTING_EFFECTS },
     title: null,
     keyframes: { x: [], y: [], scale: [], rotation: [], opacity: [], gain: [] },
     ...extra,

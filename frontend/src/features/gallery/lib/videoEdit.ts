@@ -42,6 +42,9 @@ export interface VideoEditDraft {
   autoAdjust: AutoAdjust | null;
 }
 
+/** What trimming reads of a draft; the audio edit trims with the same rules. */
+export type TrimDraft = Pick<VideoEditDraft, "trimStart" | "trimEnd" | "speed">;
+
 /** Sizes even-truncate to match backend/video_edit.py crop= and scale= filters. */
 export function evenTrunc(value: number): number {
   return Math.trunc(value / 2) * 2;
@@ -92,11 +95,11 @@ export function isIdentityEdit(draft: VideoEditDraft, duration: number): boolean
   );
 }
 
-export function clampTrimStart(value: number, draft: VideoEditDraft, duration: number): number {
+export function clampTrimStart(value: number, draft: TrimDraft, duration: number): number {
   return clamp(value, 0, Math.max(0, Math.min(draft.trimEnd, duration) - MIN_TRIM_SECONDS));
 }
 
-export function clampTrimEnd(value: number, draft: VideoEditDraft, duration: number): number {
+export function clampTrimEnd(value: number, draft: TrimDraft, duration: number): number {
   return clamp(value, Math.min(draft.trimStart + MIN_TRIM_SECONDS, duration), duration);
 }
 
@@ -106,7 +109,7 @@ export function clampTrimEnd(value: number, draft: VideoEditDraft, duration: num
  */
 export function snapTrimStart(
   value: number,
-  draft: VideoEditDraft,
+  draft: TrimDraft,
   duration: number,
   frameDuration: number,
 ): number {
@@ -118,7 +121,7 @@ export function snapTrimStart(
 
 export function snapTrimEnd(
   value: number,
-  draft: VideoEditDraft,
+  draft: TrimDraft,
   duration: number,
   frameDuration: number,
 ): number {
@@ -137,7 +140,7 @@ export function snapTrimEnd(
  */
 export function trimForLength(
   seconds: number,
-  draft: VideoEditDraft,
+  draft: TrimDraft,
   duration: number,
   frameDuration: number,
 ): { trimStart: number; trimEnd: number } | null {
@@ -154,11 +157,7 @@ export function trimForLength(
   };
 }
 
-export function hasTrimLength(
-  seconds: number,
-  draft: VideoEditDraft,
-  frameDuration: number,
-): boolean {
+export function hasTrimLength(seconds: number, draft: TrimDraft, frameDuration: number): boolean {
   const span = draft.trimEnd - draft.trimStart;
   return Math.abs(span - seconds * draft.speed) < frameDuration / 2;
 }
@@ -198,7 +197,7 @@ export function scaleForTargetHeight(source: Size, crop: CropRect, targetHeight:
   return clamp(targetHeight / cropped.height, MIN_SCALE, 1);
 }
 
-export function outputDuration(draft: VideoEditDraft): number {
+export function outputDuration(draft: TrimDraft): number {
   return Math.max(0, draft.trimEnd - draft.trimStart) / draft.speed;
 }
 

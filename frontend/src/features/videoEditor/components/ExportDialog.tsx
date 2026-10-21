@@ -11,7 +11,7 @@ import { DialogActions } from "@/shared/ui/Dialog";
 import { DialogSelect } from "@/shared/ui/DialogSelect";
 import { RadioTileGroup } from "@/shared/ui/RadioTileGroup";
 import type {
-  VideoProjectAudioLevel,
+  AudioLevel,
   VideoProjectExportSettings,
   VideoProjectExportSpan,
   VideoProjectOrientation,
@@ -52,7 +52,7 @@ interface ExportDialogProps {
 
 const RANGE_EXPORT_TAG = "-range";
 
-const AUDIO_LEVEL_HINTS: Record<VideoProjectAudioLevel, string> = {
+const AUDIO_LEVEL_HINTS: Record<AudioLevel, string> = {
   limit: `Holds true peaks at ${VIDEO_PROJECT_TRUE_PEAK_CEILING_DB} dB, so loud clips summed together cannot clip.`,
   normalize: `Brings the whole mix to ${VIDEO_PROJECT_LOUDNESS_TARGET_LUFS} LUFS with one gain, then limits peaks at ${VIDEO_PROJECT_TRUE_PEAK_CEILING_DB} dB.`,
   unchanged: "Sums the clips exactly as set; a loud mix can clip.",
@@ -96,7 +96,7 @@ export function ExportDialog({
   const [orientation, setOrientation] = useState<VideoProjectOrientation>(savedOrientation);
   const [quality, setQuality] = useState<VideoProjectQuality>(saved.quality);
   const [copyCaption, setCopyCaption] = useState(saved.copy_caption);
-  const [audioLevel, setAudioLevel] = useState<VideoProjectAudioLevel>(saved.audio_level);
+  const [audioLevel, setAudioLevel] = useState<AudioLevel>(saved.audio_level);
   const nameId = useId();
   const captionId = useId();
 

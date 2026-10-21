@@ -482,7 +482,8 @@ describe("GalleryItemDialog", () => {
       within(dialog).queryByRole("button", { name: "Open in image preview" }),
     ).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: /Save a frame/ })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
+    // Its own editor instead: sound tools, not the image or video ones.
+    expect(within(dialog).getByRole("button", { name: "Edit voice.wav" })).toBeInTheDocument();
   });
 
   it("navigates within the filtered item list only", async () => {
