@@ -67,16 +67,25 @@ FILTER_LISTING = """Filters:
 """
 
 
+ENCODER_LISTING = """Encoders:
+ A..... = Audio
+ ------
+ A....D aac                  AAC (Advanced Audio Coding)
+ A....D libmp3lame           libmp3lame MP3 (MPEG audio layer 3) (codec mp3)
+"""
+
+
 class CheckFfmpegTests(unittest.TestCase):
     def _verify(
         self,
         banner: str,
         expected_version: str | None = "7.1.5",
         filters: str = FILTER_LISTING,
+        encoders: str = ENCODER_LISTING,
     ) -> str:
         def run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-            stdout = banner if command[1:] == ["-version"] else filters
-            return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+            listings = {"-version": banner, "-filters": filters, "-encoders": encoders}
+            return subprocess.CompletedProcess(command, 0, stdout=listings[command[-1]], stderr="")
 
         with (
             patch("ffmpeg_bin.ffmpeg_path", return_value="/tools/ffmpeg"),
@@ -127,6 +136,11 @@ class CheckFfmpegTests(unittest.TestCase):
         without = FILTER_LISTING.replace("drawtext", "drawbox")
         with self.assertRaisesRegex(RuntimeError, r"/tools/ffmpeg lacks the drawtext filter"):
             self._verify("ffmpeg version 7.1.5", filters=without)
+
+    def test_rejects_a_build_without_the_mp3_encoder(self) -> None:
+        without = ENCODER_LISTING.replace(" libmp3lame ", " libshine ")
+        with self.assertRaisesRegex(RuntimeError, r"/tools/ffmpeg lacks the libmp3lame encoder"):
+            self._verify("ffmpeg version 7.1.5", encoders=without)
 
     def test_reads_filter_names_whatever_the_flag_column_width(self) -> None:
         for row in (" T.C drawtext  V->V  Draw text", " T. drawtext  V->V  Draw text"):

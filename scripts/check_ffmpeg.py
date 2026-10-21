@@ -6,21 +6,32 @@ import subprocess
 import sys
 from pathlib import Path
 
-#: Filters that need optional libraries; a minimal build compiles without them and fails per job.
+#: Filters and encoders that need optional libraries; a minimal build compiles without them and
+#: fails per job.
 REQUIRED_FILTERS = ("drawtext",)
+REQUIRED_ENCODERS = ("libmp3lame",)
 
 
-def missing_filters(executable: str) -> list[str]:
+def _listed(executable: str, listing: str) -> set[str]:
     result = subprocess.run(
-        [executable, "-hide_banner", "-filters"],
+        [executable, "-hide_banner", listing],
         capture_output=True,
         text=True,
         check=True,
         timeout=10,
     )
-    # Rows are "<flags> <name> <pads> <description>"; the flag column's width varies by build.
-    available = {fields[1] for line in result.stdout.splitlines() if len(fields := line.split()) > 1}
+    # Rows are "<flags> <name> ..."; the flag column's width varies by build.
+    return {fields[1] for line in result.stdout.splitlines() if len(fields := line.split()) > 1}
+
+
+def missing_filters(executable: str) -> list[str]:
+    available = _listed(executable, "-filters")
     return [name for name in REQUIRED_FILTERS if name not in available]
+
+
+def missing_encoders(executable: str) -> list[str]:
+    available = _listed(executable, "-encoders")
+    return [name for name in REQUIRED_ENCODERS if name not in available]
 
 
 def verify_ffmpeg(expected_version: str | None = None) -> str:
@@ -54,6 +65,12 @@ def verify_ffmpeg(expected_version: str | None = None) -> str:
         raise RuntimeError(
             f"FFmpeg at {executable} lacks the {', '.join(missing)} filter that watermarking "
             "needs. Use a build configured with libfreetype and libharfbuzz."
+        )
+    missing = missing_encoders(executable)
+    if missing:
+        raise RuntimeError(
+            f"FFmpeg at {executable} lacks the {', '.join(missing)} encoder that MP3 audio edits "
+            "need. Use a build configured with libmp3lame."
         )
     return f"{executable}\n{banner}"
 
