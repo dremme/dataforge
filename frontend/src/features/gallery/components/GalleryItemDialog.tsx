@@ -63,7 +63,6 @@ import {
   iconFolderInput,
   iconLoader2,
   iconMessageCheck,
-  iconRotateCcw,
   iconScanSquare,
   iconSquarePen,
   iconTrash2,
@@ -210,9 +209,7 @@ export function GalleryItemDialog({
     caption,
     saveState,
     saveError,
-    canRevert,
     handleCaptionChange,
-    revertCaption,
     retrySave,
     flushPendingSave,
     discardCaptionChanges,
@@ -1334,23 +1331,6 @@ export function GalleryItemDialog({
                         Use backup
                       </button>
                     )}
-                    {/* Revert and Copy act on the editor's text, which the comparison hides. */}
-                    {!showingBackupDiff && (
-                      <button
-                        type="button"
-                        className="gallery-item-dialog__caption-action"
-                        onClick={revertCaption}
-                        disabled={busy || !canRevert}
-                        aria-label={`Revert caption changes for ${item.name}`}
-                        title="Undo every change made since this file was opened"
-                      >
-                        <Icon
-                          icon={iconRotateCcw}
-                          className="gallery-item-dialog__caption-action-icon"
-                        />
-                        Revert
-                      </button>
-                    )}
                     {canResolveIssue && (
                       <button
                         type="button"
@@ -1398,6 +1378,7 @@ export function GalleryItemDialog({
                         Resolve duplicate
                       </button>
                     )}
+                    {/* Copy acts on the editor's text, which the comparison hides. */}
                     {!showingBackupDiff && (
                       <button
                         type="button"

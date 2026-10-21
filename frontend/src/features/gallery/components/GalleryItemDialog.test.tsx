@@ -879,46 +879,6 @@ describe("GalleryItemDialog", () => {
     expect(saveCaption).toHaveBeenCalledTimes(2);
   });
 
-  it("reverts the caption to the text the file was opened with", async () => {
-    const user = userEvent.setup();
-    const saveCaption = vi.spyOn(captionsApi, "saveCaption");
-
-    renderWithProviders(
-      <GalleryItemDialog
-        items={[makeItem("sunset.png")]}
-        index={0}
-        onClose={vi.fn<() => void>()}
-        onPrevious={vi.fn<() => void>()}
-        onNext={vi.fn<() => void>()}
-        onCaptionSaved={vi.fn<(path: string, update: CaptionSaveResponse) => void>()}
-      />,
-    );
-
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
-    const revert = within(dialog).getByRole("button", {
-      name: "Revert caption changes for sunset.png",
-    });
-    expect(revert).toBeDisabled();
-
-    const editor = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
-    await user.click(editor);
-    await user.keyboard(" at dusk");
-
-    await waitFor(() => expect(within(dialog).getByRole("status")).toHaveTextContent("Saved"));
-    expect(revert).toBeEnabled();
-
-    await user.click(revert);
-
-    await waitFor(() =>
-      expect(saveCaption).toHaveBeenLastCalledWith(
-        `${HOME_PATH}\\sunset.png`,
-        "Golden hour over the lake",
-      ),
-    );
-    expect(editor).toHaveValue("Golden hour over the lake");
-    await waitFor(() => expect(revert).toBeDisabled());
-  });
-
   it("offers no backup comparison when the folder has no caption backup", async () => {
     renderWithProviders(
       <GalleryItemDialog
@@ -977,8 +937,7 @@ describe("GalleryItemDialog", () => {
 
       expect(compare).toHaveAccessibleName("Back to editing the caption for sunset.png");
       expect(compare).toHaveTextContent("Back to editing");
-      // Both act on the editor's text, which the comparison hides.
-      expect(within(dialog).queryByRole("button", { name: /Revert caption changes/ })).toBeNull();
+      // Copy acts on the editor's text, which the comparison hides.
       expect(within(dialog).queryByRole("button", { name: /Copy/ })).toBeNull();
       const region = within(dialog).getByRole("region", {
         name: "Caption compared with its backup for sunset.png",
@@ -1024,9 +983,6 @@ describe("GalleryItemDialog", () => {
       );
       expect(compare).toHaveTextContent("Compare backup");
       expect(within(dialog).queryByRole("region", { name: /compared with its backup/ })).toBeNull();
-      expect(
-        within(dialog).getByRole("button", { name: "Revert caption changes for sunset.png" }),
-      ).toBeInTheDocument();
       expect(within(dialog).getByRole("textbox", { name: "Caption for sunset.png" })).toHaveValue(
         "The caption as it was backed up",
       );
