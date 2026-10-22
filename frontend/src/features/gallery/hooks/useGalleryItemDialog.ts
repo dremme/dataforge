@@ -2,6 +2,21 @@ import { useCallback, useMemo, useState } from "react";
 import type { GalleryItem } from "@/shared/types";
 import { useChanged } from "@/shared/hooks/useChanged";
 
+/** The item taking over from `removedPath`: the next survivor, else the nearest one before it. */
+function successorPath(
+  paths: readonly string[],
+  removedPath: string,
+  isPresent: (path: string) => boolean,
+): string | null {
+  const index = paths.indexOf(removedPath);
+  const after = paths.slice(index + 1).find(isPresent);
+  if (after !== undefined) return after;
+  for (let before = index - 1; before >= 0; before--) {
+    if (isPresent(paths[before])) return paths[before];
+  }
+  return null;
+}
+
 export function useGalleryItemDialog(
   images: GalleryItem[],
   filteredItems: GalleryItem[],
@@ -29,9 +44,14 @@ export function useGalleryItemDialog(
     return dialogItems.findIndex((item) => item.path === selectedPath);
   }, [dialogItems, selectedPath]);
 
+  // A folder push can drop the open item before its delete request returns: advance, never close.
   if (selectedPath && !images.some((item) => item.path === selectedPath)) {
-    setSelectedPath(null);
-    setDialogNavigationPaths(null);
+    const present = new Set(images.map((item) => item.path));
+    const successor = successorPath(dialogNavigationPaths ?? [], selectedPath, (path) =>
+      present.has(path),
+    );
+    setSelectedPath(successor);
+    if (!successor) setDialogNavigationPaths(null);
   }
 
   const openGalleryItem = useCallback(
@@ -76,13 +96,11 @@ export function useGalleryItemDialog(
 
       setSelectedPath((current) => {
         if (current !== deletedPath) return current;
-
-        const remaining = (dialogNavigationPaths ?? []).filter((path) => path !== deletedPath);
-        if (remaining.length === 0) return null;
-
-        const index = (dialogNavigationPaths ?? []).indexOf(deletedPath);
-        const nextIndex = Math.min(Math.max(index, 0), remaining.length - 1);
-        return remaining[nextIndex];
+        return successorPath(
+          dialogNavigationPaths ?? [],
+          deletedPath,
+          (path) => path !== deletedPath,
+        );
       });
     },
     [dialogNavigationPaths],

@@ -115,6 +115,40 @@ describe("useGalleryItemDialog", () => {
     expect(result.current.selectedPath).toBe(images[2].path);
   });
 
+  it("moves to the next item when the listing drops the open item before the delete returns", () => {
+    const { result, rerender } = renderHook(({ list }) => useGalleryItemDialog(list, list), {
+      initialProps: { list: images },
+      wrapper,
+    });
+
+    act(() => result.current.openGalleryItem(images[1].path));
+    // A folder push can land while the delete request is still in flight.
+    act(() => rerender({ list: [images[0], images[2]] }));
+
+    expect(result.current.selectedPath).toBe(images[2].path);
+
+    act(() => result.current.removeGalleryItem(images[1].path));
+
+    expect(result.current.selectedPath).toBe(images[2].path);
+    expect(result.current.selectedIndex).toBe(1);
+  });
+
+  it("skips items already gone from the listing when removing several at once", () => {
+    const { result, rerender } = renderHook(({ list }) => useGalleryItemDialog(list, list), {
+      initialProps: { list: images },
+      wrapper,
+    });
+
+    act(() => result.current.openGalleryItem(images[0].path));
+    act(() => {
+      result.current.removeGalleryItem(images[0].path);
+      result.current.removeGalleryItem(images[1].path);
+      rerender({ list: [images[2]] });
+    });
+
+    expect(result.current.selectedPath).toBe(images[2].path);
+  });
+
   it("closes the dialog once the last item is removed", () => {
     const { result } = renderHook(() => useGalleryItemDialog([images[0]], [images[0]]), {
       wrapper,
