@@ -31,7 +31,8 @@ import { EmptyState } from "@/shared/ui/EmptyState";
 import { Icon } from "@/shared/ui/Icon";
 
 const LAYOUT_STORAGE_KEY = "restore-captions-diff-layout";
-const THUMBNAIL_WIDTH = 160;
+// The gallery's size, so the thumbnails are usually cached already and stay sharp at 2x.
+const THUMBNAIL_WIDTH = 400;
 
 const LAYOUT_OPTIONS: ReadonlyArray<{ value: CaptionDiffLayout; label: string; icon: AppIcon }> = [
   { value: "inline", label: "Inline", icon: iconRows3 },
@@ -383,10 +384,10 @@ function RestoreSkeleton() {
 
 // Row metrics from `_restore-captions-dialog.scss`; estimates only, every row is measured.
 const ROW_PADDING_Y_PX = 21;
-const THUMB_PX = 56;
+const THUMB_PX = 128;
 const HEADER_PX = 24;
 const LINE_PX = 21;
-const ROW_INSET_X_PX = 104;
+const ROW_INSET_X_PX = 176;
 const SPLIT_GAP_PX = 12;
 // Each side is a padded panel: vertical padding plus its border, then horizontal padding.
 const SPLIT_SIDE_Y_PX = 14;

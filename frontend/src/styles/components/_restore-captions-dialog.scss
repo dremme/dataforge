@@ -1,6 +1,9 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
+// Mirrored by `THUMB_PX` in `RestoreCaptionsDialog.tsx`.
+$thumb-size: 8rem;
+
 // Full size: the virtualized list takes every pixel the header, toolbar and actions leave, and
 // is the only scroller.
 .dialog__panel.restore-captions-dialog {
@@ -244,7 +247,7 @@
   &__list-header {
     display: grid;
     flex-shrink: 0;
-    grid-template-columns: 3.5rem minmax(0, 1fr);
+    grid-template-columns: $thumb-size minmax(0, 1fr);
     column-gap: 0.875rem;
     padding: 0.5rem 0.875rem;
     border-bottom: 1px solid var(--border);
@@ -321,7 +324,7 @@
     top: 0;
     left: 0;
     display: grid;
-    grid-template-columns: 3.5rem minmax(0, 1fr);
+    grid-template-columns: $thumb-size minmax(0, 1fr);
     gap: 0.875rem;
     width: 100%;
     padding: 0.625rem 0.875rem;
@@ -335,8 +338,8 @@
 
   &__thumb {
     @include inline-flex-center;
-    width: 3.5rem;
-    height: 3.5rem;
+    width: $thumb-size;
+    height: $thumb-size;
     overflow: hidden;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -479,7 +482,7 @@
 
   &__skeleton-row {
     display: grid;
-    grid-template-columns: 3.5rem minmax(0, 1fr);
+    grid-template-columns: $thumb-size minmax(0, 1fr);
     gap: 0.875rem;
     padding: 0.625rem 0.875rem;
     border-bottom: 1px solid var(--border);
