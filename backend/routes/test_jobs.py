@@ -125,8 +125,11 @@ class JobsEndpointTests(unittest.TestCase):
             media = write_media(root, "photo.png")
             write_txt_caption(media, "Draft.")
 
-            started = client.post(f"/api/automation/auto-caption?path={quote(str(root))}")
-            job_id = started.json()["id"]
+            # Finished under the patch so its worker never reaches a real model server.
+            with patch("automation.auto_caption.complete_caption", return_value=CAPTION):
+                started = client.post(f"/api/automation/auto-caption?path={quote(str(root))}")
+                job_id = started.json()["id"]
+                wait_for_job(job_id)
 
             deleted = client.delete(f"/api/jobs/{job_id}")
             self.assertEqual(deleted.status_code, 200)
@@ -142,7 +145,9 @@ class JobsEndpointTests(unittest.TestCase):
             media = write_media(root, "photo.png")
             write_txt_caption(media, "Draft.")
 
-            client.post(f"/api/automation/auto-caption?path={quote(str(root))}")
+            with patch("automation.auto_caption.complete_caption", return_value=CAPTION):
+                started = client.post(f"/api/automation/auto-caption?path={quote(str(root))}")
+                wait_for_job(started.json()["id"])
 
             deleted = client.delete("/api/jobs")
             self.assertEqual(deleted.status_code, 200)

@@ -38,10 +38,13 @@ class JobManagerQueueTests(unittest.TestCase):
             media = write_media(root, "photo.png")
             write_txt_caption(media, "Draft.")
 
+            # The patch outlives the job so its worker never reaches a real model server.
             with patch("automation.auto_caption.complete_caption", return_value=None):
                 job = job_manager.queue_job("auto_caption", root, mode="instruct")
+                status = job.status
+                wait_for_job(job.id)
 
-            self.assertIn(job.status, {"queued", "running"})
+            self.assertIn(status, {"queued", "running"})
             self.assertEqual(job.job_type, "auto_caption")
             self.assertEqual(job.auto_caption_mode, "instruct")
 
