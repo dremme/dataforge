@@ -1,7 +1,7 @@
 import path from "node:path";
-import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
+import { RUN_DIR_ENV, runDirectory } from "./e2e/runDirectory";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(rootDir, "..");
@@ -10,7 +10,6 @@ const projectRoot = path.resolve(rootDir, "..");
 const API_PORT = "18090";
 const UI_PORT = "18091";
 
-const workspace = path.join(os.tmpdir(), "dataforge-e2e");
 const venvPython =
   process.platform === "win32"
     ? path.join(projectRoot, "backend", ".venv", "Scripts", "python.exe")
@@ -19,7 +18,7 @@ const venvPython =
 const serverEnv = {
   DATAFORGE_API_PORT: API_PORT,
   DATAFORGE_UI_PORT: UI_PORT,
-  DATAFORGE_E2E_WORKSPACE: workspace,
+  [RUN_DIR_ENV]: runDirectory(),
   DATAFORGE_DISABLE_DOTENV: "1",
 };
 

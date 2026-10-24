@@ -4,6 +4,7 @@ import {
   BACKEND_UNREACHABLE,
   FOLDER_NOT_FOUND,
   NetworkError,
+  backendRestartHelp,
   formatApiError,
   postJson,
   putJson,
@@ -100,6 +101,15 @@ describe("resolveFolderError", () => {
       kind: "other",
       message: "Caption save failed",
     });
+  });
+});
+
+describe("backendRestartHelp", () => {
+  it("names the launcher for the platform the app runs on", () => {
+    expect(backendRestartHelp("Windows")).toContain("run start.bat");
+    expect(backendRestartHelp("Win32")).toContain("run start.bat");
+    expect(backendRestartHelp("macOS")).toContain("run ./start.sh");
+    expect(backendRestartHelp("Linux x86_64")).toContain("run ./start.sh");
   });
 });
 

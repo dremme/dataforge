@@ -32,17 +32,17 @@ test("a crowded toolbar keeps one row by showing the folder actions as icons", a
   const toolbar = page.locator(".toolbar");
   const tools = page.getByRole("button", { name: "Tools", exact: true });
   const label = tools.locator(".toolbar__collapsible-label");
-  const rowTops = () =>
-    toolbar.evaluate((element) =>
-      [".toolbar__actions", ".toolbar__controls"].map((selector) =>
-        Math.round(element.querySelector(selector)!.getBoundingClientRect().top),
-      ),
-    );
+  // Relative to each other: a notice or banner above the toolbar may move both rows together.
+  const rowOffset = () =>
+    toolbar.evaluate((element) => {
+      const top = (selector: string) =>
+        Math.round(element.querySelector(selector)!.getBoundingClientRect().top);
+      return top(".toolbar__controls") - top(".toolbar__actions");
+    });
 
   await expect(label).toBeVisible();
   await expect(label).toHaveCSS("position", "static");
-  const [actionsTop, controlsTop] = await rowTops();
-  expect(controlsTop).toBe(actionsTop);
+  expect(await rowOffset()).toBe(0);
 
   // A typed query widens the search field past what the labelled actions leave.
   const search = page.getByRole("searchbox", {
@@ -51,7 +51,7 @@ test("a crowded toolbar keeps one row by showing the folder actions as icons", a
   await search.fill("photo and a longer query");
   await expect(toolbar).toHaveClass(/toolbar--compact/);
   await expect(label).toHaveCSS("position", "absolute");
-  await expect.poll(rowTops).toEqual([actionsTop, actionsTop]);
+  await expect.poll(rowOffset).toBe(0);
   const box = (await page
     .getByRole("button", { name: "Auto-caption", exact: true })
     .boundingBox())!;

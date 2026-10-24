@@ -1,11 +1,11 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { expect, type Page } from "@playwright/test";
 import type { FolderResponse } from "../src/shared/types";
+import { runDirectory } from "./runDirectory";
 
-/** Built fresh by scripts/e2e_backend.py; the same path playwright.config.ts hands the servers. */
-export const WORKSPACE = path.join(os.tmpdir(), "dataforge-e2e");
+/** Built by scripts/e2e_backend.py inside this run's own folder. */
+export const WORKSPACE = path.join(runDirectory(), "workspace");
 
 /** Opens the workspace trimmed to one image and one video, with no subfolders. */
 export async function openWorkspace(page: Page) {

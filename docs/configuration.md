@@ -54,7 +54,15 @@ All fields below except `OPENAI_TIMEOUT` are under **Settings > Vision model > S
 | `DRAFT_CAPTION_THRESHOLD` | `256`                      | Integer ≥ 1; caption length in characters, for Auto-caption only                                       |
 | `OPENAI_TIMEOUT`          | `600`                      | Positive seconds per response; nonpositive or malformed values use the default                         |
 
-**Auto-caption threshold:** an existing caption longer than the threshold is skipped (`skipped_long`); a shorter one is a draft the model expands, and a file with no caption, or an empty one, is captioned from the media alone. Generated text at or below the threshold is retried, then reported as `too_short` if all attempts fail. Equal to the threshold is still a draft. Raise it when you require longer captions, and make sure the system prompt asks for enough detail. **Verify captions** and **Edit captions** ignore this threshold. Model calls allow up to three attempts; the client's connection timeout is 10 seconds.
+**Draft caption threshold** decides what Auto-caption does with each file:
+
+| Existing caption | Auto-caption |
+| --- | --- |
+| None or empty | Writes one from the media alone |
+| Up to the threshold | Treats it as a draft and expands it |
+| Longer than the threshold | Skips it (`skipped_long`) |
+
+Generated text at or under the threshold is retried, and reported as `too_short` if every attempt is too short. Raise the threshold for longer captions, and make sure the system prompt asks for enough detail. Verify captions and Edit captions ignore it. Each model call gets up to three attempts, with a 10-second connection timeout.
 
 ## Save, reset, and clear
 
@@ -159,32 +167,36 @@ For settings available in the app, precedence is:
 3. The project-root `.env`, or `backend/.env` only when the root file does not exist
 4. The built-in default
 
-The two `.env` files are never merged. Environment changes require a restart. To make an environment value apply instead of a saved one, select **Reset**, then **Save**, in Settings.
+The two `.env` files are never merged, and environment changes need a restart. To let an environment value win over a saved one, choose **Reset**, then **Save**, in Settings.
 
-Settings validates values before saving. Blank, malformed, or out-of-range environment values for those same fields fall back to defaults. Zero is valid where a table below allows it. Environment-only settings have their own parsing rules; ports must be usable TCP ports, and invalid paths or bind addresses can prevent startup.
+Settings checks values before saving. A blank, malformed, or out-of-range environment value for one of its fields falls back to the default. An invalid path or bind address in an environment-only setting can stop the server from starting.
 
-Default paths are relative to the project location. Explicit relative path overrides resolve against the server's working directory, normally `backend/` with the bundled launchers. Prefer absolute overrides.
+Default paths are relative to the project. A relative override resolves against the server's working directory, normally `backend/`, so prefer absolute paths.
 
 ## Server, storage, and logging
 
-| Variable                              | Default                    | Where / effect                                                                                                                                |
-| ------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATAFORGE_UI_PORT`                   | `18081`                    | Environment-only port, 1–65535; production UI/API, or Vite and the CORS allowlist in development                                              |
-| `DATAFORGE_API_PORT`                  | `18080`                    | Environment-only port, 1–65535; development API only                                                                                          |
-| `DATAFORGE_API_HOST`                  | `127.0.0.1`                | Environment-only bind address. A non-loopback address can expose dataset access to the network; the dev proxy still connects to loopback. The API answers only to loopback names and this address (any name when bound to `0.0.0.0` or `::`), and refuses state-changing requests from other origins      |
-| `DATAFORGE_SERVE_UI`                  | unset / off                | Environment-only flag; production sets it automatically to serve `frontend/dist`. Leave unset in development                                  |
-| `DATAFORGE_DB_PATH`                   | `backend/data/app.db`      | Environment-only SQLite path for settings, jobs, and notifications                                                                            |
-| `DATAFORGE_THUMBNAIL_CACHE`           | `backend/data/thumbnails/` | Environment-only thumbnail directory                                                                                                          |
-| `DATAFORGE_THUMBNAIL_CACHE_MAX_MB`    | `2048`                     | Settings > Storage; integer ≥ 0, in units of 1024² bytes; removes least recently used thumbnails above the limit. 0 disables the size limit   |
-| `DATAFORGE_JOB_HISTORY_DAYS`          | `30`                       | Settings > Data & history; integer ≥ 0 days; removes old finished jobs, never running jobs. 0 disables age-based pruning                      |
-| `DATAFORGE_NOTIFICATION_HISTORY_DAYS` | `3`                        | Settings > Data & history; integer ≥ 0 days; removes old notifications. 0 disables age-based pruning; the feed still keeps at most 50 entries |
-| `DATAFORGE_MODELS_DIR`                | `backend/data/models/`     | Environment-only directory for the [tagging](user-guide.md#tags) model weights                                                                |
-| `DATAFORGE_TAG_MIN_CONFIDENCE`        | `0.25`                     | Settings > Tagging; 0.1 to 1; tags scoring below it are hidden from cards and search                                                          |
-| `DATAFORGE_LOG_LEVEL`                 | `INFO`                     | Environment-only standard log level, such as `DEBUG` or `WARNING`; unknown names use `INFO`                                                   |
+Settings marked **env** can only be set in the environment and need a restart.
 
-Database and cache directories are created as needed. History pruning runs at startup, hourly, and after saving a retention change. Clearing thumbnails or remembered data in Settings applies immediately; Cancel does not undo it.
+| Variable | Default | Where | Effect |
+| --- | --- | --- | --- |
+| `DATAFORGE_UI_PORT` | `18081` | env | Port of the app in production; Vite's port in development |
+| `DATAFORGE_API_PORT` | `18080` | env | API port in development only |
+| `DATAFORGE_API_HOST` | `127.0.0.1` | env | Address the server binds to; see below before changing it |
+| `DATAFORGE_SERVE_UI` | off | env | Serve `frontend/dist`; the production launcher sets it. Leave unset in development |
+| `DATAFORGE_DB_PATH` | `backend/data/app.db` | env | SQLite file for settings, jobs, and notifications |
+| `DATAFORGE_THUMBNAIL_CACHE` | `backend/data/thumbnails/` | env | Thumbnail folder |
+| `DATAFORGE_THUMBNAIL_CACHE_MAX_MB` | `2048` | Settings > Storage | Cache limit in MiB; least recently used thumbnails go first. `0` means no limit |
+| `DATAFORGE_JOB_HISTORY_DAYS` | `30` | Settings > Data & history | Days to keep finished jobs; running jobs are never removed. `0` keeps them forever |
+| `DATAFORGE_NOTIFICATION_HISTORY_DAYS` | `3` | Settings > Data & history | Days to keep notifications; the feed holds at most 50 either way. `0` turns off age pruning |
+| `DATAFORGE_MODELS_DIR` | `backend/data/models/` | env | Folder for the [tagging](user-guide.md#tags) model |
+| `DATAFORGE_TAG_MIN_CONFIDENCE` | `0.25` | Settings > Tagging | 0.1 to 1; weaker tags are hidden from cards and search |
+| `DATAFORGE_LOG_LEVEL` | `INFO` | env | A standard level such as `DEBUG` or `WARNING`; unknown names use `INFO` |
 
-For `DATAFORGE_SERVE_UI`, `0`, `false`, `no`, `off`, or blank means off; other set values mean on. Launcher and test variables are listed in [Development](development.md#development-variables).
+Ports must be 1 to 65535. For `DATAFORGE_SERVE_UI`, `0`, `false`, `no`, `off`, or blank means off; any other value means on.
+
+**Binding to another address.** A non-loopback `DATAFORGE_API_HOST` can expose your datasets to the network. The API then answers only to loopback names and that address (any name when bound to `0.0.0.0` or `::`), and it always refuses state-changing requests from other origins. The development proxy still connects over loopback.
+
+Folders are created as needed. History pruning runs at startup, hourly, and after you save a retention change. Launcher and test variables are listed in [Development](development.md#development-variables).
 
 ## CPU temperature on Windows
 

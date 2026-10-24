@@ -106,7 +106,20 @@ The tests run under coverage, and the run ends with one line per side (coverage.
 
 Backend, frontend, and end-to-end CI all use the exact Python 3.13.12 release recorded in `.python-version`. Backend CI has one runner. Windows setup uses the same default; local setup and server startup accept any final Python 3.13.x release and reject other release series and prereleases. Frontend CI generates files with Python and runs its scoped checks, then runs `npm run build` after the tests pass. Vite reports asset sizes and gzip estimates in the build log. End-to-end CI runs separately from `run_checks.py` and the pre-commit hook; locally, `run_checks.py --e2e` adds the suite to a full run.
 
-The E2E suite drives Chromium against its own backend on 18090 and Vite on 18091, using temporary data and a stand-in vision model. It needs no existing servers or real model. It covers captioning, gallery thumbnails, media editing, the workflow inspector, notifications, and job controls. Avoid using those ports for another service during the run.
+The E2E suite drives Chromium against its own backend on 18090 and Vite on 18091. It covers captioning, gallery thumbnails, media editing, the workflow inspector, notifications, and job controls. Results do not depend on what runs on the machine:
+
+- **No real services.** `scripts/e2e_backend.py` clears every app variable from the environment, answers vision requests with a stand-in model, and points ComfyUI and AI-Toolkit at a stub that refuses every request. Tagging is off, and the database and thumbnail cache are temporary.
+- **One folder per run.** `frontend/e2e/runDirectory.ts` makes a `dataforge-e2e-*` temp folder with an owner marker. A run deletes only folders whose marker names a process that has exited, so the last run's fixtures stay for inspection until the next run, and two runs never delete each other's. Two runs at once still collide on the ports; the second fails to start.
+
+## Reviewing documentation
+
+When a change moves a control, changes what is kept or replaced, or touches startup and recovery text, check the user-facing wording too:
+
+- **Moved controls:** search `docs/` for the old location and label, such as "toolbar gear".
+- **History and retention:** the docs say what a new run keeps or replaces, and how long.
+- **Scope:** jobs and Review follow [one scope rule](user-guide.md#scope); link to it rather than paraphrasing it.
+- **Recovery text:** in-app help and docs name the command for every platform, or link to [Getting started](getting-started.md).
+- **Tables:** one fact per cell; move conditions and caveats into a sentence below the table.
 
 ## Versioning
 

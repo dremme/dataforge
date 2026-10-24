@@ -32,20 +32,20 @@ Browse to a dataset with the breadcrumbs and subfolder cards, or try [`sample_me
 
 1. Browse the gallery. Filters and statistics show missing captions and review work.
 2. Open a file and write a caption; it autosaves as `.txt` beside the media.
-3. For local quality checks, edit **Caption rules** through **Create instructions** or **Edit instructions**, then run **Lint captions**.
+3. For local quality checks, write **Caption rules** under **Create instructions**, then run **Lint captions**.
 4. For AI jobs, [connect a model in Settings](configuration.md#connect-a-vision-model). Auto-caption also needs a **System prompt** in the folder or a parent.
-5. Select files before starting a job to limit its scope. With no selection, most jobs use the whole open folder; filters alone do not limit them. Training always uses the whole folder.
-6. Review flagged captions, duplicate groups, or staged ComfyUI results.
+5. A job runs on the selected files, else on what the search and filters show, else on the whole folder. Training always uses the whole folder. See [job scope](user-guide.md#scope).
+6. Open **Review** for flagged captions, duplicate groups, or staged ComfyUI results.
 
 The [user guide](user-guide.md) explains these workflows. On macOS, use `⌘` instead of `Ctrl` for shortcuts.
 
 ## Stop, restart, and update
 
-Stop by pressing a key in the launcher, closing it, or pressing `Ctrl+C`. Use `stop.bat` or `./stop.sh` for a detached server or one left behind after its console closed; stop the supervising launcher first if it is still running.
+Stop by pressing a key in the launcher, closing it, or pressing `Ctrl+C`. For a detached server, or one left running after its console closed, use `stop.bat` or `./stop.sh`; stop a supervising launcher first.
 
-To update a Git clone, stop the app, pull changes, then start it again. For a ZIP installation, extract a new copy and transfer your local `.env`, custom presets, and `backend/data/` if you want to keep settings/history/cache; keep datasets in their existing folders. Run setup in the new copy.
+To update a Git clone, stop the app, pull, and start it again. For a ZIP install, extract a new copy, move over your `.env`, custom presets, and `backend/data/` (settings, history, and cache), and run setup in the new copy. Datasets stay where they are.
 
-The launcher detects dependency changes and rebuilds the UI when needed. Re-run setup after a runtime upgrade or when asked.
+The launcher notices dependency changes and rebuilds the UI when needed. Run setup again after a runtime upgrade or when asked.
 
 ### Launcher options
 
@@ -82,6 +82,8 @@ DataForge needs no GPU. Model servers, ComfyUI, and AI-Toolkit set their own har
 **No build with `--no-build`.** Start once without that option, or build with `cd frontend && npm run build` after setup.
 
 **A port is in use.** Close an earlier launcher or stop an unsupervised DataForge server. The launcher refuses to kill a foreign process; choose another `DATAFORGE_UI_PORT` if necessary.
+
+**The app says "Backend unreachable".** The server stopped or never started. Run `start.bat` on Windows or `./start.sh` on Linux and macOS again; the page reconnects by itself once the server answers. If it keeps stopping, read the launcher output.
 
 **The server never becomes ready.** Read the server output for incomplete setup, a missing build, or a port conflict. Correct the reported problem before restarting. For problems after startup, see [configuration troubleshooting](configuration.md#troubleshooting).
 

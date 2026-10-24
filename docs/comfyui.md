@@ -28,7 +28,7 @@ The bundled [`example_lanczos_2x.json`](../comfy_workflows/example_lanczos_2x.js
 ## Run a folder
 
 1. Open the dataset itself, rather than `staging/`.
-2. Select files to limit the run, or leave nothing selected to process the whole folder. Filters alone do not limit it.
+2. Select files, or search and filter, to limit the run; otherwise it covers the whole folder. See [job scope](user-guide.md#scope).
 3. Choose **Process with ComfyUI** and a preset suitable for those files.
 4. Optionally enter Prompt or Seed; fields are enabled only when the workflow has the corresponding titled node.
 5. Choose whether to overwrite previously staged results, then start.
@@ -39,7 +39,7 @@ The workflow decides which inputs it supports. An unsupported or failed file is 
 
 ## Review candidates
 
-Open **Review candidates** for side-by-side comparison, or use the item's review control in the detail viewer. The comparison includes dimensions, sizes, resolution gain, and perceptual difference. Videos start muted and loop; playback, pause, and seeking synchronize when both sides are video. GIFs play as images.
+Open **Review > Pending candidates** (**Review candidates** in Quick actions) for a side-by-side comparison, or use the review control in a file's inspector. The comparison includes dimensions, sizes, resolution gain, and perceptual difference. Videos start muted and loop; playback, pause, and seeking synchronize when both sides are video. GIFs play as images.
 
 - **Accept** (`Ctrl+Enter`) replaces the source in the result's format, retaining the stem and caption and updating issue/duplicate file names. **No source backup is kept; acceptance has no undo.**
 - **Reject** (`Ctrl+Backspace`) removes the candidate and its run record, leaving the source unchanged.

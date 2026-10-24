@@ -5,9 +5,21 @@ export const FOLDER_NOT_FOUND = {
   description: "The folder may have been moved, renamed, or deleted.",
 } as const;
 
+/** The browser runs on the machine that serves the app, so its platform picks the launcher. */
+export function backendRestartHelp(platform: string): string {
+  const launcher = /^win/i.test(platform) ? "start.bat" : "./start.sh";
+  return `Start DataForge again: run ${launcher} in the DataForge folder.`;
+}
+
+function browserPlatform(): string {
+  if (typeof navigator === "undefined") return "";
+  const hints = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData;
+  return hints?.platform || navigator.platform;
+}
+
 export const BACKEND_UNREACHABLE = {
   title: "Backend unreachable",
-  description: "Start the API server with dev.bat or start-backend.ps1.",
+  description: backendRestartHelp(browserPlatform()),
 } as const;
 
 const BACKEND_UNREACHABLE_MESSAGE = `${BACKEND_UNREACHABLE.title}. ${BACKEND_UNREACHABLE.description}`;

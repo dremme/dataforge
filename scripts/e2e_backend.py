@@ -1,14 +1,13 @@
-"""Backend for the end-to-end auto-caption test: a throwaway workspace and a stand-in model.
+"""Backend for the browser E2E suite: a throwaway workspace, a stand-in model, no real services.
 
-Started by frontend/playwright.config.ts, never by hand. Reads DATAFORGE_E2E_WORKSPACE for
-where to build the fixture folder and DATAFORGE_API_PORT for where to serve.
+Started by frontend/playwright.config.ts, never by hand. Reads DATAFORGE_E2E_RUN_DIR, the run's
+own folder that frontend/e2e/runDirectory.ts made, and DATAFORGE_API_PORT for where to serve.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import shutil
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -40,6 +39,14 @@ DRAFT = "A parked car."
 
 REQUEST_LOG = "model-requests.json"
 
+#: Written by frontend/e2e/runDirectory.ts; a folder without it is not this suite's to fill.
+OWNER_MARKER = ".dataforge-e2e-owner"
+
+#: What the app reads from the environment. A developer shell's values must not reach the run.
+APP_ENV_PREFIXES = ("DATAFORGE_", "OPENAI_", "COMFY_", "OSTRIS_", "VIDEO_", "IMAGE_", "DRAFT_")
+#: Set by playwright.config.ts for this run.
+RUN_ENV = ("DATAFORGE_API_PORT", "DATAFORGE_UI_PORT", "DATAFORGE_E2E_RUN_DIR")
+
 
 class ModelHandler(BaseHTTPRequestHandler):
     """The vision model's half of the round trip, recorded so the test can inspect the prompt."""
@@ -70,11 +77,41 @@ class ModelHandler(BaseHTTPRequestHandler):
         log.write_text(json.dumps(recorded), encoding="utf-8")
 
 
-def start_model_server(workspace: Path) -> int:
-    handler = type("BoundModelHandler", (ModelHandler,), {"workspace": workspace})
+class UnavailableHandler(BaseHTTPRequestHandler):
+    """ComfyUI and AI-Toolkit as stopped services: every request fails at once, the same way."""
+
+    def _refuse(self) -> None:
+        self.send_response(503)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    do_GET = do_POST = do_DELETE = _refuse  # noqa: N815 - BaseHTTPRequestHandler's spelling
+
+    def log_message(self, *_args: object) -> None:
+        return
+
+
+def serve(handler: type[BaseHTTPRequestHandler]) -> str:
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    return server.server_address[1]
+    return f"http://127.0.0.1:{server.server_address[1]}"
+
+
+def isolate_environment(workspace: Path, run_dir: Path) -> None:
+    """Every service the app can call answers from this process, whatever runs on the machine."""
+    for name in list(os.environ):
+        if name.startswith(APP_ENV_PREFIXES) and name not in RUN_ENV:
+            del os.environ[name]
+
+    model = type("BoundModelHandler", (ModelHandler,), {"workspace": workspace})
+    os.environ["OPENAI_API_BASE_URL"] = f"{serve(model)}/v1"
+    os.environ["OPENAI_MODEL"] = "e2e-stand-in"
+    unavailable = serve(UnavailableHandler)
+    os.environ["COMFY_BASE_URL"] = unavailable
+    os.environ["OSTRIS_BASE_URL"] = unavailable
+    os.environ["DATAFORGE_THUMBNAIL_CACHE"] = str(run_dir / "thumbnails")
+    # The fresh database's default favorite is the real home folder; never tag that.
+    os.environ["DATAFORGE_DISABLE_TAGGING"] = "1"
 
 
 def write_clip(path: Path, *, seconds: int = 2, fps: int = 10, size: int = 64) -> None:
@@ -107,9 +144,7 @@ def write_clip(path: Path, *, seconds: int = 2, fps: int = 10, size: int = 64) -
 def build_workspace(workspace: Path) -> None:
     from testing_fixtures import write_media, write_sysprompt, write_txt_caption
 
-    if workspace.exists():
-        shutil.rmtree(workspace)
-    workspace.mkdir(parents=True)
+    workspace.mkdir()
 
     write_sysprompt(workspace, SYSPROMPT)
     write_txt_caption(write_media(workspace, "photo.png"), DRAFT)
@@ -123,20 +158,17 @@ def main() -> int:
     os.chdir(BACKEND)
     sys.path.insert(0, str(BACKEND))
 
+    run_dir = Path(os.environ["DATAFORGE_E2E_RUN_DIR"]).resolve()
+    if not (run_dir / OWNER_MARKER).is_file():
+        raise SystemExit(f"{run_dir} has no {OWNER_MARKER}, so it is not an E2E run folder")
+    workspace = run_dir / "workspace"
+
     # Before importing the app: it reads preferences, and a real .env would point at a real model.
+    isolate_environment(workspace, run_dir)
     from testing_fixtures import isolate_test_database
 
     isolate_test_database()
-
-    workspace = Path(os.environ["DATAFORGE_E2E_WORKSPACE"]).resolve()
     build_workspace(workspace)
-
-    os.environ["OPENAI_API_BASE_URL"] = f"http://127.0.0.1:{start_model_server(workspace)}/v1"
-    os.environ["OPENAI_MODEL"] = "e2e-stand-in"
-    # Nothing listens here, as on CI; a local AI-Toolkit would otherwise answer the default port.
-    os.environ["OSTRIS_BASE_URL"] = "http://127.0.0.1:9"
-    # The fresh database's default favorite is the real home folder; never tag that.
-    os.environ["DATAFORGE_DISABLE_TAGGING"] = "1"
 
     from main import app
 
