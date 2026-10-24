@@ -196,6 +196,22 @@ class SplitFixSentencesTests(unittest.TestCase):
 
         self.assertEqual(split_fix_sentences(text), [text])
 
+    def test_abbreviations_keep_one_finding_together(self) -> None:
+        for text in (
+            "Name the accessory, e.g. the scarf on the left.",
+            "The caption omits the headwear, i.e. the red hat.",
+            "Use one colour term, E.G. crimson rather than red.",
+            "The caption compares the car vs. the truck in the image.",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(split_fix_sentences(text), [text])
+
+    def test_a_sentence_after_an_abbreviation_still_splits(self) -> None:
+        self.assertEqual(
+            split_fix_sentences("Name the accessory, e.g. the scarf. Remove the hat."),
+            ["Name the accessory, e.g. the scarf.", "Remove the hat."],
+        )
+
     def test_a_semicolon_keeps_one_finding_together(self) -> None:
         """Qwen joins the observation and its correction with a semicolon."""
         text = "The caption says the hair is blonde; it is brown in the image"

@@ -106,11 +106,18 @@ _ENUMERATION_MARKER = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+")
 _MARKER_ONLY = re.compile(r"^\s*(?:[-*]|\d+[.)])\s*$")
 # No semicolon: Qwen uses it to continue one finding, so splitting there fragments it.
 _SENTENCE_TERMINATORS = frozenset(".!?")
+# Abbreviations that introduce more of the same finding; "etc." often ends a sentence, so it splits.
+_NON_TERMINAL_ABBREVIATION = re.compile(r"(?:^|[\s(\"'])(?:e\.g|i\.e|vs|cf)$", re.IGNORECASE)
 
 
 def _ends_sentence(text: str, index: int) -> bool:
-    """Whether the terminator at ``index`` closes a sentence; ellipses and decimals stay together."""
+    """Whether the terminator at ``index`` closes a sentence.
+
+    Ellipses, decimals, and abbreviations such as "e.g." stay together.
+    """
     if text[index] == "." and index > 0 and text[index - 1] == ".":
+        return False
+    if text[index] == "." and _NON_TERMINAL_ABBREVIATION.search(text, 0, index):
         return False
 
     next_char = text[index + 1 : index + 2]
