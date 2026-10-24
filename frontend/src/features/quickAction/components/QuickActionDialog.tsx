@@ -255,10 +255,10 @@ export function QuickActionDialog({ items, recentItems, onClose }: QuickActionDi
           <KeyCap label="↓" /> navigate
         </span>
         <span>
-          <kbd className="kbd">Enter</kbd> select
+          <ShortcutKeys shortcut={SHORTCUTS.confirm} /> select
         </span>
         <span>
-          <kbd className="kbd">Esc</kbd> close
+          <ShortcutKeys shortcut={SHORTCUTS.close} /> close
         </span>
       </footer>
     </DialogShell>

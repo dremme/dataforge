@@ -1,9 +1,9 @@
 import { Fragment, type ReactNode } from "react";
 import {
-  iconArrowDown,
-  iconArrowLeft,
-  iconArrowRight,
-  iconArrowUp,
+  iconChevronDown,
+  iconChevronLeft,
+  iconChevronRight,
+  iconChevronUp,
   type AppIcon,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -12,10 +12,10 @@ import { formatChord, formatShortcut, type ShortcutDefinition } from "@/shared/l
 
 // The arrow glyphs fall back to different fonts, so ← → never match ↑ ↓ in weight or size.
 const KEY_ICONS: Record<string, AppIcon> = {
-  "↑": iconArrowUp,
-  "↓": iconArrowDown,
-  "←": iconArrowLeft,
-  "→": iconArrowRight,
+  "↑": iconChevronUp,
+  "↓": iconChevronDown,
+  "←": iconChevronLeft,
+  "→": iconChevronRight,
 };
 
 export function KeyCap({ label }: { label: string }) {

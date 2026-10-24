@@ -174,5 +174,10 @@
     .kbd {
       margin-right: 0;
     }
+
+    // Same size as the bare arrow caps beside them.
+    .shortcut-keys {
+      font-size: inherit;
+    }
   }
 }

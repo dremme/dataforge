@@ -192,6 +192,16 @@ describe("QuickActionDialog", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("labels the footer keys for the platform", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Macintosh)");
+    renderBar();
+
+    const footer = document.querySelector(".quick-action__hint")?.textContent ?? "";
+    expect(footer).toContain("↩");
+    expect(footer).toContain("Esc");
+    expect(footer).not.toContain("Enter");
+  });
+
   it("holds a scroll lock while it is open", () => {
     renderBar();
     expect(document.documentElement).toHaveClass("quick-action-open");
