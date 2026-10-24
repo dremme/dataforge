@@ -6,10 +6,18 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
-from automation.backup_captions import back_up_caption_sidecars, caption_backup_dir
-from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
+from automation.backup_captions import back_up_caption, caption_backup_dir
+from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_caption_job
 from automation.selection import filter_media_list, list_folder_media
-from captions import CAPTION_READ_ERROR, load_reference_caption, save_caption
+from captions import (
+    CAPTION_CHANGED_STATUS,
+    CAPTION_READ_ERROR,
+    CaptionConflictError,
+    CaptionTarget,
+    caption_targets,
+    load_reference_caption,
+    save_caption,
+)
 from constants import MEDIA_EXTENSIONS
 
 REPLACE_MODES = ("replace", "prepend", "append")
@@ -161,12 +169,14 @@ def preview_caption_replacements(
     )
 
     media_files = filter_media_list(list_replace_captions_media(folder), selected_paths)
+    # Counted per caption, as the job changes them: a shared caption is one match.
+    targets = caption_targets(media_files)
     matched = 0
     samples: list[dict[str, str]] = []
 
-    for media_path in media_files:
-        text, status = load_reference_caption(media_path)
-        if text is None or status != "ok":
+    for target in targets:
+        text = load_reference_caption(target.primary).text
+        if text is None:
             continue
 
         edited = replacer(text)
@@ -175,11 +185,11 @@ def preview_caption_replacements(
 
         matched += 1
         if len(samples) < sample_limit:
-            samples.append({"name": media_path.name, "before": text, "after": edited.strip()})
+            samples.append({"name": target.primary.name, "before": text, "after": edited.strip()})
 
     return {
         "folder": str(folder),
-        "total": len(media_files),
+        "total": len(targets),
         "matched": matched,
         "samples": samples,
     }
@@ -215,10 +225,11 @@ def run_replace_captions_job(
         except OSError as exc:
             raise ValueError(f"Could not create the {backup_dir.name} folder: {exc}") from exc
 
-    def process(media_path: Path) -> FileOutcome:
-        text, status = load_reference_caption(media_path)
+    def process(target: CaptionTarget) -> FileOutcome:
+        reference = load_reference_caption(target.primary)
+        text = reference.text
         if text is None:
-            if status == CAPTION_READ_ERROR:
+            if reference.status == CAPTION_READ_ERROR:
                 return FileOutcome.counted(CAPTION_READ_ERROR, "Could not read the caption")
             return FileOutcome.counted("no_caption", "No caption to edit")
 
@@ -232,18 +243,20 @@ def run_replace_captions_job(
 
         if backup:
             try:
-                back_up_caption_sidecars(media_path, backup_dir)
+                back_up_caption(target.caption, backup_dir)
             except OSError as exc:
                 return FileOutcome.counted("write_error", f"Could not back up the caption: {exc}")
 
         try:
-            save_caption(media_path, edited)
+            save_caption(target.primary, edited, base_revision=reference.revision)
+        except CaptionConflictError as exc:
+            return FileOutcome.counted(CAPTION_CHANGED_STATUS, exc)
         except Exception as exc:
             return FileOutcome.counted("write_error", exc)
 
         return FileOutcome.counted("success", description=edited.strip())
 
-    return run_media_job(
+    return run_caption_job(
         folder,
         media_files,
         stats={
@@ -253,10 +266,18 @@ def run_replace_captions_job(
             "no_caption": 0,
             "read_error": 0,
             "write_error": 0,
+            CAPTION_CHANGED_STATUS: 0,
             "cancelled": 0,
         },
         process=process,
         on_progress=on_progress,
         should_cancel=should_cancel,
-        processed_stat_keys=("success", "skipped", "no_caption", "read_error", "write_error"),
+        processed_stat_keys=(
+            "success",
+            "skipped",
+            "no_caption",
+            "read_error",
+            "write_error",
+            CAPTION_CHANGED_STATUS,
+        ),
     )

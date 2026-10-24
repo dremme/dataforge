@@ -17,15 +17,15 @@ from color_adjust import adjust_lut, is_adjust_identity, is_global_identity, wri
 from color_detail import DefinitionParams, definition_params, is_detail_identity, noise_params
 from constants import VIDEO_EDIT_MUXERS
 from edit_sidecars import (
-    ensure_backup,
+    begin_edit,
     publish_with_spec,
     read_spec,
     restore_backup,
-    sweep_edit_temp_files,
     temp_path_for,
 )
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import ProgressCallback, ShouldCancel, run_ffmpeg
+from media_claims import claim
 from media_dimensions import media_dimensions
 from schemas import MaskRegion, VideoEditResponse, VideoEditSpec
 from size_fit import cover_size, fitted_size
@@ -601,7 +601,9 @@ def build_video_edit_command(
     return command
 
 
-def describe_edited(media: Path, *, has_backup: bool) -> VideoEditResponse:
+def describe_edited(
+    media: Path, *, has_backup: bool, replaced_externally: bool = False
+) -> VideoEditResponse:
     stat = media.stat()
     dimensions = media_dimensions(media, "video", stat.st_mtime_ns, stat.st_size)
     return VideoEditResponse(
@@ -611,6 +613,7 @@ def describe_edited(media: Path, *, has_backup: bool) -> VideoEditResponse:
         width=dimensions[0] if dimensions else None,
         height=dimensions[1] if dimensions else None,
         has_backup=has_backup,
+        replaced_externally=replaced_externally,
     )
 
 
@@ -623,17 +626,39 @@ def apply_video_edit(
     should_cancel: ShouldCancel | None = None,
     probe: SourceProbe | None = None,
 ) -> VideoEditResponse:
-    """Render ``spec`` from the original. On failure the live file is left byte-identical."""
+    """Render ``spec`` from the original. On failure the live file is left byte-identical.
+
+    Stops when ``should_cancel`` says so or when the render is cancelled through its claim.
+    """
+    with claim([media], "render") as held:
+        return _apply_claimed(
+            media,
+            spec,
+            ffmpeg=ffmpeg,
+            on_progress=on_progress,
+            should_cancel=held.cancel_check(should_cancel),
+            probe=probe,
+        )
+
+
+def _apply_claimed(
+    media: Path,
+    spec: VideoEditSpec,
+    *,
+    ffmpeg: str | None,
+    on_progress: ProgressCallback | None,
+    should_cancel: ShouldCancel,
+    probe: SourceProbe | None,
+) -> VideoEditResponse:
     executable = ffmpeg or ffmpeg_path()
     if not executable:
         raise RuntimeError(FFMPEG_MISSING_MESSAGE)
 
     muxer = resolve_muxer(media)
-    sweep_edit_temp_files(media.parent)
-
     check_filters(executable, spec)
 
-    source = ensure_backup(media)
+    start = begin_edit(media)
+    source = start.source
     temp_path = temp_path_for(media)
     # Probed from the backup: the live file may already have been retimed or rescaled.
     probe = probe or probe_source(source)
@@ -666,10 +691,11 @@ def apply_video_edit(
             with suppress(OSError):
                 temp_path.unlink(missing_ok=True)
 
-    return describe_edited(media, has_backup=True)
+    return describe_edited(media, has_backup=True, replaced_externally=start.adopted)
 
 
 def revert_video_edit(media: Path) -> VideoEditResponse:
-    restore_backup(media)
+    with claim([media], "render"):
+        reverted = restore_backup(media)
 
-    return describe_edited(media, has_backup=False)
+    return describe_edited(media, has_backup=False, replaced_externally=not reverted)

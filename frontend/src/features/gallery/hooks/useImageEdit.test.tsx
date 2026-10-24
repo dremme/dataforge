@@ -37,6 +37,7 @@ const EDITED: ImageEditResponse = {
   width: 1080,
   height: 1920,
   has_backup: true,
+  replaced_externally: false,
 };
 
 const wrapper = AppProviders;

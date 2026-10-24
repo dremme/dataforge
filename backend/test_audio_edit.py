@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import subprocess
 import unittest
 from pathlib import Path
@@ -17,7 +16,12 @@ from constants import VIDEO_PROJECT_LOUDNESS_TARGET_LUFS
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import run_ffmpeg
 from schemas import AudioEditSpec, AudioEffects, VideoEditSpec
-from testing_fixtures import CacheFolderTestCase, TempMediaFolder
+from testing_fixtures import (
+    CacheFolderTestCase,
+    TempMediaFolder,
+    write_edit_spec,
+    write_mp4_video,
+)
 
 
 def ffmpeg() -> str:
@@ -44,11 +48,10 @@ def tone(root: Path, name: str, *output: str, seconds: float = 3.0, amplitude: f
 
 
 class SpecTests(unittest.TestCase):
-    def test_a_same_stem_video_spec_is_not_read_as_an_audio_edit(self) -> None:
-        """``clip.mp4`` and ``clip.wav`` share ``clip.edit.json``."""
+    def test_a_same_stem_video_edit_is_not_read_as_an_audio_edit(self) -> None:
         with TempMediaFolder() as root:
-            video = root / "clip.mp4"
-            edit_sidecars.write_spec(video, VideoEditSpec(trim_start=1.0, volume=0.5))
+            video = write_mp4_video(root, "clip.mp4")
+            write_edit_spec(video, VideoEditSpec(trim_start=1.0, volume=0.5))
 
             self.assertIsNone(audio_edit.read_audio_edit_spec(root / "clip.wav"))
 
@@ -160,8 +163,8 @@ class ApplyAudioEditTests(CacheFolderTestCase):
             self.assertAlmostEqual(response.duration or 0, 1.5, delta=0.01)
             probe = probe_audio(ffmpeg(), media)
             self.assertEqual((probe.codec, probe.sample_rate), ("pcm_s24le", 44100))
-            spec = json.loads(edit_sidecars.edit_spec_path(media).read_text(encoding="utf-8"))
-            self.assertEqual(spec["trim_end"], 2.0)
+            spec = audio_edit.read_audio_edit_spec(media)
+            self.assertEqual(spec.trim_end if spec else None, 2.0)
 
             audio_edit.revert_audio_edit(media)
             self.assertEqual(media.read_bytes(), original)

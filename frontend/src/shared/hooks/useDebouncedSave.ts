@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useStaleRequest } from "./useStaleRequest";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
-export type SaveState = "idle" | "pending" | "saving" | "saved" | "error";
+/** `conflict`: the server refused a save as stale; saving stays paused until it is resolved. */
+export type SaveState = "idle" | "pending" | "saving" | "saved" | "error" | "conflict";
 
 export const DEFAULT_DEBOUNCE_MS = 500;
 const DEFAULT_FEEDBACK_CLEAR_MS = 3000;
@@ -13,6 +14,8 @@ interface UseDebouncedSaveOptions<T> {
   errorMessage?: string;
   save: (payload: T) => Promise<void>;
   isUnchanged: (payload: T, lastSaved: T) => boolean;
+  /** A save this says is stale pauses autosave instead of failing like any other error. */
+  isConflict?: (error: unknown) => boolean;
 }
 
 export function useDebouncedSave<T>({
@@ -21,6 +24,7 @@ export function useDebouncedSave<T>({
   errorMessage = "Failed to save",
   save,
   isUnchanged,
+  isConflict,
 }: UseDebouncedSaveOptions<T>) {
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -31,11 +35,14 @@ export function useDebouncedSave<T>({
   const pendingSaveRef = useRef<T | null>(null);
   const failedSaveRef = useRef<T | null>(null);
   const inFlightRef = useRef<Promise<boolean> | null>(null);
+  // Set by a conflict: edits keep collecting, but nothing is sent until `resolveConflict`.
+  const blockedRef = useRef(false);
   // Mirrors `inFlightRef` for rendering; a newer edit can show "pending" while a save still runs.
   const [saving, setSaving] = useState(false);
 
   const saveRef = useLatestRef(save);
   const isUnchangedRef = useLatestRef(isUnchanged);
+  const isConflictRef = useLatestRef(isConflict);
 
   const clearFeedbackTimer = useCallback(() => {
     if (feedbackTimerRef.current) {
@@ -84,7 +91,14 @@ export function useDebouncedSave<T>({
         } catch (err) {
           if (isCurrent(requestId)) {
             failedSaveRef.current = payload;
-            showError(err instanceof Error ? err.message : errorMessage);
+            if (isConflictRef.current?.(err)) {
+              blockedRef.current = true;
+              clearFeedbackTimer();
+              setSaveState("conflict");
+              setSaveError(err instanceof Error ? err.message : errorMessage);
+            } else {
+              showError(err instanceof Error ? err.message : errorMessage);
+            }
           }
           return false;
         }
@@ -98,7 +112,16 @@ export function useDebouncedSave<T>({
       });
       return request;
     },
-    [clearFeedbackTimer, errorMessage, isCurrent, next, saveRef, showError, showSaved],
+    [
+      clearFeedbackTimer,
+      errorMessage,
+      isConflictRef,
+      isCurrent,
+      next,
+      saveRef,
+      showError,
+      showSaved,
+    ],
   );
 
   const flushPendingSave = useCallback(
@@ -107,6 +130,7 @@ export function useDebouncedSave<T>({
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
+      if (blockedRef.current) return Promise.resolve(false);
 
       const pending = pendingSaveRef.current;
       const baseline = lastSavedRef.current;
@@ -135,6 +159,8 @@ export function useDebouncedSave<T>({
       }
 
       pendingSaveRef.current = payload;
+      // Kept while blocked: the text that conflicted is what an overwrite sends if nothing newer.
+      if (blockedRef.current) return;
       failedSaveRef.current = null;
       const baseline = lastSavedRef.current;
 
@@ -159,13 +185,22 @@ export function useDebouncedSave<T>({
 
   /** Re-sends the payload whose save failed. No-op once anything else has been scheduled. */
   const retrySave = useCallback(() => {
+    if (blockedRef.current) return Promise.resolve(false);
     const failed = failedSaveRef.current;
     if (!failed) return Promise.resolve(true);
     return persist(failed);
   }, [persist]);
 
+  /** Lets saving go on after a conflict; the caller has adopted the server's newer revision. */
+  const resolveConflict = useCallback(() => {
+    blockedRef.current = false;
+    setSaveState(pendingSaveRef.current || failedSaveRef.current ? "pending" : "idle");
+    setSaveError(null);
+  }, []);
+
   const setBaseline = useCallback((baseline: T) => {
     lastSavedRef.current = baseline;
+    blockedRef.current = false;
     failedSaveRef.current = null;
     setSaveState("idle");
     setSaveError(null);
@@ -183,6 +218,7 @@ export function useDebouncedSave<T>({
     saveTimerRef.current = null;
     pendingSaveRef.current = null;
     failedSaveRef.current = null;
+    blockedRef.current = false;
     invalidateInFlight();
     setSaveState("idle");
     setSaveError(null);
@@ -219,6 +255,7 @@ export function useDebouncedSave<T>({
     scheduleSave,
     flushPendingSave,
     retrySave,
+    resolveConflict,
     setBaseline,
     invalidateInFlight,
     hasUnsavedChanges,

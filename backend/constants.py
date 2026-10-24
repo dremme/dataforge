@@ -175,6 +175,11 @@ ISSUE_FIX_SENTINELS = frozenset({"none", "n/a", "no issues", "no changes"})
 
 CAPTION_BACKUP_DIR_NAME = ".backup"
 
+# A caption write waits this long for another write to the same file instead of failing;
+# both are short, and a job writing the caption a user is typing into should not cost them
+# their save.
+CAPTION_CLAIM_WAIT_SECONDS = 2.0
+
 # Absent from SKIP_DIR_NAMES: the user browses these results.
 WATERMARK_DIR_NAME = "watermarked"
 

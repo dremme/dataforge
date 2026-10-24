@@ -68,6 +68,19 @@ function NotificationToast({
           {`×${toast.count}`}
         </span>
       )}
+      {toast.action && (
+        <button
+          type="button"
+          className="notifications__action"
+          disabled={toast.exiting}
+          onClick={() => {
+            toast.action?.run();
+            onDismiss(toast.id);
+          }}
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button
         type="button"
         className="notifications__dismiss"

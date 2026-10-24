@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from testing_fixtures import isolate_test_database
+from testing_fixtures import (
+    isolate_test_database,
+    write_edit_spec,
+)
 
 isolate_test_database()
 
@@ -11,16 +14,20 @@ from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
 
-from automation.backup_captions import run_backup_captions_job, run_restore_captions_job
-from automation.edit_captions import back_up_caption_sidecars
+from automation.backup_captions import (
+    back_up_caption,
+    run_backup_captions_job,
+    run_restore_captions_job,
+)
 from automation.rename_media import run_rename_media_job
-from captions import save_caption, save_issue_findings
+from captions import read_caption, save_caption, save_issue_findings
 from comfy_candidates import write_candidate_sidecar
 from constants import CAPTION_BACKUP_DIR_NAME, SYSPROMPT_FILENAME
 from duplicates import DuplicateFinding, save_duplicate_finding
-from edit_sidecars import write_spec
+from edit_sidecars import edit_spec_path, refresh_published
 from file_write import copy_file_atomic, write_text_atomic
 from folder_instructions import save_instruction_file
+from media_claims import claim
 from schemas import ComfyCandidateSidecar, ImageEditSpec
 from testing_fixtures import TempMediaFolder, write_media, write_txt_caption
 
@@ -36,6 +43,17 @@ def _failed_text_write(path: Path, *args, **kwargs) -> None:
     raise OSError(errno.ENOSPC, "Disk is full")
 
 
+def _save_landscape_caption(media: Path) -> None:
+    save_caption(media, "A landscape.", base_revision=read_caption(media).revision)
+
+
+def _record_edit(media: Path) -> None:
+    if not edit_spec_path(media).exists():
+        write_edit_spec(media, ImageEditSpec(rotate=90))
+    with claim([media], "strip"):
+        refresh_published(media)
+
+
 def _failed_copy(source, destination, *args, **kwargs) -> None:
     Path(destination).write_bytes(b"partial")
     raise OSError(errno.ENOSPC, "Disk is full")
@@ -44,7 +62,7 @@ def _failed_copy(source, destination, *args, **kwargs) -> None:
 class SidecarWriteSafetyTests(unittest.TestCase):
     def test_failed_writes_preserve_existing_sidecars(self) -> None:
         writers: dict[str, Callable[[Path], object]] = {
-            "caption": lambda media: save_caption(media, "A landscape."),
+            "caption": _save_landscape_caption,
             "issue": lambda media: save_issue_findings(media, "fixes", ["Describe the trees."]),
             "duplicate": lambda media: save_duplicate_finding(
                 media, DuplicateFinding("sample", 1, "8")
@@ -52,7 +70,7 @@ class SidecarWriteSafetyTests(unittest.TestCase):
             "instructions": lambda media: save_instruction_file(
                 media.parent, SYSPROMPT_FILENAME, "Describe the scene."
             ),
-            "edit": lambda media: write_spec(media, ImageEditSpec(rotate=90)),
+            "edit": _record_edit,
             "candidate": lambda media: write_candidate_sidecar(
                 media,
                 ComfyCandidateSidecar(
@@ -115,10 +133,10 @@ class CaptionBackupWriteSafetyTests(unittest.TestCase):
 
             with patch("shutil.copy2", _failed_copy):
                 with self.assertRaises(OSError):
-                    back_up_caption_sidecars(media, backup_dir)
+                    back_up_caption(caption, backup_dir)
 
             self.assertEqual(list(backup_dir.iterdir()), [])
-            back_up_caption_sidecars(media, backup_dir)
+            back_up_caption(caption, backup_dir)
             self.assertEqual((backup_dir / caption.name).read_bytes(), caption.read_bytes())
 
 

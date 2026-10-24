@@ -90,12 +90,14 @@ for (const width of [1024, 1440]) {
         name: `landscape-${index}.png`,
         status: index === 0 ? "write_error" : index === 1 ? "skipped" : "success",
         message: index === 0 ? "Permission denied" : null,
+        shared_with: [],
       }));
       if (scenario === "cancelled") {
         results.push({
           path: path.join(WORKSPACE, "interrupted.png"),
           name: "interrupted.png",
           status: "cancelled",
+          shared_with: [],
         });
       }
       await page.route("**/api/folders/contents?**", async (route) => {

@@ -533,7 +533,7 @@ describe("IssueResolverDialog", () => {
       expect(saveCaption).toHaveBeenCalledWith(
         expect.stringContaining("car.png"),
         "A bright red car.",
-        { resolveIssue: true },
+        { baseRevision: null, resolveIssue: true },
       );
       expect(onIndexChange).toHaveBeenCalledWith(1);
     });
@@ -800,7 +800,7 @@ describe("IssueResolverDialog", () => {
       expect(saveCaption).toHaveBeenCalledWith(
         expect.stringContaining("car.png"),
         expect.any(String),
-        { resolveIssue: true },
+        { baseRevision: null, resolveIssue: true },
       );
       expect(onClose).toHaveBeenCalled();
     });

@@ -7,10 +7,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from constants import GIF_MP4_EXTENSION, GIF_MP4_FRAME_RATE
-from edit_sidecars import stale_path_for, sweep_edit_temp_files, temp_path_for
+from edit_sidecars import (
+    discard_edit_state,
+    stale_path_for,
+    sweep_edit_temp_files,
+    temp_path_for,
+)
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import ShouldCancel, run_ffmpeg
 from file_publish import publish_replacing
+from media_claims import claim
 from schemas import GifToMp4Response, GifToMp4StateResponse
 
 FFMPEG_MISSING_MESSAGE = "ffmpeg is required to convert a GIF"
@@ -82,17 +88,27 @@ def convert_gif_to_mp4(
         raise RuntimeError(FFMPEG_MISSING_MESSAGE)
 
     target = mp4_target_for(media)
-    sweep_edit_temp_files(target.parent)
+    # The write target: two GIFs in one folder can never share a destination.
+    with claim([target], "render") as held:
+        sweep_edit_temp_files(target.parent)
 
-    temp_path = temp_path_for(target)
-    command = build_gif_to_mp4_command(media, temp_path, executable=executable)
+        temp_path = temp_path_for(target)
+        command = build_gif_to_mp4_command(media, temp_path, executable=executable)
 
-    try:
-        run_ffmpeg(command, should_cancel=should_cancel, timeout=GIF_TO_MP4_TIMEOUT_SECONDS)
-        publish_replacing(temp_path, target, stale_path_for(target))
-    finally:
-        with suppress(OSError):
-            temp_path.unlink(missing_ok=True)
+        try:
+            run_ffmpeg(
+                command,
+                should_cancel=held.cancel_check(should_cancel),
+                timeout=GIF_TO_MP4_TIMEOUT_SECONDS,
+            )
+            publish_replacing(temp_path, target, stale_path_for(target))
+        finally:
+            with suppress(OSError):
+                temp_path.unlink(missing_ok=True)
+
+        # A replaced MP4's backup and spec describe a file that is gone; the next edit would
+        # render from that backup.
+        discard_edit_state(target)
 
     stat = target.stat()
     return GifToMp4Response(

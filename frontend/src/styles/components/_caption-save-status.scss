@@ -16,7 +16,8 @@
     color: var(--caption-saved);
   }
 
-  &--error {
+  &--error,
+  &--conflict {
     color: var(--caption-error);
   }
 

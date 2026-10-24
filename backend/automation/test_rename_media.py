@@ -24,16 +24,15 @@ from captions import issue_file_path
 from comfy_candidates import (
     candidate_sidecar_path,
     read_candidate_sidecar,
-    settle_slot,
     validate_candidate_destination,
     write_candidate_sidecar,
 )
 from constants import CAPTION_BACKUP_DIR_NAME, STAGING_DIR_NAME
-from edit_sidecars import render_slot
 from media_rename import rename_media_group
 from schemas import ComfyCandidateSidecar
 from testing_fixtures import (
     TempMediaFolder,
+    claimed_elsewhere,
     write_issue_sidecar,
     write_media,
     write_mp4_video,
@@ -359,11 +358,14 @@ class RenameMediaJobTests(unittest.TestCase):
 
     def test_refuses_while_a_file_is_rendering_or_being_accepted(self) -> None:
         # Either would write back under the old name once it finished.
-        for slot in (render_slot, settle_slot):
-            with self.subTest(slot=slot.__name__), TempMediaFolder() as root:
+        for activity in ("render", "settle"):
+            with self.subTest(activity=activity), TempMediaFolder() as root:
                 media = write_media(root, "photo.png")
 
-                with slot(media), self.assertRaisesRegex(ValueError, "being edited or reviewed"):
+                with (
+                    claimed_elsewhere(media, activity=activity),
+                    self.assertRaisesRegex(ValueError, "is being changed"),
+                ):
                     validate_rename_media_folder(root, stem="portugal")
 
     def test_progress_counts_files_not_rename_passes(self) -> None:

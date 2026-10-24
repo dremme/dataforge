@@ -359,7 +359,8 @@ def process_media(
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     should_cancel: ShouldCancel | None = None,
 ) -> tuple[VerificationResult | None, str, str | None]:
-    ref_caption, status = load_reference_caption(media_path)
+    # Per file, not per caption: a shared caption is checked against each file it describes.
+    ref_caption, status, _revision = load_reference_caption(media_path)
     if status != "ok" or ref_caption is None:
         return None, status, None
 

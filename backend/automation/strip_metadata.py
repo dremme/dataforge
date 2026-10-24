@@ -13,6 +13,7 @@ from PIL import Image, UnidentifiedImageError
 from automation.job_runner import FileOutcome, ProgressCallback, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from constants import IMAGE_EXTENSIONS, ISOBMFF_EXTENSIONS
+from edit_sidecars import refresh_published
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, ShouldCancel, run_ffmpeg
 from image_io import JPEG_SUFFIXES
@@ -340,11 +341,14 @@ def strip_file_metadata(
 
     if suffix in ISOBMFF_EXTENSIONS:
         strip_isobmff_metadata(path, ffmpeg=ffmpeg, should_cancel=should_cancel)
+        # An in-app rewrite, not a replacement: the next edit keeps its original.
+        refresh_published(path)
         return "video"
 
     strip = _IMAGE_STRIPPERS.get(suffix)
     if strip is not None:
         _strip_image_bytes(path, strip)
+        refresh_published(path)
     elif suffix != STRIP_BMP_SUFFIX:
         raise UnidentifiedImageError(f"Cannot strip metadata from {suffix} files")
 
@@ -389,6 +393,7 @@ def run_strip_metadata_job(
             "success": 0,
             "image_success": 0,
             "video_success": 0,
+            "busy": 0,
             "read_error": 0,
             "write_error": 0,
             "ffmpeg_error": 0,
@@ -397,6 +402,7 @@ def run_strip_metadata_job(
         process=process,
         on_progress=on_progress,
         should_cancel=should_cancel,
+        claim_activity="strip",
         # image_success and video_success are sub-stats of success and must not be counted.
-        processed_stat_keys=("success", "read_error", "write_error", "ffmpeg_error"),
+        processed_stat_keys=("success", "busy", "read_error", "write_error", "ffmpeg_error"),
     )

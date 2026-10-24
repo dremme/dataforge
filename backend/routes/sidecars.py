@@ -3,8 +3,8 @@ from fastapi import APIRouter
 from api_errors import folder_not_found
 from captions import is_blank_caption_file, resolve_caption_file_name
 from constants import DUPLICATE_SIDECAR_SUFFIX, ISSUE_SIDECAR_SUFFIX
+from file_trash import delete_path, deletes_to_trash
 from folder_scan import FolderScan, scan_folder
-from media_delete import delete_path, deletes_to_trash
 from routes._helpers import resolve_folder
 from schemas import SidecarDeleteRequest, SidecarDeleteResponse, SidecarKind
 

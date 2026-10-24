@@ -10,7 +10,14 @@ import edit_sidecars
 from ffmpeg_run import FfmpegCancelled
 from routes._test_client import client
 from schemas import VideoEditSpec
-from testing_fixtures import TempMediaFolder, write_gif, write_media, write_mp4_video
+from testing_fixtures import (
+    TempMediaFolder,
+    write_edit_backup,
+    write_edit_spec,
+    write_gif,
+    write_media,
+    write_mp4_video,
+)
 from video_edit import SourceProbe
 
 EDIT_URL = "/api/media/video-edit"
@@ -43,7 +50,7 @@ class VideoEditStateTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
             edit_sidecars.backup_path_for(media).write_bytes(b"original")
-            edit_sidecars.write_spec(media, VideoEditSpec(trim_start=1.0, trim_end=4.0))
+            write_edit_spec(media, VideoEditSpec(trim_start=1.0, trim_end=4.0))
 
             payload = client.get(edit_url(media)).json()
 
@@ -305,7 +312,7 @@ class RevertVideoEditTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
             edit_sidecars.backup_path_for(media).write_bytes(b"pristine-original")
-            edit_sidecars.write_spec(media, VideoEditSpec(scale=0.5))
+            write_edit_spec(media, VideoEditSpec(scale=0.5))
 
             response = client.post(edit_url(media, "/revert"))
 
@@ -328,7 +335,7 @@ class AutoAdjustVideoTests(unittest.TestCase):
     def test_the_trim_and_crop_of_the_draft_are_read_from_the_original(self) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
-            edit_sidecars.ensure_backup(media)
+            write_edit_backup(media)
             body = {"trim_start": 1.0, "trim_end": 3.0, "crop": {"width": 0.5}}
 
             with (

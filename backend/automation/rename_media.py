@@ -9,10 +9,10 @@ from pathlib import Path
 from automation.job_runner import ProgressCallback, ShouldCancel
 from automation.selection import filter_media_list, list_folder_media
 from constants import MEDIA_EXTENSIONS
+from media_claims import claim, is_claimed
 from media_group import media_group_paths
 from media_rename import (
     RENAME_TEMP_PREFIX,
-    check_not_busy,
     check_rename_conflicts,
     rename_media_group,
 )
@@ -71,7 +71,11 @@ def _validate_target_names(
 
     moving_sources: set[Path] = set()
     for media_path in media_files:
-        check_not_busy(media_path)
+        if is_claimed(media_path):
+            raise ValueError(
+                f'Cannot rename files: "{media_path.name}" is being changed. '
+                "Try again when it finishes."
+            )
         for related in media_group_paths(media_path):
             moving_sources.add(related.resolve())
 
@@ -165,9 +169,6 @@ def run_rename_media_job(
         "rename_error": 0,
         "cancelled": 0,
     }
-    file_results: list[dict[str, object]] = []
-    temp_entries: list[tuple[Path, Path, Path]] = []
-
     plan = [
         (
             media_path,
@@ -175,6 +176,28 @@ def run_rename_media_job(
         )
         for index, media_path in enumerate(media_files, start=normalized_start)
     ]
+
+    # Held for both passes: a render or caption save meanwhile would write under a name that is
+    # about to change.
+    claimed = [path for source, target in plan for path in (*media_group_paths(source), target)]
+    with claim(claimed, "rename"):
+        return _rename_planned(
+            folder, plan, stats=stats, on_progress=on_progress, should_cancel=should_cancel
+        )
+
+
+def _rename_planned(
+    folder: Path,
+    plan: list[tuple[Path, Path]],
+    *,
+    stats: dict[str, int],
+    on_progress: ProgressCallback | None,
+    should_cancel: ShouldCancel | None,
+) -> dict[str, object]:
+    """Every source to a temporary name, then every temporary name to its target."""
+    total = len(plan)
+    file_results: list[dict[str, object]] = []
+    temp_entries: list[tuple[Path, Path, Path]] = []
 
     for index, (source_media, target_media) in enumerate(plan, start=1):
         if should_cancel and should_cancel():

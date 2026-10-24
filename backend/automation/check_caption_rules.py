@@ -43,7 +43,8 @@ def run_check_caption_rules_job(
     media_files = filter_media_list(list_check_caption_rules_media(folder), selected_paths)
 
     def process(media_path: Path) -> FileOutcome:
-        caption, status = load_reference_caption(media_path)
+        # Per file, not per caption: each file has its own issue sidecar.
+        caption, status, _revision = load_reference_caption(media_path)
 
         if status == CAPTION_READ_ERROR:
             return FileOutcome.counted(CAPTION_READ_ERROR, "Could not read the caption")

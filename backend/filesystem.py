@@ -12,9 +12,9 @@ from fastapi import HTTPException
 from api_errors import folder_not_found
 from constants import LAST_FOLDER_KEY
 from db import get_preference
+from file_trash import delete_empty_dir
 from file_write import retry_while_locked
 from folder_scan import scan_folder
-from media_delete import delete_empty_dir
 from media_listing import summarize_folder_contents
 
 _INVALID_FOLDER_NAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')

@@ -8,8 +8,10 @@ from duplicates import (
     group_duplicate_findings,
     stale_duplicate_members,
 )
+from file_trash import deletes_to_trash
 from folder_scan import scan_folder
-from media_delete import delete_media_with_sidecars, deletes_to_trash
+from media_claims import MediaBusyError
+from media_delete import delete_media_with_sidecars
 from media_listing import media_items_named
 from routes._helpers import resolve_folder, resolve_media_file
 from schemas import (
@@ -20,6 +22,7 @@ from schemas import (
     DuplicateResolveRequest,
     DuplicateResolveResponse,
     GalleryItem,
+    MediaDeleteResponse,
 )
 
 router = APIRouter()
@@ -85,13 +88,17 @@ def resolve_duplicate_group(request: DuplicateResolveRequest) -> DuplicateResolv
 
     deleted: list[str] = []
     failed: list[str] = []
+    leftovers: list[MediaDeleteResponse] = []
     for path in discard_paths:
         try:
-            delete_media_with_sidecars(path)
-        except OSError:
+            result = delete_media_with_sidecars(path)
+        except (OSError, MediaBusyError):
             failed.append(path.name)
             continue
         deleted.append(path.name)
+        response = MediaDeleteResponse.model_validate(result)
+        if response.retained:
+            leftovers.append(response)
 
     # Clear only after partners are gone; otherwise two files remain with no finding.
     if not failed:
@@ -100,7 +107,9 @@ def resolve_duplicate_group(request: DuplicateResolveRequest) -> DuplicateResolv
         except OSError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return DuplicateResolveResponse(kept=keep_path.name, deleted=deleted, failed=failed)
+    return DuplicateResolveResponse(
+        kept=keep_path.name, deleted=deleted, failed=failed, leftovers=leftovers
+    )
 
 
 @router.post("/duplicates/dismiss", response_model=DuplicateDismissResponse)

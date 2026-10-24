@@ -31,14 +31,20 @@ function installBackendWithFailedJob() {
     jobs: [failedJob],
     jobResults: {
       "job-auto-caption": [
-        { path: HOME_PATH + "\\sunset.png", name: "sunset.png", status: "success" },
+        {
+          path: HOME_PATH + "\\sunset.png",
+          name: "sunset.png",
+          status: "success",
+          shared_with: [],
+        },
         {
           path: HOME_PATH + "\\beach.jpg",
           name: "beach.jpg",
           status: "write_error",
           message: "Permission denied",
+          shared_with: [],
         },
-        { path: HOME_PATH + "\\waves.mp4", name: "waves.mp4", status: "success" },
+        { path: HOME_PATH + "\\waves.mp4", name: "waves.mp4", status: "success", shared_with: [] },
       ],
     },
   });

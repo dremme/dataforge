@@ -68,6 +68,7 @@ from external.comfy_workflows import (
 from file_publish import publish_replacing
 from folder_scan import get_media_type
 from image_io import ImageReadError, load_image_for_edit
+from media_claims import claim
 from media_dimensions import media_info
 from schemas import ComfyCandidateSidecar
 from video_edit import SourceProbe, probe_source
@@ -385,25 +386,28 @@ def _process_one(
         temp_path = temp_path_for(destination)
         download_view_to(client, ref, temp_path)
 
-    if _is_motion(suffix):
-        facts = _stage_video_candidate(media_path, temp_path, destination, suffix=suffix)
-    else:
-        facts = _stage_image_candidate(media_path, temp_path, destination)
+    # Not across the ComfyUI wait: only staging competes with an accept, rename or delete.
+    with claim([media_path, destination], "stage"):
+        if _is_motion(suffix):
+            facts = _stage_video_candidate(media_path, temp_path, destination, suffix=suffix)
+        else:
+            facts = _stage_image_candidate(media_path, temp_path, destination)
 
-    discard_stale_candidate(media_path, keeping=destination)
-    write_candidate_sidecar(
-        destination,
-        # Splatted: every field measured is a field recorded, with no third place to keep in step.
-        ComfyCandidateSidecar(
-            source_name=media_path.name,
-            preset=workflow.preset,
-            prompt_id=prompt_id,
-            seed=seed,
-            prompt_text=prompt_text or None,
-            created_at=datetime.now(tz=UTC).isoformat(),
-            **asdict(facts),
-        ),
-    )
+        discard_stale_candidate(media_path, keeping=destination)
+        write_candidate_sidecar(
+            destination,
+            # Splatted: every field measured is a field recorded, with no third place to keep
+            # in step.
+            ComfyCandidateSidecar(
+                source_name=media_path.name,
+                preset=workflow.preset,
+                prompt_id=prompt_id,
+                seed=seed,
+                prompt_text=prompt_text or None,
+                created_at=datetime.now(tz=UTC).isoformat(),
+                **asdict(facts),
+            ),
+        )
 
     return destination
 

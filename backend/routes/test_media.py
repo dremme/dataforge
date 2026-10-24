@@ -6,11 +6,11 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import quote
 
-from edit_sidecars import render_slot
 from gif_frames import clear_gif_caches_for_tests
 from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
+    claimed_elsewhere,
     write_gif,
     write_jpeg,
     write_media,
@@ -302,11 +302,11 @@ class MediaRenameEndpointTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")
 
-            with render_slot(media):
+            with claimed_elsewhere(media):
                 response = rename_media(media, "portrait")
 
             self.assertEqual(response.status_code, 409)
-            self.assertIn("being edited or reviewed", response.json()["detail"])
+            self.assertIn("is being edited", response.json()["detail"])
             self.assertTrue(media.is_file())
 
     def test_rejects_an_invalid_name(self) -> None:

@@ -77,6 +77,14 @@
     @include count-pill-muted;
   }
 
+  &__action {
+    @include pill-btn-compact(default);
+    flex-shrink: 0;
+    margin-top: -0.125rem;
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+  }
+
   &__dismiss {
     @include dismiss-btn;
     @include fade-bg(transparent);

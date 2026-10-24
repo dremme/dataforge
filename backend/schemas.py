@@ -25,8 +25,13 @@ from constants import (
 
 # PEP 695 ``type`` aliases so pydantic emits named schemas, which become TS unions.
 
-#: ``no_caption`` is a job stat key, not one of these.
-type CaptionStatus = Literal["none", "empty", "text"]
+#: ``no_caption`` is a job stat key, not one of these. ``unreadable`` is a file whose text cannot
+#: be shown, so it is never offered as an empty caption to type over.
+type CaptionStatus = Literal["none", "empty", "text", "unreadable"]
+
+#: ``encoding``: not UTF-8 text. ``access``: the file could not be opened, perhaps while another
+#: program holds it.
+type CaptionReadError = Literal["encoding", "access"]
 
 #: GIF is its own type so it renders as ``<img>``.
 type MediaType = Literal["image", "video", "gif", "audio"]
@@ -163,6 +168,9 @@ class GalleryItem(BaseModel):
     #: The staged filename, which differs from this item's whenever the source is not a PNG.
     candidate_name: str | None = None
     caption_status: CaptionStatus
+    #: What a caption save must name as its base; ``None`` when there is no file to replace.
+    caption_revision: str | None = None
+    caption_read_error: CaptionReadError | None = None
     media_type: MediaType
     width: int | None = None
     height: int | None = None
@@ -202,10 +210,25 @@ class DuplicateResolveRequest(BaseModel):
     discard: list[str]
 
 
+class RetainedFile(BaseModel):
+    """A related file a delete could not remove; the media itself is already gone."""
+
+    path: str
+    message: str
+
+
+class MediaDeleteResponse(BaseModel):
+    path: str
+    deleted: list[str] = Field(default_factory=list)
+    retained: list[RetainedFile] = Field(default_factory=list)
+
+
 class DuplicateResolveResponse(BaseModel):
     kept: str
     deleted: list[str]
     failed: list[str] = Field(default_factory=list)
+    #: Deletes whose media went but some related file stayed.
+    leftovers: list[MediaDeleteResponse] = Field(default_factory=list)
 
 
 class DuplicateDismissRequest(BaseModel):
@@ -604,6 +627,9 @@ class GalleryDisplaySettingsUpdate(BaseModel):
 class CaptionUpdate(BaseModel):
     text: str = ""
     resolve_issue: bool = False
+    #: The ``caption_revision`` the text was edited from, ``None`` for "there was no caption".
+    #: Required, so no client can overwrite a caption it never read.
+    base_revision: str | None
 
 
 class CaptionSaveResponse(BaseModel):
@@ -611,6 +637,8 @@ class CaptionSaveResponse(BaseModel):
     has_description: bool
     has_caption_file: bool
     caption_status: CaptionStatus
+    caption_revision: str | None = None
+    caption_read_error: CaptionReadError | None = None
     caption_file: str = ""
     issue_fixes: list[str] = Field(default_factory=list)
     rule_findings: list[str] = Field(default_factory=list)
@@ -658,9 +686,14 @@ class FolderNoteResponse(BaseModel):
 
 
 class JobSelectionRequest(BaseModel):
+    #: ``min_length``: an empty list is a client that meant "nothing", never "everything".
     paths: list[str] | None = Field(
         default=None,
-        description="Optional absolute media paths to limit the job to. Omit to process the full folder.",
+        min_length=1,
+        description=(
+            "Absolute media paths to limit the job to. Omit to process the full folder; "
+            "an empty list is refused."
+        ),
     )
 
 
@@ -1011,6 +1044,8 @@ class JobFileResult(BaseModel):
     description: str | None = None
     preview: str | None = None
     message: str | None = None
+    #: Same-stem files whose shared caption this row also changed.
+    shared_with: list[str] = Field(default_factory=list)
 
 
 class JobResponse(BaseModel):
@@ -1282,9 +1317,11 @@ class FileImportResponse(BaseModel):
     rejected: list[str] = Field(default_factory=list)
 
 
-class MediaDeleteResponse(BaseModel):
+class MediaCleanupRequest(BaseModel):
+    """Retry deleting what a deleted media file left; ``path`` is the media, now gone."""
+
     path: str
-    deleted: list[str] = Field(default_factory=list)
+    files: list[str] = Field(min_length=1)
 
 
 class RenameResponse(BaseModel):
@@ -1477,6 +1514,8 @@ class VideoEditResponse(BaseModel):
     width: int | None = None
     height: int | None = None
     has_backup: bool
+    #: The live file had been replaced outside DataForge and was adopted as the original.
+    replaced_externally: bool = False
 
 
 class ImageEditSpec(BaseModel):
@@ -1515,6 +1554,8 @@ class ImageEditResponse(BaseModel):
     width: int | None = None
     height: int | None = None
     has_backup: bool
+    #: The live file had been replaced outside DataForge and was adopted as the original.
+    replaced_externally: bool = False
 
 
 class ComfyCandidateSidecar(BaseModel):
@@ -1659,8 +1700,7 @@ class AudioEffects(BaseModel):
 class AudioEditSpec(BaseModel):
     """Always applied to the untouched original in a single pass; every field defaults to identity.
 
-    Forbids other fields: a same-stem video or image keeps its spec in the same ``.edit.json``,
-    and reading one of those as an audio edit would show changes this file never had."""
+    Forbids other fields, so a video or image spec is never read as changes this file never had."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -1707,6 +1747,8 @@ class AudioEditResponse(BaseModel):
     modified_at: str
     duration: float | None = None
     has_backup: bool
+    #: The live file had been replaced outside DataForge and was adopted as the original.
+    replaced_externally: bool = False
 
 
 class AudioLoudnessResponse(BaseModel):
@@ -2362,7 +2404,7 @@ class NotificationEvent(BaseModel):
 
 
 #: Machine-readable reasons the client branches on; every other error carries ``detail`` only.
-type ApiErrorCode = Literal["folder_not_found"]
+type ApiErrorCode = Literal["folder_not_found", "media_busy", "caption_conflict"]
 
 
 class ApiErrorResponse(BaseModel):

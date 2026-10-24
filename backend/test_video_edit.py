@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from testing_fixtures import isolate_test_database
+from testing_fixtures import (
+    isolate_test_database,
+    write_edit_spec,
+)
 
 isolate_test_database()
 
@@ -569,7 +572,7 @@ class SpecHelperTests(unittest.TestCase):
 
     def test_the_spec_sidecar_sits_two_suffixes_deep(self) -> None:
         self.assertEqual(
-            edit_sidecars.edit_spec_path(Path("/data/clip.mp4")).name, "clip.edit.json"
+            edit_sidecars.edit_spec_path(Path("/data/clip.mp4")).name, "clip.mp4.edit.json"
         )
 
     def test_an_uneditable_container_is_rejected(self) -> None:
@@ -1006,7 +1009,7 @@ class RevertVideoEditTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
             edit_sidecars.backup_path_for(media).write_bytes(b"pristine-original")
-            edit_sidecars.write_spec(media, VideoEditSpec(scale=0.5))
+            write_edit_spec(media, VideoEditSpec(scale=0.5))
 
             result = video_edit.revert_video_edit(media)
 

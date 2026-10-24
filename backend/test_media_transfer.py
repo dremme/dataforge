@@ -580,11 +580,13 @@ class TransferVideoEditSidecarTests(unittest.TestCase):
             destination.mkdir()
             media = write_mp4_video(source_folder, "clip.mp4")
             (source_folder / "clip.mp4.bak").write_bytes(b"pristine-original")
-            (source_folder / "clip.edit.json").write_text("{}", encoding="utf-8")
+            (source_folder / "clip.mp4.edit.json").write_text("{}", encoding="utf-8")
 
             result = transfer_media_with_sidecars(media, destination, mode="move")
 
-            self.assertEqual(set(result["files"]), {"clip.mp4", "clip.mp4.bak", "clip.edit.json"})
+            self.assertEqual(
+                set(result["files"]), {"clip.mp4", "clip.mp4.bak", "clip.mp4.edit.json"}
+            )
             self.assertEqual((destination / "clip.mp4.bak").read_bytes(), b"pristine-original")
             self.assertEqual(list(source_folder.glob("*")), [])
 

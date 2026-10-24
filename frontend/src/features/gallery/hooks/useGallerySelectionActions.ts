@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { deleteSelectedMedia, type MediaTransferMode } from "@/features/gallery/api/media";
+import { useDeleteLeftoversNotice } from "@/features/gallery/hooks/useDeleteLeftoversNotice";
 import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
 import { failureMessage } from "@/features/gallery/lib/mediaActionMessages";
 import { useNotify } from "@/shared/notifications/notifications";
@@ -22,6 +23,7 @@ export function useGallerySelectionActions({
   onCopied,
 }: UseGallerySelectionActionsOptions) {
   const notify = useNotify();
+  const notifyDeleteLeftovers = useDeleteLeftoversNotice();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -53,7 +55,7 @@ export function useGallerySelectionActions({
     setDeleting(true);
 
     try {
-      const { succeeded, failed } = await deleteSelectedMedia(paths);
+      const { succeeded, failed, responses } = await deleteSelectedMedia(paths);
 
       if (succeeded.length > 0) {
         await onDeleted(succeeded);
@@ -64,10 +66,11 @@ export function useGallerySelectionActions({
       if (failed.length > 0) {
         notify({ variant: "danger", message: failureMessage("delete", failed) });
       }
+      notifyDeleteLeftovers(responses);
     } finally {
       setDeleting(false);
     }
-  }, [deleting, notify, onDeleted, visibleSelectedPaths]);
+  }, [deleting, notify, notifyDeleteLeftovers, onDeleted, visibleSelectedPaths]);
 
   const canAct = visibleSelectedCount > 0 && !busy;
 

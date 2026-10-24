@@ -32,6 +32,7 @@ import {
 } from "@/features/gallery/lib/imageEdit";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
+import { replacedExternallyMessage } from "@/features/gallery/lib/mediaActionMessages";
 import type { GalleryItem, ImageEditSpec } from "@/shared/types";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
 import { useChanged } from "@/shared/hooks/useChanged";
@@ -268,7 +269,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
 
   const runEdit = useCallback(
     (
-      request: (path: string) => Promise<{ has_backup: boolean }>,
+      request: (path: string) => Promise<{ has_backup: boolean; replaced_externally: boolean }>,
       describe: (name: string) => string,
       settle: () => void,
     ) => {
@@ -291,6 +292,9 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
           const result = await request(mediaPath);
           if (mountedRef.current) setHasBackup(result.has_backup);
           notify({ variant: "success", message: describe(name) });
+          if (result.replaced_externally) {
+            notify({ variant: "warning", message: replacedExternallyMessage(name) });
+          }
           await onEdited?.();
           // settle records what is now on disk so Apply stays quiet until the next change.
           if (mountedRef.current) settle();

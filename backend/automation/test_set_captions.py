@@ -79,7 +79,7 @@ class SetCaptionsJobTests(unittest.TestCase):
 
             result = run_set_captions_job(root, caption="Replace me.", overwrite=False)
 
-            self.assertEqual(result["stats"]["skipped"], 1)
+            self.assertEqual(result["stats"]["read_error"], 1)
             self.assertEqual(caption.read_bytes(), original)
 
     def test_overwrites_existing_txt_caption_when_requested(self) -> None:

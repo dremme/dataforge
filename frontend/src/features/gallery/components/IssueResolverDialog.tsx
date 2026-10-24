@@ -4,7 +4,7 @@ import { DialogSuspendedContext } from "@/shared/ui/dialogSuspendedContext";
 import { saveCaption } from "@/features/gallery/api/captions";
 import { openMediaInViewer } from "@/features/gallery/api/media";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
-import { formatApiError } from "@/shared/api/http";
+import { formatApiError, isApiErrorCode } from "@/shared/api/http";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { matchesShortcut, queueIndexAfter, queueStepFor, SHORTCUTS } from "@/shared/lib/shortcuts";
@@ -77,17 +77,18 @@ export function IssueResolverDialog({
   const [comfyWorkflowOpen, setComfyWorkflowOpen] = useState(false);
   const { recordResolution, getResolution } = useMediaResolution();
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   // Queue is frozen at mount, so a resolved entry keeps its fixes unless this records them.
   const [resolvedPaths, setResolvedPaths] = useState<ReadonlySet<string>>(() => new Set());
   const [openingInViewer, setOpeningInViewer] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
 
-  const { caption, handleCaptionChange, hasUnsavedChanges } = useGalleryItemCaption({
-    item,
-    onCaptionSaved,
-    autoSave: false,
-  });
+  const { caption, handleCaptionChange, hasUnsavedChanges, captionLocked, baseRevisionFor } =
+    useGalleryItemCaption({
+      item,
+      onCaptionSaved,
+      autoSave: false,
+    });
   const parentSuspended = useContext(DialogSuspendedContext);
   const discard = useDiscardChanges({
     unsavedChanges: hasUnsavedChanges,
@@ -99,7 +100,7 @@ export function IssueResolverDialog({
 
   if (useChanged(item?.path)) {
     setComfyWorkflowOpen(false);
-    setSaveError(false);
+    setSaveError(null);
     setSaving(false);
     setOpeningInViewer(false);
     setViewerError(null);
@@ -157,10 +158,13 @@ export function IssueResolverDialog({
     if (!item || saving) return;
 
     setSaving(true);
-    setSaveError(false);
+    setSaveError(null);
 
     try {
-      const result = await saveCaption(item.path, caption.trim(), { resolveIssue: true });
+      const result = await saveCaption(item.path, caption.trim(), {
+        baseRevision: baseRevisionFor(item.path),
+        resolveIssue: true,
+      });
       onCaptionSaved(item.path, result);
       setResolvedPaths((current) => new Set(current).add(item.path));
 
@@ -169,12 +173,26 @@ export function IssueResolverDialog({
       } else {
         onClose();
       }
-    } catch {
-      setSaveError(true);
+    } catch (error) {
+      setSaveError(
+        isApiErrorCode(error, "caption_conflict")
+          ? "The caption changed elsewhere since it was opened, so it was not saved."
+          : "Save failed",
+      );
     } finally {
       setSaving(false);
     }
-  }, [caption, index, item, onCaptionSaved, onClose, onIndexChange, queue.length, saving]);
+  }, [
+    baseRevisionFor,
+    caption,
+    index,
+    item,
+    onCaptionSaved,
+    onClose,
+    onIndexChange,
+    queue.length,
+    saving,
+  ]);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -368,11 +386,11 @@ export function IssueResolverDialog({
               placeholder={placeholder}
               highlightTerms={flaggedPhrases}
               variant={captionDisplay.variant}
-              saveState={saveError ? "error" : "idle"}
+              saveState={saveError !== null ? "error" : "idle"}
               aria-label={`Caption for ${item.name}`}
-              aria-invalid={saveError}
-              title={saveError ? "Save failed" : undefined}
-              editable={!saving}
+              aria-invalid={saveError !== null}
+              title={saveError ?? undefined}
+              editable={!saving && !captionLocked}
               onChange={handleCaptionChange}
             />
           </div>

@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 from automation.backup_captions import (
     caption_backup_dir,
-    caption_sidecars,
     has_caption_backup,
     list_backup_sidecars,
     preview_restore_captions,
@@ -27,37 +26,6 @@ from testing_fixtures import (
     write_media,
     write_txt_caption,
 )
-
-
-class CaptionSidecarTests(unittest.TestCase):
-    def test_collects_txt_and_ignores_leftover_json(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "sunset.png")
-            write_txt_caption(media, "A plain caption.")
-            media.with_suffix(".json").write_text(
-                '{"description": "A structured caption."}\n',
-                encoding="utf-8",
-            )
-
-            self.assertEqual(
-                [path.name for path in caption_sidecars(media)],
-                ["sunset.txt"],
-            )
-
-    def test_leaves_findings_out(self) -> None:
-        """A finding is derived from the caption; a job re-run is what restores it."""
-        with TempMediaFolder() as root:
-            media = write_media(root, "sunset.png")
-            write_txt_caption(media, "A plain caption.")
-            write_issue_sidecar(media, "The caption omits the mountains.")
-
-            self.assertEqual([path.name for path in caption_sidecars(media)], ["sunset.txt"])
-
-    def test_returns_empty_without_captions(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "sunset.png")
-
-            self.assertEqual(caption_sidecars(media), [])
 
 
 class BackupCaptionsJobTests(unittest.TestCase):

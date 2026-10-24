@@ -1,27 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchCaption, saveCaption } from "@/features/gallery/api/captions";
-import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
+import type { CaptionReadError, CaptionSaveResponse, GalleryItem } from "@/shared/types";
+import { isApiErrorCode } from "@/shared/api/http";
 import { deferNonCriticalWork } from "@/shared/lib/defer";
 import { useDebouncedSave } from "@/shared/hooks/useDebouncedSave";
 import { useStaleRequest } from "@/shared/hooks/useStaleRequest";
 
-function itemCaptionRevision(item: {
-  description: string | null;
-  caption_status: GalleryItem["caption_status"];
-  has_description: boolean;
-}): string {
+type CaptionFields = Pick<
+  CaptionSaveResponse,
+  "description" | "caption_status" | "has_description" | "caption_revision"
+>;
+
+/** Identifies what the listing shows, so a changed revision with unchanged text still syncs. */
+function itemCaptionRevision(item: CaptionFields): string {
   return JSON.stringify({
     description: item.description,
     caption_status: item.caption_status,
     has_description: item.has_description,
-  });
-}
-
-function revisionFromSaveResult(result: CaptionSaveResponse): string {
-  return itemCaptionRevision({
-    description: result.description,
-    caption_status: result.caption_status,
-    has_description: result.has_description,
+    caption_revision: item.caption_revision ?? null,
   });
 }
 
@@ -36,15 +32,23 @@ interface UseGalleryItemCaptionOptions {
   autoSave?: boolean;
 }
 
+const isCaptionConflict = (error: unknown) => isApiErrorCode(error, "caption_conflict");
+
 export function useGalleryItemCaption({
   item,
   onCaptionSaved,
   autoSave = true,
 }: UseGalleryItemCaptionOptions) {
   const [caption, setCaption] = useState("");
+  const [readError, setReadError] = useState<CaptionReadError | null>(null);
+  // An unreadable caption stays locked until the user chooses to write a new one over it.
+  const [replacingUnreadable, setReplacingUnreadable] = useState(false);
   const { next, isCurrent } = useStaleRequest();
   const captionRef = useRef(caption);
   const captionRevisionRef = useRef<string | null>(null);
+  // Per path: what each save names as its base. A save queued for the previous item can still
+  // run after the next one opens, so one shared value would hand it the wrong base.
+  const serverRevisionsRef = useRef(new Map<string, string | null>());
   // Revisions shown since this item opened.
   const shownRevisionsRef = useRef(new Set<string>());
   // Armed by a save: a poller reload can answer from data older than it, so a revision shown
@@ -65,6 +69,10 @@ export function useGalleryItemCaption({
     staleRevisionsRef.current = stale;
   }, []);
 
+  const rememberServerRevision = useCallback((path: string, fields: CaptionFields) => {
+    serverRevisionsRef.current.set(path, fields.caption_revision ?? null);
+  }, []);
+
   const itemPath = item?.path;
   const itemPathRef = useRef(itemPath);
   itemPathRef.current = itemPath;
@@ -72,13 +80,17 @@ export function useGalleryItemCaption({
 
   const persistCaption = useCallback(
     async (payload: CaptionSavePayload) => {
-      const result = await saveCaption(payload.path, payload.text);
+      const result = await saveCaption(payload.path, payload.text, {
+        baseRevision: serverRevisionsRef.current.get(payload.path) ?? null,
+      });
+      rememberServerRevision(payload.path, result);
 
       if (itemPathRef.current !== payload.path) {
         onCaptionSaved(payload.path, result);
         return;
       }
 
+      setReadError(null);
       setCaption((current) => {
         if (current.trim() !== payload.text) return current;
         if (current === result.description || current.trim() === (result.description ?? "")) {
@@ -87,12 +99,12 @@ export function useGalleryItemCaption({
         return result.description ?? "";
       });
       // Match the folder revision from onCaptionSaved so background sync does not wipe a save.
-      const saved = revisionFromSaveResult(result);
+      const saved = itemCaptionRevision(result);
       armStaleRevisions(saved);
       markRevision(saved);
       onCaptionSaved(payload.path, result);
     },
-    [armStaleRevisions, markRevision, onCaptionSaved],
+    [armStaleRevisions, markRevision, onCaptionSaved, rememberServerRevision],
   );
 
   const {
@@ -101,6 +113,7 @@ export function useGalleryItemCaption({
     scheduleSave,
     flushPendingSave,
     retrySave,
+    resolveConflict,
     setBaseline,
     invalidateInFlight,
     hasUnsavedChanges,
@@ -110,17 +123,20 @@ export function useGalleryItemCaption({
     errorMessage: "Failed to save caption",
     save: persistCaption,
     isUnchanged: (pending, lastSaved) => pending.text === lastSaved.text,
+    isConflict: isCaptionConflict,
   });
 
-  const applyCaptionFromItem = useCallback(
-    (source: GalleryItem) => {
-      const cachedCaption = source.description ?? "";
-
-      setCaption(cachedCaption);
-      setBaseline({ path: source.path, text: cachedCaption });
-      markRevision(itemCaptionRevision(source));
+  /** Shows the server's caption as the clean state; `fields` is a listing item or a fresh read. */
+  const adoptServerCaption = useCallback(
+    (path: string, fields: CaptionFields & Pick<CaptionSaveResponse, "caption_read_error">) => {
+      const text = fields.description ?? "";
+      setCaption(text);
+      setBaseline({ path, text });
+      setReadError(fields.caption_read_error ?? null);
+      rememberServerRevision(path, fields);
+      markRevision(itemCaptionRevision(fields));
     },
-    [markRevision, setBaseline],
+    [markRevision, rememberServerRevision, setBaseline],
   );
 
   useEffect(() => {
@@ -132,7 +148,8 @@ export function useGalleryItemCaption({
     invalidateInFlight();
     shownRevisionsRef.current.clear();
     staleRevisionsRef.current = null;
-    applyCaptionFromItem(item);
+    setReplacingUnreadable(false);
+    adoptServerCaption(itemPath, item);
 
     const requestId = next();
 
@@ -145,10 +162,7 @@ export function useGalleryItemCaption({
             return;
           }
 
-          const caption = fresh.description ?? "";
-          setCaption(caption);
-          setBaseline({ path: itemPath, text: caption });
-          markRevision(revisionFromSaveResult(fresh));
+          adoptServerCaption(itemPath, fresh);
           onCaptionSaved(itemPath, fresh);
         })
         .catch(() => {});
@@ -158,14 +172,13 @@ export function useGalleryItemCaption({
     // itemPath only, not item: onCaptionSaved replaces the item object and would retrigger.
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- isCurrent/next/item omitted on purpose
   }, [
-    applyCaptionFromItem,
+    adoptServerCaption,
     autoSave,
     flushPendingSave,
     hasUnsavedChanges,
     invalidateInFlight,
     itemPath,
     onCaptionSaved,
-    setBaseline,
   ]);
 
   useEffect(() => {
@@ -194,36 +207,94 @@ export function useGalleryItemCaption({
     const incomingCaption = item.description ?? "";
     const current = captionRef.current;
     if (current === incomingCaption || current.trim() === incomingCaption) {
-      // Listing echoed our own save (possibly whitespace-normalized); keep the editor buffer.
+      // Listing echoed our own save (possibly whitespace-normalized); keep the editor buffer,
+      // but take the revision: nothing is unsaved, so the next save starts from the file as is.
+      rememberServerRevision(itemPath, item);
+      setReadError(item.caption_read_error ?? null);
       return;
     }
 
-    applyCaptionFromItem(item);
-  }, [applyCaptionFromItem, hasUnsavedChanges, item, itemPath, itemRevision, markRevision]);
+    adoptServerCaption(itemPath, item);
+  }, [
+    adoptServerCaption,
+    hasUnsavedChanges,
+    item,
+    itemPath,
+    itemRevision,
+    markRevision,
+    rememberServerRevision,
+  ]);
+
+  const captionLocked = readError !== null && !replacingUnreadable;
 
   const handleCaptionChange = useCallback(
     (value: string) => {
-      if (!item) return;
+      if (!item || captionLocked) return;
       setCaption(value);
       if (!autoSave) return;
       // Persist trimmed so server echoes match backend normalization; the local buffer keeps exact input.
       scheduleSave({ path: item.path, text: value.trim() });
     },
-    [autoSave, item, scheduleSave],
+    [autoSave, captionLocked, item, scheduleSave],
   );
+
+  /** Throws away the draft and shows the caption as it is on disk now. */
+  const reloadCaption = useCallback(async (): Promise<boolean> => {
+    if (!item) return false;
+    const path = item.path;
+    let fresh: CaptionSaveResponse;
+    try {
+      fresh = await fetchCaption(path);
+    } catch {
+      return false;
+    }
+    if (itemPathRef.current !== path) return false;
+
+    discardPendingSave();
+    setReplacingUnreadable(false);
+    adoptServerCaption(path, fresh);
+    onCaptionSaved(path, fresh);
+    return true;
+  }, [adoptServerCaption, discardPendingSave, item, onCaptionSaved]);
+
+  /** Saves the draft over whatever the caption became meanwhile. */
+  const overwriteCaption = useCallback(async (): Promise<boolean> => {
+    if (!item) return false;
+    const path = item.path;
+    let fresh: CaptionSaveResponse;
+    try {
+      fresh = await fetchCaption(path);
+    } catch {
+      return false;
+    }
+    if (itemPathRef.current !== path) return false;
+
+    rememberServerRevision(path, fresh);
+    resolveConflict();
+    return flushPendingSave(true);
+  }, [flushPendingSave, item, rememberServerRevision, resolveConflict]);
 
   return {
     caption,
     saveState,
     saveError,
+    conflict: saveState === "conflict",
     hasUnsavedChanges: item ? hasUnsavedChanges({ path: item.path, text: caption.trim() }) : false,
     handleCaptionChange,
     retrySave,
     saving,
     flushPendingSave,
+    reloadCaption,
+    overwriteCaption,
+    /** Why the caption file could not be shown; `null` once it can be, or is being replaced. */
+    readError: captionLocked ? readError : null,
+    captionLocked,
+    replaceUnreadableCaption: () => setReplacingUnreadable(true),
+    /** What a save made outside this hook must name as its base. */
+    baseRevisionFor: (path: string) => serverRevisionsRef.current.get(path) ?? null,
     discardCaptionChanges: () => {
       discardPendingSave();
-      if (item) applyCaptionFromItem(item);
+      if (item) adoptServerCaption(item.path, item);
     },
   };
 }

@@ -14,14 +14,14 @@ from color_adjust import is_adjust_identity, is_global_identity, lut_filter
 from color_detail import apply_detail, is_detail_identity
 from constants import IMAGE_EDIT_EXTENSIONS
 from edit_sidecars import (
-    ensure_backup,
+    begin_edit,
     publish_with_spec,
     read_spec,
     restore_backup,
-    sweep_edit_temp_files,
     temp_path_for,
 )
 from image_io import load_image_for_edit, save_image_preserving_format
+from media_claims import claim
 from media_dimensions import media_dimensions
 from schemas import ColorAdjust, EditCropRect, ImageEditResponse, ImageEditSpec, MaskRegion
 from size_fit import fitted_size
@@ -191,7 +191,9 @@ def render_image_edit(image: Image.Image, spec: ImageEditSpec) -> Image.Image:
     return image
 
 
-def describe_edited(media: Path, *, has_backup: bool) -> ImageEditResponse:
+def describe_edited(
+    media: Path, *, has_backup: bool, replaced_externally: bool = False
+) -> ImageEditResponse:
     stat = media.stat()
     dimensions = media_dimensions(media, "image", stat.st_mtime_ns, stat.st_size)
     return ImageEditResponse(
@@ -201,19 +203,23 @@ def describe_edited(media: Path, *, has_backup: bool) -> ImageEditResponse:
         width=dimensions[0] if dimensions else None,
         height=dimensions[1] if dimensions else None,
         has_backup=has_backup,
+        replaced_externally=replaced_externally,
     )
 
 
 def apply_image_edit(media: Path, spec: ImageEditSpec) -> ImageEditResponse:
     """Render ``spec`` from the original. On failure the live file is left byte-identical."""
-    suffix = resolve_image_format(media)
-    sweep_edit_temp_files(media.parent)
+    with claim([media], "render"):
+        return _apply_claimed(media, spec)
 
-    source = ensure_backup(media)
+
+def _apply_claimed(media: Path, spec: ImageEditSpec) -> ImageEditResponse:
+    suffix = resolve_image_format(media)
+    start = begin_edit(media)
     temp_path = temp_path_for(media)
 
     try:
-        image, source_mode, exif = load_image_for_edit(source)
+        image, source_mode, exif = load_image_for_edit(start.source)
         save_image_preserving_format(
             render_image_edit(image, spec),
             temp_path,
@@ -226,10 +232,11 @@ def apply_image_edit(media: Path, spec: ImageEditSpec) -> ImageEditResponse:
         with suppress(OSError):
             temp_path.unlink(missing_ok=True)
 
-    return describe_edited(media, has_backup=True)
+    return describe_edited(media, has_backup=True, replaced_externally=start.adopted)
 
 
 def revert_image_edit(media: Path) -> ImageEditResponse:
-    restore_backup(media)
+    with claim([media], "render"):
+        reverted = restore_backup(media)
 
-    return describe_edited(media, has_backup=False)
+    return describe_edited(media, has_backup=False, replaced_externally=not reverted)

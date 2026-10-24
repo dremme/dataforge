@@ -7,10 +7,15 @@ from testing_fixtures import TempMediaFolder, write_media
 
 
 class SelectionHelpersTests(unittest.TestCase):
-    def test_resolve_selected_media_returns_none_for_empty_paths(self) -> None:
+    def test_only_an_omitted_selection_means_the_whole_folder(self) -> None:
         with TempMediaFolder() as root:
             self.assertIsNone(resolve_selected_media(root, None))
-            self.assertIsNone(resolve_selected_media(root, []))
+
+    def test_an_empty_selection_is_refused_rather_than_widened(self) -> None:
+        """The audit's F04: ``[]`` used to mean every file, so a lost selection wrote to all."""
+        with TempMediaFolder() as root:
+            with self.assertRaisesRegex(ValueError, "Select at least one file"):
+                resolve_selected_media(root, [])
 
     def test_resolve_selected_media_resolves_paths_inside_folder(self) -> None:
         with TempMediaFolder() as root:

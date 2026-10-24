@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from captions import issue_file_path
 from duplicates import DuplicateFinding, duplicate_file_path, save_duplicate_finding
-from media_delete import delete_path
+from file_trash import delete_path
 from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,

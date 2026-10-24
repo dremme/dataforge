@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
+
+from captions import CaptionTarget, caption_targets
+from media_claims import ClaimActivity, MediaBusyError, claim
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 ShouldCancel = Callable[[], bool]
 
 CANCELLED = "cancelled"
+
+#: A file another operation was changing; counted as a failure so "Retry failed" picks it up.
+BUSY = "busy"
 
 
 @dataclass(frozen=True)
@@ -45,8 +51,14 @@ def run_media_job(
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
     processed_stat_keys: tuple[str, ...] | None = None,
+    claim_activity: ClaimActivity | None = None,
 ) -> dict[str, object]:
-    """Run ``process`` over ``media_files``. Omit ``processed_stat_keys`` when counters include sub-stats."""
+    """Run ``process`` over ``media_files``. Omit ``processed_stat_keys`` when counters include sub-stats.
+
+    With ``claim_activity`` each file is claimed while it is processed; a file another operation
+    holds is reported as ``busy`` instead. A :class:`MediaBusyError` from inside ``process``,
+    such as a caption write that found its sidecar held, is reported the same way.
+    """
     file_results: list[dict[str, object]] = []
     total = len(media_files)
 
@@ -58,7 +70,7 @@ def run_media_job(
         if on_progress:
             on_progress(str(media_path), media_path.name, index - 1, total, dict(stats))
 
-        outcome = process(media_path)
+        outcome = _process_claimed(media_path, process, claim_activity)
 
         for key, delta in outcome.stats.items():
             stats[key] = stats.get(key, 0) + delta
@@ -92,3 +104,52 @@ def run_media_job(
         "stats": stats,
         "results": file_results,
     }
+
+
+def _process_claimed(
+    media_path: Path, process: ProcessFile, activity: ClaimActivity | None
+) -> FileOutcome:
+    try:
+        if activity is None:
+            return process(media_path)
+        with claim([media_path], activity):
+            return process(media_path)
+    except MediaBusyError as exc:
+        return FileOutcome.counted(BUSY, exc)
+
+
+def run_caption_job(
+    folder: Path,
+    media_files: list[Path],
+    *,
+    stats: dict[str, int],
+    process: Callable[[CaptionTarget], FileOutcome],
+    on_progress: ProgressCallback | None = None,
+    should_cancel: ShouldCancel | None = None,
+    processed_stat_keys: tuple[str, ...] | None = None,
+) -> dict[str, object]:
+    """:func:`run_media_job` over captions instead of files.
+
+    Same-stem media share one caption, so each caption is processed, backed up and counted once:
+    its row is its first file's, naming the others in ``shared_with``. ``stats["total"]`` becomes
+    the number of captions.
+    """
+    targets = {target.primary: target for target in caption_targets(media_files)}
+    stats["total"] = len(targets)
+
+    def process_primary(primary: Path) -> FileOutcome:
+        target = targets[primary]
+        outcome = process(target)
+        if not target.shared_with:
+            return outcome
+        return replace(outcome, fields={**outcome.fields, "shared_with": target.shared_with})
+
+    return run_media_job(
+        folder,
+        list(targets),
+        stats=stats,
+        process=process_primary,
+        on_progress=on_progress,
+        should_cancel=should_cancel,
+        processed_stat_keys=processed_stat_keys,
+    )

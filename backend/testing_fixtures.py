@@ -13,10 +13,13 @@ from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import httpx
+
+if TYPE_CHECKING:
+    from media_claims import ClaimActivity
 
 COMFY_TEST_URL = "http://comfy.test"
 
@@ -520,6 +523,52 @@ def write_caption_rules(folder: Path, text: str) -> Path:
     rules = folder / CAPTION_RULES_FILENAME
     rules.write_text(text, encoding="utf-8")
     return rules
+
+
+def write_edit_spec(media: Path, spec: Any) -> Path:
+    """The record an edit leaves, naming the live file as the one it published."""
+    from edit_sidecars import EditRecord, edit_spec_path, fingerprint_of
+
+    record = EditRecord(spec=spec.model_dump(), published=fingerprint_of(media))
+    path = edit_spec_path(media)
+    path.write_text(record.model_dump_json(indent=2), encoding="utf-8")
+    return path
+
+
+def write_edit_backup(media: Path, data: bytes | None = None) -> Path:
+    """The original an edit keeps; a copy of the live file unless ``data`` is given."""
+    from edit_sidecars import backup_path_for
+
+    backup = backup_path_for(media)
+    backup.write_bytes(media.read_bytes() if data is None else data)
+    return backup
+
+
+@contextmanager
+def claimed_elsewhere(*paths: Path, activity: ClaimActivity = "render") -> Generator[None]:
+    """Hold a claim from another thread, as a concurrent request would; this thread's own
+    claims are reentrant and would not collide."""
+    import threading
+
+    from media_claims import claim
+
+    held = threading.Event()
+    release = threading.Event()
+
+    def hold() -> None:
+        with claim(paths, activity):
+            held.set()
+            release.wait(timeout=30)
+
+    worker = threading.Thread(target=hold, daemon=True)
+    worker.start()
+    if not held.wait(timeout=5):
+        raise RuntimeError("The claim was not taken")
+    try:
+        yield
+    finally:
+        release.set()
+        worker.join(timeout=5)
 
 
 @contextmanager

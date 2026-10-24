@@ -1,4 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import { renderWithProviders } from "@/test/renderWithProviders";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { dismissDuplicateGroup, resolveDuplicateGroup } from "@/features/gallery/api/duplicates";
@@ -46,13 +47,18 @@ function renderDialog(overrides: Partial<Parameters<typeof DuplicateResolverDial
     onResolved: vi.fn<(deletedPaths: string[]) => void>(),
     ...overrides,
   };
-  render(<DuplicateResolverDialog {...props} />);
+  renderWithProviders(<DuplicateResolverDialog {...props} />);
   return props;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resolveGroup.mockResolvedValue({ kept: "large.png", deleted: ["small.png"], failed: [] });
+  resolveGroup.mockResolvedValue({
+    kept: "large.png",
+    deleted: ["small.png"],
+    failed: [],
+    leftovers: [],
+  });
   dismissGroup.mockResolvedValue({ cleared: ["small.png", "large.png"], failed: [] });
 });
 
@@ -178,7 +184,12 @@ describe("DuplicateResolverDialog", () => {
 
   it("reports a partial failure instead of moving on", async () => {
     const user = userEvent.setup();
-    resolveGroup.mockResolvedValue({ kept: "large.png", deleted: [], failed: ["small.png"] });
+    resolveGroup.mockResolvedValue({
+      kept: "large.png",
+      deleted: [],
+      failed: ["small.png"],
+      leftovers: [],
+    });
     const props = renderDialog();
 
     await user.click(screen.getByRole("button", { name: "Resolve" }));
@@ -291,7 +302,7 @@ describe("DuplicateResolverDialog", () => {
   });
 
   it("renders nothing when the index is past the queue", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <DuplicateResolverDialog
         groups={[group()]}
         index={5}

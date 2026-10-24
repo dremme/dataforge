@@ -40,7 +40,7 @@ def _ffmpeg_job_message(
     stats: dict[str, int], verb: str, *, kept_one: str, kept_many: str
 ) -> str | None:
     ffmpeg_errors = _count(stats, "ffmpeg_error")
-    error_count = _count(stats, "ffmpeg_error", "write_error", "read_error")
+    error_count = _count(stats, "ffmpeg_error", "write_error", "read_error", "busy")
     if error_count == 0:
         return None
 
@@ -145,13 +145,20 @@ def check_caption_rules_error_message(stats: dict[str, int]) -> str | None:
 
 def set_captions_error_message(stats: dict[str, int]) -> str | None:
     write_errors = _count(stats, "write_error")
-    if write_errors == 0:
-        return None
-    return _plural(
-        write_errors,
-        "Failed to write caption for 1 file.",
-        "Failed to write caption for {n} files.",
-    )
+    if write_errors:
+        return _plural(
+            write_errors,
+            "Failed to write caption for 1 file.",
+            "Failed to write caption for {n} files.",
+        )
+    read_errors = _count(stats, "read_error")
+    if read_errors:
+        return _plural(
+            read_errors,
+            "Left 1 caption unchanged because it could not be read.",
+            "Left {n} captions unchanged because they could not be read.",
+        )
+    return None
 
 
 def replace_captions_error_message(stats: dict[str, int]) -> str | None:

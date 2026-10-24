@@ -15,7 +15,8 @@ from constants import (
     SIDECAR_EXTENSIONS,
     SYSPROMPT_FILENAME,
 )
-from media_delete import delete_path
+from file_trash import delete_path
+from media_claims import MediaBusyError, claim
 from media_group import media_group_paths, shared_stem_paths
 
 logger = logging.getLogger(__name__)
@@ -72,7 +73,7 @@ def _replaced_media_state(media: Path) -> list[Path]:
     """What describes the replaced file's pixels: its edit original and spec, findings, candidate.
 
     Left in place, the next edit would render from the old original and discard the import.
-    The caption stays, and so does an edit spec a same-stem sibling still shares.
+    The caption stays, and so does whatever a same-stem sibling still shares.
     """
     kept = {
         media,
@@ -123,13 +124,20 @@ def import_uploaded_files(
                 shutil.copyfileobj(stream, handle)
 
             if overwrite:
-                replaced = (
-                    _replaced_media_state(destination)
-                    if destination.suffix.lower() in GALLERY_EXTENSIONS and destination.is_file()
-                    else []
-                )
-                os.replace(temporary, destination)
-                _discard_replaced_media_state(replaced)
+                try:
+                    with claim([destination], "import"):
+                        replaced = (
+                            _replaced_media_state(destination)
+                            if destination.suffix.lower() in GALLERY_EXTENSIONS
+                            and destination.is_file()
+                            else []
+                        )
+                        os.replace(temporary, destination)
+                        _discard_replaced_media_state(replaced)
+                except MediaBusyError:
+                    # Replacing it mid-render would be undone when the render publishes.
+                    skipped.append(name)
+                    continue
             else:
                 try:
                     if os.name == "nt":

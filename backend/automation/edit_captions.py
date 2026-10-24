@@ -8,8 +8,8 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
-from automation.backup_captions import back_up_caption_sidecars, caption_backup_dir
-from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
+from automation.backup_captions import back_up_caption, caption_backup_dir
+from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_caption_job
 from automation.llm import (
     ModelOutcome,
     call_with_retries,
@@ -34,7 +34,9 @@ from automation.vision import (
 from captions import (
     CAPTION_CHANGED_STATUS,
     NO_CAPTION_STATUS,
-    caption_changed_since,
+    CaptionConflictError,
+    CaptionTarget,
+    caption_targets,
     load_reference_caption,
     save_caption,
 )
@@ -279,7 +281,7 @@ def process_media(
 ) -> tuple[str | None, str, str | None]:
     ref_caption = reference_caption
     if ref_caption is None:
-        ref_caption, status = load_reference_caption(media_path)
+        ref_caption, status, _revision = load_reference_caption(media_path)
         if status != "ok" or ref_caption is None:
             return None, status, None
 
@@ -345,9 +347,11 @@ def preview_caption_edits(
     samples: list[CaptionEditPreviewSample] = []
 
     with model_client() as client:
-        for media_path in media_files:
-            original, status = load_reference_caption(media_path)
-            if status != "ok" or original is None:
+        # One sample per caption, as the job edits them: a shared caption is edited once.
+        for target in caption_targets(media_files):
+            media_path = target.primary
+            original = load_reference_caption(media_path).text
+            if original is None:
                 continue
             edited, status, message = process_media(
                 client,
@@ -421,9 +425,13 @@ def run_edit_captions_job(
 
     with model_client() as client:
 
-        def process(media_path: Path) -> FileOutcome:
-            # The text the edit is built from; the write is skipped if it changes meanwhile.
-            draft, _status = load_reference_caption(media_path)
+        def process(target: CaptionTarget) -> FileOutcome:
+            media_path = target.primary
+            # The caption the edit is built from; the write is refused if it changes meanwhile.
+            reference = load_reference_caption(media_path)
+            draft = reference.text
+            if draft is None:
+                return FileOutcome.counted(reference.status)
             edited, status, message = process_media(
                 client,
                 media_path,
@@ -434,6 +442,7 @@ def run_edit_captions_job(
                 effort=reasoning_effort,
                 preserve_thinking=preserve_thinking,
                 should_cancel=should_cancel,
+                reference_caption=draft,
             )
 
             if status == "cancelled":
@@ -442,7 +451,7 @@ def run_edit_captions_job(
             if status != "success" or edited is None:
                 return FileOutcome.counted(status, message)
 
-            if draft is not None and edited.strip() == draft.strip():
+            if edited.strip() == draft.strip():
                 return FileOutcome.counted(
                     UNCHANGED, message="The edit did not change this caption"
                 )
@@ -450,13 +459,9 @@ def run_edit_captions_job(
             if should_cancel and should_cancel():
                 return FileOutcome.cancelled()
 
-            changed = caption_changed_since(media_path, draft)
-            if changed is not None:
-                return FileOutcome.counted(CAPTION_CHANGED_STATUS, changed)
-
             if backup:
                 try:
-                    back_up_caption_sidecars(media_path, backup_dir)
+                    back_up_caption(target.caption, backup_dir)
                 except OSError as exc:
                     # Do not write the edit if backup failed; that would break the restore promise.
                     return FileOutcome.counted(
@@ -464,13 +469,15 @@ def run_edit_captions_job(
                     )
 
             try:
-                save_caption(media_path, edited)
+                save_caption(media_path, edited, base_revision=reference.revision)
+            except CaptionConflictError as exc:
+                return FileOutcome.counted(CAPTION_CHANGED_STATUS, f"{exc}; that edit was kept")
             except (OSError, ValueError) as exc:
                 return FileOutcome.counted("write_error", exc)
 
             return FileOutcome.counted("success", description=edited.strip())
 
-        return run_media_job(
+        return run_caption_job(
             folder,
             media_files,
             stats=_initial_job_stats(len(media_files)),

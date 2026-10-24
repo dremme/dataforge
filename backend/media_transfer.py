@@ -17,6 +17,7 @@ from fastapi import HTTPException
 from candidate_pairing import candidate_path_for
 from file_import import _existing_file_names
 from file_write import retry_while_locked
+from media_claims import MediaBusyError, claim
 from media_group import (
     group_target,
     media_group_paths,
@@ -167,11 +168,20 @@ def transfer_media_with_sidecars(
 ) -> dict[str, object]:
     source = source.resolve()
     destination_folder = destination_folder.resolve()
+    destination_media = destination_folder / source.name
 
+    # The destination too: an overwrite must not land under a render publishing there.
+    with claim([*media_group_paths(source), destination_media], "move"):
+        return _transfer_claimed(source, destination_media, mode=mode, overwrite=overwrite)
+
+
+def _transfer_claimed(
+    source: Path, destination_media: Path, *, mode: TransferMode, overwrite: bool
+) -> dict[str, object]:
+    destination_folder = destination_media.parent
     if source.parent == destination_folder:
         raise HTTPException(status_code=400, detail="File is already in the destination folder")
 
-    destination_media = destination_folder / source.name
     replacing = destination_media.exists()
     if replacing and not overwrite:
         raise HTTPException(
@@ -283,6 +293,8 @@ def transfer_media_batch(
             )
         except HTTPException as exc:
             failed.append({"path": str(source), "detail": str(exc.detail)})
+        except MediaBusyError as exc:
+            failed.append({"path": str(source), "detail": str(exc)})
         except OSError as exc:
             logger.warning("Failed to %s %s: %s", mode, source, exc)
             failed.append({"path": str(source), "detail": str(exc)})

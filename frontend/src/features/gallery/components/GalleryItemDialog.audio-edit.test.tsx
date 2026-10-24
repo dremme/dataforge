@@ -53,6 +53,7 @@ const EDITED = {
   modified_at: "2026-03-15T15:00:00.000Z",
   duration: 4,
   has_backup: true,
+  replaced_externally: false,
 };
 
 function savedSpec(overrides: Partial<AudioEditSpec> = {}): AudioEditSpec {

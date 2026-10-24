@@ -64,6 +64,11 @@ function ResultRow({
       </span>
       <span className="job-file-results__status">{resultStatusLabel(result.status)}</span>
       {result.message && <span className="job-file-results__message">{result.message}</span>}
+      {result.shared_with.length > 0 && (
+        <span className="job-file-results__message">
+          {`Caption shared with ${result.shared_with.join(", ")}`}
+        </span>
+      )}
     </>
   );
 

@@ -8,7 +8,8 @@ from unittest.mock import patch
 from candidate_pairing import candidate_sidecar_path
 from captions import issue_file_path
 from constants import CAPTION_BACKUP_DIR_NAME, STAGING_DIR_NAME
-from media_delete import delete_media_with_sidecars, delete_path
+from file_trash import delete_path
+from media_delete import MediaReappearedError, delete_leftovers, delete_media_with_sidecars
 from testing_fixtures import (
     TempMediaFolder,
     write_media,
@@ -18,12 +19,18 @@ from testing_fixtures import (
 )
 
 
+def _fail_txt_only(path: Path) -> None:
+    if path.suffix == ".txt":
+        raise OSError("locked")
+    path.unlink(missing_ok=True)
+
+
 class DeletePathTests(unittest.TestCase):
     def test_non_windows_unlinks_permanently(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
 
-            with patch("media_delete.sys.platform", "linux"):
+            with patch("file_trash.sys.platform", "linux"):
                 delete_path(media)
 
             self.assertFalse(media.exists())
@@ -33,7 +40,7 @@ class DeletePathTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
 
-            with patch("media_delete._send_to_recycle_bin") as recycle:
+            with patch("file_trash._send_to_recycle_bin") as recycle:
                 delete_path(media)
 
             recycle.assert_called_once_with(media)
@@ -92,22 +99,60 @@ class DeleteMediaWithSidecarsTests(unittest.TestCase):
 
             self.assertIn("Failed to delete sunset.png", str(ctx.exception))
 
-    def test_sidecar_failure_is_logged_not_raised(self) -> None:
+    def test_a_sidecar_that_cannot_be_deleted_is_reported_as_retained(self) -> None:
+        """The audit's F14: the response used to say nothing while the caption stayed."""
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
-            write_txt_caption(media, "caption")
+            caption = write_txt_caption(media, "caption")
 
-            def fail_txt_only(path: Path) -> None:
-                if path.suffix == ".txt":
-                    raise OSError("locked")
-                path.unlink(missing_ok=True)
-
-            with patch("media_delete.delete_path", side_effect=fail_txt_only):
-                with self.assertLogs("media_delete", level="WARNING") as logs:
-                    result = delete_media_with_sidecars(media)
+            with patch("media_delete.delete_path", side_effect=_fail_txt_only):
+                result = delete_media_with_sidecars(media)
 
             self.assertEqual(result["deleted"], ["sunset.png"])
-            self.assertTrue(any("Failed to delete sidecar" in line for line in logs.output))
+            self.assertEqual(result["retained"], [{"path": str(caption), "message": "locked"}])
+
+    def test_a_retained_sidecar_can_be_cleaned_up_once_it_is_free(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            caption = write_txt_caption(media, "caption")
+            with patch("media_delete.delete_path", side_effect=_fail_txt_only):
+                delete_media_with_sidecars(media)
+
+            with patch("media_delete.delete_path", lambda path: path.unlink()):
+                result = delete_leftovers(media, [caption])
+
+            self.assertEqual(result["deleted"], ["sunset.txt"])
+            self.assertEqual(result["retained"], [])
+            self.assertFalse(caption.exists())
+
+    def test_cleanup_refuses_a_caption_a_sibling_still_shares(self) -> None:
+        with TempMediaFolder() as root:
+            caption = write_txt_caption(write_media(root, "scene.png"), "caption")
+
+            with self.assertRaises(ValueError):
+                delete_leftovers(root / "scene.jpg", [caption])
+
+            self.assertTrue(caption.exists())
+
+    def test_cleanup_refuses_once_the_media_is_back(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            caption = write_txt_caption(media, "caption")
+
+            with self.assertRaises(MediaReappearedError):
+                delete_leftovers(media, [caption])
+
+    def test_a_stale_copy_from_a_failed_publish_goes_too(self) -> None:
+        """A folder sweep would move it back onto the deleted name."""
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            stale = root / "sunset.png.edit-stale"
+            stale.write_bytes(b"previous")
+
+            with patch("media_delete.delete_path", lambda path: path.unlink()):
+                delete_media_with_sidecars(media)
+
+            self.assertFalse(stale.exists())
 
 
 class DeleteVideoEditSidecarTests(unittest.TestCase):
@@ -117,12 +162,14 @@ class DeleteVideoEditSidecarTests(unittest.TestCase):
             media = write_mp4_video(root, "clip.mp4")
             backup = root / "clip.mp4.bak"
             backup.write_bytes(b"pristine-original")
-            spec = root / "clip.edit.json"
+            spec = root / "clip.mp4.edit.json"
             spec.write_text("{}", encoding="utf-8")
 
             result = delete_media_with_sidecars(media)
 
-            self.assertEqual(set(result["deleted"]), {"clip.mp4", "clip.mp4.bak", "clip.edit.json"})
+            self.assertEqual(
+                set(result["deleted"]), {"clip.mp4", "clip.mp4.bak", "clip.mp4.edit.json"}
+            )
             self.assertFalse(backup.exists())
             self.assertFalse(spec.exists())
 
@@ -141,7 +188,7 @@ class DeleteNameLinkedFilesTests(unittest.TestCase):
             record.write_text("{}", encoding="utf-8")
             unrelated = write_media(root / STAGING_DIR_NAME, "other.png")
 
-            with patch("media_delete.sys.platform", "linux"):
+            with patch("file_trash.sys.platform", "linux"):
                 delete_media_with_sidecars(media)
 
             self.assertFalse(backup.exists())
@@ -157,7 +204,7 @@ class SharedStemDeleteTests(unittest.TestCase):
             png = write_media(root, "item.png")
             caption = write_txt_caption(png, "Shared.")
 
-            with patch("media_delete.sys.platform", "linux"):
+            with patch("file_trash.sys.platform", "linux"):
                 delete_media_with_sidecars(jpg)
 
             self.assertFalse(jpg.exists())
@@ -169,7 +216,7 @@ class SharedStemDeleteTests(unittest.TestCase):
             write_wav(root, "song.wav")
             caption = write_txt_caption(cover, "Shared.")
 
-            with patch("media_delete.sys.platform", "linux"):
+            with patch("file_trash.sys.platform", "linux"):
                 delete_media_with_sidecars(cover)
 
             self.assertEqual(caption.read_text(encoding="utf-8"), "Shared.")
@@ -179,7 +226,7 @@ class SharedStemDeleteTests(unittest.TestCase):
             png = write_media(root, "item.png")
             caption = write_txt_caption(png, "Mine.")
 
-            with patch("media_delete.sys.platform", "linux"):
+            with patch("file_trash.sys.platform", "linux"):
                 delete_media_with_sidecars(png)
 
             self.assertFalse(caption.exists())

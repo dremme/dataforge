@@ -46,6 +46,8 @@ export interface MockBackendOptions {
   duplicateGroups?: DuplicateGroup[];
   /** Video editor drafts keyed by folder path; none unless a test needs them. */
   videoProjects?: Record<string, VideoProjectSummary[]>;
+  /** Paths of related files a delete of the keyed media path reports as left behind. */
+  retainedOnDelete?: Record<string, string[]>;
 }
 
 function normalizeFolderKey(path: string | null | undefined): string | undefined {
@@ -591,7 +593,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
     if (url.pathname === "/api/duplicates/resolve" && method === "POST") {
       const body = init?.body ? JSON.parse(init.body as string) : {};
-      return jsonResponse({ kept: body.keep, deleted: body.discard ?? [], failed: [] });
+      return jsonResponse({
+        kept: body.keep,
+        deleted: body.discard ?? [],
+        failed: [],
+        leftovers: [],
+      });
     }
 
     if (url.pathname === "/api/duplicates/dismiss" && method === "POST") {
@@ -719,6 +726,8 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         has_description: item?.has_description ?? false,
         has_caption_file: item?.has_caption_file ?? false,
         caption_status: item?.caption_status ?? "none",
+        caption_revision: item?.caption_revision ?? null,
+        caption_read_error: item?.caption_read_error ?? null,
         caption_file: path.replace(/\.[^.]+$/, ".txt"),
         issue_fixes: item?.issue_fixes ?? [],
         rule_findings: item?.rule_findings ?? [],
@@ -734,12 +743,25 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const hasDescription = text.length > 0;
       const resolveIssue = body.resolve_issue === true;
       let savedItem: (typeof homeFolder.items)[number] | undefined;
+      // Like the server: a save names the revision it was edited from, or is refused.
+      const current = Object.values(folderResponses)
+        .flatMap((folderData) => folderData?.items ?? [])
+        .find((entry) => entry.path === path);
+      if ((current?.caption_revision ?? null) !== (body.base_revision ?? null)) {
+        return jsonResponse(
+          { detail: "The caption changed since it was loaded", code: "caption_conflict" },
+          409,
+        );
+      }
+      const savedRevision = `caption-${nextMockRevision()}`;
 
       for (const folderData of Object.values(folderResponses)) {
         if (!folderData) continue;
         const item = folderData.items.find((entry) => entry.path === path);
         if (!item) continue;
         savedItem = item;
+        item.caption_revision = savedRevision;
+        item.caption_read_error = null;
 
         item.description = hasDescription ? text : null;
         item.has_description = hasDescription;
@@ -764,6 +786,8 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         has_description: hasDescription,
         has_caption_file: true,
         caption_status: hasDescription ? "text" : "empty",
+        caption_revision: savedRevision,
+        caption_read_error: null,
         caption_file: path.replace(/\.[^.]+$/, ".txt"),
         ...issueFields,
       });
@@ -956,7 +980,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           break;
         }
 
-        return jsonResponse({ path, deleted });
+        const retained = options.retainedOnDelete?.[path] ?? [];
+        return jsonResponse({
+          path,
+          deleted: deleted.filter((name) => !retained.some((kept) => kept.endsWith(name))),
+          retained: retained.map((kept) => ({ path: kept, message: "The file is in use" })),
+        });
       }
 
       return new Response(MINIMAL_PNG, {

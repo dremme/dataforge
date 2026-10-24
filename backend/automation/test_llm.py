@@ -194,11 +194,11 @@ class UnreadableCaptionTests(unittest.TestCase):
             with (
                 self.subTest(job=name),
                 TempMediaFolder() as root,
-                patch("captions._read_caption_text", return_value=None),
                 patch("automation.llm.create_openai_client"),
             ):
                 write_sysprompt(root, "Describe the scene.")
-                write_txt_caption(write_media(root, "photo.png"), "Draft.")
+                caption = write_txt_caption(write_media(root, "photo.png"), "Draft.")
+                caption.write_bytes("Draft.".encode("utf-16"))
 
                 result = run(root)
 

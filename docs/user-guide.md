@@ -126,7 +126,7 @@ DataForge tags the images, GIFs, and videos in your **favorite folders** in the 
 
 ## Edit media
 
-Open a file's editor, make changes, then **Apply**. Editor changes render from the original, retained beside the media as a `.bak`, with edit settings in `.edit.json`. Later edits use that original again. **Revert original** restores it and removes the edit files.
+Open a file's editor, make changes, then **Apply**. Editor changes render from the original, retained beside the media as a `.bak`, with edit settings in `.edit.json`. Later edits use that original again. **Revert original** restores it and removes the edit files. If the file is replaced outside DataForge, the next edit or revert takes the replacement as the new original and deletes the old original and settings, to the Recycle Bin on Windows.
 
 - **Images:** crop to preset ratios or a free crop, rotate by quarter turns, mirror, resize by scale or exact dimensions, and use Adjust.
 - **Videos:** trim on the timeline, crop, resize, change speed or volume, mute, and use Adjust. Rendering shows progress and can be cancelled.
@@ -222,7 +222,7 @@ GIF captioning and verification use its first frame. Video caption jobs sample f
 
 `<stem>` excludes the extension (`scene`); `<name>` includes it (`scene.jpg`). Sidecar files accompany media but are not gallery items. Output media in `watermarked/` or `staging/` can be browsed as files.
 
-Media with the same stem, such as `scene.jpg` and `scene.png`, share a caption and edit-settings path. Use distinct stems when they need different captions, edits, or processing results.
+Media with the same stem, such as `scene.jpg` and `scene.png`, share a caption. Bulk caption jobs change a shared caption once and report the other file beside it. Edit settings and originals belong to each file. Use distinct stems when they need different captions.
 
 | File                                  | Location                   | Created by / lifecycle                                                                                                                          |
 | ------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -231,7 +231,7 @@ Media with the same stem, such as `scene.jpg` and `scene.png`, share a caption a
 | `.captionrules`                       | Dataset or parent folder   | Caption-rules editor; saving empty removes the current folder's file                                                                            |
 | `<name>.issue.json`                   | Beside media               | Verify captions and Lint captions; removed when findings are resolved or cleared                                                                |
 | `<name>.duplicate.json`               | Beside media               | Find duplicates; removed when the group is resolved, dismissed, or cleared                                                                      |
-| `<name>.bak` and `<stem>.edit.json`   | Beside media               | Editor or Auto-adjust original and edit settings; Revert original removes both. Accepting a ComfyUI result also discards them                   |
+| `<name>.bak` and `<name>.edit.json`   | Beside media               | Editor or Auto-adjust original and edit settings; Revert original removes both. Accepting a ComfyUI result also discards them                   |
 | `<stem>-edit.video-project.json`      | Beside the first video     | Video editor draft, saved while editing; deleted with **Delete project** in the editor's project menu. Its media and exports stay               |
 | `<name>.video-project.json`           | Beside an exported video   | The edit an export was made from; moves, copies, renames, and deletes with the video                                                            |
 | `<stem>.txt`                          | `.backup/`                 | Caption backup; remains after restoration until deleted or overwritten                                                                          |
@@ -241,7 +241,7 @@ Media with the same stem, such as `scene.jpg` and `scene.png`, share a caption a
 | `tag_vocabulary.txt`                  | `backend/data/`            | Your own tag terms, created by you; added to the built-in list                                                                                  |
 | Tagging model weights                 | `backend/data/models/`     | Downloaded on the first tagging run; `DATAFORGE_MODELS_DIR` moves them                                                                          |
 
-For example, `scene.jpg` can have `scene.txt`, `scene.jpg.issue.json`, `scene.jpg.duplicate.json`, `scene.jpg.bak`, and `scene.edit.json`.
+For example, `scene.jpg` can have `scene.txt`, `scene.jpg.issue.json`, `scene.jpg.duplicate.json`, `scene.jpg.bak`, and `scene.jpg.edit.json`.
 
 The gallery lists only the open folder's media, not descendants. It omits `.backup/` and common repository, environment, system, and cache folders, including `.git`, `node_modules`, `.venv`, `__pycache__`, `_latent_cache`, and `_t_e_cache`. External file changes appear automatically.
 

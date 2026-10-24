@@ -37,6 +37,7 @@ import { useComfyWorkflowFlag } from "@/features/gallery/hooks/useComfyWorkflowF
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import { useCaptionBackup } from "@/features/gallery/hooks/useCaptionBackup";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
+import { useDeleteLeftoversNotice } from "@/features/gallery/hooks/useDeleteLeftoversNotice";
 import { useGifFrameCapture } from "@/features/gallery/hooks/useGifFrameCapture";
 import { useGifFrameCount } from "@/features/gallery/hooks/useGifFrameCount";
 import { useGifToMp4 } from "@/features/gallery/hooks/useGifToMp4";
@@ -215,7 +216,14 @@ export function GalleryItemDialog({
     discardCaptionChanges,
     hasUnsavedChanges: captionDirty,
     saving: captionSaving,
+    conflict: captionConflict,
+    reloadCaption,
+    overwriteCaption,
+    readError: captionReadError,
+    captionLocked,
+    replaceUnreadableCaption,
   } = useGalleryItemCaption({ item, onCaptionSaved });
+  const notifyDeleteLeftovers = useDeleteLeftoversNotice();
   const backupCaption = useCaptionBackup(item?.path, hasCaptionBackup);
   const captionCompletions = useMemo(() => buildCaptionVocabulary(items), [items]);
 
@@ -567,9 +575,10 @@ export function GalleryItemDialog({
     }
 
     try {
-      await deleteMedia(item.path);
+      const result = await deleteMedia(item.path);
       setDeleteConfirmOpen(false);
       onDeleted?.(item.path);
+      notifyDeleteLeftovers([result]);
     } catch (error) {
       setDeleteConfirmOpen(false);
       notify({
@@ -579,7 +588,7 @@ export function GalleryItemDialog({
     } finally {
       setDeleting(false);
     }
-  }, [deleting, flushPendingSave, item, notify, onDeleted]);
+  }, [deleting, flushPendingSave, item, notify, notifyDeleteLeftovers, onDeleted]);
 
   // Derived above the early return so the hooks below are not called conditionally.
   const canEditVideoItem = item ? isEditableVideo(item) : false;
@@ -1428,20 +1437,54 @@ export function GalleryItemDialog({
                   value={caption}
                   placeholder={placeholder}
                   variant={captionDisplay.variant}
-                  saveState={saveState}
+                  saveState={captionConflict ? "error" : saveState}
                   searchQuery={searchQuery}
                   searchRegex={searchRegex}
                   aria-label={`Caption for ${item.name}`}
-                  aria-invalid={saveState === "error"}
+                  aria-invalid={saveState === "error" || captionConflict}
                   onChange={handleCaptionChange}
-                  editable={!leaving}
+                  editable={!leaving && !captionLocked}
                 />
-                <CaptionSaveStatus state={saveState} error={saveError} onRetry={retrySave} />
+                {captionReadError && (
+                  <div className="workspace-save-error" role="alert">
+                    {/* The placeholder already says why; this says what the button does. */}
+                    <p>
+                      {captionReadError === "encoding"
+                        ? "Replacing it writes a new UTF-8 caption over the file."
+                        : "Close the program that has it open, then try again."}
+                    </p>
+                    {captionReadError === "encoding" ? (
+                      <button
+                        type="button"
+                        className="workspace-button"
+                        onClick={replaceUnreadableCaption}
+                      >
+                        Replace caption
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="workspace-button"
+                        onClick={() => void reloadCaption()}
+                      >
+                        Try again
+                      </button>
+                    )}
+                  </div>
+                )}
+                <CaptionSaveStatus
+                  state={saveState}
+                  error={saveError}
+                  onRetry={retrySave}
+                  onReload={() => void reloadCaption()}
+                  onOverwrite={() => void overwriteCaption()}
+                />
                 {leaveFailed && (
                   <div className="workspace-save-error" role="alert">
                     <p>
-                      The caption could not be saved. Retry saving or discard the unsaved changes to
-                      continue.
+                      {captionConflict
+                        ? "The caption changed elsewhere since it was loaded. Overwrite it with yours or discard your changes to continue."
+                        : "The caption could not be saved. Retry saving or discard the unsaved changes to continue."}
                     </p>
                     <button
                       type="button"
@@ -1451,7 +1494,7 @@ export function GalleryItemDialog({
                         if (leavingRef.current) return;
                         leavingRef.current = true;
                         setLeaving(true);
-                        const saved = await retrySave();
+                        const saved = await (captionConflict ? overwriteCaption() : retrySave());
                         leavingRef.current = false;
                         setLeaving(false);
                         if (saved) {
@@ -1460,7 +1503,7 @@ export function GalleryItemDialog({
                         }
                       }}
                     >
-                      Retry and continue
+                      {captionConflict ? "Overwrite and continue" : "Retry and continue"}
                     </button>
                     <button
                       type="button"

@@ -17,6 +17,7 @@ import {
   type NotificationVariant,
   type NotifyOptions,
   type Toast,
+  type ToastAction,
 } from "./notifications";
 import { useToastTimers } from "./useToastTimers";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
@@ -90,7 +91,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   );
 
   const pushToast = useCallback(
-    (message: string, variant: NotificationVariant) => {
+    (message: string, variant: NotificationVariant, action?: ToastAction) => {
       // An open panel already lists what arrives, so a toast would only cover the list.
       if (panelOpenRef.current) return;
 
@@ -110,7 +111,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
 
       const id = createToastId();
-      const next = [...toastsRef.current, { id, message, variant, count: 1, durationMs }];
+      const next = [...toastsRef.current, { id, message, variant, action, count: 1, durationMs }];
       applyToasts(next);
       timers.schedule(id, durationMs, dismiss);
 
@@ -123,11 +124,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   );
 
   const notify = useCallback(
-    ({ message, variant }: NotifyOptions) => {
+    ({ message, variant, action }: NotifyOptions) => {
       const trimmed = message.trim();
       if (!trimmed) return;
 
-      pushToast(trimmed, variant);
+      pushToast(trimmed, variant, action);
 
       // The toast must outlive a failed POST: most danger toasts report the backend being down.
       void postNotification(trimmed, variant)

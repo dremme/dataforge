@@ -13,7 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from caption_cache import clear_caption_cache_for_tests
-from captions import caption_summary_from_sidecar, issue_file_path, issue_summary_from_sidecar
+from captions import caption_from_sidecar, issue_file_path, issue_summary_from_sidecar
 from constants import STAGING_DIR_NAME
 from duplicates import (
     DuplicateFinding,
@@ -344,14 +344,14 @@ class CaptionCacheTests(unittest.TestCase):
             caption = write_txt_caption(media, "First caption.")
             stat = caption.stat()
 
-            first = caption_summary_from_sidecar(caption, stat.st_mtime_ns, stat.st_size)
+            first = caption_from_sidecar(caption, stat.st_mtime_ns, stat.st_size)
             # Rewriting the file without touching the cache key must not be seen:
             # the cache is only allowed to be stale when the stat signature matches.
             caption.write_text("Second caption.", encoding="utf-8")
             os.utime(caption, ns=(stat.st_mtime_ns, stat.st_mtime_ns))
-            second = caption_summary_from_sidecar(caption, stat.st_mtime_ns, stat.st_size)
+            second = caption_from_sidecar(caption, stat.st_mtime_ns, stat.st_size)
 
-            self.assertEqual(first[0], "First caption.")
+            self.assertEqual(first.text, "First caption.")
             self.assertEqual(second, first)
 
     def test_new_mtime_busts_the_cache(self) -> None:
@@ -359,15 +359,13 @@ class CaptionCacheTests(unittest.TestCase):
             media = write_media(root, "alpha.png")
             caption = write_txt_caption(media, "First caption.")
             first_stat = caption.stat()
-            caption_summary_from_sidecar(caption, first_stat.st_mtime_ns, first_stat.st_size)
+            caption_from_sidecar(caption, first_stat.st_mtime_ns, first_stat.st_size)
 
             write_txt_caption(media, "A rather different caption.")
             second_stat = caption.stat()
-            second = caption_summary_from_sidecar(
-                caption, second_stat.st_mtime_ns, second_stat.st_size
-            )
+            second = caption_from_sidecar(caption, second_stat.st_mtime_ns, second_stat.st_size)
 
-            self.assertEqual(second[0], "A rather different caption.")
+            self.assertEqual(second.text, "A rather different caption.")
 
     def test_a_sidecar_that_could_not_be_read_is_read_again(self) -> None:
         # Unchanged stat, readable again: a locked file must not be remembered as an empty one.
@@ -377,7 +375,7 @@ class CaptionCacheTests(unittest.TestCase):
             write_issue_sidecar(media, 'Replace "a" with "b".')
             save_duplicate_finding(media, DuplicateFinding("group-1", 0, "exact"))
             sidecars = {
-                "caption": (caption_summary_from_sidecar, caption),
+                "caption": (caption_from_sidecar, caption),
                 "issue": (issue_summary_from_sidecar, issue_file_path(media)),
                 "duplicate": (duplicate_finding_from_sidecar, duplicate_file_path(media)),
             }
@@ -393,8 +391,8 @@ class CaptionCacheTests(unittest.TestCase):
 
             stat = caption.stat()
             self.assertEqual(
-                caption_summary_from_sidecar(caption, stat.st_mtime_ns, stat.st_size),
-                ("First caption.", "text"),
+                caption_from_sidecar(caption, stat.st_mtime_ns, stat.st_size).text,
+                "First caption.",
             )
 
     def test_issue_fixes_are_copied_per_call(self) -> None:

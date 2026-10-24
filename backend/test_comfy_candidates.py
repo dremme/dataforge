@@ -12,7 +12,6 @@ from PIL import Image
 
 from candidate_pairing import candidate_path_for
 from comfy_candidates import (
-    CandidateBusyError,
     NoCandidateError,
     accept_candidate,
     candidate_sidecar_path,
@@ -22,7 +21,6 @@ from comfy_candidates import (
     has_candidate,
     read_candidate_sidecar,
     reject_candidate,
-    settle_slot,
     staging_dir,
     sweep_comfy_temp_files,
     write_candidate_sidecar,
@@ -34,8 +32,15 @@ from constants import (
     STAGING_DIR_NAME,
 )
 from edit_sidecars import backup_path_for, edit_spec_path
+from media_claims import MediaBusyError
 from schemas import ComfyCandidateSidecar
-from testing_fixtures import make_png_bytes, playable_video_bytes, write_jpeg, write_mp4_video
+from testing_fixtures import (
+    claimed_elsewhere,
+    make_png_bytes,
+    playable_video_bytes,
+    write_jpeg,
+    write_mp4_video,
+)
 
 
 def write_image(path: Path, size: tuple[int, int], colour: str) -> Path:
@@ -512,17 +517,24 @@ class RejectCandidateTests(unittest.TestCase):
             self.assertFalse(candidate.is_file())
 
 
-class SettleSlotTests(unittest.TestCase):
+class SettleClaimTests(unittest.TestCase):
     def test_a_second_settle_on_the_same_file_is_refused(self) -> None:
         # An "accept all" batch and a single accept can otherwise publish over each other.
         with CandidateFolder() as fixture:
-            with settle_slot(fixture.media):
-                with self.assertRaises(CandidateBusyError):
+            with claimed_elsewhere(fixture.media, activity="settle"):
+                with self.assertRaises(MediaBusyError):
                     accept_candidate(fixture.media)
 
-    def test_the_slot_is_released_after_use(self) -> None:
+    def test_an_accept_during_a_render_is_refused(self) -> None:
         with CandidateFolder() as fixture:
-            with settle_slot(fixture.media):
+            with claimed_elsewhere(fixture.media), self.assertRaises(MediaBusyError):
+                accept_candidate(fixture.media)
+
+            self.assertTrue(fixture.candidate.is_file())
+
+    def test_the_claim_is_released_after_use(self) -> None:
+        with CandidateFolder() as fixture:
+            with claimed_elsewhere(fixture.media, activity="settle"):
                 pass
 
             accept_candidate(fixture.media)
@@ -619,7 +631,7 @@ class SweepTests(unittest.TestCase):
             temp = fixture.folder / f"other.png{COMFY_TEMP_SUFFIX}"
             temp.write_bytes(b"half-written")
 
-            with settle_slot(fixture.folder / "other.jpg", other):
+            with claimed_elsewhere(fixture.folder / "other.jpg", other, activity="settle"):
                 sweep_comfy_temp_files(fixture.folder)
 
             self.assertEqual(temp.read_bytes(), b"half-written")

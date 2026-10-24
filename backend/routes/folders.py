@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 
+from file_trash import deletes_to_trash
 from filesystem import (
     FolderExplorerError,
     create_subfolder,
@@ -17,7 +18,6 @@ from folder_favorites import (
     rename_folder_favorite,
     reorder_folder_favorites,
 )
-from media_delete import deletes_to_trash
 from routes._helpers import resolve_folder
 from schemas import (
     FolderChildrenResponse,

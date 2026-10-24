@@ -46,6 +46,7 @@ const EDITED = {
   width: 960,
   height: 540,
   has_backup: true,
+  replaced_externally: false,
 };
 
 describe("GalleryItemDialog", () => {

@@ -46,9 +46,12 @@ def list_folder_media(
 
 
 def resolve_selected_media(folder: Path, paths: list[str] | None) -> list[Path] | None:
-    """Resolve optional client paths. None means process all eligible files in the folder."""
-    if not paths:
+    """Resolve optional client paths. Only ``None`` means every eligible file in the folder; an
+    empty list is refused, so a client that lost its selection cannot widen it to everything."""
+    if paths is None:
         return None
+    if not paths:
+        raise ValueError("Select at least one file")
 
     folder_resolved = folder.expanduser().resolve()
     resolved: list[Path] = []

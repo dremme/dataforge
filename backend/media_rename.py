@@ -12,10 +12,10 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from candidate_pairing import candidate_path_for
-from comfy_candidates import is_settling, read_candidate_sidecar, write_candidate_sidecar
-from edit_sidecars import is_rendering
+from comfy_candidates import read_candidate_sidecar, write_candidate_sidecar
 from file_write import retry_while_locked
 from filesystem import sanitize_entry_name
+from media_claims import claim
 from media_group import group_target, media_group_paths, shared_stem_paths
 
 logger = logging.getLogger(__name__)
@@ -64,15 +64,6 @@ def rename_media_group(source_media: Path, target_media: Path) -> None:
             except OSError:
                 logger.exception("Failed to restore %s from %s", original, target)
         raise
-
-
-def check_not_busy(media: Path) -> None:
-    # A render or accept still running would write back under the old name afterwards.
-    if is_rendering(media) or is_settling(media):
-        raise ValueError(
-            f'Cannot rename files: "{media.name}" is being edited or reviewed. '
-            "Try again when it finishes."
-        )
 
 
 def _check_target_conflict(target_path: Path, moving_sources: set[Path]) -> None:
@@ -125,15 +116,15 @@ def rename_media_file(source: Path, stem: str) -> dict[str, str]:
     if target.name == source.name:
         return result
 
+    group = media_group_paths(source)
     try:
-        check_not_busy(source)
-        check_rename_conflicts(
-            source, target, {path.resolve() for path in media_group_paths(source)}
-        )
-        if os.path.normcase(target) == os.path.normcase(source):
-            _rename_by_case_only(source, target)
-        else:
-            rename_media_group(source, target)
+        # A render or accept still running would write back under the old name afterwards.
+        with claim([*group, target], "rename"):
+            check_rename_conflicts(source, target, {path.resolve() for path in group})
+            if os.path.normcase(target) == os.path.normcase(source):
+                _rename_by_case_only(source, target)
+            else:
+                rename_media_group(source, target)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except OSError as exc:

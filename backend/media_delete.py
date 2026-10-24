@@ -1,101 +1,82 @@
+"""Deleting a media file together with every file tied to it by name.
+
+The media is the operation: if it cannot be deleted nothing is. A related file that cannot be
+deleted after it is reported as retained rather than failing the whole request, because the media
+is already gone; :func:`delete_leftovers` retries those once whatever held them lets go.
+"""
+
 from __future__ import annotations
 
-import logging
-import sys
+import os
 from pathlib import Path
 
+from constants import COMFY_STALE_SUFFIX, EDIT_STALE_SUFFIX
+from file_trash import delete_path
+from media_claims import claim
 from media_group import media_group_paths, shared_stem_paths
 
-logger = logging.getLogger(__name__)
 
-if sys.platform == "win32":
-    import ctypes
-    from ctypes import wintypes
-
-    _FO_DELETE = 0x0003
-    _FOF_SILENT = 0x0004
-    _FOF_NOCONFIRMATION = 0x0010
-    _FOF_ALLOWUNDO = 0x0040
-    _FOF_NOERRORUI = 0x0400
-
-    class _SHFILEOPSTRUCTW(ctypes.Structure):
-        _fields_ = [
-            ("hwnd", wintypes.HWND),
-            ("wFunc", wintypes.UINT),
-            ("pFrom", wintypes.LPCWSTR),
-            ("pTo", wintypes.LPCWSTR),
-            ("fFlags", wintypes.WORD),
-            ("fAnyOperationsAborted", wintypes.BOOL),
-            ("hNameMappings", wintypes.LPVOID),
-            ("lpszProgressTitle", wintypes.LPCWSTR),
-        ]
-
-    _shell32 = ctypes.WinDLL("shell32", use_last_error=True)
-    _shell32.SHFileOperationW.argtypes = [ctypes.POINTER(_SHFILEOPSTRUCTW)]
-    _shell32.SHFileOperationW.restype = ctypes.c_int
+class MediaReappearedError(ValueError):
+    """Raised when a cleanup finds the media back: its related files belong to it again."""
 
 
-def _send_to_recycle_bin(path: Path) -> None:
-    """Move ``path`` to the Windows Recycle Bin (FOF_ALLOWUNDO)."""
-    # PCZZWSTR entries are null-terminated; a trailing "\0" yields the double-null terminator.
-    absolute = str(path.resolve(strict=False))
-    from_buffer = ctypes.create_unicode_buffer(absolute + "\0")
-
-    file_op = _SHFILEOPSTRUCTW()
-    file_op.wFunc = _FO_DELETE
-    file_op.pFrom = ctypes.cast(from_buffer, wintypes.LPCWSTR)
-    file_op.fFlags = _FOF_ALLOWUNDO | _FOF_NOCONFIRMATION | _FOF_SILENT | _FOF_NOERRORUI
-
-    result = _shell32.SHFileOperationW(ctypes.byref(file_op))
-    if (result != 0 or file_op.fAnyOperationsAborted) and path.exists():
-        raise OSError(
-            f"Failed to move {path.name} to the Recycle Bin (error {result})",
-        )
+def _publish_leftovers(media: Path) -> list[Path]:
+    """A failed publish's stale copy; a later folder sweep would move it back onto the name."""
+    stale = (
+        media.with_name(f"{media.name}{suffix}")
+        for suffix in (EDIT_STALE_SUFFIX, COMFY_STALE_SUFFIX)
+    )
+    return [path for path in stale if path.is_file()]
 
 
-def delete_path(path: Path) -> None:
-    """Recycle Bin on Windows, permanent unlink elsewhere."""
-    if sys.platform == "win32":
-        _send_to_recycle_bin(path)
-        return
-    path.unlink()
-
-
-def delete_empty_dir(path: Path) -> None:
-    """Like :func:`delete_path`; elsewhere ``rmdir`` refuses a folder that gained an entry."""
-    if sys.platform == "win32":
-        _send_to_recycle_bin(path)
-        return
-    path.rmdir()
-
-
-def deletes_to_trash() -> bool:
-    """Whether :func:`delete_path` puts a file somewhere it can be recovered from."""
-    return sys.platform == "win32"
+def _delete_each(paths: list[Path]) -> tuple[list[str], list[dict[str, str]]]:
+    deleted: list[str] = []
+    retained: list[dict[str, str]] = []
+    for path in paths:
+        try:
+            delete_path(path)
+            deleted.append(path.name)
+        except OSError as exc:
+            retained.append({"path": str(path), "message": str(exc)})
+    return deleted, retained
 
 
 def delete_media_with_sidecars(file_path: Path) -> dict[str, object]:
-    deleted: list[str] = []
     # Listed before the media goes: the candidate is found by pairing against the file itself.
-    media, *related = media_group_paths(file_path)
-    shared = shared_stem_paths(file_path)
-    related = [path for path in related if path not in shared]
+    group = media_group_paths(file_path)
+    with claim(group, "delete"):
+        media, *related = group
+        shared = shared_stem_paths(file_path)
 
-    try:
-        delete_path(media)
-    except OSError as exc:
-        raise OSError(f"Failed to delete {file_path.name}: {exc}") from exc
-
-    deleted.append(file_path.name)
-
-    for sidecar in related:
         try:
-            delete_path(sidecar)
-            deleted.append(sidecar.name)
+            delete_path(media)
         except OSError as exc:
-            logger.warning("Failed to delete sidecar %s: %s", sidecar.name, exc)
+            raise OSError(f"Failed to delete {file_path.name}: {exc}") from exc
 
-    return {
-        "path": str(file_path),
-        "deleted": deleted,
-    }
+        deleted, retained = _delete_each(
+            [path for path in related if path not in shared] + _publish_leftovers(file_path)
+        )
+
+    return {"path": str(file_path), "deleted": [file_path.name, *deleted], "retained": retained}
+
+
+def delete_leftovers(media: Path, paths: list[Path]) -> dict[str, object]:
+    """Retry deleting files a deleted ``media`` left behind.
+
+    Only files still tied to ``media`` by name and not shared with a same-stem sibling qualify, so
+    a stale request cannot delete anything another file owns.
+    """
+    group = media_group_paths(media)
+    with claim(group, "delete"):
+        if media.exists():
+            raise MediaReappearedError(f"{media.name} exists again, so its files belong to it")
+
+        owned = {os.path.normcase(path) for path in group[1:] + _publish_leftovers(media)}
+        owned -= {os.path.normcase(path) for path in shared_stem_paths(media)}
+        foreign = next((path for path in paths if os.path.normcase(path) not in owned), None)
+        if foreign is not None:
+            raise ValueError(f"{foreign.name} is not a file {media.name} left behind")
+
+        deleted, retained = _delete_each(paths)
+
+    return {"path": str(media), "deleted": deleted, "retained": retained}

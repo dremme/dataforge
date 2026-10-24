@@ -28,6 +28,7 @@ import { VIDEO_PROJECT_LOUDNESS_TARGET_LUFS } from "@/shared/constants";
 import { formatApiError, isAbortError } from "@/shared/api/http";
 import { useServerEvent } from "@/shared/events/serverEvents";
 import { useNotify } from "@/shared/notifications/notifications";
+import { replacedExternallyMessage } from "@/features/gallery/lib/mediaActionMessages";
 import { createEffectsChain, type EffectsChain } from "@/shared/lib/audioEffects";
 import type { AudioEditSpec, AudioEffects, AudioLevel, GalleryItem } from "@/shared/types";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
@@ -495,7 +496,7 @@ export function useAudioEdit(options: UseAudioEditOptions): AudioEdit {
 
   const runEdit = useCallback(
     (
-      request: (path: string) => Promise<{ has_backup: boolean }>,
+      request: (path: string) => Promise<{ has_backup: boolean; replaced_externally: boolean }>,
       describe: (name: string) => string,
       settle: () => void,
     ) => {
@@ -516,6 +517,9 @@ export function useAudioEdit(options: UseAudioEditOptions): AudioEdit {
           const result = await request(mediaPath);
           if (mountedRef.current) setHasBackup(result.has_backup);
           notify({ variant: "success", message: describe(name) });
+          if (result.replaced_externally) {
+            notify({ variant: "warning", message: replacedExternallyMessage(name) });
+          }
           await optionsRef.current.onEdited?.();
           if (mountedRef.current) settle();
         } catch (error) {

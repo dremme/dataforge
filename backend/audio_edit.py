@@ -6,7 +6,6 @@ speed, EQ, volume, fades in output time, then the level stage. The file keeps it
 
 from __future__ import annotations
 
-import json
 import logging
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -25,16 +24,15 @@ from audio_info import audio_duration
 from audio_level import MEASURE_FILTER, audio_level_filters, parse_loudness
 from constants import AUDIO_EDIT_MUXERS
 from edit_sidecars import (
-    edit_spec_path,
-    ensure_backup,
+    begin_edit,
     publish_with_spec,
     read_spec,
     restore_backup,
-    sweep_edit_temp_files,
     temp_path_for,
 )
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import ProgressCallback, ShouldCancel, run_ffmpeg
+from media_claims import claim
 from schemas import AudioEditResponse, AudioEditSpec
 from video_edit import IDENTITY_EPSILON, atempo_chain
 from video_project_render import FADE_CURVES
@@ -51,14 +49,6 @@ MP3_FALLBACK_QUALITY = "2"
 
 
 def read_audio_edit_spec(media: Path) -> AudioEditSpec | None:
-    """``None`` for a spec with fields an audio edit lacks: a same-stem video's or image's, which
-    is expected beside it rather than unreadable."""
-    try:
-        raw = json.loads(edit_spec_path(media).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return None
-    if not isinstance(raw, dict) or not raw.keys() <= AudioEditSpec.model_fields.keys():
-        return None
     return read_spec(media, AudioEditSpec)
 
 
@@ -212,7 +202,9 @@ def measure_loudness(
     return loudness.integrated_lufs
 
 
-def describe_edited(media: Path, *, has_backup: bool) -> AudioEditResponse:
+def describe_edited(
+    media: Path, *, has_backup: bool, replaced_externally: bool = False
+) -> AudioEditResponse:
     stat = media.stat()
     return AudioEditResponse(
         path=str(media),
@@ -220,6 +212,7 @@ def describe_edited(media: Path, *, has_backup: bool) -> AudioEditResponse:
         modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
         duration=audio_duration(media),
         has_backup=has_backup,
+        replaced_externally=replaced_externally,
     )
 
 
@@ -231,16 +224,37 @@ def apply_audio_edit(
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
 ) -> AudioEditResponse:
-    """Render ``spec`` from the original. On failure the live file is left byte-identical."""
+    """Render ``spec`` from the original. On failure the live file is left byte-identical.
+
+    Stops when ``should_cancel`` says so or when the render is cancelled through its claim.
+    """
+    with claim([media], "render") as held:
+        return _apply_claimed(
+            media,
+            spec,
+            ffmpeg=ffmpeg,
+            on_progress=on_progress,
+            should_cancel=held.cancel_check(should_cancel),
+        )
+
+
+def _apply_claimed(
+    media: Path,
+    spec: AudioEditSpec,
+    *,
+    ffmpeg: str | None,
+    on_progress: ProgressCallback | None,
+    should_cancel: ShouldCancel,
+) -> AudioEditResponse:
     executable = ffmpeg or ffmpeg_path()
     if not executable:
         raise RuntimeError(FFMPEG_MISSING_MESSAGE)
 
     muxer = resolve_muxer(media)
-    sweep_edit_temp_files(media.parent)
     check_audio_filters(executable, spec.effects, pitch=spec.pitch)
 
-    original = ensure_backup(media)
+    start = begin_edit(media)
+    original = start.source
     probe = probe_audio(executable, original)
     if probe.sample_rate is None:
         raise ValueError(f"{media.name} has no sound that ffmpeg can read")
@@ -283,9 +297,10 @@ def apply_audio_edit(
         with suppress(OSError):
             temp_path.unlink(missing_ok=True)
 
-    return describe_edited(media, has_backup=True)
+    return describe_edited(media, has_backup=True, replaced_externally=start.adopted)
 
 
 def revert_audio_edit(media: Path) -> AudioEditResponse:
-    restore_backup(media)
-    return describe_edited(media, has_backup=False)
+    with claim([media], "render"):
+        reverted = restore_backup(media)
+    return describe_edited(media, has_backup=False, replaced_externally=not reverted)

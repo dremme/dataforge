@@ -1,6 +1,7 @@
 import { postJson, requestJson } from "@/shared/api/http";
 import type {
   GifInfoResponse,
+  MediaCleanupRequest,
   MediaDeleteResponse,
   MediaOpenResponse,
   MediaTransferPreviewResponse,
@@ -21,6 +22,15 @@ export async function deleteMedia(mediaPath: string): Promise<MediaDeleteRespons
   return requestJson<MediaDeleteResponse>(`/api/media?${params}`, { method: "DELETE" });
 }
 
+/** Retries deleting files a deleted media file left behind, such as a caption that was in use. */
+export async function cleanUpAfterDelete(
+  mediaPath: string,
+  files: readonly string[],
+): Promise<MediaDeleteResponse> {
+  const body: MediaCleanupRequest = { path: mediaPath, files: [...files] };
+  return postJson<MediaDeleteResponse>("/api/media/cleanup", body);
+}
+
 /** `name` replaces the file name before its extension, which the file keeps. */
 export async function renameMedia(mediaPath: string, name: string): Promise<RenameResponse> {
   const params = new URLSearchParams({ path: mediaPath, name });
@@ -30,6 +40,8 @@ export async function renameMedia(mediaPath: string, name: string): Promise<Rena
 export type DeleteSelectedMediaResult = {
   succeeded: string[];
   failed: Array<{ path: string; error: unknown }>;
+  /** Every delete that answered, so files a deleted media file left behind can be reported. */
+  responses: MediaDeleteResponse[];
 };
 
 export type TransferSelectedMediaResult = {
@@ -44,8 +56,7 @@ export async function deleteSelectedMedia(
   const results = await Promise.all(
     paths.map(async (path) => {
       try {
-        await deleteMedia(path);
-        return { path, ok: true as const };
+        return { path, ok: true as const, response: await deleteMedia(path) };
       } catch (error) {
         return { path, ok: false as const, error };
       }
@@ -54,16 +65,18 @@ export async function deleteSelectedMedia(
 
   const succeeded: string[] = [];
   const failed: Array<{ path: string; error: unknown }> = [];
+  const responses: MediaDeleteResponse[] = [];
 
   for (const result of results) {
     if (result.ok) {
       succeeded.push(result.path);
+      responses.push(result.response);
     } else {
       failed.push({ path: result.path, error: result.error });
     }
   }
 
-  return { succeeded, failed };
+  return { succeeded, failed, responses };
 }
 
 export function mediaUrl(mediaPath: string, cacheKey?: string): string {

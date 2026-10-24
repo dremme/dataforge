@@ -6,7 +6,8 @@ const SAMPLE_STATUS = "sample";
 /** The one file a cancel interrupted. The rest of a cancelled run has no row at all. */
 const CANCELLED_STATUS = "cancelled";
 
-const FAILED_STATUSES = new Set(["too_short", "rejected"]);
+/** `busy`: another operation was changing the file, so a retry can succeed. */
+const FAILED_STATUSES = new Set(["too_short", "rejected", "busy"]);
 
 export const SKIPPED_STATUSES: ReadonlySet<string> = new Set([
   "skipped",
@@ -21,6 +22,7 @@ export const SKIPPED_STATUSES: ReadonlySet<string> = new Set([
 const STATUS_LABELS: Record<string, string> = {
   already_backed_up: "Already backed up",
   api_error: "Model error",
+  busy: "In use",
   cancelled: "Cancelled",
   caption_changed: "Edited meanwhile",
   comfy_error: "ComfyUI error",

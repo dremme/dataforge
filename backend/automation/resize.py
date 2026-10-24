@@ -9,7 +9,7 @@ from pathlib import Path
 from automation.job_runner import FileOutcome, ProgressCallback, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from constants import IMAGE_EDIT_EXTENSIONS, VIDEO_EDIT_EXTENSIONS
-from edit_sidecars import EditBusyError, original_path_for, render_slot
+from edit_sidecars import original_path_for
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, ShouldCancel
 from image_edit import apply_image_edit, fit_input_size, read_image_edit_spec, revert_image_edit
@@ -85,11 +85,10 @@ def resize_image(media: Path, fit: SizeFit, *, reset: bool = False) -> None:
         resized = _with_fit(spec, fit, fit_input_size(image.size, spec), even=False)
 
     # Nothing left to render: restore the original, so the file no longer reads as edited.
-    with render_slot(media):
-        if is_identity_image_spec(resized):
-            revert_image_edit(media)
-        else:
-            apply_image_edit(media, resized)
+    if is_identity_image_spec(resized):
+        revert_image_edit(media)
+    else:
+        apply_image_edit(media, resized)
 
 
 def resize_video(
@@ -109,13 +108,10 @@ def resize_video(
         frame = cropped_frame_size(probe.size, spec) if probe.size else None
         resized = _with_fit(spec, fit, frame, even=True)
 
-    with render_slot(media):
-        if is_identity_spec(resized):
-            revert_video_edit(media)
-        else:
-            apply_video_edit(
-                media, resized, ffmpeg=ffmpeg, should_cancel=should_cancel, probe=probe
-            )
+    if is_identity_spec(resized):
+        revert_video_edit(media)
+    else:
+        apply_video_edit(media, resized, ffmpeg=ffmpeg, should_cancel=should_cancel, probe=probe)
 
 
 def resize_file(
@@ -167,7 +163,7 @@ def run_resize_job(
             return FileOutcome.counted("unchanged")
         except FfmpegCancelled:
             return FileOutcome.cancelled()
-        except (EditBusyError, TooSmallToResizeError) as exc:
+        except TooSmallToResizeError as exc:
             return FileOutcome.counted("skipped", exc)
         except (ImageReadError, ValueError) as exc:
             return FileOutcome.counted("read_error", exc)
@@ -186,6 +182,7 @@ def run_resize_job(
             "video_success": 0,
             "unchanged": 0,
             "skipped": 0,
+            "busy": 0,
             "read_error": 0,
             "write_error": 0,
             "ffmpeg_error": 0,
@@ -194,11 +191,13 @@ def run_resize_job(
         process=process,
         on_progress=on_progress,
         should_cancel=should_cancel,
+        claim_activity="render",
         # image_success and video_success are sub-stats of success and must not be counted.
         processed_stat_keys=(
             "success",
             "unchanged",
             "skipped",
+            "busy",
             "read_error",
             "write_error",
             "ffmpeg_error",

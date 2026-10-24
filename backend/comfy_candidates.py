@@ -6,9 +6,7 @@ import json
 import logging
 import os
 import shutil
-import threading
-from collections.abc import Generator
-from contextlib import contextmanager, suppress
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -27,11 +25,12 @@ from constants import (
     STAGING_DIR_NAME,
 )
 from duplicates import duplicate_file_path
-from edit_sidecars import backup_path_for, edit_spec_path
+from edit_sidecars import backup_path_for, discard_edit_state
 from file_publish import publish_replacing, sweep_publish_leftovers
+from file_trash import delete_path
 from file_write import write_text_atomic
 from folder_scan import get_media_type
-from media_delete import delete_path
+from media_claims import claim, is_claimed
 from media_dimensions import media_info
 from schemas import ComfyCandidateResponse, ComfyCandidateSidecar, ComfyCandidateStateResponse
 from video_frames import validate_candidate_media
@@ -39,7 +38,6 @@ from video_frames import validate_candidate_media
 logger = logging.getLogger(__name__)
 
 NO_CANDIDATE_MESSAGE = "There is no candidate for this file"
-BUSY_MESSAGE = "This candidate is already being settled"
 EDITED_MESSAGE = (
     "This file has an unreverted edit. Revert it in the editor, then accept the candidate."
 )
@@ -49,47 +47,8 @@ EDITED_MESSAGE = (
 CANDIDATE_HASH_SIZE = 16
 
 
-class CandidateBusyError(Exception):
-    """Raised when the same file is already being accepted or rejected."""
-
-
 class NoCandidateError(Exception):
     """Raised when the staging folder holds nothing for this file."""
-
-
-_settling: dict[str, None] = {}
-_settling_lock = threading.Lock()
-
-
-def _settle_key(media: Path) -> str:
-    return os.path.normcase(str(media))
-
-
-def is_settling(media: Path) -> bool:
-    with _settling_lock:
-        return _settle_key(media) in _settling
-
-
-@contextmanager
-def settle_slot(media: Path, *also: Path) -> Generator[None]:
-    """One accept/reject slot; a batch and a single accept must not publish over each other.
-
-    ``also`` claims further names, such as the target of an accept that changes the extension,
-    so a folder sweep treats their temp files as in use.
-    """
-    keys = {_settle_key(path) for path in (media, *also)}
-
-    with _settling_lock:
-        if keys & _settling.keys():
-            raise CandidateBusyError(BUSY_MESSAGE)
-        _settling.update(dict.fromkeys(keys))
-
-    try:
-        yield
-    finally:
-        with _settling_lock:
-            for key in keys:
-                _settling.pop(key, None)
 
 
 def difference_percent(before: Image.Image, after: Image.Image) -> float:
@@ -161,7 +120,7 @@ def has_candidate(media: Path) -> bool:
 
 def sweep_comfy_temp_files(folder: Path) -> None:
     sweep_publish_leftovers(
-        folder, temp_suffix=COMFY_TEMP_SUFFIX, stale_suffix=COMFY_STALE_SUFFIX, is_busy=is_settling
+        folder, temp_suffix=COMFY_TEMP_SUFFIX, stale_suffix=COMFY_STALE_SUFFIX, is_busy=is_claimed
     )
 
 
@@ -247,14 +206,11 @@ def _discard_candidate(candidate: Path) -> None:
 
 
 def _discard_edit(media: Path) -> None:
-    """Drop the edit record so the candidate becomes the new base. Recycled, never hard-deleted."""
-    for path in (backup_path_for(media), edit_spec_path(media)):
-        if not path.is_file():
-            continue
-        try:
-            delete_path(path)
-        except OSError as error:
-            raise ValueError(f"Could not discard the edit of {media.name}: {error}") from error
+    """Drop the edit state so the candidate becomes the new base. Recycled, never hard-deleted."""
+    try:
+        discard_edit_state(media)
+    except OSError as error:
+        raise ValueError(f"Could not discard the edit of {media.name}: {error}") from error
 
 
 def accept_candidate(
@@ -273,13 +229,14 @@ def accept_candidate(
     if candidate is None:
         raise NoCandidateError(NO_CANDIDATE_MESSAGE)
 
-    if backup_path_for(media).is_file() and not discard_edit:
-        raise ValueError(EDITED_MESSAGE)
-
     # The published file keeps the candidate's format (ComfyUI writes PNG), not the source's.
     target = media.with_suffix(candidate.suffix)
 
-    with settle_slot(media, target):
+    # The target too: a sweep must treat its temp file as in use.
+    with claim([media, target], "settle"):
+        # Inside the claim: a render could otherwise create the backup right after the check.
+        if backup_path_for(media).is_file() and not discard_edit:
+            raise ValueError(EDITED_MESSAGE)
         validate_candidate_destination(media, candidate)
         validate_candidate_media(candidate, complete=True)
         sweep_comfy_temp_files(media.parent)
@@ -314,7 +271,7 @@ def reject_candidate(media: Path) -> ComfyCandidateResponse:
     if candidate is None:
         raise NoCandidateError(NO_CANDIDATE_MESSAGE)
 
-    with settle_slot(media):
+    with claim([media], "settle"):
         stats_from = media if media.is_file() else candidate
         described = _describe(stats_from, accepted=False, path=media)
         _discard_candidate(candidate)

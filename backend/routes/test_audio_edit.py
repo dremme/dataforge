@@ -10,7 +10,13 @@ from constants import VIDEO_PROJECT_LOUDNESS_TARGET_LUFS
 from ffmpeg_bin import ffmpeg_path
 from routes._test_client import client
 from schemas import AudioEditSpec
-from testing_fixtures import CacheFolderTestCase, TempMediaFolder, write_image, write_wav
+from testing_fixtures import (
+    CacheFolderTestCase,
+    TempMediaFolder,
+    write_edit_spec,
+    write_image,
+    write_wav,
+)
 
 EDIT_URL = "/api/media/audio-edit"
 PROXY_URL = "/api/media/audio-proxy"
@@ -60,7 +66,7 @@ class AudioEditStateTests(unittest.TestCase):
             write_wav(root, "original.wav", seconds=3.0).replace(
                 edit_sidecars.backup_path_for(media)
             )
-            edit_sidecars.write_spec(media, AudioEditSpec(trim_end=1.0))
+            write_edit_spec(media, AudioEditSpec(trim_end=1.0))
 
             payload = client.get(url(EDIT_URL, media)).json()
 

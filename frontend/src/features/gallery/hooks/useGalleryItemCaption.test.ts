@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import * as api from "@/features/gallery/api/captions";
+import { ApiError } from "@/shared/api/http";
 import { HOME_PATH } from "@/test/fixtures";
 import { advanceFakeClock } from "@/test/timers";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
@@ -280,7 +281,9 @@ describe("useGalleryItemCaption", () => {
     });
 
     await waitFor(() => {
-      expect(saveCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`, "Hello");
+      expect(saveCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`, "Hello", {
+        baseRevision: null,
+      });
     });
 
     // The round trip is still open while the user keeps typing.
@@ -446,7 +449,153 @@ describe("useGalleryItemCaption", () => {
     });
 
     await waitFor(() => {
-      expect(saveCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`, "Edited caption");
+      expect(saveCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`, "Edited caption", {
+        baseRevision: null,
+      });
+    });
+  });
+
+  describe("revisions", () => {
+    const conflict = () =>
+      new ApiError(409, "The caption changed since it was loaded", "caption_conflict");
+
+    async function editedAfterLoad(fetchCaption: MockInstance<typeof api.fetchCaption>) {
+      const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
+      // One object, as a listing that has not changed: a new one per render would re-apply it.
+      const item = makeItem("sunset.png", { caption_revision: "listing" });
+      const rendered = renderHook(() => useGalleryItemCaption({ item, onCaptionSaved }));
+      await waitFor(() => expect(fetchCaption).toHaveBeenCalled());
+      await waitFor(() => expect(onCaptionSaved).toHaveBeenCalled());
+      return rendered;
+    }
+
+    it("names the revision the caption was loaded at", async () => {
+      const fetchCaption = vi
+        .spyOn(api, "fetchCaption")
+        .mockResolvedValue(captionResponse("Fresh caption", { caption_revision: "fresh" }));
+      const saveCaption = vi
+        .spyOn(api, "saveCaption")
+        .mockResolvedValue(captionResponse("Edited", { caption_revision: "saved" }));
+      const { result } = await editedAfterLoad(fetchCaption);
+
+      act(() => result.current.handleCaptionChange("Edited"));
+      await act(() => result.current.flushPendingSave());
+      act(() => result.current.handleCaptionChange("Edited again"));
+      await act(() => result.current.flushPendingSave());
+
+      expect(saveCaption.mock.calls.map((call) => call[2])).toEqual([
+        { baseRevision: "fresh" },
+        { baseRevision: "saved" },
+      ]);
+    });
+
+    it("pauses autosave on a conflict and keeps the draft", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const fetchCaption = vi
+        .spyOn(api, "fetchCaption")
+        .mockResolvedValue(captionResponse("Fresh caption", { caption_revision: "fresh" }));
+      const saveCaption = vi.spyOn(api, "saveCaption").mockRejectedValue(conflict());
+      const { result } = await editedAfterLoad(fetchCaption);
+
+      act(() => result.current.handleCaptionChange("Mine"));
+      await act(() => result.current.flushPendingSave());
+      expect(result.current.saveState).toBe("conflict");
+
+      act(() => result.current.handleCaptionChange("Mine, edited further"));
+      await advanceFakeClock(DEFAULT_DEBOUNCE_MS * 2);
+
+      expect(saveCaption).toHaveBeenCalledTimes(1);
+      expect(result.current.caption).toBe("Mine, edited further");
+      expect(result.current.hasUnsavedChanges).toBe(true);
+    });
+
+    it("reloads the caption from disk, dropping the draft", async () => {
+      const fetchCaption = vi
+        .spyOn(api, "fetchCaption")
+        .mockResolvedValue(captionResponse("Fresh caption", { caption_revision: "fresh" }));
+      vi.spyOn(api, "saveCaption").mockRejectedValue(conflict());
+      const { result } = await editedAfterLoad(fetchCaption);
+      act(() => result.current.handleCaptionChange("Mine"));
+      await act(() => result.current.flushPendingSave());
+
+      fetchCaption.mockResolvedValue(
+        captionResponse("Written elsewhere", { caption_revision: "elsewhere" }),
+      );
+      await act(() => result.current.reloadCaption());
+
+      expect(result.current.caption).toBe("Written elsewhere");
+      expect(result.current.saveState).toBe("idle");
+      expect(result.current.hasUnsavedChanges).toBe(false);
+    });
+
+    it("overwrites against the revision now on disk", async () => {
+      const fetchCaption = vi
+        .spyOn(api, "fetchCaption")
+        .mockResolvedValue(captionResponse("Fresh caption", { caption_revision: "fresh" }));
+      const saveCaption = vi.spyOn(api, "saveCaption").mockRejectedValueOnce(conflict());
+      const { result } = await editedAfterLoad(fetchCaption);
+      act(() => result.current.handleCaptionChange("Mine"));
+      await act(() => result.current.flushPendingSave());
+
+      fetchCaption.mockResolvedValue(
+        captionResponse("Written elsewhere", { caption_revision: "elsewhere" }),
+      );
+      saveCaption.mockResolvedValue(captionResponse("Mine", { caption_revision: "mine" }));
+      let saved = false;
+      await act(async () => {
+        saved = await result.current.overwriteCaption();
+      });
+
+      expect(saved).toBe(true);
+      expect(saveCaption).toHaveBeenLastCalledWith(`${HOME_PATH}\\sunset.png`, "Mine", {
+        baseRevision: "elsewhere",
+      });
+      expect(result.current.caption).toBe("Mine");
+    });
+  });
+
+  describe("unreadable captions", () => {
+    const unreadable = {
+      description: null,
+      has_description: false,
+      caption_status: "unreadable" as const,
+      caption_read_error: "encoding" as const,
+      caption_revision: "bytes",
+    };
+
+    it("never offers an unreadable caption as an empty one to type over", async () => {
+      vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("", unreadable));
+      const saveCaption = vi.spyOn(api, "saveCaption");
+      const item = makeItem("sunset.png", unreadable);
+      const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
+      const { result } = renderHook(() => useGalleryItemCaption({ item, onCaptionSaved }));
+
+      expect(result.current.captionLocked).toBe(true);
+      expect(result.current.readError).toBe("encoding");
+      act(() => result.current.handleCaptionChange("Typed over it"));
+      await act(() => result.current.flushPendingSave());
+
+      expect(result.current.caption).toBe("");
+      expect(saveCaption).not.toHaveBeenCalled();
+    });
+
+    it("replaces it only when asked, against the revision of its bytes", async () => {
+      vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("", unreadable));
+      const saveCaption = vi
+        .spyOn(api, "saveCaption")
+        .mockResolvedValue(captionResponse("A new caption", { caption_revision: "new" }));
+      const item = makeItem("sunset.png", unreadable);
+      const onCaptionSaved = vi.fn<(path: string, update: CaptionSaveResponse) => void>();
+      const { result } = renderHook(() => useGalleryItemCaption({ item, onCaptionSaved }));
+
+      act(() => result.current.replaceUnreadableCaption());
+      act(() => result.current.handleCaptionChange("A new caption"));
+      await act(() => result.current.flushPendingSave());
+
+      expect(saveCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`, "A new caption", {
+        baseRevision: "bytes",
+      });
+      expect(result.current.captionLocked).toBe(false);
     });
   });
 });

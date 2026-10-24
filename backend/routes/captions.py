@@ -169,10 +169,13 @@ def update_caption(
         result = save_caption(
             file_path,
             body.text,
+            base_revision=body.base_revision,
             resolve_issue=body.resolve_issue,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=423, detail=str(exc)) from exc
     except OSError as exc:
         raise HTTPException(status_code=500, detail="Failed to write caption file") from exc
 

@@ -156,8 +156,9 @@ describe("useTrainingSamples", () => {
         name: "1__000000500_0.jpg",
         status: "sample",
         description: "a mountain lake",
+        shared_with: [],
       },
-      { path: "C:\\other.txt", name: "other.txt", status: "skipped" },
+      { path: "C:\\other.txt", name: "other.txt", status: "skipped", shared_with: [] },
     ]);
 
     const { result } = renderHookWithQueryClient(() =>

@@ -168,6 +168,29 @@ class JobStartEndpointTests(unittest.TestCase):
                 self.assertEqual(payload["job_type"], job_type)
                 self.assertEqual({name: received[name] for name in body}, body)
 
+    def test_an_empty_selection_is_refused_before_a_job_is_registered(self) -> None:
+        """The audit's F04: ``paths: []`` used to start a whole-folder write."""
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+
+            response = _post("set-captions", root, {"caption": "A lake.", "paths": []})
+
+            self.assertEqual(response.status_code, 422)
+            self.assertEqual(job_manager.list_jobs(), [])
+            self.assertFalse((root / f"{media.stem}.txt").exists())
+
+    def test_an_empty_selection_is_refused_by_a_preview(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "photo.png"), "a dog")
+
+            response = _post(
+                "replace-captions/preview",
+                root,
+                {"search": "dog", "replacement": "cat", "paths": []},
+            )
+
+            self.assertEqual(response.status_code, 422)
+
     def test_an_empty_body_starts_from_the_request_defaults(self) -> None:
         received: dict[str, object] = {}
         with (
@@ -277,7 +300,7 @@ class JobRunEndpointTests(unittest.TestCase):
 
             job = wait_for_job(response.json()["id"])
             self.assertTrue((root / "dusk.png.bak").is_file())
-            self.assertTrue((root / "dusk.edit.json").is_file())
+            self.assertTrue((root / "dusk.png.edit.json").is_file())
             self.assertFalse((root / "noon.png.bak").exists())
 
         self.assertEqual(job.status, "completed")

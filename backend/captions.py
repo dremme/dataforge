@@ -1,12 +1,24 @@
+"""Caption sidecars: the one reader that tells missing, empty, text and unreadable apart, and
+the one writer, which only replaces the revision its caller read.
+
+A revision is a hash of the file's bytes, so it catches an edit from another tab, a job or another
+program alike; ``None`` stands for "no file". Same-stem media share one caption file, so bulk jobs
+group their media by :func:`caption_targets` and change each caption once.
+"""
+
+import hashlib
 import json
+import os
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Literal, NamedTuple
 
+from api_errors import ConflictError
 from caption_cache import cached_by_stat
 from constants import (
     CAPTION_BACKUP_DIR_NAME,
+    CAPTION_CLAIM_WAIT_SECONDS,
     CAPTION_SIDECAR_EXTENSIONS,
     ISSUE_FIX_SENTINELS,
     ISSUE_SIDECAR_SUFFIX,
@@ -14,28 +26,81 @@ from constants import (
     MAX_RULE_FINDINGS,
 )
 from file_write import write_text_atomic
+from media_claims import claim
+from schemas import CaptionReadError, CaptionStatus
 
 
-def _decode_caption_file(path: Path) -> str | None:
-    """``None`` for text that is not UTF-8; raises ``OSError`` when the file cannot be read."""
+class CaptionConflictError(ConflictError):
+    """The caption is no longer the revision the writer read; nothing was written."""
+
+    code = "caption_conflict"
+
+
+class CaptionRead(NamedTuple):
+    status: CaptionStatus
+    #: Stripped, and only for ``"text"``.
+    text: str | None
+    #: ``None`` when there is no file, or when it could not be opened.
+    revision: str | None
+    read_error: CaptionReadError | None
+
+
+NO_CAPTION_FILE = CaptionRead("none", None, None, None)
+_INACCESSIBLE = CaptionRead("unreadable", None, None, "access")
+
+
+def caption_revision(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()[:16]
+
+
+def _caption_from_bytes(raw: bytes) -> CaptionRead:
+    revision = caption_revision(raw)
     try:
-        return path.read_text(encoding="utf-8-sig")
+        # Universal newlines, as text-mode reads give: a search spanning lines matches CRLF files.
+        text = raw.decode("utf-8-sig").replace("\r\n", "\n").replace("\r", "\n").strip()
     except UnicodeDecodeError:
-        return None
+        return CaptionRead("unreadable", None, revision, "encoding")
+    if not text:
+        return CaptionRead("empty", None, revision, None)
+    return CaptionRead("text", text, revision, None)
 
 
-def _read_caption_text(path: Path) -> str | None:
-    """``None`` when the file cannot be read, including text that is not UTF-8."""
+def read_caption_file(path: Path) -> CaptionRead:
     try:
-        return _decode_caption_file(path)
+        raw = path.read_bytes()
+    except FileNotFoundError:
+        return NO_CAPTION_FILE
     except OSError:
-        return None
+        return _INACCESSIBLE
+    return _caption_from_bytes(raw)
+
+
+def caption_path_for(media_path: Path) -> Path:
+    return media_path.parent / f"{media_path.stem}{CAPTION_SIDECAR_EXTENSIONS[0]}"
+
+
+def read_caption(media_path: Path) -> CaptionRead:
+    return read_caption_file(caption_path_for(media_path))
+
+
+def caption_from_sidecar(sidecar_path: Path, mtime_ns: int, size: int) -> CaptionRead:
+    """:func:`read_caption_file` for a sidecar the caller has already stat'ed.
+
+    A file that cannot be opened is not remembered, so the next listing tries again.
+    """
+    return cached_by_stat(
+        "caption",
+        sidecar_path,
+        mtime_ns,
+        size,
+        lambda: _caption_from_bytes(sidecar_path.read_bytes()),
+        lambda: _INACCESSIBLE,
+    )
 
 
 def is_blank_caption_file(path: Path) -> bool:
     """Whitespace only. An unreadable file is not blank: its text may still be worth keeping."""
-    raw = _read_caption_text(path)
-    return raw is not None and not raw.strip()
+    return read_caption_file(path).status == "empty"
 
 
 def resolve_caption_file_name(stem: str, exists: Callable[[str], bool]) -> str | None:
@@ -45,17 +110,6 @@ def resolve_caption_file_name(stem: str, exists: Callable[[str], bool]) -> str |
             return name
 
     return None
-
-
-def resolve_caption_file(media_path: Path) -> Path | None:
-    folder = media_path.parent
-    name = resolve_caption_file_name(
-        media_path.stem,
-        lambda candidate: (folder / candidate).is_file(),
-    )
-    if name is None:
-        return None
-    return folder / name
 
 
 def load_backup_caption(media_path: Path) -> str | None:
@@ -68,156 +122,112 @@ def load_backup_caption(media_path: Path) -> str | None:
     if name is None:
         return None
 
-    raw = _read_caption_text(backup_dir / name)
-    if raw is None:
+    backup = read_caption_file(backup_dir / name)
+    if backup.status == "unreadable":
         return None
-
-    return raw.strip()
-
-
-def caption_path_for(media_path: Path) -> Path:
-    return media_path.parent / f"{media_path.stem}{CAPTION_SIDECAR_EXTENSIONS[0]}"
+    return backup.text or ""
 
 
-def _caption_summary_from_raw(raw_content: str | None) -> tuple[str | None, str]:
-    """Assumes a sidecar exists, so an unusable one reports ``"empty"`` rather than ``"none"``."""
-    if raw_content is not None:
-        text = raw_content.strip()
-        if text:
-            return text, "text"
+class CaptionTarget(NamedTuple):
+    caption: Path
+    #: Every given media file that reads this caption, in the order given.
+    media: tuple[Path, ...]
 
-    return None, "empty"
+    @property
+    def primary(self) -> Path:
+        """The file a job reports and, where it looks at pixels, looks at."""
+        return self.media[0]
 
-
-def caption_summary_from_sidecar(
-    sidecar_path: Path,
-    mtime_ns: int,
-    size: int,
-) -> tuple[str | None, str]:
-    """:func:`load_caption_summary` for a sidecar the caller has already stat'ed."""
-    return cached_by_stat(
-        "caption",
-        sidecar_path,
-        mtime_ns,
-        size,
-        lambda: _caption_summary_from_raw(_decode_caption_file(sidecar_path)),
-        lambda: _caption_summary_from_raw(None),
-    )
+    @property
+    def shared_with(self) -> list[str]:
+        return [path.name for path in self.media[1:]]
 
 
-class CaptionBundle(NamedTuple):
-    description: str | None
-    caption_status: str
-    caption_path: Path | None
-
-
-def _load_caption_bundle(media_path: Path) -> CaptionBundle:
-    description: str | None = None
-    caption_status = "none"
-
-    caption_path = resolve_caption_file(media_path)
-
-    if caption_path is not None:
-        description, caption_status = _caption_summary_from_raw(_read_caption_text(caption_path))
-
-    return CaptionBundle(description, caption_status, caption_path)
-
-
-def load_caption_summary(media_path: Path) -> tuple[str | None, str]:
-    bundle = _load_caption_bundle(media_path)
-    return (bundle.description, bundle.caption_status)
+def caption_targets(media_files: Iterable[Path]) -> list[CaptionTarget]:
+    """One entry per caption file, so a caption same-stem media share is changed once."""
+    grouped: dict[str, tuple[Path, list[Path]]] = {}
+    for media in media_files:
+        caption = caption_path_for(media)
+        grouped.setdefault(os.path.normcase(caption), (caption, []))[1].append(media)
+    return [CaptionTarget(caption, tuple(media)) for caption, media in grouped.values()]
 
 
 NO_CAPTION_STATUS = "no_caption"
 CAPTION_READ_ERROR = "read_error"
-#: A model reply not written because the caption or its file changed while the model ran.
+#: A write refused because the caption or its file changed after it was read.
 CAPTION_CHANGED_STATUS = "caption_changed"
 
 
-def load_reference_caption(media_path: Path) -> tuple[str | None, str]:
-    """``(text, "ok")``, or ``(None, status)``: ``no_caption`` if missing or textless, else ``read_error``."""
-    caption_path = resolve_caption_file(media_path)
-    if caption_path is None:
-        return None, NO_CAPTION_STATUS
+class ReferenceCaption(NamedTuple):
+    """What a job reads before it changes a caption, and the revision to write back against."""
 
-    raw = _read_caption_text(caption_path)
-    if raw is None:
-        return None, CAPTION_READ_ERROR
-
-    text = raw.strip() or None
-    if not text:
-        return None, NO_CAPTION_STATUS
-
-    return text, "ok"
+    text: str | None
+    #: ``"ok"``, :data:`NO_CAPTION_STATUS` (missing or textless) or :data:`CAPTION_READ_ERROR`.
+    status: str
+    revision: str | None
 
 
-def caption_changed_since(media_path: Path, baseline: str | None) -> str | None:
-    """Why a reply built from ``baseline`` must not be written, or ``None`` when it may be.
-
-    Read just before the write, so a caption saved while the model ran is not overwritten.
-    """
-    if not media_path.is_file():
-        return "The file was moved or deleted while the model was running"
-    current, _status = load_reference_caption(media_path)
-    if current != baseline:
-        return "The caption was edited while the model was running; that edit was kept"
-    return None
+def load_reference_caption(media_path: Path) -> ReferenceCaption:
+    read = read_caption(media_path)
+    if read.status == "unreadable":
+        return ReferenceCaption(None, CAPTION_READ_ERROR, read.revision)
+    if read.status == "text":
+        return ReferenceCaption(read.text, "ok", read.revision)
+    return ReferenceCaption(None, NO_CAPTION_STATUS, read.revision)
 
 
 def build_caption_response(media_path: Path) -> dict[str, object]:
-    bundle = _load_caption_bundle(media_path)
-    description = bundle.description
-    caption_status = bundle.caption_status
-    caption_path = bundle.caption_path
-
+    read = read_caption(media_path)
     issue = load_issue_summary(media_path)
 
     return {
-        "description": description,
-        "has_description": description is not None,
-        "has_caption_file": caption_status != "none",
-        "caption_status": caption_status,
-        "caption_file": str(caption_path) if caption_path else "",
+        "description": read.text,
+        "has_description": read.text is not None,
+        "has_caption_file": read.status != "none",
+        "caption_status": read.status,
+        "caption_revision": read.revision,
+        "caption_read_error": read.read_error,
+        "caption_file": str(caption_path_for(media_path)) if read.status != "none" else "",
         "issue_fixes": issue.fixes,
         "rule_findings": issue.rules,
         "has_issue_file": issue.has_file,
     }
 
 
-def _complete_save_response(
-    media_path: Path,
-    *,
-    caption_path: Path,
-    resolve_issue: bool,
-) -> dict[str, object]:
-    if resolve_issue:
-        delete_issue_file(media_path)
-
-    response = build_caption_response(media_path)
-    response["has_caption_file"] = True
-    response["caption_file"] = str(caption_path)
-    return response
-
-
 def save_caption(
     media_path: Path,
     text: str,
     *,
+    base_revision: str | None,
     resolve_issue: bool = False,
     trailing_newline: bool = True,
 ) -> dict[str, object]:
-    caption_path = caption_path_for(media_path)
-    normalized = text.strip()
-    write_text_atomic(
-        caption_path,
-        normalized + ("\n" if normalized and trailing_newline else ""),
-    )
+    """Write ``text`` over the caption only while it is still ``base_revision``.
 
-    return _complete_save_response(
-        media_path,
-        caption_path=caption_path,
-        resolve_issue=resolve_issue,
-    )
+    Raises :class:`CaptionConflictError` when the caption changed since it was read, or the media
+    is gone, and ``OSError`` when the current caption cannot be opened to compare, so a file
+    another program holds is never overwritten blind.
+    """
+    caption_path = caption_path_for(media_path)
+    with claim([caption_path], "caption", wait_s=CAPTION_CLAIM_WAIT_SECONDS):
+        if not media_path.is_file():
+            raise CaptionConflictError(f"{media_path.name} was moved or deleted")
+        current = read_caption_file(caption_path)
+        if current.read_error == "access":
+            raise PermissionError(f"{caption_path.name} could not be read, so it was not replaced")
+        if current.revision != base_revision:
+            raise CaptionConflictError(
+                f"The caption of {media_path.name} changed since it was loaded"
+            )
+
+        normalized = text.strip()
+        write_text_atomic(
+            caption_path,
+            normalized + ("\n" if normalized and trailing_newline else ""),
+        )
+        if resolve_issue:
+            delete_issue_file(media_path)
+        return build_caption_response(media_path)
 
 
 def issue_file_path(media_path: Path) -> Path:

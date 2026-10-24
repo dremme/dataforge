@@ -11,7 +11,15 @@ from PIL import Image
 import edit_sidecars
 from routes._test_client import client
 from schemas import ImageEditSpec
-from testing_fixtures import TempMediaFolder, write_gif, write_image, write_mp4_video
+from testing_fixtures import (
+    TempMediaFolder,
+    claimed_elsewhere,
+    write_edit_backup,
+    write_edit_spec,
+    write_gif,
+    write_image,
+    write_mp4_video,
+)
 
 EDIT_URL = "/api/media/image-edit"
 
@@ -37,7 +45,7 @@ class ImageEditStateTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_image(root, "photo.png")
             edit_sidecars.backup_path_for(media).write_bytes(b"original")
-            edit_sidecars.write_spec(media, ImageEditSpec(rotate=90, mirror_h=True, scale=0.5))
+            write_edit_spec(media, ImageEditSpec(rotate=90, mirror_h=True, scale=0.5))
 
             payload = client.get(edit_url(media)).json()
 
@@ -227,7 +235,7 @@ class AutoAdjustImageTests(unittest.TestCase):
     def test_the_original_is_read_rather_than_the_edited_file(self) -> None:
         with TempMediaFolder() as root:
             media = write_image(root, "photo.png")
-            edit_sidecars.ensure_backup(media)
+            write_edit_backup(media)
 
             with patch(
                 "routes.media.image_analysis_pixels", side_effect=ValueError("read")
@@ -266,7 +274,7 @@ class AutoAdjustImageTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_image(root, "photo.png")
 
-            with edit_sidecars.render_slot(media):
+            with claimed_elsewhere(media):
                 response = client.post(edit_url(media, "/auto"), json={})
 
             self.assertEqual(response.status_code, 200)

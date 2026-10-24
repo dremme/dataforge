@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { DialogShell } from "@/shared/ui/DialogShell";
 import { NotificationContainer } from "./NotificationContainer";
@@ -56,4 +57,33 @@ it("keeps feedback inside an open modal and returns it to the page when the moda
   rerender(<Fixture open={false} />);
   await waitFor(() => expect(screen.getByRole("status").closest("dialog")).toBeNull());
   expect(screen.getByRole("status")).toHaveTextContent("Changes saved");
+});
+
+it("runs a toast's action and dismisses the toast", async () => {
+  const user = userEvent.setup();
+  const run = vi.fn<() => void>();
+  const onDismiss = vi.fn<(id: string) => void>();
+  render(
+    <NotificationContainer
+      toasts={[
+        {
+          id: "leftover",
+          message: "Deleted sunset.png, but sunset.txt could not be removed.",
+          variant: "warning",
+          action: { label: "Retry", run },
+          count: 1,
+          durationMs: 6000,
+        },
+      ]}
+      onDismiss={onDismiss}
+      onRemove={vi.fn<(id: string) => void>()}
+      onPauseAutoDismiss={vi.fn<(id: string) => void>()}
+      onResumeAutoDismiss={vi.fn<(id: string) => void>()}
+    />,
+  );
+
+  await user.click(screen.getByRole("button", { name: "Retry" }));
+
+  expect(run).toHaveBeenCalledTimes(1);
+  expect(onDismiss).toHaveBeenCalledWith("leftover");
 });

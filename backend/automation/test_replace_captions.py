@@ -322,6 +322,43 @@ class ReplaceCaptionsJobTests(unittest.TestCase):
             self.assertEqual(result["stats"]["success"], 0)
 
 
+class SharedCaptionTests(unittest.TestCase):
+    """The audit's F03: a caption shared by scene.jpg and scene.png was replaced twice, and its
+    backup kept the half-done text."""
+
+    def _shared(self, root):
+        jpg = write_media(root, "scene.jpg")
+        write_media(root, "scene.png")
+        return write_txt_caption(jpg, "a")
+
+    def test_a_shared_caption_is_replaced_once(self) -> None:
+        with TempMediaFolder() as root:
+            caption = self._shared(root)
+
+            result = run_replace_captions_job(root, search="a", replacement="aa")
+
+            self.assertEqual(caption.read_text(encoding="utf-8").strip(), "aa")
+            self.assertEqual(result["stats"]["total"], 1)
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(result["results"][0]["shared_with"], ["scene.png"])
+
+    def test_its_backup_keeps_the_text_from_before_the_job(self) -> None:
+        with TempMediaFolder() as root:
+            self._shared(root)
+
+            run_replace_captions_job(root, search="a", replacement="aa")
+
+            self.assertEqual((root / ".backup" / "scene.txt").read_text(encoding="utf-8"), "a")
+
+    def test_the_preview_counts_it_once(self) -> None:
+        with TempMediaFolder() as root:
+            self._shared(root)
+
+            preview = preview_caption_replacements(root, search="a", replacement="aa")
+
+            self.assertEqual((preview["total"], preview["matched"]), (1, 1))
+
+
 class ReplaceCaptionsPreviewTests(unittest.TestCase):
     def test_counts_matches_and_returns_samples(self) -> None:
         with TempMediaFolder() as root:

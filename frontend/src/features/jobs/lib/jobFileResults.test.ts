@@ -12,7 +12,7 @@ import {
 } from "./jobFileResults";
 
 function makeResult(name: string, status: string): JobFileResult {
-  return { path: `C:\\Photos\\${name}`, name, status };
+  return { path: `C:\\Photos\\${name}`, name, status, shared_with: [] };
 }
 
 describe("jobFileResults", () => {

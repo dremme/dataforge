@@ -7,6 +7,7 @@ import {
   type KeeperReason,
   duplicateGridColumns,
 } from "@/features/gallery/lib/duplicates";
+import { useDeleteLeftoversNotice } from "@/features/gallery/hooks/useDeleteLeftoversNotice";
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
@@ -48,6 +49,7 @@ export function DuplicateResolverDialog({
 }: DuplicateResolverDialogProps) {
   // Frozen at mount: resolving a group removes files and would reshuffle it under the index.
   const [queue] = useState(() => groups);
+  const notifyDeleteLeftovers = useDeleteLeftoversNotice();
   const group = queue[index];
 
   const [keepPath, setKeepPath] = useState<string | null>(null);
@@ -129,6 +131,7 @@ export function DuplicateResolverDialog({
         return;
       }
 
+      notifyDeleteLeftovers(result.leftovers);
       settle(
         group.group,
         discard.map((member) => member.path),
@@ -138,7 +141,7 @@ export function DuplicateResolverDialog({
     } finally {
       setPending(null);
     }
-  }, [busy, discard, group, selectedPath, settle]);
+  }, [busy, discard, group, notifyDeleteLeftovers, selectedPath, settle]);
 
   const handleDismiss = useCallback(async () => {
     if (!group || busy) return;

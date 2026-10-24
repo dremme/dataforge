@@ -13,7 +13,7 @@ from env_file import load_env_file
 
 load_env_file()
 
-from api_errors import ApiError, api_error_handler
+from api_errors import ApiError, ConflictError, api_error_handler, conflict_error_handler
 from automation.jobs import job_manager
 from db import init_db
 from external_jobs_feed import run_external_jobs_feed
@@ -73,6 +73,7 @@ app.add_middleware(
 )
 
 app.add_exception_handler(ApiError, api_error_handler)
+app.add_exception_handler(ConflictError, conflict_error_handler)
 app.include_router(router)
 
 # After the router: the mount answers "/" and everything below it.

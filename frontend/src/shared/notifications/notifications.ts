@@ -4,10 +4,17 @@ import type { NotificationRecord, NotificationVariant } from "@/shared/types";
 
 export type { NotificationRecord, NotificationVariant };
 
+/** A follow-up on the toast itself; the notification history keeps only the message. */
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
 export interface Toast {
   id: string;
   message: string;
   variant: NotificationVariant;
+  action?: ToastAction;
   /** Repeats of the newest identical toast raise this instead of stacking another. */
   count: number;
   durationMs: number;
@@ -17,6 +24,7 @@ export interface Toast {
 export interface NotifyOptions {
   message: string;
   variant: NotificationVariant;
+  action?: ToastAction;
 }
 
 export const NOTIFICATION_EXIT_MS = 220;

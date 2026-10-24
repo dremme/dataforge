@@ -10,11 +10,18 @@ from unittest.mock import patch
 from PIL import Image
 
 from automation.resize import run_resize_job, validate_resize_folder
-from edit_sidecars import backup_path_for, edit_spec_path, ensure_backup, render_slot, write_spec
+from edit_sidecars import backup_path_for, edit_spec_path
 from ffmpeg_run import FfmpegCancelled
 from image_edit import apply_image_edit, read_image_edit_spec, revert_image_edit
 from schemas import EditCropRect, ImageEditSpec, SizeFit, VideoEditSpec
-from testing_fixtures import TempMediaFolder, write_image, write_mp4_video
+from testing_fixtures import (
+    TempMediaFolder,
+    claimed_elsewhere,
+    write_edit_backup,
+    write_edit_spec,
+    write_image,
+    write_mp4_video,
+)
 from video_edit import SourceProbe, read_edit_spec
 
 
@@ -80,14 +87,14 @@ class ImageTests(unittest.TestCase):
             self.assertEqual(result["stats"]["skipped"], 1)
             self.assertIsNone(read_image_edit_spec(media))
 
-    def test_a_file_open_in_a_render_is_skipped(self) -> None:
+    def test_a_file_open_in_a_render_is_reported_busy(self) -> None:
         with TempMediaFolder() as root:
             media = write_image(root, "busy.png", width=400, height=150)
 
-            with render_slot(media):
+            with claimed_elsewhere(media):
                 result = run_resize_job(root, megapixels=0.02, multiple=32)
 
-            self.assertEqual(result["stats"]["skipped"], 1)
+            self.assertEqual(result["stats"]["busy"], 1)
 
     def test_only_the_selection_is_resized(self) -> None:
         with TempMediaFolder() as root:
@@ -148,7 +155,7 @@ class VideoTests(unittest.TestCase):
     def test_stores_the_fit_and_renders_with_the_probe(self, probe) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root)
-            write_spec(media, VideoEditSpec(trim_start=1.0, scale=0.5))
+            write_edit_spec(media, VideoEditSpec(trim_start=1.0, scale=0.5))
 
             with patch("automation.resize.apply_video_edit") as apply:
                 result = run_resize_job(root, megapixels=2.0, multiple=32, ffmpeg="ffmpeg")
@@ -184,9 +191,9 @@ class VideoTests(unittest.TestCase):
     def test_reset_keeps_other_video_edits_without_probing(self, probe) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root)
-            ensure_backup(media)
+            write_edit_backup(media)
             fit = SizeFit(megapixels=2.0, multiple=32)
-            write_spec(media, VideoEditSpec(trim_start=1.0, fit=fit))
+            write_edit_spec(media, VideoEditSpec(trim_start=1.0, fit=fit))
 
             with patch("automation.resize.apply_video_edit") as apply:
                 result = run_resize_job(
@@ -202,9 +209,9 @@ class VideoTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_mp4_video(root)
             original = media.read_bytes()
-            ensure_backup(media)
+            write_edit_backup(media)
             media.write_bytes(b"rendered")
-            write_spec(media, VideoEditSpec(fit=SizeFit(megapixels=2.0, multiple=32)))
+            write_edit_spec(media, VideoEditSpec(fit=SizeFit(megapixels=2.0, multiple=32)))
 
             with patch("automation.resize.apply_video_edit") as apply:
                 result = run_resize_job(

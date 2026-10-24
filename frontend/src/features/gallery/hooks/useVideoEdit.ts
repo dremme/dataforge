@@ -39,6 +39,7 @@ import { hasUsableDuration, formatFrameTime } from "@/features/gallery/lib/video
 import { formatApiError } from "@/shared/api/http";
 import { useServerEvent } from "@/shared/events/serverEvents";
 import { useNotify } from "@/shared/notifications/notifications";
+import { replacedExternallyMessage } from "@/features/gallery/lib/mediaActionMessages";
 import type { GalleryItem, VideoEditSpec } from "@/shared/types";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
 import { useChanged } from "@/shared/hooks/useChanged";
@@ -440,7 +441,9 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
 
   const runEdit = useCallback(
     (
-      request: (path: string) => Promise<{ has_backup: boolean; width?: number | null }>,
+      request: (
+        path: string,
+      ) => Promise<{ has_backup: boolean; replaced_externally: boolean; width?: number | null }>,
       describe: (path: string) => string,
       settle: () => void,
     ) => {
@@ -464,6 +467,9 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
           const result = await request(mediaPath);
           if (mountedRef.current) setHasBackup(result.has_backup);
           notify({ variant: "success", message: describe(name) });
+          if (result.replaced_externally) {
+            notify({ variant: "warning", message: replacedExternallyMessage(name) });
+          }
           await onEdited?.();
           // settle records what is now on disk so Apply stays quiet until the next change.
           if (mountedRef.current) settle();

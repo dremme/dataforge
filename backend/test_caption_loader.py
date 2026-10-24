@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from captions import build_caption_response, load_caption_summary
+from captions import build_caption_response, read_caption
 from testing_fixtures import TempMediaFolder, write_media, write_txt_caption
 
 
@@ -18,18 +18,18 @@ class CaptionLoaderTests(unittest.TestCase):
             media = write_media(root)
             write_txt_caption(media, "Shared caption.")
             read_calls = {"count": 0}
-            original = Path.read_text
+            original = Path.read_bytes
 
-            def counting_read_text(self, *args, **kwargs):
+            def counting_read_bytes(self, *args, **kwargs):
                 if self.suffix == ".txt":
                     read_calls["count"] += 1
                 return original(self, *args, **kwargs)
 
-            with patch.object(Path, "read_text", counting_read_text):
-                summary = load_caption_summary(media)
+            with patch.object(Path, "read_bytes", counting_read_bytes):
+                summary = read_caption(media)
                 response = build_caption_response(media)
 
-            self.assertEqual(summary[0], "Shared caption.")
+            self.assertEqual(summary.text, "Shared caption.")
             self.assertEqual(response["description"], "Shared caption.")
             self.assertEqual(read_calls["count"], 2)
 

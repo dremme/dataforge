@@ -25,12 +25,14 @@ vi.mock("@/features/gallery/api/media", async (importOriginal) => {
   return {
     ...actual,
     deleteSelectedMedia: vi.fn<typeof deleteSelectedMedia>(),
+    cleanUpAfterDelete: vi.fn<typeof mediaApi.cleanUpAfterDelete>(),
     transferSelectedMedia: vi.fn<typeof transferSelectedMedia>(),
     previewMediaTransfer: vi.fn<typeof previewMediaTransfer>(),
   };
 });
 
 const deleteSelectedMediaMock = vi.mocked(mediaApi.deleteSelectedMedia);
+const cleanUpAfterDeleteMock = vi.mocked(mediaApi.cleanUpAfterDelete);
 const transferSelectedMediaMock = vi.mocked(mediaApi.transferSelectedMedia);
 const previewMediaTransferMock = vi.mocked(mediaApi.previewMediaTransfer);
 
@@ -176,7 +178,11 @@ describe("GallerySelectionControls", () => {
     const selectedPaths = new Set([visiblePath, `${HOME_PATH}\\beach.jpg`]);
     const visibleSelectedPaths = new Set([visiblePath]);
 
-    deleteSelectedMediaMock.mockResolvedValue({ succeeded: [visiblePath], failed: [] });
+    deleteSelectedMediaMock.mockResolvedValue({
+      succeeded: [visiblePath],
+      failed: [],
+      responses: [],
+    });
 
     renderControls({ selectedPaths, visibleSelectedPaths, onDeleted }, 1);
 
@@ -201,6 +207,7 @@ describe("GallerySelectionControls", () => {
     deleteSelectedMediaMock.mockResolvedValue({
       succeeded: Array.from(selectedPaths),
       failed: [],
+      responses: [],
     });
 
     renderControls({ selectedPaths, onDeleted, exitSelectionMode });
@@ -233,6 +240,7 @@ describe("GallerySelectionControls", () => {
     deleteSelectedMediaMock.mockResolvedValue({
       succeeded: Array.from(selectedPaths),
       failed: [],
+      responses: [],
     });
 
     renderControls({ selectedPaths });
@@ -259,6 +267,7 @@ describe("GallerySelectionControls", () => {
     deleteSelectedMediaMock.mockResolvedValue({
       succeeded: Array.from(selectedPaths),
       failed: [],
+      responses: [],
     });
 
     renderControls({ selectedPaths, onDeleted });
@@ -732,6 +741,7 @@ describe("GallerySelectionControls", () => {
     deleteSelectedMediaMock.mockResolvedValue({
       succeeded: [`${HOME_PATH}\\sunset.png`],
       failed: [{ path: `${HOME_PATH}\\beach.jpg`, error: new Error("Permission denied") }],
+      responses: [],
     });
 
     renderControls({ selectedPaths, onDeleted, exitSelectionMode });
@@ -753,6 +763,41 @@ describe("GallerySelectionControls", () => {
       await screen.findByText("Could not delete beach.jpg: Permission denied"),
     ).toBeInTheDocument();
   });
+  it("warns about a related file a delete left behind, and retries just that file", async () => {
+    const user = userEvent.setup();
+    const sunset = `${HOME_PATH}\\sunset.png`;
+    const caption = `${HOME_PATH}\\sunset.txt`;
+    deleteSelectedMediaMock.mockResolvedValue({
+      succeeded: [sunset],
+      failed: [],
+      responses: [
+        {
+          path: sunset,
+          deleted: ["sunset.png"],
+          retained: [{ path: caption, message: "The file is in use" }],
+        },
+      ],
+    });
+    cleanUpAfterDeleteMock.mockResolvedValue({
+      path: sunset,
+      deleted: ["sunset.txt"],
+      retained: [],
+    });
+
+    renderControls({ selectedPaths: new Set([sunset]) }, 1);
+    await user.click(screen.getByRole("button", { name: "Delete selected files" }));
+    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+
+    expect(
+      await screen.findByText("Deleted sunset.png, but sunset.txt could not be removed."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(cleanUpAfterDeleteMock).toHaveBeenCalledWith(sunset, [caption]);
+    expect(await screen.findByText("Removed the files left behind.")).toBeInTheDocument();
+  });
+
   it("opens the delete confirm on Delete", async () => {
     renderControls();
 
@@ -843,7 +888,11 @@ describe("GallerySelectionControls", () => {
     const selectedPaths = new Set([visiblePath, `${HOME_PATH}\\beach.jpg`]);
     const visibleSelectedPaths = new Set([visiblePath]);
 
-    deleteSelectedMediaMock.mockResolvedValue({ succeeded: [visiblePath], failed: [] });
+    deleteSelectedMediaMock.mockResolvedValue({
+      succeeded: [visiblePath],
+      failed: [],
+      responses: [],
+    });
 
     renderControls({ selectedPaths, visibleSelectedPaths, onDeleted }, 1);
 

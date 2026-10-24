@@ -5,7 +5,7 @@ from unittest.mock import patch
 from urllib.parse import quote
 
 from duplicates import DuplicateFinding, duplicate_file_path, save_duplicate_finding
-from media_delete import deletes_to_trash
+from file_trash import deletes_to_trash
 from routes._test_client import client
 from testing_fixtures import TempMediaFolder, write_media, write_txt_caption
 
@@ -101,10 +101,10 @@ class ListDuplicatesTests(unittest.TestCase):
 
     def test_the_capability_follows_the_delete_implementation(self) -> None:
         """Named for the behaviour, so a future trash backend flips it on its own."""
-        with patch("media_delete.sys.platform", "win32"):
+        with patch("file_trash.sys.platform", "win32"):
             self.assertTrue(deletes_to_trash())
 
-        with patch("media_delete.sys.platform", "linux"):
+        with patch("file_trash.sys.platform", "linux"):
             self.assertFalse(deletes_to_trash())
 
     def test_a_still_sharing_the_video_stem_does_not_hide_the_group(self) -> None:

@@ -5,15 +5,29 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
+from automation.job_runner import (
+    FileOutcome,
+    ProgressCallback,
+    ShouldCancel,
+    run_caption_job,
+    run_media_job,
+)
 from automation.selection import filter_media_list, list_folder_media
-from captions import CAPTION_READ_ERROR, load_backup_caption, load_reference_caption
+from captions import (
+    CAPTION_READ_ERROR,
+    CaptionTarget,
+    caption_path_for,
+    load_backup_caption,
+    load_reference_caption,
+)
 from constants import (
     CAPTION_BACKUP_DIR_NAME,
+    CAPTION_CLAIM_WAIT_SECONDS,
     CAPTION_SIDECAR_EXTENSIONS,
     MEDIA_EXTENSIONS,
 )
 from file_write import copy_file_atomic
+from media_claims import claim
 
 
 def caption_backup_dir(folder: Path) -> Path:
@@ -24,20 +38,19 @@ def list_backup_captions_media(folder: Path) -> list[Path]:
     return list_folder_media(folder, MEDIA_EXTENSIONS, order="name")
 
 
-def caption_sidecars(media_path: Path) -> list[Path]:
-    candidates = [
-        media_path.parent / f"{media_path.stem}{suffix}" for suffix in CAPTION_SIDECAR_EXTENSIONS
-    ]
-    return [path for path in candidates if path.is_file()]
+def back_up_caption(caption: Path, backup_dir: Path) -> bool:
+    """Refresh the backup with the current caption before an edit; False when there is none.
 
-
-def back_up_caption_sidecars(media_path: Path, backup_dir: Path) -> None:
-    """Refresh each sidecar backup with the current caption before an edit."""
-    for sidecar in caption_sidecars(media_path):
-        target = backup_dir / sidecar.name
-        if target.exists() and not target.is_file():
-            raise OSError(f"Caption backup path is not a file: {target.name}")
-        copy_file_atomic(sidecar, target)
+    Called once per caption a job changes, never per file, so a caption same-stem media share
+    keeps the text it had before the job.
+    """
+    if not caption.is_file():
+        return False
+    target = backup_dir / caption.name
+    if target.exists() and not target.is_file():
+        raise OSError(f"Caption backup path is not a file: {target.name}")
+    copy_file_atomic(caption, target)
+    return True
 
 
 def list_backup_sidecars(folder: Path) -> list[Path]:
@@ -93,7 +106,7 @@ def validate_backup_captions_folder(folder: Path) -> None:
     if not media_files:
         raise ValueError("No supported images or videos found in folder")
 
-    if not any(caption_sidecars(media_path) for media_path in media_files):
+    if not any(caption_path_for(media_path).is_file() for media_path in media_files):
         raise ValueError("No captions found to back up")
 
 
@@ -137,7 +150,7 @@ def preview_restore_captions(
             continue
 
         backup = load_backup_caption(media)
-        current, status = load_reference_caption(media)
+        current, status, _revision = load_reference_caption(media)
         error = None
         if backup is None:
             error = "Could not read the backed up caption"
@@ -180,23 +193,16 @@ def run_backup_captions_job(
     except OSError as exc:
         raise ValueError(f"Could not create {CAPTION_BACKUP_DIR_NAME} folder: {exc}") from exc
 
-    def process(media_path: Path) -> FileOutcome:
-        sidecars = caption_sidecars(media_path)
-        if not sidecars:
-            return FileOutcome.counted("skipped", "No sidecar to back up")
-
+    def process(target: CaptionTarget) -> FileOutcome:
         try:
-            for sidecar in sidecars:
-                copy_file_atomic(sidecar, backup_dir / sidecar.name)
+            if not back_up_caption(target.caption, backup_dir):
+                return FileOutcome.counted("skipped", "No sidecar to back up")
         except OSError as exc:
             return FileOutcome.counted("write_error", exc)
 
-        return FileOutcome(
-            status="success",
-            stats={"success": 1, "sidecars": len(sidecars)},
-        )
+        return FileOutcome(status="success", stats={"success": 1, "sidecars": 1})
 
-    return run_media_job(
+    return run_caption_job(
         folder,
         media_files,
         stats={
@@ -229,8 +235,10 @@ def run_restore_captions_job(
         if _media_for(folder, sidecar) is None:
             return FileOutcome.counted("orphaned", "No media file for this sidecar")
 
+        live = folder / sidecar.name
         try:
-            copy_file_atomic(sidecar, folder / sidecar.name)
+            with claim([live], "caption", wait_s=CAPTION_CLAIM_WAIT_SECONDS):
+                copy_file_atomic(sidecar, live)
         except OSError as exc:
             return FileOutcome.counted("write_error", exc)
 

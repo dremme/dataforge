@@ -36,6 +36,7 @@ from constants import (
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, run_ffmpeg
 from file_write import copy_file_atomic, write_text_atomic
+from media_claims import claim
 from media_group import media_group_paths
 from schemas import (
     NotificationVariant,
@@ -401,6 +402,18 @@ def publish_export(folder: Path, project: VideoProject, temp_path: Path, output:
     written, so no video appears without its snapshot."""
     snapshot = snapshot_path_for(output)
     caption = caption_path_for(output)
+    with claim([output, caption], "export"):
+        _publish_claimed(folder, project, temp_path, output, snapshot, caption)
+
+
+def _publish_claimed(
+    folder: Path,
+    project: VideoProject,
+    temp_path: Path,
+    output: Path,
+    snapshot: Path,
+    caption: Path,
+) -> None:
     written: list[Path] = []
     try:
         if snapshot.exists():

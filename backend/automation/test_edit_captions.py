@@ -327,6 +327,35 @@ class EditCaptionsBackupTests(unittest.TestCase):
             backed_up = root / ".backup" / "photo.txt"
             self.assertEqual(backed_up.read_text(encoding="utf-8-sig").strip(), ORIGINAL)
 
+    def test_a_caption_two_files_share_is_edited_and_backed_up_once(self) -> None:
+        """The audit's F03: the second file used to edit the edited text and back that up."""
+        with TempMediaFolder() as root:
+            media = _captioned(root, "scene.jpg")
+            write_media(root, "scene.png")
+
+            with patch("automation.edit_captions.edit_caption", return_value=EDITED) as edit:
+                result = _run(root, backup=True)
+
+            self.assertEqual(edit.call_count, 1)
+            self.assertEqual(_caption_text(media), EDITED)
+            backed_up = root / ".backup" / "scene.txt"
+            self.assertEqual(backed_up.read_text(encoding="utf-8-sig").strip(), ORIGINAL)
+            self.assertEqual(result["results"][0]["shared_with"], ["scene.png"])
+
+    def test_a_caption_edited_while_the_model_ran_is_kept(self) -> None:
+        with TempMediaFolder() as root:
+            media = _captioned(root, "photo.png")
+
+            def edit_and_race(*_args: object, **_kwargs: object) -> str:
+                write_txt_caption(media, "Typed meanwhile.")
+                return EDITED
+
+            with patch("automation.edit_captions.edit_caption", side_effect=edit_and_race):
+                result = _run(root, backup=False)
+
+            self.assertEqual(result["stats"]["caption_changed"], 1)
+            self.assertEqual(_caption_text(media), "Typed meanwhile.")
+
     def test_a_second_run_backs_up_the_caption_before_the_latest_edit(self) -> None:
         with TempMediaFolder() as root:
             _captioned(root, "photo.png")

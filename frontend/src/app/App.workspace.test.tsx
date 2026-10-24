@@ -124,10 +124,12 @@ describe("App workspace", () => {
     const pending = new Promise<void>((resolve) => {
       finish = resolve;
     });
-    const save = vi.spyOn(captionsApi, "saveCaption").mockImplementation(async (path, text) => {
-      await pending;
-      return original(path, text);
-    });
+    const save = vi
+      .spyOn(captionsApi, "saveCaption")
+      .mockImplementation(async (path, text, options) => {
+        await pending;
+        return original(path, text, options);
+      });
     const caption = within(inspector).getByLabelText("Caption for sunset.png");
     await user.clear(caption);
     await user.type(caption, "A lakeside sunset");

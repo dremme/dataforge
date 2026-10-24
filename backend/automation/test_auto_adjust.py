@@ -13,11 +13,18 @@ from PIL import Image
 
 from automation.auto_adjust import run_auto_adjust_job, validate_auto_adjust_folder
 from color_auto import suggest_adjust
-from edit_sidecars import backup_path_for, edit_spec_path, ensure_backup, render_slot, write_spec
+from edit_sidecars import backup_path_for, edit_spec_path
 from ffmpeg_run import FfmpegCancelled
 from image_edit import apply_image_edit, read_image_edit_spec
 from schemas import AutoAdjust, ColorAdjust, EditCropRect, ImageEditSpec, MaskRegion, VideoEditSpec
-from testing_fixtures import TempMediaFolder, write_image, write_mp4_video
+from testing_fixtures import (
+    TempMediaFolder,
+    claimed_elsewhere,
+    write_edit_backup,
+    write_edit_spec,
+    write_image,
+    write_mp4_video,
+)
 from video_edit import SourceProbe, read_edit_spec
 
 DARK = (40, 32, 28)
@@ -169,22 +176,23 @@ class ImageTests(unittest.TestCase):
             self.assertEqual(result["stats"]["unchanged"], 1)
             self.assertEqual(media.read_bytes(), adjusted)
 
-    def test_a_file_open_in_a_render_is_skipped_untouched(self) -> None:
+    def test_a_file_open_in_a_render_is_reported_busy_and_left_untouched(self) -> None:
         with TempMediaFolder() as root:
             media = write_image(root, "dusk.png", color=DARK)
             original = media.read_bytes()
 
-            with render_slot(media):
+            with claimed_elsewhere(media):
                 result = run_auto_adjust_job(root)
 
-            self.assertEqual(results_by_name(result)["dusk.png"]["status"], "skipped")
+            self.assertEqual(results_by_name(result)["dusk.png"]["status"], "busy")
+            self.assertEqual(result["stats"]["busy"], 1)
             self.assertEqual(media.read_bytes(), original)
             self.assertFalse(edit_spec_path(media).exists())
 
     def test_a_fully_masked_file_is_skipped(self) -> None:
         with TempMediaFolder() as root:
             media = write_image(root, "dusk.png", color=DARK)
-            write_spec(media, ImageEditSpec(masks=[MaskRegion(x=0, y=0, width=1, height=1)]))
+            write_edit_spec(media, ImageEditSpec(masks=[MaskRegion(x=0, y=0, width=1, height=1)]))
 
             result = run_auto_adjust_job(root)
 
@@ -229,7 +237,7 @@ class VideoTests(unittest.TestCase):
                 adjust=ColorAdjust(exposure=0.3, noise_reduction=0.5),
                 auto_adjust=AutoAdjust(suggestion=ColorAdjust(exposure=0.3)),
             )
-            write_spec(media, earlier)
+            write_edit_spec(media, earlier)
 
             with patch("automation.auto_adjust.apply_video_edit") as apply:
                 result = run_auto_adjust_job(root, reset_adjustments=True, ffmpeg="ffmpeg")
@@ -247,9 +255,9 @@ class VideoTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_mp4_video(root)
             original = media.read_bytes()
-            ensure_backup(media)
+            write_edit_backup(media)
             media.write_bytes(b"rendered")
-            write_spec(
+            write_edit_spec(
                 media,
                 VideoEditSpec(
                     adjust=ColorAdjust(exposure=0.3),
@@ -270,7 +278,7 @@ class VideoTests(unittest.TestCase):
     def test_reads_the_kept_range_and_renders_the_suggestion(self, analyse, _probe) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root)
-            write_spec(media, VideoEditSpec(trim_start=2.0, trim_end=6.0))
+            write_edit_spec(media, VideoEditSpec(trim_start=2.0, trim_end=6.0))
 
             with patch("automation.auto_adjust.apply_video_edit") as apply:
                 result = run_auto_adjust_job(root, ffmpeg="ffmpeg")

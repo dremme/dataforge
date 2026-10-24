@@ -50,6 +50,11 @@ export function resolveFolderError(error: unknown): FolderError | null {
   return { kind: "other", message: message || "Something went wrong." };
 }
 
+/** True for an API refusal the client resolves by its `code` rather than its message. */
+export function isApiErrorCode(error: unknown, code: ApiErrorCode): boolean {
+  return error instanceof ApiError && error.code === code;
+}
+
 export function isFolderNotFoundError(error: unknown): boolean {
   return resolveFolderError(error)?.kind === "folder-not-found";
 }

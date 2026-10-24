@@ -15,7 +15,7 @@ from color_auto import (
     with_auto,
 )
 from constants import IMAGE_EDIT_EXTENSIONS, VIDEO_EDIT_EXTENSIONS
-from edit_sidecars import EditBusyError, original_path_for, render_slot
+from edit_sidecars import original_path_for
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, ShouldCancel
 from image_edit import apply_image_edit, read_image_edit_spec, revert_image_edit
@@ -84,11 +84,10 @@ def auto_adjust_image(media: Path, *, replace: bool = False, reset: bool = False
         adjusted = _auto_adjusted(spec, suggest_adjust(pixels, weights), replace=replace)
 
     # Nothing left to render: restore the original, so the file no longer reads as edited.
-    with render_slot(media):
-        if is_identity_image_spec(adjusted):
-            revert_image_edit(media)
-        else:
-            apply_image_edit(media, adjusted)
+    if is_identity_image_spec(adjusted):
+        revert_image_edit(media)
+    else:
+        apply_image_edit(media, adjusted)
 
 
 def auto_adjust_video(
@@ -116,13 +115,10 @@ def auto_adjust_video(
         )
         adjusted = _auto_adjusted(spec, suggest_adjust(pixels, weights), replace=replace)
 
-    with render_slot(media):
-        if is_identity_spec(adjusted):
-            revert_video_edit(media)
-        else:
-            apply_video_edit(
-                media, adjusted, ffmpeg=ffmpeg, should_cancel=should_cancel, probe=probe
-            )
+    if is_identity_spec(adjusted):
+        revert_video_edit(media)
+    else:
+        apply_video_edit(media, adjusted, ffmpeg=ffmpeg, should_cancel=should_cancel, probe=probe)
 
 
 def auto_adjust_file(
@@ -173,7 +169,7 @@ def run_auto_adjust_job(
             return FileOutcome.counted("unchanged")
         except FfmpegCancelled:
             return FileOutcome.cancelled()
-        except (EditBusyError, NothingToAnalyseError) as exc:
+        except NothingToAnalyseError as exc:
             return FileOutcome.counted("skipped", exc)
         except (ImageReadError, ValueError) as exc:
             return FileOutcome.counted("read_error", exc)
@@ -192,6 +188,7 @@ def run_auto_adjust_job(
             "video_success": 0,
             "unchanged": 0,
             "skipped": 0,
+            "busy": 0,
             "read_error": 0,
             "write_error": 0,
             "ffmpeg_error": 0,
@@ -200,11 +197,13 @@ def run_auto_adjust_job(
         process=process,
         on_progress=on_progress,
         should_cancel=should_cancel,
+        claim_activity="render",
         # image_success and video_success are sub-stats of success and must not be counted.
         processed_stat_keys=(
             "success",
             "unchanged",
             "skipped",
+            "busy",
             "read_error",
             "write_error",
             "ffmpeg_error",

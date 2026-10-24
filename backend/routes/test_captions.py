@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import quote
 
 from automation.backup_captions import run_backup_captions_job
@@ -238,6 +240,15 @@ class ComfyWorkflowEndpointTests(unittest.TestCase):
             self.assertTrue(response.json()["has_workflow"])
 
 
+def _revision(media: Path) -> str | None:
+    return client.get(f"/api/caption?path={quote(str(media))}").json()["caption_revision"]
+
+
+def _save(media: Path, text: str, base: str | None, **extra: object):
+    body = {"text": text, "base_revision": base, **extra}
+    return client.put(f"/api/caption?path={quote(str(media))}", json=body)
+
+
 class CaptionEndpointTests(unittest.TestCase):
     def test_the_caption_response_carries_the_rule_hits(self) -> None:
         with TempMediaFolder() as root:
@@ -269,10 +280,7 @@ class CaptionEndpointTests(unittest.TestCase):
             media = write_media(root, "sunset.png")
             caption = write_txt_caption(media, "Original.")
 
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"text": "Updated via API."},
-            )
+            response = _save(media, "Updated via API.", _revision(media))
 
             self.assertEqual(response.status_code, 200)
             payload = response.json()
@@ -285,10 +293,7 @@ class CaptionEndpointTests(unittest.TestCase):
             write_txt_caption(media, "Original.")
             issue_path = write_issue_sidecar(media, 'Replace "blue" with "red".')
 
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"text": "Corrected caption.", "resolve_issue": True},
-            )
+            response = _save(media, "Corrected caption.", _revision(media), resolve_issue=True)
 
             self.assertEqual(response.status_code, 200)
             payload = response.json()
@@ -301,10 +306,7 @@ class CaptionEndpointTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "new.png")
 
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"text": "First caption."},
-            )
+            response = _save(media, "First caption.", None)
 
             self.assertEqual(response.status_code, 200)
             self.assertTrue((root / "new.txt").is_file())
@@ -314,10 +316,7 @@ class CaptionEndpointTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_wav(root, "voice.wav")
 
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"text": "A short greeting."},
-            )
+            response = _save(media, "A short greeting.", None)
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(
@@ -329,10 +328,7 @@ class CaptionEndpointTests(unittest.TestCase):
             media = write_media(root)
             write_txt_caption(media, "Previous text.")
 
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"text": "   "},
-            )
+            response = _save(media, "   ", _revision(media))
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(media.with_suffix(".txt").read_text(encoding="utf-8"), "")
@@ -342,10 +338,7 @@ class CaptionEndpointTests(unittest.TestCase):
         with TempMediaFolder() as root:
             missing = root / "missing.png"
 
-            response = client.put(
-                f"/api/caption?path={quote(str(missing))}",
-                json={"text": "Nope."},
-            )
+            response = _save(missing, "Nope.", None)
 
             self.assertEqual(response.status_code, 404)
 
@@ -354,10 +347,7 @@ class CaptionEndpointTests(unittest.TestCase):
             file_path = root / "notes.md"
             file_path.write_text("not media", encoding="utf-8")
 
-            response = client.put(
-                f"/api/caption?path={quote(str(file_path))}",
-                json={"text": "Nope."},
-            )
+            response = _save(file_path, "Nope.", None)
 
             self.assertEqual(response.status_code, 400)
             self.assertEqual(response.json()["detail"], "Not a supported media file")
@@ -368,16 +358,138 @@ class CaptionEndpointTests(unittest.TestCase):
             leftover = media.with_suffix(".json")
             leftover.write_text("{bad", encoding="utf-8")
 
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"text": "First caption."},
-            )
+            response = _save(media, "First caption.", None)
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(
                 media.with_suffix(".txt").read_text(encoding="utf-8"), "First caption.\n"
             )
             self.assertEqual(leftover.read_text(encoding="utf-8"), "{bad")
+
+
+class CaptionConflictTests(unittest.TestCase):
+    """The audit's F05: a save against an older read used to replace the newer caption."""
+
+    def test_a_save_against_an_older_read_is_refused(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            caption = write_txt_caption(media, "Original.")
+            base = _revision(media)
+
+            first = _save(media, "From the first tab.", base)
+            second = _save(media, "From the second tab.", base)
+
+            self.assertEqual(first.status_code, 200)
+            self.assertEqual(second.status_code, 409)
+            self.assertEqual(second.json()["code"], "caption_conflict")
+            self.assertEqual(caption.read_text(encoding="utf-8"), "From the first tab.\n")
+
+    def test_an_edit_from_another_program_is_not_overwritten(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            base = _revision(media)
+            caption = write_txt_caption(media, "Written by another program.")
+
+            response = _save(media, "From the app.", base)
+
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(caption.read_text(encoding="utf-8"), "Written by another program.")
+
+    def test_a_save_carries_the_revision_the_next_save_names(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+
+            first = _save(media, "One.", None).json()
+            second = _save(media, "Two.", first["caption_revision"])
+
+            self.assertEqual(second.status_code, 200)
+            self.assertNotEqual(second.json()["caption_revision"], first["caption_revision"])
+
+    def test_same_stem_files_share_one_revision(self) -> None:
+        with TempMediaFolder() as root:
+            jpg = write_media(root, "scene.jpg")
+            png = write_media(root, "scene.png")
+            write_txt_caption(jpg, "Shared.")
+            base = _revision(png)
+            self.assertEqual(_revision(jpg), base)
+
+            self.assertEqual(_save(jpg, "Saved through the JPG.", base).status_code, 200)
+
+            self.assertEqual(_save(png, "Saved through the PNG.", base).status_code, 409)
+
+    def test_the_revision_is_required(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+
+            response = client.put(
+                f"/api/caption?path={quote(str(media))}", json={"text": "No base."}
+            )
+
+            self.assertEqual(response.status_code, 422)
+            self.assertFalse(media.with_suffix(".txt").exists())
+
+
+class UnreadableCaptionTests(unittest.TestCase):
+    """The audit's F07: an unreadable caption read as empty, and the next save replaced it."""
+
+    def test_text_that_is_not_utf8_is_unreadable_not_empty(self) -> None:
+        for name, data in (
+            ("utf-16", "A caption.".encode("utf-16")),
+            ("invalid utf-8", b"\xff\xfe\xfd caption"),
+        ):
+            with self.subTest(name), TempMediaFolder() as root:
+                media = write_media(root, "sunset.png")
+                media.with_suffix(".txt").write_bytes(data)
+
+                payload = client.get(f"/api/caption?path={quote(str(media))}").json()
+
+                self.assertEqual(payload["caption_status"], "unreadable")
+                self.assertEqual(payload["caption_read_error"], "encoding")
+                self.assertIsNone(payload["description"])
+                self.assertIsNotNone(payload["caption_revision"])
+
+    def test_an_autosave_that_believed_it_empty_is_refused(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            caption = media.with_suffix(".txt")
+            caption.write_bytes("A caption.".encode("utf-16"))
+            original = caption.read_bytes()
+
+            response = _save(media, "Typed over it.", None)
+
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(caption.read_bytes(), original)
+
+    def test_replacing_it_deliberately_names_its_revision(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            media.with_suffix(".txt").write_bytes("A caption.".encode("utf-16"))
+
+            response = _save(media, "Replaced on purpose.", _revision(media))
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["caption_status"], "text")
+
+    def test_a_caption_that_cannot_be_opened_is_unreadable_and_kept(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            caption = write_txt_caption(media, "Held by another program.")
+            real_read_bytes = Path.read_bytes
+
+            def locked(path: Path) -> bytes:
+                if path.suffix == ".txt":
+                    raise PermissionError("locked")
+                return real_read_bytes(path)
+
+            with patch.object(Path, "read_bytes", locked):
+                payload = client.get(f"/api/caption?path={quote(str(media))}").json()
+                response = _save(media, "Typed over it.", None)
+
+            self.assertEqual(payload["caption_status"], "unreadable")
+            self.assertEqual(payload["caption_read_error"], "access")
+            self.assertIsNone(payload["caption_revision"])
+            self.assertEqual(response.status_code, 423)
+            self.assertEqual(caption.read_text(encoding="utf-8"), "Held by another program.")
 
 
 class CaptionBackupEndpointTests(unittest.TestCase):

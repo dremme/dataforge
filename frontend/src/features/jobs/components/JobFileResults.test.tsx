@@ -33,13 +33,14 @@ const finishedJob: Job = {
 };
 
 const results: JobFileResult[] = [
-  { path: "C:\\Photos\\done.png", name: "done.png", status: "success" },
-  { path: "C:\\Photos\\skipped.png", name: "skipped.png", status: "skipped" },
+  { path: "C:\\Photos\\done.png", name: "done.png", status: "success", shared_with: [] },
+  { path: "C:\\Photos\\skipped.png", name: "skipped.png", status: "skipped", shared_with: [] },
   {
     path: "C:\\Photos\\broken.png",
     name: "broken.png",
     status: "write_error",
     message: "Permission denied",
+    shared_with: [],
   },
 ];
 
@@ -53,7 +54,7 @@ const cancelledJob: Job = {
 };
 
 function makeResult(name: string, status: string): JobFileResult {
-  return { path: `C:\\Photos\\${name}`, name, status };
+  return { path: `C:\\Photos\\${name}`, name, status, shared_with: [] };
 }
 
 beforeEach(() => {

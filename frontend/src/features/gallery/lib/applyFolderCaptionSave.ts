@@ -14,6 +14,8 @@ export function applyFolderCaptionSave(
       has_description: update.has_description,
       has_caption_file: update.has_caption_file,
       caption_status: update.caption_status,
+      caption_revision: update.caption_revision,
+      caption_read_error: update.caption_read_error,
       issue_fixes: update.issue_fixes,
       rule_findings: update.rule_findings,
       has_issue_file: update.has_issue_file,

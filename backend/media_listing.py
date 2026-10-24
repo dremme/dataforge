@@ -6,8 +6,9 @@ from typing import NamedTuple
 
 from candidate_pairing import candidate_name_for
 from captions import (
+    NO_CAPTION_FILE,
     IssueSummary,
-    caption_summary_from_sidecar,
+    caption_from_sidecar,
     issue_summary_from_sidecar,
     resolve_caption_file_name,
 )
@@ -97,12 +98,8 @@ def _summarize_scan_uncached(scan: FolderScan) -> dict[str, int]:
     for media in scan.media:
         sidecar = _caption_sidecar(scan, media)
         if sidecar is not None:
-            description, caption_status = caption_summary_from_sidecar(
-                sidecar.path,
-                sidecar.mtime_ns,
-                sidecar.size,
-            )
-            if description is not None and caption_status == "text":
+            caption = caption_from_sidecar(sidecar.path, sidecar.mtime_ns, sidecar.size)
+            if caption.status == "text":
                 captioned_count += 1
 
         if _issue_sidecar(scan, media) is not None:
@@ -154,16 +151,12 @@ def _folder_tags(scan: FolderScan) -> _FolderTags:
 def _build_media_item(
     scan: FolderScan, media: ScannedEntry, media_type: str, tags: _FolderTags
 ) -> dict:
-    description: str | None = None
-    caption_status = "none"
-
     sidecar = _caption_sidecar(scan, media)
-    if sidecar is not None:
-        description, caption_status = caption_summary_from_sidecar(
-            sidecar.path,
-            sidecar.mtime_ns,
-            sidecar.size,
-        )
+    caption = (
+        NO_CAPTION_FILE
+        if sidecar is None
+        else caption_from_sidecar(sidecar.path, sidecar.mtime_ns, sidecar.size)
+    )
 
     issue_sidecar = _issue_sidecar(scan, media)
     issue = (
@@ -193,9 +186,9 @@ def _build_media_item(
     return {
         "name": media.name,
         "path": str(media.path),
-        "description": description,
-        "has_description": description is not None,
-        "has_caption_file": caption_status != "none",
+        "description": caption.text,
+        "has_description": caption.text is not None,
+        "has_caption_file": caption.status != "none",
         "issue_fixes": issue.fixes,
         "rule_findings": issue.rules,
         "has_issue_file": issue.has_file,
@@ -203,7 +196,9 @@ def _build_media_item(
         "has_duplicate_file": duplicate_finding is not None,
         "has_candidate": candidate_name is not None,
         "candidate_name": candidate_name,
-        "caption_status": caption_status,
+        "caption_status": caption.status,
+        "caption_revision": caption.revision,
+        "caption_read_error": caption.read_error,
         "media_type": media_type,
         "width": info.width,
         "height": info.height,

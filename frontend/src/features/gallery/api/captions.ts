@@ -42,14 +42,18 @@ export async function fetchComfyEditorWorkflow(mediaPath: string, nodeId: string
   return response.workflow;
 }
 
+/**
+ * `baseRevision` is the `caption_revision` the text was edited from (`null`: there was no
+ * caption). The server refuses with `caption_conflict` when the caption changed since.
+ */
 export async function saveCaption(
   mediaPath: string,
   text: string,
-  options?: { resolveIssue?: boolean },
+  options: { baseRevision: string | null; resolveIssue?: boolean },
 ): Promise<CaptionSaveResponse> {
   const params = new URLSearchParams({ path: mediaPath });
-  const body: CaptionUpdate = { text };
-  if (options?.resolveIssue) {
+  const body: CaptionUpdate = { text, base_revision: options.baseRevision };
+  if (options.resolveIssue) {
     body.resolve_issue = true;
   }
 

@@ -14,23 +14,16 @@ from audio_effects import audio_proxy, needs_proxy, probe_audio
 from audio_info import audio_duration
 from color_auto import image_analysis_pixels, suggest_adjust, video_analysis_pixels
 from comfy_candidates import (
-    CandidateBusyError,
     NoCandidateError,
     accept_candidate,
     describe_candidate_state,
     reject_candidate,
 )
-from constants import AUDIO_PITCH_MAX_SEMITONES, MEDIA_MIME_TYPES
-from edit_sidecars import (
-    EditBusyError,
-    backup_path_for,
-    cancel_render,
-    original_path_for,
-    render_slot,
-)
+from constants import AUDIO_PITCH_MAX_SEMITONES, GALLERY_EXTENSIONS, MEDIA_MIME_TYPES
+from edit_sidecars import has_backup, original_path_for
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled
-from filesystem import MediaPreviewError, open_file_in_default_viewer
+from filesystem import MediaPreviewError, normalize_user_path, open_file_in_default_viewer
 from gif_frames import (
     GifFrameError,
     GifFrameUnavailableError,
@@ -48,7 +41,8 @@ from gif_to_mp4 import (
 from image_edit import apply_image_edit, read_image_edit_spec, revert_image_edit
 from image_edit import is_identity_spec as is_identity_image_spec
 from image_io import ImageReadError
-from media_delete import delete_media_with_sidecars
+from media_claims import MediaBusyError, cancel
+from media_delete import MediaReappearedError, delete_leftovers, delete_media_with_sidecars
 from media_file_response import MediaFileResponse
 from media_rename import rename_media_file
 from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
@@ -84,6 +78,7 @@ from schemas import (
     ImageEditResponse,
     ImageEditSpec,
     ImageEditStateResponse,
+    MediaCleanupRequest,
     MediaDeleteResponse,
     MediaOpenResponse,
     MediaTransferPreviewRequest,
@@ -167,18 +162,15 @@ def _http_error(
 
 
 _GIF_TO_MP4_ERRORS: dict[type[Exception], ErrorStatus] = {
-    EditBusyError: (409, "This GIF is already being converted"),
     FfmpegCancelled: (409, "The conversion was cancelled"),
 }
 _RENDER_EDIT_ERRORS: dict[type[Exception], ErrorStatus] = {
-    EditBusyError: 409,
     FfmpegCancelled: (409, "The edit was cancelled"),
     ValueError: 400,
 }
-_IMAGE_EDIT_ERRORS: dict[type[Exception], ErrorStatus] = {EditBusyError: 409, ValueError: 400}
+_IMAGE_EDIT_ERRORS: dict[type[Exception], ErrorStatus] = {ValueError: 400}
 _CANDIDATE_ERRORS: dict[type[Exception], ErrorStatus] = {
     NoCandidateError: 404,
-    CandidateBusyError: 409,
     ValueError: 409,
 }
 
@@ -234,6 +226,23 @@ def delete_media(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return MediaDeleteResponse.model_validate(result)
+
+
+@router.post("/media/cleanup", response_model=MediaDeleteResponse)
+def clean_up_after_delete(body: MediaCleanupRequest) -> MediaDeleteResponse:
+    """Retry deleting what a deleted file left behind, such as a caption another program held."""
+    requested = Path(body.path)
+    folder = resolve_folder(str(requested.parent))
+    media = folder / requested.name
+    if media.suffix.lower() not in GALLERY_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Not a supported media file")
+    try:
+        files = [normalize_user_path(raw) for raw in body.files]
+        return MediaDeleteResponse.model_validate(delete_leftovers(media, files))
+    except MediaReappearedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/media/rename", response_model=RenameResponse)
@@ -378,10 +387,8 @@ def convert_gif(
         raise HTTPException(status_code=409, detail=f"{target.name} already exists in this folder")
 
     try:
-        # Lock the write target: two GIFs in one folder can never share a destination.
-        with render_slot(target) as should_cancel:
-            return convert_gif_to_mp4(media, should_cancel=should_cancel)
-    except (EditBusyError, FfmpegCancelled, RuntimeError, OSError) as exc:
+        return convert_gif_to_mp4(media)
+    except (FfmpegCancelled, RuntimeError, OSError) as exc:
         raise _http_error(
             exc, _GIF_TO_MP4_ERRORS, missing_tool=GIF_TO_MP4_FFMPEG_MISSING_MESSAGE
         ) from exc
@@ -468,7 +475,7 @@ def read_video_edit(
     # trim handles snap to.
     return VideoEditStateResponse(
         path=str(media),
-        has_backup=backup_path_for(media).is_file(),
+        has_backup=has_backup(media),
         frame_rate=probe_source(original_path_for(media)).frame_rate,
         spec=read_edit_spec(media),
     )
@@ -492,11 +499,8 @@ def edit_video(
     on_progress = _video_edit_progress(media, tab, expected_output_seconds(body, probe.seconds))
 
     try:
-        with render_slot(media) as should_cancel:
-            return apply_video_edit(
-                media, body, on_progress=on_progress, should_cancel=should_cancel, probe=probe
-            )
-    except (EditBusyError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
+        return apply_video_edit(media, body, on_progress=on_progress, probe=probe)
+    except (FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
         raise _http_error(exc, _RENDER_EDIT_ERRORS, missing_tool=FFMPEG_MISSING_MESSAGE) from exc
 
 
@@ -527,7 +531,7 @@ def cancel_video_edit(
     path: str = Query(..., description="Absolute path to a video file"),
 ) -> Response:
     """Stop an in-flight render. Silent when there is none: it may have just finished."""
-    cancel_render(resolve_editable_video(path))
+    cancel(resolve_editable_video(path), "render")
 
     return Response(status_code=204)
 
@@ -539,9 +543,8 @@ def revert_video(
     media = resolve_editable_video(path)
 
     try:
-        with render_slot(media):
-            return revert_video_edit(media)
-    except (EditBusyError, ValueError, OSError) as exc:
+        return revert_video_edit(media)
+    except (ValueError, OSError) as exc:
         raise _http_error(exc, _RENDER_EDIT_ERRORS) from exc
 
 
@@ -559,7 +562,7 @@ def read_audio_edit(
         duration = None
     return AudioEditStateResponse(
         path=str(media),
-        has_backup=backup_path_for(media).is_file(),
+        has_backup=has_backup(media),
         duration=duration,
         spec=read_audio_edit_spec(media),
     )
@@ -590,11 +593,8 @@ def edit_audio(
     )
 
     try:
-        with render_slot(media) as should_cancel:
-            return apply_audio_edit(
-                media, body, ffmpeg=executable, on_progress=on_progress, should_cancel=should_cancel
-            )
-    except (EditBusyError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
+        return apply_audio_edit(media, body, ffmpeg=executable, on_progress=on_progress)
+    except (FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
         raise _http_error(
             exc, _RENDER_EDIT_ERRORS, missing_tool=AUDIO_FFMPEG_MISSING_MESSAGE
         ) from exc
@@ -622,7 +622,7 @@ def cancel_audio_edit(
     path: str = Query(..., description="Absolute path to an audio file"),
 ) -> Response:
     """Stop an in-flight render. Silent when there is none: it may have just finished."""
-    cancel_render(resolve_editable_audio(path))
+    cancel(resolve_editable_audio(path), "render")
 
     return Response(status_code=204)
 
@@ -634,9 +634,8 @@ def revert_audio(
     media = resolve_editable_audio(path)
 
     try:
-        with render_slot(media):
-            return revert_audio_edit(media)
-    except (EditBusyError, ValueError, OSError) as exc:
+        return revert_audio_edit(media)
+    except (ValueError, OSError) as exc:
         raise _http_error(exc, _RENDER_EDIT_ERRORS) from exc
 
 
@@ -706,7 +705,7 @@ def read_image_edit(
 
     return ImageEditStateResponse(
         path=str(media),
-        has_backup=backup_path_for(media).is_file(),
+        has_backup=has_backup(media),
         spec=read_image_edit_spec(media),
     )
 
@@ -723,9 +722,8 @@ def edit_image(
         raise HTTPException(status_code=400, detail="This edit would not change the image")
 
     try:
-        with render_slot(media):
-            return apply_image_edit(media, body)
-    except (EditBusyError, ValueError, ImageReadError, OSError) as exc:
+        return apply_image_edit(media, body)
+    except (ValueError, ImageReadError, OSError) as exc:
         raise _http_error(exc, _IMAGE_EDIT_ERRORS) from exc
 
 
@@ -751,9 +749,8 @@ def revert_image(
     media = resolve_editable_image(path)
 
     try:
-        with render_slot(media):
-            return revert_image_edit(media)
-    except (EditBusyError, ValueError, OSError) as exc:
+        return revert_image_edit(media)
+    except (ValueError, OSError) as exc:
         raise _http_error(exc, _IMAGE_EDIT_ERRORS) from exc
 
 
@@ -784,7 +781,7 @@ def accept_comfy_candidate(
 
     try:
         return accept_candidate(media, discard_edit=discard_edit, keep_metadata=keep_metadata)
-    except (CandidateBusyError, NoCandidateError, ValueError, OSError) as exc:
+    except (NoCandidateError, ValueError, OSError) as exc:
         raise _http_error(exc, _CANDIDATE_ERRORS) from exc
 
 
@@ -794,7 +791,7 @@ def reject_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateRespons
 
     try:
         return reject_candidate(media)
-    except (CandidateBusyError, NoCandidateError, ValueError, OSError) as exc:
+    except (NoCandidateError, ValueError, OSError) as exc:
         raise _http_error(exc, _CANDIDATE_ERRORS) from exc
 
 
@@ -819,7 +816,7 @@ def _settle_candidates(
             settled.append(str(media))
         except NoCandidateError:
             skipped.append(str(media))
-        except (CandidateBusyError, ValueError, OSError) as exc:
+        except (MediaBusyError, ValueError, OSError) as exc:
             failed.append(ComfyCandidateFailure(path=str(media), detail=str(exc)))
 
     return ComfyCandidateBatchResponse(settled=settled, skipped=skipped, failed=failed)

@@ -737,6 +737,7 @@ describe("GalleryItemDialog", () => {
       expect(saveCaption).toHaveBeenCalledWith(
         `${HOME_PATH}\\sunset.png`,
         "Golden hour over the lake at dusk",
+        { baseRevision: null },
       );
       expect(props.onNext).toHaveBeenCalledTimes(1);
     });
@@ -979,6 +980,7 @@ describe("GalleryItemDialog", () => {
         expect(saveCaption).toHaveBeenLastCalledWith(
           `${HOME_PATH}\\sunset.png`,
           "The caption as it was backed up",
+          { baseRevision: null },
         ),
       );
       expect(compare).toHaveTextContent("Compare backup");

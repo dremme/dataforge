@@ -11,7 +11,7 @@ from PIL import Image
 
 from app_settings import effective_settings
 from automation.audio import AUDIO_MAX_SECONDS, extract_audio_wav
-from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
+from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_caption_job
 from automation.llm import (
     ModelOutcome,
     call_with_retries,
@@ -32,7 +32,8 @@ from automation.vision import (
 from captions import (
     CAPTION_CHANGED_STATUS,
     NO_CAPTION_STATUS,
-    caption_changed_since,
+    CaptionConflictError,
+    CaptionTarget,
     load_reference_caption,
     save_caption,
 )
@@ -229,7 +230,7 @@ def complete_caption(
 
 
 def _read_draft_caption(media_path: Path) -> tuple[str | None, str]:
-    ref_caption, status = load_reference_caption(media_path)
+    ref_caption, status, _revision = load_reference_caption(media_path)
     if status != "ok" or ref_caption is None:
         return None, status
 
@@ -339,7 +340,7 @@ def _caption_outcome(
     message: str | None,
     should_cancel: ShouldCancel | None,
     *,
-    draft: str | None,
+    base_revision: str | None,
 ) -> FileOutcome:
     if status == "cancelled":
         return FileOutcome.cancelled()
@@ -348,12 +349,12 @@ def _caption_outcome(
         if should_cancel and should_cancel():
             return FileOutcome.cancelled()
 
-        changed = caption_changed_since(media_path, draft)
-        if changed is not None:
-            return FileOutcome.counted(CAPTION_CHANGED_STATUS, changed)
-
         try:
-            save_caption(media_path, clean_text, trailing_newline=False)
+            save_caption(
+                media_path, clean_text, base_revision=base_revision, trailing_newline=False
+            )
+        except CaptionConflictError as exc:
+            return FileOutcome.counted(CAPTION_CHANGED_STATUS, f"{exc}; that edit was kept")
         except (OSError, ValueError) as exc:
             return FileOutcome.counted("write_error", exc)
 
@@ -382,9 +383,10 @@ def run_auto_caption_job(
 
     with model_client() as client:
 
-        def process(media_path: Path) -> FileOutcome:
-            # The text the reply is built from; the write is skipped if it changes meanwhile.
-            draft, _status = load_reference_caption(media_path)
+        def process(target: CaptionTarget) -> FileOutcome:
+            media_path = target.primary
+            # The caption the reply is built from; the write is refused if it changes meanwhile.
+            base_revision = load_reference_caption(media_path).revision
             clean_text, status, message, audio_missing = process_media(
                 client,
                 media_path,
@@ -398,14 +400,14 @@ def run_auto_caption_job(
             )
 
             outcome = _caption_outcome(
-                media_path, clean_text, status, message, should_cancel, draft=draft
+                media_path, clean_text, status, message, should_cancel, base_revision=base_revision
             )
             if not audio_missing or outcome.status == "cancelled":
                 return outcome
 
             return replace(outcome, stats={**outcome.stats, AUDIO_ERROR: 1})
 
-        return run_media_job(
+        return run_caption_job(
             folder,
             media_files,
             stats=_initial_job_stats(len(media_files)),

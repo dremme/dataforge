@@ -112,6 +112,7 @@ describe("JobCard", () => {
         name: "1__000001000_0.jpg",
         status: "sample",
         description: "a mountain lake at sunrise",
+        shared_with: [],
       },
     ]);
 

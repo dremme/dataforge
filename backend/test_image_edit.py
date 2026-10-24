@@ -803,5 +803,82 @@ class EditSpecCommitTests(unittest.TestCase):
             self.assertFalse(edit_sidecars.edit_spec_path(media).exists())
 
 
+class SameStemSiblingTests(unittest.TestCase):
+    """The audit's F02: scene.jpg and scene.png shared one spec but kept separate originals."""
+
+    def test_editing_one_sibling_leaves_the_other_unedited(self) -> None:
+        with TempMediaFolder() as root:
+            jpg = write_image(root, "scene.jpg", width=WIDTH, height=HEIGHT)
+            png = write_image(root, "scene.png", width=WIDTH, height=HEIGHT)
+
+            image_edit.apply_image_edit(jpg, ImageEditSpec(scale=0.5))
+            image_edit.apply_image_edit(png, ImageEditSpec(rotate=90))
+
+            self.assertEqual(image_edit.read_image_edit_spec(jpg), ImageEditSpec(scale=0.5))
+            self.assertEqual(image_edit.read_image_edit_spec(png), ImageEditSpec(rotate=90))
+
+    def test_reverting_one_sibling_keeps_the_others_edit(self) -> None:
+        with TempMediaFolder() as root:
+            jpg = write_image(root, "scene.jpg", width=WIDTH, height=HEIGHT)
+            png = write_image(root, "scene.png", width=WIDTH, height=HEIGHT)
+            image_edit.apply_image_edit(jpg, ImageEditSpec(scale=0.5))
+            image_edit.apply_image_edit(png, ImageEditSpec(rotate=90))
+
+            image_edit.revert_image_edit(jpg)
+
+            self.assertIsNone(image_edit.read_image_edit_spec(jpg))
+            self.assertEqual(image_edit.read_image_edit_spec(png), ImageEditSpec(rotate=90))
+            with Image.open(png) as rotated:
+                self.assertEqual(rotated.size, (HEIGHT, WIDTH))
+
+
+class ExternalReplacementTests(unittest.TestCase):
+    """The audit's F06: the next edit rendered from the old backup over a replaced file."""
+
+    def _replace(self, media: Path, color: tuple[int, int, int]) -> None:
+        Image.new("RGB", (WIDTH, HEIGHT), color).save(media)
+
+    def test_the_next_edit_renders_the_replacement(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png", width=WIDTH, height=HEIGHT, color=RED)
+            image_edit.apply_image_edit(media, ImageEditSpec(mirror_h=True))
+            self._replace(media, BLUE)
+
+            with patch("edit_sidecars.delete_path", lambda path: path.unlink()):
+                response = image_edit.apply_image_edit(media, ImageEditSpec(mirror_v=True))
+
+            self.assertTrue(response.replaced_externally)
+            self.assertTrue(response.has_backup)
+            with Image.open(media) as edited:
+                self.assertEqual(edited.convert("RGB").getpixel((0, 0)), BLUE)
+            with Image.open(edit_sidecars.backup_path_for(media)) as original:
+                self.assertEqual(original.convert("RGB").getpixel((0, 0)), BLUE)
+
+    def test_a_revert_keeps_the_replacement(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png", width=WIDTH, height=HEIGHT, color=RED)
+            image_edit.apply_image_edit(media, ImageEditSpec(mirror_h=True))
+            self._replace(media, BLUE)
+
+            with patch("edit_sidecars.delete_path", lambda path: path.unlink()):
+                response = image_edit.revert_image_edit(media)
+
+            self.assertTrue(response.replaced_externally)
+            self.assertFalse(response.has_backup)
+            with Image.open(media) as kept:
+                self.assertEqual(kept.convert("RGB").getpixel((0, 0)), BLUE)
+
+    def test_an_edit_of_an_unchanged_file_still_starts_from_the_original(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png", width=WIDTH, height=HEIGHT, color=RED)
+            image_edit.apply_image_edit(media, ImageEditSpec(scale=0.5))
+
+            response = image_edit.apply_image_edit(media, ImageEditSpec(mirror_h=True))
+
+            self.assertFalse(response.replaced_externally)
+            with Image.open(media) as edited:
+                self.assertEqual(edited.size, (WIDTH, HEIGHT))
+
+
 if __name__ == "__main__":
     unittest.main()
