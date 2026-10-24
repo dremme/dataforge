@@ -178,6 +178,7 @@ export function useQuickActionHost({
         onRevealInExplorer: revealInExplorer,
         onEditSysprompt: panel.onEditSysprompt,
         review: {
+          scope: panel.reviewScope,
           issueCount: panel.issueCount ?? 0,
           onResolveIssues: panel.onResolveIssues,
           duplicateGroupCount: panel.duplicateGroupCount ?? 0,
@@ -232,6 +233,7 @@ export function useQuickActionHost({
       panel.candidateCount,
       panel.duplicateGroupCount,
       panel.issueCount,
+      panel.reviewScope,
       panel.onEditSysprompt,
       panel.onResolveDuplicates,
       panel.onResolveIssues,

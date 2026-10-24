@@ -1,20 +1,9 @@
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { iconLoader2, iconTriangleAlert } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
-import {
-  MEDIA_STALL_MS,
-  type MediaProblem,
-  type MediaProblemKind,
-} from "@/features/videoEditor/lib/previewEngine";
+import type { MediaProblem } from "@/features/videoEditor/lib/previewEngine";
+import { MEDIA_PROBLEM_EXPLANATIONS } from "@/shared/lib/mediaProblems";
 import type { Project } from "@/features/videoEditor/lib/timeline";
-
-const EXPLANATIONS: Record<MediaProblemKind, string> = {
-  unsupported: "This browser cannot play its format or codec.",
-  decode: "The browser could not decode it; the file may be damaged or use an unsupported profile.",
-  network: "The file could not be read from the server.",
-  stalled: `Nothing loaded after ${MEDIA_STALL_MS / 1000} seconds; the browser may not support its codec.`,
-  "no-picture": "The browser found sound in it but no picture it can decode.",
-};
 
 interface MediaProblemsProps {
   project: Project;
@@ -53,7 +42,7 @@ export function MediaProblems({
           return (
             <div key={problem.sourceId} className="video-editor__issue">
               <span>
-                <strong>{source.name}</strong> {EXPLANATIONS[problem.kind]}
+                <strong>{source.name}</strong> {MEDIA_PROBLEM_EXPLANATIONS[problem.kind]}
               </span>
               <button
                 type="button"

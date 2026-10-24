@@ -124,7 +124,10 @@ import { AudioEditPanel } from "./AudioEditPanel";
 import { ZoomableImage } from "./ZoomableImage";
 import { AudioWaveform } from "./AudioWaveform";
 import { imageOriginalUrl } from "@/features/gallery/api/imageEdit";
-import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
+import { transcodeVideo, videoOriginalUrl } from "@/features/gallery/api/videoEdit";
+import { useMediaPlaybackProblem } from "@/shared/hooks/useMediaPlaybackProblem";
+import { canTranscodeAway } from "@/shared/lib/mediaProblems";
+import { MediaProblemNotice } from "@/shared/ui/MediaProblemNotice";
 import { evenTrunc } from "@/features/gallery/lib/videoEdit";
 import { useVideoEditorLauncher } from "@/features/videoEditor/context/VideoEditorContext";
 import { VIDEO_PROJECT_VIDEO_EXTENSIONS } from "@/shared/constants";
@@ -281,6 +284,15 @@ export function GalleryItemDialog({
   const itemIsVideo = item ? isVideo(item) : false;
   const itemIsAudio = item ? isAudio(item) : false;
   const gifFrameCount = useGifFrameCount(item, itemIsGif);
+  // Editing plays the original, so the problem follows whichever file is on screen.
+  const videoSrc =
+    item && itemIsVideo
+      ? editMode
+        ? videoOriginalUrl(item.path)
+        : galleryItemMediaUrl(item)
+      : undefined;
+  const playback = useMediaPlaybackProblem(videoSrc);
+  const [converting, setConverting] = useState(false);
 
   // Both hooks run unconditionally; hooks cannot be called behind a branch.
   const { videoRef, ...videoCapture } = useVideoFrameCapture({
@@ -333,7 +345,7 @@ export function GalleryItemDialog({
   const otherWorkBusy =
     leaving || deleting || renaming || transferring !== null || gifToMp4.converting;
   const editApplying = videoEdit.applying || imageEdit.applying || audioEdit.applying;
-  const busy = otherWorkBusy || frameCapture.saving || editApplying;
+  const busy = otherWorkBusy || frameCapture.saving || editApplying || converting;
   const parentSuspended = useContext(DialogSuspendedContext);
   const otherOverlayOpen =
     parentSuspended ||
@@ -589,6 +601,27 @@ export function GalleryItemDialog({
       setDeleting(false);
     }
   }, [deleting, flushPendingSave, item, notify, notifyDeleteLeftovers, onDeleted]);
+
+  /** Re-encodes in place through the edit pipeline: Revert original gets the file back. */
+  const convertToPlayable = useCallback(async () => {
+    if (!item || busy) return;
+    setConverting(true);
+    try {
+      await transcodeVideo(item.path);
+      notify({
+        variant: "success",
+        message: `Converted ${item.name} to H.264. Revert original restores it as it was.`,
+      });
+      await onCopied?.();
+    } catch (error) {
+      notify({
+        variant: "danger",
+        message: `Could not convert ${item.name}: ${formatApiError(error)}`,
+      });
+    } finally {
+      setConverting(false);
+    }
+  }, [busy, item, notify, onCopied]);
 
   // Derived above the early return so the hooks below are not called conditionally.
   const canEditVideoItem = item ? isEditableVideo(item) : false;
@@ -850,7 +883,8 @@ export function GalleryItemDialog({
                     editMode && "gallery-item-dialog__edit-toggle--active",
                   )}
                   onClick={toggleVideoEditMode}
-                  disabled={busy}
+                  // Editing needs a picture to draw on; the notice over the video says why.
+                  disabled={busy || (playback.problem !== null && !editMode)}
                   aria-pressed={editMode}
                   aria-label={
                     editMode ? `Exit video editing for ${item.name}` : `Edit ${item.name}`
@@ -944,7 +978,7 @@ export function GalleryItemDialog({
                     frameCapture.frameMode && "gallery-item-dialog__frame-toggle--active",
                   )}
                   onClick={toggleFrameMode}
-                  disabled={busy}
+                  disabled={busy || (playback.problem !== null && !frameCapture.frameMode)}
                   aria-pressed={frameCapture.frameMode}
                   aria-label={
                     frameCapture.frameMode
@@ -1066,14 +1100,15 @@ export function GalleryItemDialog({
               <div className="gallery-item-dialog__video-backdrop">
                 <video
                   // Editing plays the original, so source and key change with the mode, not just the bytes.
-                  key={editMode ? `${item.path}#original` : item.path}
+                  key={`${editMode ? `${item.path}#original` : item.path}#${playback.retryKey}`}
                   ref={videoRef}
                   className="gallery-item-dialog__video"
                   style={{
                     opacity: !editMode || videoEdit.activeMediaRef !== standbyVideoRef ? 1 : 0,
                   }}
                   aria-hidden={editMode && videoEdit.activeMediaRef === standbyVideoRef}
-                  src={editMode ? videoOriginalUrl(item.path) : galleryItemMediaUrl(item)}
+                  src={videoSrc}
+                  {...playback.mediaProps}
                   // Native timeline would seek behind the capture slider or trim handles.
                   controls={!frameCapture.frameMode && !editMode}
                   autoPlay
@@ -1084,6 +1119,7 @@ export function GalleryItemDialog({
                   playsInline
                   onLoadedMetadata={(event) => {
                     const video = event.currentTarget;
+                    playback.noteMetadata(video);
                     recordResolution(video.videoWidth, video.videoHeight, item.path);
                     videoCapture.handleLoadedMetadata(video);
                     videoEdit.handleLoadedMetadata(video);
@@ -1105,6 +1141,26 @@ export function GalleryItemDialog({
                     preload="auto"
                     muted
                     playsInline
+                  />
+                )}
+                {playback.problem && (
+                  <MediaProblemNotice
+                    problem={playback.problem}
+                    onRetry={playback.retry}
+                    action={
+                      canEditVideoItem && !editMode && canTranscodeAway(playback.problem) ? (
+                        <Tooltip content="Re-encodes it in place; Revert original brings it back">
+                          <button
+                            type="button"
+                            className="media-problem__button"
+                            onClick={() => void convertToPlayable()}
+                            disabled={busy}
+                          >
+                            {converting ? "Converting..." : "Convert to H.264"}
+                          </button>
+                        </Tooltip>
+                      ) : undefined
+                    }
                   />
                 )}
               </div>

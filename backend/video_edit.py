@@ -72,6 +72,7 @@ def is_identity_spec(spec: VideoEditSpec) -> bool:
         and is_adjust_identity(spec.adjust)
         and spec.trim_start < IDENTITY_EPSILON
         and spec.trim_end is None
+        and not spec.transcode
     )
 
 
@@ -589,7 +590,7 @@ def build_video_edit_command(
     # Stream copy lands on a packet boundary; only an edit that leaves the audio alone copies it.
     if muted:
         command += ["-an"]
-    elif retimed or trimmed or revoiced:
+    elif retimed or trimmed or revoiced or spec.transcode:
         command += ["-c:a", "aac", "-b:a", "192k"]
     else:
         command += ["-c:a", "copy"]

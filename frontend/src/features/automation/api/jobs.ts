@@ -2,6 +2,7 @@ import { postJson, requestJson } from "@/shared/api/http";
 import { withJobPaths } from "@/features/jobs/api/jobPaths";
 import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
 import type {
+  AutoCaptionPreviewResponse,
   ComfyLogsResponse,
   ComfyPresetsResponse,
   Job,
@@ -62,6 +63,20 @@ export async function previewCaptionRestore(
   const params = new URLSearchParams({ path: folderPath });
   return postJson<RestoreCaptionsPreviewResponse>(
     `/api/automation/restore-captions/preview?${params}`,
+    { paths },
+    { signal },
+  );
+}
+
+/** How many captions in scope Auto-caption would expand, write from scratch, or leave alone. */
+export async function previewAutoCaption(
+  folderPath: string,
+  paths: string[] | undefined,
+  signal?: AbortSignal,
+): Promise<AutoCaptionPreviewResponse> {
+  const params = new URLSearchParams({ path: folderPath });
+  return postJson<AutoCaptionPreviewResponse>(
+    `/api/automation/auto-caption/preview?${params}`,
     { paths },
     { signal },
   );

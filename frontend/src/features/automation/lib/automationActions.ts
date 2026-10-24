@@ -1,4 +1,5 @@
 import type { JobStartContext } from "@/features/jobs/lib/jobMeta";
+import type { ReviewScope } from "@/features/gallery/lib/reviewScope";
 import type { Job, JobType } from "@/shared/types";
 
 /** Folder automation state and handlers shared by the workspace actions and quick actions. */
@@ -13,6 +14,8 @@ export interface AutomationActions {
   onRetryFailed?: (jobType: JobType, paths: string[]) => void;
   onCancelJob: () => void;
   cancellingJob?: boolean;
+  /** What the review counts below cover; shown wherever a review queue is offered. */
+  reviewScope?: ReviewScope;
   issueCount?: number;
   onResolveIssues?: () => void;
   /** Groups, not files: the resolver steps through one group at a time. */

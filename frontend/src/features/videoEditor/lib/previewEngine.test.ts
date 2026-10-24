@@ -2,14 +2,8 @@ import { RESTING_EFFECTS } from "@/shared/lib/audioEffects";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeClip, makeProject, makeSource } from "@/test/videoProject";
 import { AdjustRenderer } from "@/features/gallery/lib/adjustRenderer";
-import {
-  MEDIA_STALL_MS,
-  peakOf,
-  PreviewEngine,
-  problemFromError,
-  SCRUB_GRAIN_MS,
-  type SourceLocation,
-} from "./previewEngine";
+import { MEDIA_STALL_MS, problemFromError } from "@/shared/lib/mediaProblems";
+import { peakOf, PreviewEngine, SCRUB_GRAIN_MS, type SourceLocation } from "./previewEngine";
 import { restingAdjust, type Project } from "./timeline";
 
 function project(duration: number): Project {

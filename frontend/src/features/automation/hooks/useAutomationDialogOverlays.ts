@@ -150,6 +150,7 @@ export function useAutomationDialogOverlays({
       autoCaption: {
         ...shared("auto_caption"),
         folderPath: folderPath ?? "",
+        selectedPaths: snapshot?.paths ?? getJobPaths?.(),
         onConfirm: (
           mode: AutoCaptionMode,
           captionAudio: boolean,

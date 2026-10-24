@@ -54,7 +54,7 @@ All fields below except `OPENAI_TIMEOUT` are under **Settings > Vision model > S
 | `DRAFT_CAPTION_THRESHOLD` | `256`                      | Integer ≥ 1; caption length in characters, for Auto-caption only                                       |
 | `OPENAI_TIMEOUT`          | `600`                      | Positive seconds per response; nonpositive or malformed values use the default                         |
 
-**Auto-caption threshold:** an existing caption longer than the threshold is skipped (`skipped_long`). Generated text at or below the threshold is retried, then reported as `too_short` if all attempts fail. Equal to the threshold is still a draft. Raise it when you require longer captions, and make sure the system prompt asks for enough detail. **Verify captions** and **Edit captions** ignore this threshold. Model calls allow up to three attempts; the client's connection timeout is 10 seconds.
+**Auto-caption threshold:** an existing caption longer than the threshold is skipped (`skipped_long`); a shorter one is a draft the model expands, and a file with no caption, or an empty one, is captioned from the media alone. Generated text at or below the threshold is retried, then reported as `too_short` if all attempts fail. Equal to the threshold is still a draft. Raise it when you require longer captions, and make sure the system prompt asks for enough detail. **Verify captions** and **Edit captions** ignore this threshold. Model calls allow up to three attempts; the client's connection timeout is 10 seconds.
 
 ## Save, reset, and clear
 
@@ -211,7 +211,7 @@ The default endpoints are local. Using a remote endpoint sends the following dat
 
 | Job                  | Sends                                                                                                    | Destination           |
 | -------------------- | -------------------------------------------------------------------------------------------------------- | --------------------- |
-| Auto-caption         | Downscaled image/video frames, draft caption, system-prompt instructions, optionally 15 seconds of audio | `OPENAI_API_BASE_URL` |
+| Auto-caption         | Downscaled image/video frames, draft caption if any, system-prompt instructions, optionally 15 seconds of audio | `OPENAI_API_BASE_URL` |
 | Verify captions      | Downscaled image/video frames, caption, additional context; no audio                                     | `OPENAI_API_BASE_URL` |
 | Edit captions        | Caption and edit instruction; with **Send media**, also downscaled image/video frames                    | `OPENAI_API_BASE_URL` |
 | Process with ComfyUI | Source media and workflow inputs                                                                         | `COMFY_BASE_URL`      |

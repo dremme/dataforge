@@ -18,6 +18,12 @@ import {
   type Layer,
 } from "./composition";
 import { clipEnd, projectDuration, sourceById, type Clip, type Project } from "./timeline";
+import {
+  MEDIA_PROBLEM_LABELS,
+  MEDIA_STALL_MS,
+  problemFromError,
+  type MediaProblemKind,
+} from "@/shared/lib/mediaProblems";
 
 /** Drift a playing element may build up before it is put back on the clock. */
 const PLAYING_DRIFT_SECONDS = 0.12;
@@ -31,12 +37,8 @@ const MAX_SEEK_LEAD_SECONDS = 2;
 const CUE_AHEAD_SECONDS = 1.5;
 /** The colour-adjusted copy of a clip is drawn no wider than this. */
 export const MAX_ADJUST_WIDTH = 960;
-/** Media that has loaded nothing this long after it was asked for is reported as stuck. */
-export const MEDIA_STALL_MS = 15000;
 /** Samples per meter reading: about 21 ms at 48 kHz, short enough to catch a transient. */
 const METER_WINDOW = 1024;
-
-export type MediaProblemKind = "unsupported" | "decode" | "network" | "stalled" | "no-picture";
 
 /** A source the browser could not play, named so the person knows what to do about it. */
 export interface MediaProblem {
@@ -56,25 +58,6 @@ export interface PreviewFidelity {
 export interface MeterReading {
   left: number;
   right: number;
-}
-
-/** Short words for the monitor's placeholder box; the panel explains each one in full. */
-export const MEDIA_PROBLEM_LABELS: Record<MediaProblemKind, string> = {
-  unsupported: "Format not supported",
-  decode: "Cannot decode",
-  network: "Cannot read file",
-  stalled: "Not loading",
-  "no-picture": "No picture",
-};
-
-/** ``MediaError`` codes, spelled out: the constructor is missing outside browsers. */
-const MEDIA_ERR_NETWORK = 2;
-const MEDIA_ERR_DECODE = 3;
-
-export function problemFromError(error: Pick<MediaError, "code"> | null): MediaProblemKind {
-  if (error?.code === MEDIA_ERR_NETWORK) return "network";
-  if (error?.code === MEDIA_ERR_DECODE) return "decode";
-  return "unsupported";
 }
 
 export function peakOf(samples: Float32Array): number {

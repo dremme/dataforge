@@ -1,5 +1,8 @@
 import { GuardedDialog } from "@/shared/ui/GuardedDialog";
 import { useCallback, useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { previewAutoCaption } from "@/features/automation/api/jobs";
+import { autoCaptionPlan } from "@/features/automation/lib/autoCaptionPlan";
 import {
   AutomationModeSelector,
   type AutomationMode,
@@ -20,6 +23,8 @@ export type AutoCaptionMode = AutomationMode;
 interface AutoCaptionDialogProps {
   scope: DialogScopeInfo;
   folderPath: string;
+  /** The scope's files; undefined for the whole folder. */
+  selectedPaths?: string[];
   initialSettings: JobSettingsByType["auto_caption"];
   busy?: boolean;
   onConfirm: (
@@ -34,6 +39,7 @@ interface AutoCaptionDialogProps {
 export function AutoCaptionDialog({
   scope,
   folderPath,
+  selectedPaths,
   initialSettings,
   busy = false,
   onConfirm,
@@ -46,6 +52,13 @@ export function AutoCaptionDialog({
   );
   const [preserveThinking, setPreserveThinking] = useState(initialSettings.preserve_thinking);
   const { state } = useFolderInstructions(folderPath);
+  // What the run will do, before it starts: a fresh dataset is captioned from scratch.
+  const plan = useQuery({
+    queryKey: ["auto-caption-preview", folderPath, selectedPaths],
+    queryFn: ({ signal }) => previewAutoCaption(folderPath, selectedPaths, signal),
+    retry: false,
+    gcTime: 0,
+  });
   const captionAudioId = useId();
   const preserveThinkingId = useId();
 
@@ -66,7 +79,8 @@ export function AutoCaptionDialog({
       title="Start auto-caption?"
       description={
         <>
-          Auto-completes the captions using <VisionModelBadge />.
+          Writes captions with <VisionModelBadge />: short drafts are expanded, and files without a
+          caption are captioned from the media alone.
         </>
       }
       panelClassName="auto-caption-dialog"
@@ -84,6 +98,12 @@ export function AutoCaptionDialog({
         </>
       }
     >
+      {plan.data && (
+        <p className="dialog__hint auto-caption-dialog__plan" role="status">
+          {autoCaptionPlan(plan.data)}
+        </p>
+      )}
+
       <AutomationModeSelector
         value={mode}
         name="auto-caption-mode"

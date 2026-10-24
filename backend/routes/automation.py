@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
+from automation.auto_caption import preview_auto_caption
 from automation.backup_captions import preview_restore_captions
 from automation.edit_captions import preview_caption_edits
 from automation.jobs import JobType, job_manager
@@ -23,6 +24,8 @@ from external.ostris_training import (
 from routes._helpers import job_response, resolve_folder
 from schemas import (
     AutoAdjustStartRequest,
+    AutoCaptionPreviewRequest,
+    AutoCaptionPreviewResponse,
     AutoCaptionStartRequest,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
@@ -85,6 +88,22 @@ def start_auto_caption(
     path: str = FOLDER_QUERY, body: AutoCaptionStartRequest = AutoCaptionStartRequest()
 ) -> JobResponse:
     return _start_job("auto_caption", path, body)
+
+
+@router.post("/automation/auto-caption/preview", response_model=AutoCaptionPreviewResponse)
+def preview_auto_caption_job(
+    path: str = FOLDER_QUERY,
+    body: AutoCaptionPreviewRequest = AutoCaptionPreviewRequest(),
+) -> AutoCaptionPreviewResponse:
+    """POST like the job it previews, so a large selection fits in the body."""
+    folder = resolve_folder(path)
+    try:
+        selected_paths = resolve_selected_media(folder, body.paths)
+        preview = preview_auto_caption(folder, selected_paths=selected_paths)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return AutoCaptionPreviewResponse.model_validate(preview)
 
 
 @router.post("/automation/set-captions", response_model=JobResponse)

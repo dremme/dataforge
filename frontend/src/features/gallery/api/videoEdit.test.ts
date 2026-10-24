@@ -5,6 +5,7 @@ import {
   fetchVideoAutoAdjust,
   fetchVideoEditState,
   revertVideoEdit,
+  transcodeVideo,
   videoOriginalUrl,
 } from "./videoEdit";
 import { requestJson } from "@/shared/api/http";
@@ -30,6 +31,7 @@ const SPEC: VideoEditSpec = {
   speed: 2,
   scale: 0.5,
   volume: 1,
+  transcode: false,
   adjust: { ...RESTING_ADJUST },
 };
 
@@ -74,6 +76,34 @@ describe("applyVideoEdit", () => {
 
     const [url] = requestJsonMock.mock.calls[0];
     expect(url).toContain(`tab=${encodeURIComponent(serverEventsTabId())}`);
+  });
+});
+
+describe("transcodeVideo", () => {
+  it("re-renders the file's current edit with the transcode flag set", async () => {
+    requestJsonMock
+      .mockResolvedValueOnce({ path: CLIP, has_backup: true, spec: SPEC, frame_rate: 25 })
+      .mockResolvedValueOnce({});
+
+    await transcodeVideo(CLIP);
+
+    const [, init] = requestJsonMock.mock.calls[1];
+    expect(JSON.parse(String(init?.body))).toEqual({ ...SPEC, transcode: true });
+  });
+
+  it("transcodes an unedited file from an empty spec", async () => {
+    requestJsonMock
+      .mockResolvedValueOnce({ path: CLIP, has_backup: false, spec: null, frame_rate: 25 })
+      .mockResolvedValueOnce({});
+
+    await transcodeVideo(CLIP);
+
+    const [, init] = requestJsonMock.mock.calls[1];
+    expect(JSON.parse(String(init?.body))).toMatchObject({
+      trim_start: 0,
+      trim_end: null,
+      transcode: true,
+    });
   });
 });
 

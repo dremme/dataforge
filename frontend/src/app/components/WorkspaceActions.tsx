@@ -49,6 +49,7 @@ import {
   ROUND_WHEN_COMPACT_CLASS,
   useToolbarCompact,
 } from "@/features/gallery/lib/toolbarCompact";
+import { reviewScopeNote } from "@/features/gallery/lib/reviewScope";
 
 interface ToolsMenuProps {
   panel: AutomationActions;
@@ -194,6 +195,7 @@ function ReviewMenu({ panel }: { panel: AutomationActions }) {
         role="menu"
         label="Review queues"
       >
+        <p className="workspace-review__scope">{reviewScopeNote(panel.reviewScope)}</p>
         {queues.map((queue) => (
           <button
             key={queue.label}

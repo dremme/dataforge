@@ -41,6 +41,7 @@ import { CancelJobDialog } from "./CancelJobDialog";
 import { JobCard, type JobFollowUp } from "./JobCard";
 import type { AutomationActions } from "@/features/automation/lib/automationActions";
 import type { Job } from "@/shared/types";
+import { reviewScopeSuffix } from "@/features/gallery/lib/reviewScope";
 
 const RETICK_MS = 30_000;
 
@@ -53,6 +54,7 @@ export type CurrentJobActions = Pick<
   | "job"
   | "onOpenItem"
   | "onRetryFailed"
+  | "reviewScope"
   | "issueCount"
   | "onResolveIssues"
   | "duplicateGroupCount"
@@ -85,10 +87,11 @@ function followUpsFor(
   };
   const followUps: JobFollowUp[] = [];
   const { issueCount = 0, duplicateGroupCount = 0, candidateCount = 0 } = actions;
+  const within = reviewScopeSuffix(actions.reviewScope);
 
   if (issueCount > 0 && actions.onResolveIssues && ISSUE_JOB_TYPES.has(job.job_type)) {
     followUps.push({
-      label: `Review ${plural(issueCount, "issue")}`,
+      label: `Review ${plural(issueCount, "issue")}${within}`,
       icon: iconMessageWarning,
       onClick: thenClose(actions.onResolveIssues),
     });
@@ -99,14 +102,14 @@ function followUpsFor(
     job.job_type === "find_duplicates"
   ) {
     followUps.push({
-      label: `Resolve ${plural(duplicateGroupCount, "duplicate group")}`,
+      label: `Resolve ${plural(duplicateGroupCount, "duplicate group")}${within}`,
       icon: iconFiles,
       onClick: thenClose(actions.onResolveDuplicates),
     });
   }
   if (candidateCount > 0 && actions.onReviewCandidates && job.job_type === "comfy_process") {
     followUps.push({
-      label: `Review ${plural(candidateCount, "candidate")}`,
+      label: `Review ${plural(candidateCount, "candidate")}${within}`,
       icon: iconScanSquare,
       onClick: thenClose(actions.onReviewCandidates),
     });

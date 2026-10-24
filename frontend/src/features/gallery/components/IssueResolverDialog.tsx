@@ -38,6 +38,7 @@ import { ZoomableImage } from "./ZoomableImage";
 import { MediaInfoBar } from "./MediaInfoBar";
 import { ComfyWorkflowDialog } from "./ComfyWorkflowDialog";
 import { useChanged } from "@/shared/hooks/useChanged";
+import { PlaybackCheckedVideo } from "@/shared/ui/PlaybackCheckedVideo";
 
 interface IssueGroup {
   label: string;
@@ -287,7 +288,7 @@ export function IssueResolverDialog({
       <div className="issue-resolver-dialog__body">
         <div className="issue-resolver-dialog__stage">
           {itemIsVideo ? (
-            <video
+            <PlaybackCheckedVideo
               key={item.path}
               className="issue-resolver-dialog__video"
               src={galleryItemMediaUrl(item)}

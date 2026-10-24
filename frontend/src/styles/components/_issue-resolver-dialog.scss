@@ -74,6 +74,7 @@
 
   &__stage {
     @include dialog-stage;
+    position: relative;
     border-right: 1px solid var(--border);
     grid-column: 1;
     grid-row: 1;

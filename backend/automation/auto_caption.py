@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import textwrap
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import get_args
 
@@ -31,9 +31,11 @@ from automation.vision import (
 )
 from captions import (
     CAPTION_CHANGED_STATUS,
+    CAPTION_READ_ERROR,
     NO_CAPTION_STATUS,
     CaptionConflictError,
     CaptionTarget,
+    caption_targets,
     load_reference_caption,
     save_caption,
 )
@@ -57,7 +59,6 @@ AUDIO_ERROR = "audio_error"
 
 PROCESSED_STAT_KEYS = (
     "success",
-    NO_CAPTION_STATUS,
     "read_error",
     "api_error",
     "frame_error",
@@ -95,13 +96,27 @@ def _load_specific_sysprompt(folder: Path) -> str:
     return specific_sys_prompt
 
 
+def _draft_guidance(subject: str) -> str:
+    """Only for a caption written from a draft; without one it would ask the model for a
+    description it never gets."""
+    return (
+        f" Use the user provided description as **very close guidance** for analyzing the "
+        f"{subject} and creating the caption; **never** change its meaning."
+    )
+
+
 def build_system_prompt(
     folder: Path,
     *,
     media_kind: MediaKind = "image",
     caption_audio: bool = False,
+    from_draft: bool = True,
 ) -> str:
-    """The system prompt for one media kind; audio wording stays even when the track is missing."""
+    """The system prompt for one media kind; audio wording stays even when the track is missing.
+
+    ``from_draft`` False is the prompt for a file with no caption yet, captioned from the media
+    alone.
+    """
     specific_sys_prompt = _load_specific_sysprompt(folder)
     # Inline so a single-line .sysprompt still dedents.
     audio_objective = f" {AUDIO_OBJECTIVE_SENTENCE}" if caption_audio else ""
@@ -113,7 +128,7 @@ def build_system_prompt(
             You are an expert video captioning assistant specializing in high-density, descriptive captions for training generative AI LoRA models. Your specific task is to analyze a sequence of video keyframes in chronological order and describe the video with extreme accuracy and structural consistency.
 
             # Objective
-            You are given keyframes extracted evenly across the video timeline, presented in chronological order. Treat them as a single continuous video. {MOTION_OBJECTIVE_SENTENCE} Generate one comprehensive, single-paragraph caption for the full video. Do not use conversational filler, introductions, or structural bullet points in the final output. Use the user provided description as **very close guidance** for analyzing the video and creating the caption; **never** change its meaning.{audio_objective}
+            You are given keyframes extracted evenly across the video timeline, presented in chronological order. Treat them as a single continuous video. {MOTION_OBJECTIVE_SENTENCE} Generate one comprehensive, single-paragraph caption for the full video. Do not use conversational filler, introductions, or structural bullet points in the final output.{_draft_guidance("video") if from_draft else ""}{audio_objective}
 
             {specific_sys_prompt}
 
@@ -128,7 +143,7 @@ def build_system_prompt(
         You are an expert image captioning assistant specializing in high-density, descriptive captions for training generative AI LoRA models. Your specific task is to analyze and describe images with extreme accuracy, structural consistency.
 
         # Objective
-        Generate a comprehensive, single-paragraph caption for the provided image. Do not use conversational filler, introductions, or structural bullet points in the final output. Use the user provided description as **very close guidance** for analyzing the image and creating the caption; **never** change its meaning.
+        Generate a comprehensive, single-paragraph caption for the provided image. Do not use conversational filler, introductions, or structural bullet points in the final output.{_draft_guidance("image") if from_draft else ""}
 
         {specific_sys_prompt}
 
@@ -138,11 +153,27 @@ def build_system_prompt(
     ).strip()
 
 
-def build_system_prompts(folder: Path, *, caption_audio: bool = False) -> dict[MediaKind, str]:
-    return {
-        kind: build_system_prompt(folder, media_kind=kind, caption_audio=caption_audio)
-        for kind in get_args(MediaKind)
-    }
+@dataclass(frozen=True)
+class CaptionPrompts:
+    """System prompts per media kind, for expanding a draft and for captioning from scratch."""
+
+    from_draft: dict[MediaKind, str]
+    from_scratch: dict[MediaKind, str]
+
+    def for_caption(self, media_kind: MediaKind, *, has_draft: bool) -> str:
+        return (self.from_draft if has_draft else self.from_scratch)[media_kind]
+
+
+def build_system_prompts(folder: Path, *, caption_audio: bool = False) -> CaptionPrompts:
+    def prompts(from_draft: bool) -> dict[MediaKind, str]:
+        return {
+            kind: build_system_prompt(
+                folder, media_kind=kind, caption_audio=caption_audio, from_draft=from_draft
+            )
+            for kind in get_args(MediaKind)
+        }
+
+    return CaptionPrompts(from_draft=prompts(True), from_scratch=prompts(False))
 
 
 def list_auto_caption_media(folder: Path) -> list[Path]:
@@ -157,7 +188,22 @@ def _build_user_text(
     has_audio: bool = False,
     seconds: float | None = None,
 ) -> str:
-    """Per-request instruction; ``has_audio`` follows the attachment, not the job setting."""
+    """Per-request instruction; ``has_audio`` follows the attachment, not the job setting.
+
+    An empty ``ref_caption`` captions from the media alone: no guidance, no description block.
+    """
+    if not ref_caption.strip():
+        audio_note = f" {AUDIO_USER_SENTENCE}" if has_audio and media_kind == "video" else ""
+        frames = (
+            f"\n\n{keyframe_sentence(frame_count, seconds)}{audio_note}"
+            if media_kind == "video"
+            else ""
+        )
+        return (
+            f"Caption the {media_kind} for LoRA training.{frames}\n\n"
+            "Follow **all** rules from the system instructions exactly."
+        )
+
     if media_kind == "video":
         audio_note = f" {AUDIO_USER_SENTENCE}" if has_audio else ""
         return textwrap.dedent(
@@ -230,7 +276,10 @@ def complete_caption(
 
 
 def _read_draft_caption(media_path: Path) -> tuple[str | None, str]:
+    """The draft to expand, ``""`` to caption from scratch, or ``None`` with why not."""
     ref_caption, status, _revision = load_reference_caption(media_path)
+    if status == NO_CAPTION_STATUS:
+        return "", "ok"
     if status != "ok" or ref_caption is None:
         return None, status
 
@@ -243,7 +292,7 @@ def _read_draft_caption(media_path: Path) -> tuple[str | None, str]:
 def process_media(
     client,
     media_path: Path,
-    system_prompts: dict[MediaKind, str],
+    system_prompts: CaptionPrompts,
     *,
     model: str | None = None,
     max_tokens: int | None = None,
@@ -271,7 +320,7 @@ def process_media(
         raw_caption = complete_caption(
             client,
             media_path,
-            system_prompts[media_kind],
+            system_prompts.for_caption(media_kind, has_draft=bool(ref_caption)),
             ref_caption,
             images=frames.images,
             model=model,
@@ -316,11 +365,30 @@ def validate_auto_caption_folder(folder: Path, *, caption_audio: bool = False) -
         raise ValueError("ffmpeg is required for audio captioning")
 
 
+def preview_auto_caption(
+    folder: Path, *, selected_paths: list[Path] | None = None
+) -> dict[str, int]:
+    """What a run would do with each caption in scope, so the dialog can say so before it starts."""
+    media_files = filter_media_list(list_auto_caption_media(folder), selected_paths)
+    counts = {"total": 0, "drafts": 0, "from_scratch": 0, "unreadable": 0, "long_enough": 0}
+    for target in caption_targets(media_files):
+        counts["total"] += 1
+        text, status, _revision = load_reference_caption(target.primary)
+        if status == CAPTION_READ_ERROR:
+            counts["unreadable"] += 1
+        elif text is None:
+            counts["from_scratch"] += 1
+        elif len(text) > get_draft_caption_threshold():
+            counts["long_enough"] += 1
+        else:
+            counts["drafts"] += 1
+    return counts
+
+
 def _initial_job_stats(total: int) -> dict[str, int]:
     return {
         "total": total,
         "success": 0,
-        NO_CAPTION_STATUS: 0,
         "read_error": 0,
         "api_error": 0,
         "frame_error": 0,

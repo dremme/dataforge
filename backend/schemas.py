@@ -818,6 +818,24 @@ class RestoreCaptionsPreviewRequest(JobSelectionRequest):
     pass
 
 
+class AutoCaptionPreviewRequest(JobSelectionRequest):
+    pass
+
+
+class AutoCaptionPreviewResponse(BaseModel):
+    """What Auto-caption would do with each caption in scope; same-stem files count once."""
+
+    total: int
+    #: Short captions it expands.
+    drafts: int
+    #: Missing or empty captions it writes from the media alone.
+    from_scratch: int
+    #: Left alone: their text cannot be read.
+    unreadable: int
+    #: Left alone: already longer than the draft threshold.
+    long_enough: int
+
+
 class CaptionBackupCompareSample(BaseModel):
     name: str
     #: The media file, for its thumbnail; ``version`` busts the browser cache when it changes.
@@ -1484,6 +1502,10 @@ class VideoEditSpec(BaseModel):
     volume: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
     adjust: ColorAdjust = Field(default_factory=ColorAdjust)
     auto_adjust: AutoAdjust | None = None
+    #: Re-encoded to H.264 and AAC so a browser can play it, so the spec renders even with
+    #: nothing else changed. Every render is H.264 anyway; this keeps a reset from reverting
+    #: to an original the browser cannot play.
+    transcode: bool = False
 
     @model_validator(mode="after")
     def _check(self) -> "VideoEditSpec":

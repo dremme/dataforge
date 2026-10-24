@@ -76,6 +76,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
         <AutoCaptionDialog
           scope={autoCaption.scope}
           folderPath={autoCaption.folderPath}
+          selectedPaths={autoCaption.selectedPaths}
           initialSettings={autoCaption.initialSettings}
           busy={autoCaption.busy}
           onConfirm={autoCaption.onConfirm}

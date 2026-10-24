@@ -46,6 +46,7 @@ export type AutomationDialogsState = {
     JobSettingsByType["auto_caption"]
   > & {
     folderPath: string;
+    selectedPaths?: string[];
   };
   verifyCaptions: FolderBusyDialogState<
     (

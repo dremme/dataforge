@@ -54,6 +54,7 @@ function fakeVideo() {
     ...videoMeta(0),
     paused: true,
     volume: 1,
+    transcode: false,
     playbackRate: 1,
     addEventListener(type: string, handler: () => void) {
       listeners.set(type, handler);
@@ -168,6 +169,7 @@ describe("useVideoEdit", () => {
         speed: 1,
         scale: 1,
         volume: 1,
+        transcode: false,
         adjust: { ...RESTING_ADJUST },
       },
     });
@@ -194,6 +196,7 @@ describe("useVideoEdit", () => {
         speed: 1,
         scale: 1,
         volume: 0,
+        transcode: false,
         adjust: { ...RESTING_ADJUST },
       },
     });
@@ -223,6 +226,7 @@ describe("useVideoEdit", () => {
         speed: 1,
         scale: 1,
         volume: 1,
+        transcode: false,
         adjust: { ...RESTING_ADJUST, warmth: 0.4, hue: 30 },
       },
     });
@@ -268,6 +272,7 @@ describe("useVideoEdit", () => {
         speed: 1,
         scale: 1,
         volume: 1,
+        transcode: false,
         adjust: { ...RESTING_ADJUST },
       },
     });

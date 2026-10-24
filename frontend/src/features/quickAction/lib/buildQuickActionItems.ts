@@ -68,6 +68,7 @@ import type {
 } from "@/shared/types";
 import type { ResolvedTheme } from "@/shared/theme/theme";
 import type { QuickActionItem, QuickActionSection } from "../types";
+import { reviewScopeSuffix, type ReviewScope } from "@/features/gallery/lib/reviewScope";
 
 export const ALL_JOB_TYPES: JobType[] = [PRIMARY_JOB_TYPE, ...SECONDARY_JOB_TYPES];
 
@@ -337,6 +338,8 @@ export function buildFolderCommandItems({
 
 /** A row appears only while its callback is set; the panel sets one only when there is work. */
 export interface ReviewCommandOptions {
+  /** Named in each row's detail when narrower than the folder. */
+  scope?: ReviewScope;
   issueCount: number;
   onResolveIssues?: () => void;
   duplicateGroupCount: number;
@@ -352,15 +355,17 @@ export function buildReviewCommandItems({
   onResolveDuplicates,
   candidateCount,
   onReviewCandidates,
+  scope,
 }: ReviewCommandOptions): QuickActionItem[] {
   const items: QuickActionItem[] = [];
+  const within = reviewScopeSuffix(scope);
 
   if (onResolveIssues) {
     items.push({
       id: "cmd:resolve-issues",
       section: "commands",
       label: "Resolve caption issues",
-      detail: `${issueCount} flagged`,
+      detail: `${issueCount} flagged${within}`,
       icon: iconMessageWarning,
       keywords: "fix captions problems flagged findings warnings verify review",
       run: onResolveIssues,
@@ -372,7 +377,7 @@ export function buildReviewCommandItems({
       id: "cmd:resolve-duplicates",
       section: "commands",
       label: "Resolve duplicates",
-      detail: `${duplicateGroupCount} group${duplicateGroupCount === 1 ? "" : "s"}`,
+      detail: `${duplicateGroupCount} group${duplicateGroupCount === 1 ? "" : "s"}${within}`,
       icon: iconFiles,
       keywords: "dedupe near identical similar copies clones compare review",
       run: onResolveDuplicates,
@@ -384,7 +389,7 @@ export function buildReviewCommandItems({
       id: "cmd:review-candidates",
       section: "commands",
       label: "Review candidates",
-      detail: `${candidateCount} waiting`,
+      detail: `${candidateCount} waiting${within}`,
       icon: iconScanSquare,
       keywords:
         "comfyui upscale upscaled staging staged accept reject approve compare before after side by side",

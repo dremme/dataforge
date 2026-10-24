@@ -520,6 +520,7 @@ class SpecHelperTests(unittest.TestCase):
             VideoEditSpec(masks=[MaskRegion(x=0.1, y=0.1, width=0.3, height=0.3)]),
             VideoEditSpec(volume=0.5),
             VideoEditSpec(volume=0.0),
+            VideoEditSpec(transcode=True),
             *(
                 VideoEditSpec(adjust=ColorAdjust(**{tool: 0.2}))
                 for tool in ColorAdjust.model_fields
@@ -1037,6 +1038,56 @@ class RevertVideoEditTests(unittest.TestCase):
 
             self.assertEqual(backup.read_bytes(), b"pristine-original")
             self.assertEqual(list(root.glob(f"*{EDIT_TEMP_SUFFIX}")), [])
+
+
+def _video_codec(path: Path) -> str:
+    """The first video stream's codec, as ffmpeg names it in its banner."""
+    from ffmpeg_bin import ffmpeg_path
+
+    executable = ffmpeg_path()
+    assert executable is not None
+    banner = subprocess.run(
+        [executable, "-hide_banner", "-i", str(path)], capture_output=True, text=True, timeout=30
+    ).stderr
+    return banner.split("Video: ", 1)[1].split()[0].rstrip(",")
+
+
+class TranscodeTests(unittest.TestCase):
+    """The audit's F15: a valid MP4 the browser cannot play needs a way to a playable one."""
+
+    def test_an_unplayable_codec_becomes_h264_and_the_original_is_kept(self) -> None:
+        from ffmpeg_bin import ffmpeg_path
+
+        executable = ffmpeg_path()
+        if executable is None:
+            self.skipTest("ffmpeg is not available")
+        with TempMediaFolder() as root:
+            media = root / "clip.mp4"
+            subprocess.run(
+                [
+                    executable,
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "testsrc2=size=64x48:rate=10:duration=1",
+                    "-c:v",
+                    "mpeg4",
+                    str(media),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+
+            response = video_edit.apply_video_edit(media, VideoEditSpec(transcode=True))
+
+            self.assertTrue(response.has_backup)
+            self.assertEqual(_video_codec(media), "h264")
+            self.assertEqual(_video_codec(edit_sidecars.backup_path_for(media)), "mpeg4")
+            self.assertTrue(video_edit.read_edit_spec(media).transcode)
 
 
 if __name__ == "__main__":

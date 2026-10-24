@@ -93,6 +93,7 @@
 
   // Same box on both panes so shared zoom (origin as percent) lands on the same region; a square would distort. Height cap is on the grid's max-width: a max-height here would clamp height while leaving column width alone.
   &__stage {
+    position: relative;
     width: 100%;
     aspect-ratio: var(--stage-aspect, 1);
     border-radius: var(--radius-sm);

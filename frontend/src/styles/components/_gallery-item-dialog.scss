@@ -151,6 +151,7 @@
   }
 
   &__video-backdrop {
+    position: relative;
     display: grid;
     width: 100%;
     max-height: $dialog-media-max-height;

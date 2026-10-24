@@ -376,6 +376,45 @@ describe("App: gallery item dialog", () => {
     expect(within(resolver).getByText("1 / 1")).toBeInTheDocument();
   });
 
+  it("reviews only the files the search shows, and says so", async () => {
+    // The audit's F13: with search showing one file, Review opened a hidden file's issue.
+    const user = userEvent.setup();
+    const flagged = new Set(["sunset.png", "beach.jpg"]);
+    const twoIssueFolder: FolderResponse = {
+      ...homeFolder,
+      items: homeFolder.items.map((item) =>
+        flagged.has(item.name)
+          ? {
+              ...item,
+              has_issue_file: true,
+              has_duplicate_file: false,
+              issue_fixes: ['Replace "lake" with "river".'],
+            }
+          : item,
+      ),
+    };
+    installMockBackend({
+      folderByPath: { undefined: twoIssueFolder, [HOME_PATH]: twoIssueFolder },
+    });
+    await renderApp();
+    expect(await screen.findByRole("button", { name: /^Review 2/ })).toBeInTheDocument();
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search files and folders by name, caption or tag" }),
+      "beach",
+    );
+
+    await user.click(await screen.findByRole("button", { name: /^Review 1/ }));
+    const menu = await screen.findByRole("menu", { name: "Review queues" });
+    expect(within(menu).getByText("1 file matching the search and filters")).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: /Caption issues/ }));
+
+    const resolver = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for beach.jpg",
+    });
+    expect(within(resolver).getByText("1 / 1")).toBeInTheDocument();
+  });
+
   it("reviews only the open file's candidate, then returns to that file", async () => {
     const user = userEvent.setup();
     installCandidateBackend();

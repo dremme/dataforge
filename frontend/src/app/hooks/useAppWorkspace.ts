@@ -33,6 +33,7 @@ import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionHost";
 import { filterSubfoldersBySearch, searchRegexError } from "@/features/gallery/lib/query";
 import { useRegexSearch } from "@/features/gallery/hooks/useRegexSearch";
+import { reviewScopeFor } from "@/features/gallery/lib/reviewScope";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 import type { GalleryItem, JobType } from "@/shared/types";
 import { useWorkspaceTransitions } from "@/app/hooks/useWorkspaceTransitions";
@@ -193,10 +194,22 @@ export function useAppWorkspace() {
     selection.selectionMode && gallery.visibleSelectedCount > 0
       ? gallery.visibleSelectedPaths
       : null;
-  // The Review queues walk the selection when there is one, so a pick-review loop stays short.
+  // Review follows the job rule: the selection, else what search and filters show, else all.
+  const { filteredItems, hasActiveSearch, hasActiveFilters } = gallery.query;
+  const narrowed = hasActiveSearch || hasActiveFilters;
+  const reviewScope = reviewScopeFor(
+    selectedPaths?.size ?? 0,
+    narrowed,
+    filteredItems.length,
+    items.length,
+  );
+  const reviewPaths = useMemo(
+    () => selectedPaths ?? (narrowed ? new Set(filteredItems.map((item) => item.path)) : null),
+    [filteredItems, narrowed, selectedPaths],
+  );
   const reviewItems = useMemo(
-    () => (selectedPaths ? items.filter((item) => selectedPaths.has(item.path)) : items),
-    [items, selectedPaths],
+    () => (reviewPaths ? items.filter((item) => reviewPaths.has(item.path)) : items),
+    [items, reviewPaths],
   );
   const reviewIssueCount = useMemo(() => countResolvableIssues(reviewItems), [reviewItems]);
   const duplicateGroupCount = useMemo(() => countDuplicateGroups(reviewItems), [reviewItems]);
@@ -268,6 +281,7 @@ export function useAppWorkspace() {
     requestTransition,
     automation: folderAutomation,
     onEditSysprompt: gallery.openSysPrompt,
+    reviewScope,
     issueCount: reviewIssueCount,
     onResolveIssues:
       reviewIssueCount > 0
@@ -286,7 +300,7 @@ export function useAppWorkspace() {
               await duplicateResolver.openDuplicateResolver(
                 folder.path,
                 undefined,
-                selectedPaths ?? undefined,
+                reviewPaths ?? undefined,
               );
             })
         : undefined,
@@ -300,7 +314,7 @@ export function useAppWorkspace() {
                 folder.path,
                 items,
                 undefined,
-                selectedPaths ?? undefined,
+                reviewPaths ?? undefined,
               );
             })
         : undefined,

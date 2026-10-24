@@ -17,9 +17,12 @@ from automation.auto_caption import (
     AUDIO_OBJECTIVE_SENTENCE,
     AUDIO_USER_SENTENCE,
     MOTION_OBJECTIVE_SENTENCE,
+    CaptionPrompts,
+    _build_user_text,
     build_system_prompt,
     complete_caption,
     list_auto_caption_media,
+    preview_auto_caption,
     process_media,
     run_auto_caption_job,
     validate_auto_caption_folder,
@@ -44,7 +47,10 @@ POLISHED_CAPTION = (
     "that makes this caption substantially longer than the short draft threshold."
 )
 
-SYSTEM_PROMPTS = {"image": "system prompt", "video": "system prompt"}
+SYSTEM_PROMPTS = CaptionPrompts(
+    from_draft={"image": "system prompt", "video": "system prompt"},
+    from_scratch={"image": "scratch prompt", "video": "scratch prompt"},
+)
 
 FAKE_WAV = b"RIFF$\x00\x00\x00WAVEfmt fake pcm payload for the request assertions"
 
@@ -380,6 +386,47 @@ class AutoCaptionJobRunTests(unittest.TestCase):
 
             self.assertFalse(caption.exists())
         self.assertEqual(result["stats"]["caption_changed"], 1)
+
+    def test_a_file_without_a_caption_is_captioned_from_scratch(self) -> None:
+        """The audit's F12: a fresh dataset used to get no model request at all."""
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            media = write_media(root, "photo.png")
+
+            with patch(
+                "automation.auto_caption.complete_caption", return_value=POLISHED_CAPTION
+            ) as mock_complete:
+                result = run_auto_caption_job(root)
+
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(
+                media.with_suffix(".txt").read_text(encoding="utf-8"), POLISHED_CAPTION
+            )
+            system_prompt, draft = mock_complete.call_args.args[2:4]
+            self.assertEqual(draft, "")
+            self.assertNotIn("very close guidance", system_prompt)
+
+    def test_a_from_scratch_request_asks_for_no_description(self) -> None:
+        text = _build_user_text("", "image", 1)
+
+        self.assertNotIn("description", text.lower())
+        self.assertIn("Caption the image", text)
+
+    def test_the_preview_tells_drafts_from_captions_to_write(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "draft.png"), "A dog.")
+            write_media(root, "fresh.png")
+            write_txt_caption(write_media(root, "long.png"), "word " * 200)
+            write_media(root, "broken.png").with_suffix(".txt").write_bytes("x".encode("utf-16"))
+            write_media(root, "shared.jpg")
+            write_media(root, "shared.png")
+
+            preview = preview_auto_caption(root)
+
+        self.assertEqual(
+            preview,
+            {"total": 5, "drafts": 1, "from_scratch": 2, "unreadable": 1, "long_enough": 1},
+        )
 
     def test_run_job_reads_the_txt_draft_and_leaves_leftover_json_alone(self) -> None:
         with TempMediaFolder() as root:

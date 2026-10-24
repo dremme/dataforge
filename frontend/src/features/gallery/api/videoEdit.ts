@@ -1,6 +1,7 @@
 import { requestJson } from "@/shared/api/http";
 import { mediaUrl } from "@/features/gallery/api/media";
 import { serverEventsTabId } from "@/shared/api/eventStream";
+import { emptyDraft, toVideoEditSpec } from "@/features/gallery/lib/videoEdit";
 import type {
   AutoAdjustResponse,
   VideoEditResponse,
@@ -27,6 +28,18 @@ export async function applyVideoEdit(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(spec),
+  });
+}
+
+/**
+ * Re-encodes a video the browser cannot play, in place: its current edit is kept, and the
+ * original stays as the edit backup, so Revert original brings the file back.
+ */
+export async function transcodeVideo(mediaPath: string): Promise<VideoEditResponse> {
+  const { spec } = await fetchVideoEditState(mediaPath);
+  return applyVideoEdit(mediaPath, {
+    ...(spec ?? toVideoEditSpec(emptyDraft(0), 0)),
+    transcode: true,
   });
 }
 

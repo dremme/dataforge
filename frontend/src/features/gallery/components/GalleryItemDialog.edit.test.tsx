@@ -12,6 +12,7 @@ import {
   applyVideoEdit,
   fetchVideoEditState,
   revertVideoEdit,
+  transcodeVideo,
 } from "@/features/gallery/api/videoEdit";
 import { GalleryItemDialog } from "./GalleryItemDialog";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
@@ -32,12 +33,14 @@ vi.mock("@/features/gallery/api/videoEdit", async (importOriginal) => {
     applyVideoEdit: vi.fn<typeof applyVideoEdit>(),
     cancelVideoEdit: vi.fn<typeof cancelVideoEdit>(),
     revertVideoEdit: vi.fn<typeof revertVideoEdit>(),
+    transcodeVideo: vi.fn<typeof transcodeVideo>(),
   };
 });
 
 const fetchStateMock = vi.mocked(fetchVideoEditState);
 const applyMock = vi.mocked(applyVideoEdit);
 const revertMock = vi.mocked(revertVideoEdit);
+const transcodeMock = vi.mocked(transcodeVideo);
 
 const EDITED = {
   path: `${HOME_PATH}\\clip.mp4`,
@@ -89,6 +92,26 @@ describe("GalleryItemDialog", () => {
     function videoItem(overrides: Partial<GalleryItem> = {}): GalleryItem {
       return makeItem("clip.mp4", { media_type: "video", ...overrides });
     }
+
+    it("names a video the browser cannot play, and converts it in place", async () => {
+      // The audit's F15: an unsupported codec looked like a video still loading.
+      const user = userEvent.setup();
+      const props = renderDialog(videoItem());
+      const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+
+      fireEvent.error(dialog.querySelector("video")!);
+
+      const notice = await within(dialog).findByRole("alert");
+      expect(notice).toHaveTextContent("Format not supported");
+      expect(within(dialog).getByRole("button", { name: "Edit clip.mp4" })).toBeDisabled();
+
+      transcodeMock.mockResolvedValue(EDITED);
+      await user.click(within(notice).getByRole("button", { name: "Convert to H.264" }));
+
+      await waitFor(() => expect(transcodeMock).toHaveBeenCalledWith(EDITED.path));
+      expect(await screen.findByText(/Converted clip\.mp4 to H\.264/)).toBeInTheDocument();
+      expect(props.onCopied).toHaveBeenCalled();
+    });
 
     async function openEditMode(user: ReturnType<typeof userEvent.setup>) {
       const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
@@ -201,6 +224,7 @@ describe("GalleryItemDialog", () => {
           speed: 2,
           scale: 0.5,
           volume: 1,
+          transcode: false,
           adjust: { ...RESTING_ADJUST },
         },
       });
@@ -298,6 +322,7 @@ describe("GalleryItemDialog", () => {
               speed: 2,
               scale: 1,
               volume: 1,
+              transcode: false,
               adjust: { ...RESTING_ADJUST },
             }
           : null,
@@ -341,6 +366,7 @@ describe("GalleryItemDialog", () => {
           speed: 1,
           scale: 1,
           volume: 1,
+          transcode: false,
           adjust: { ...RESTING_ADJUST },
         },
       });
@@ -407,6 +433,7 @@ describe("GalleryItemDialog", () => {
           speed: 2,
           scale: 1,
           volume: 1,
+          transcode: false,
           adjust: { ...RESTING_ADJUST },
         },
       });
@@ -509,6 +536,7 @@ describe("GalleryItemDialog", () => {
         scale: 1,
         fit: null,
         volume: 1,
+        transcode: false,
         adjust: { ...RESTING_ADJUST },
         auto_adjust: null,
       });

@@ -38,6 +38,7 @@ import { matchesShortcut, queueIndexAfter, queueStepFor, SHORTCUTS } from "@/sha
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import type { ComfyCandidateStateResponse, GalleryItem } from "@/shared/types";
 import { useChanged } from "@/shared/hooks/useChanged";
+import { PlaybackCheckedVideo } from "@/shared/ui/PlaybackCheckedVideo";
 
 type CandidateDetails = ComfyCandidateStateResponse;
 
@@ -548,10 +549,10 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
         {src === null ? (
           missing
         ) : (
-          <video
+          <PlaybackCheckedVideo
             // Remount on src: React would otherwise reuse the element and keep the old frame.
             key={src}
-            ref={(node) => {
+            videoRef={(node) => {
               players.current[side] = node;
             }}
             className="candidate-review-dialog__stage-video"

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { BulkScopeKind } from "@/features/automation/lib/bulkScope";
 import type { AutomationActions } from "@/features/automation/lib/automationActions";
+import type { ReviewScope } from "@/features/gallery/lib/reviewScope";
 import { useAutomationDialogOverlays } from "@/features/automation/hooks/useAutomationDialogOverlays";
 import type { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
 import { useJobStartConfirmation } from "@/features/jobs/hooks/useJobStartConfirmation";
@@ -31,6 +32,8 @@ type UseAutomationHostOptions = {
   requestTransition?: WorkspaceTransition;
   automation: FolderAutomation;
   onEditSysprompt: () => void;
+  /** What the review counts cover. */
+  reviewScope?: ReviewScope;
   issueCount: number;
   onResolveIssues?: () => void;
   duplicateGroupCount: number;
@@ -54,6 +57,7 @@ export function useAutomationHost({
   requestTransition,
   automation,
   onEditSysprompt,
+  reviewScope,
   issueCount,
   onResolveIssues,
   duplicateGroupCount,
@@ -165,6 +169,7 @@ export function useAutomationHost({
       onRequestStart: requestStart,
       cancellingJob: automation.cancellingJob,
       onCancelJob: automation.cancelFolderJob,
+      reviewScope,
       issueCount,
       onResolveIssues,
       duplicateGroupCount,
@@ -180,6 +185,7 @@ export function useAutomationHost({
       automation.folderJob,
       automation.startingJobType,
       startContext,
+      reviewScope,
       issueCount,
       duplicateGroupCount,
       candidateCount,
