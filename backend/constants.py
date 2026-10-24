@@ -235,6 +235,10 @@ NOTE_FILENAME = ".note"
 
 CAPTION_EDIT_PREVIEW_LIMIT = 3
 
+# One caption's find-and-replace may take this long. A valid pattern can backtrack for
+# minutes, and a job only checks for cancellation between files.
+CAPTION_REGEX_TIMEOUT_SECONDS = 1.0
+
 #: User-facing job names, shared so the UI and job notifications cannot drift apart.
 JOB_TYPE_LABELS: dict[str, str] = {
     "auto_caption": "Auto-caption",

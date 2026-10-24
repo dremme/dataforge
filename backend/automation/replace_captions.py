@@ -6,6 +6,8 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
+import regex
+
 from automation.backup_captions import back_up_caption, caption_backup_dir
 from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_caption_job
 from automation.selection import filter_media_list, list_folder_media
@@ -18,13 +20,21 @@ from captions import (
     load_reference_caption,
     save_caption,
 )
-from constants import MEDIA_EXTENSIONS
+from constants import CAPTION_REGEX_TIMEOUT_SECONDS, MEDIA_EXTENSIONS
 
 REPLACE_MODES = ("replace", "prepend", "append")
 
 DEFAULT_MODE = "replace"
 
 CaptionReplacer = Callable[[str], str | None]
+
+#: A replace result whose pattern ran out of time; stops a job, since the next caption may too.
+PATTERN_ERROR = "pattern_error"
+
+
+class PatternTooSlowError(ValueError):
+    """A valid pattern that did not finish within ``CAPTION_REGEX_TIMEOUT_SECONDS``."""
+
 
 # $$ first so $$1 stays the characters $1 rather than group 1.
 _DOLLAR_REPL = re.compile(r"\$(\$|\d{1,2})")
@@ -73,19 +83,27 @@ def _build_replacer(
     if not search:
         raise ValueError("Enter the text to search for")
 
-    # Per-line anchors, as in a text editor; ``.`` still stops at a line break.
-    flags = re.MULTILINE if case_sensitive else re.MULTILINE | re.IGNORECASE
+    # Per-line anchors, as in a text editor; ``.`` still stops at a line break. ``regex`` reads
+    # ``re`` syntax (its version 0) and, unlike ``re``, can be timed out.
+    flags = regex.MULTILINE if case_sensitive else regex.MULTILINE | regex.IGNORECASE
     try:
-        pattern = re.compile(search if use_regex else re.escape(search), flags)
-    except re.error as exc:
+        pattern = regex.compile(search if use_regex else regex.escape(search), flags)
+    except regex.error as exc:
         raise ValueError(f"Invalid regular expression: {exc}") from exc
 
-    template = _python_replacement(replacement) if use_regex else replacement
+    # Plain text is returned as it is: as a template, ``\n`` or ``\1`` would be expanded.
+    template: str | Callable[[object], str] = (
+        _python_replacement(replacement) if use_regex else lambda _match: replacement
+    )
 
     def replace(text: str) -> str | None:
         try:
-            edited = pattern.sub(template, text)
-        except re.error as exc:
+            edited = pattern.sub(template, text, timeout=CAPTION_REGEX_TIMEOUT_SECONDS)
+        except TimeoutError as exc:
+            raise PatternTooSlowError(
+                "The search pattern took too long to evaluate. Simplify it and try again."
+            ) from exc
+        except regex.error as exc:
             # Group refs like ``\9`` are only resolved against a real match, not at compile time.
             raise ValueError(f"Invalid replacement text: {exc}") from exc
         return _changed(text, edited)
@@ -235,6 +253,13 @@ def run_replace_captions_job(
 
         try:
             edited = replacer(text)
+        except PatternTooSlowError as exc:
+            return FileOutcome(
+                status=PATTERN_ERROR,
+                stats={PATTERN_ERROR: 1},
+                fields={"message": str(exc)},
+                stop=True,
+            )
         except ValueError as exc:
             return FileOutcome.counted("write_error", exc)
 
@@ -266,6 +291,7 @@ def run_replace_captions_job(
             "no_caption": 0,
             "read_error": 0,
             "write_error": 0,
+            PATTERN_ERROR: 0,
             CAPTION_CHANGED_STATUS: 0,
             "cancelled": 0,
         },
@@ -278,6 +304,7 @@ def run_replace_captions_job(
             "no_caption",
             "read_error",
             "write_error",
+            PATTERN_ERROR,
             CAPTION_CHANGED_STATUS,
         ),
     )

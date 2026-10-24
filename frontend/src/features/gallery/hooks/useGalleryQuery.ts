@@ -24,6 +24,8 @@ import {
   type MediaTypeFilter,
   type SortOption,
 } from "@/features/gallery/lib/query";
+import { regexSearchTexts } from "@/features/gallery/lib/regexSearch";
+import { useRegexSearch } from "@/features/gallery/hooks/useRegexSearch";
 import type { GalleryItem } from "@/shared/types";
 import { useUiSettings, useUpdateUiSettings } from "@/shared/preferences/uiPreferences";
 
@@ -87,6 +89,22 @@ export function useGalleryQuery(items: GalleryItem[]) {
     [updateUiSettings],
   );
 
+  // Regex matching runs in a worker under a time budget; every filter below reads its answer.
+  const searchTexts = useMemo(() => regexSearchTexts(items), [items]);
+  const trimmedFilterQuery = filterQuery.trim();
+  const regexPattern =
+    searchRegex && trimmedFilterQuery && !searchRegexError(trimmedFilterQuery)
+      ? trimmedFilterQuery
+      : null;
+  const regexSearch = useRegexSearch(regexPattern, searchTexts);
+  const regexMatches = regexSearch.status === "idle" ? null : regexSearch.matches;
+  // Highlights test the pattern on this thread, so only one the worker finished in time is used.
+  const highlightQuery = !searchRegex
+    ? searchQuery
+    : regexSearch.status === "ready"
+      ? filterQuery
+      : "";
+
   const mediaTypeFilteredItems = useMemo(
     () => applyMediaTypeFilter(items, mediaTypeFilter),
     [items, mediaTypeFilter],
@@ -113,9 +131,20 @@ export function useGalleryQuery(items: GalleryItem[]) {
         searchQuery: filterQuery,
         searchRegex,
         searchNames,
+        regexMatches,
         sort,
       }),
-    [items, filter, mediaTypeFilter, fileFilter, filterQuery, searchRegex, searchNames, sort],
+    [
+      items,
+      filter,
+      mediaTypeFilter,
+      fileFilter,
+      filterQuery,
+      searchRegex,
+      searchNames,
+      regexMatches,
+      sort,
+    ],
   );
 
   const hasActiveSearch = searchQuery.trim().length > 0;
@@ -130,8 +159,9 @@ export function useGalleryQuery(items: GalleryItem[]) {
         filterQuery,
         searchRegex,
         searchNames,
+        regexMatches,
       ),
-    [mediaTypeFilteredItems, fileFilter, filterQuery, searchRegex, searchNames],
+    [mediaTypeFilteredItems, fileFilter, filterQuery, searchRegex, searchNames, regexMatches],
   );
 
   const mediaTypeFilterCountItems = useMemo(
@@ -141,14 +171,15 @@ export function useGalleryQuery(items: GalleryItem[]) {
         filterQuery,
         searchRegex,
         searchNames,
+        regexMatches,
       ),
-    [captionScopedItems, fileFilter, filterQuery, searchRegex, searchNames],
+    [captionScopedItems, fileFilter, filterQuery, searchRegex, searchNames, regexMatches],
   );
 
   // Files-option counts: this axis off, the others on, so each number is what it leaves.
   const fileFilterCountItems = useMemo(
-    () => filterBySearch(captionFilteredItems, filterQuery, searchRegex, searchNames),
-    [captionFilteredItems, filterQuery, searchRegex, searchNames],
+    () => filterBySearch(captionFilteredItems, filterQuery, searchRegex, searchNames, regexMatches),
+    [captionFilteredItems, filterQuery, searchRegex, searchNames, regexMatches],
   );
 
   const filterCounts = useMemo(() => {
@@ -193,6 +224,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
         fileFilter,
         searchQuery: filterQuery,
         searchError: searchRegex ? searchRegexError(filterQuery) : null,
+        searchTooSlow: regexSearch.status === "too-expensive",
         hasFilterMatches: filterMatchedItems.length > 0,
         imageCount: countMediaType(items, "image"),
         videoCount: countMediaType(items, "video"),
@@ -206,6 +238,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
       fileFilter,
       filterQuery,
       searchRegex,
+      regexSearch.status,
     ],
   );
 
@@ -220,6 +253,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
     searchQuery,
     searchRegex,
     searchNames,
+    highlightQuery,
     setSearchQuery,
     setSearchRegex,
     setSearchNames,

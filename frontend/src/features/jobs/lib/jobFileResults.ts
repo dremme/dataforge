@@ -32,6 +32,7 @@ const STATUS_LABELS: Record<string, string> = {
   no_caption: "No caption",
   orphaned: "No media file",
   parse_error: "Unreadable reply",
+  pattern_error: "Pattern too slow",
   read_error: "Read error",
   rejected: "Rejected",
   rename_error: "Rename error",

@@ -139,6 +139,8 @@ export function getFilterEmptyState(options: {
   searchQuery: string;
   /** Why the regex search does not compile; it then matches nothing. */
   searchError?: string | null;
+  /** The regex search ran out of time, so it matches nothing. */
+  searchTooSlow?: boolean;
   hasFilterMatches: boolean;
   imageCount: number;
   videoCount: number;
@@ -152,6 +154,16 @@ export function getFilterEmptyState(options: {
       icon: iconSearch,
       title: "Invalid regular expression",
       description: `${options.searchError}. Fix the pattern, or turn off regular expressions to search for the text as typed.`,
+      variant: "muted",
+    };
+  }
+
+  if (hasActiveSearch && options.searchTooSlow) {
+    return {
+      icon: iconSearch,
+      title: "Pattern too slow",
+      description:
+        "This pattern took too long to check, so nothing is shown. Simplify it, or turn off regular expressions to search for the text as typed.",
       variant: "muted",
     };
   }

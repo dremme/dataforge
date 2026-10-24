@@ -2,6 +2,7 @@ import { isResolvableIssueItem } from "./issues";
 import { isDuplicateItem } from "./duplicates";
 import { isCandidateItem } from "./candidateReview";
 import { isAudio, isMotion } from "@/features/gallery/lib/itemKind";
+import { SEARCH_REGEX_FLAGS, compileSearchRegex } from "@/features/gallery/lib/regexSearch";
 import { DEFAULT_GALLERY_SORT } from "@/shared/constants";
 import { durationSeconds } from "@/shared/lib/format";
 import type { GalleryItem, GallerySort, MediaTag, Subfolder } from "@/shared/types";
@@ -118,18 +119,6 @@ export function sortGalleryItems(items: GalleryItem[], sort: SortOption): Galler
     .map((entry) => entry.item);
 }
 
-// s so `.` spans newlines; `^((?!x).)*$` would otherwise reject multi-line captions.
-// m is omitted: per-line anchors let each line satisfy a negation on its own.
-const SEARCH_REGEX_FLAGS = "is";
-
-function compileSearchRegex(pattern: string): RegExp | null {
-  try {
-    return new RegExp(pattern, SEARCH_REGEX_FLAGS);
-  } catch {
-    return null;
-  }
-}
-
 /** Why a regex search query does not compile, or null when it does (or is blank). */
 export function searchRegexError(query: string): string | null {
   const trimmed = query.trim();
@@ -145,21 +134,31 @@ export function searchRegexError(query: string): string | null {
   }
 }
 
+type TextMatcher = (text: string) => boolean;
+
+/**
+ * How a regex search decides a text: from `regexMatches`, worked out ahead in a worker
+ * (`useRegexSearch`), else by testing here. An invalid pattern matches nothing: a literal
+ * fallback would contradict the regex toggle.
+ */
+function regexMatcher(query: string, regexMatches?: ReadonlySet<string> | null): TextMatcher {
+  if (regexMatches) return (text) => regexMatches.has(text);
+  const pattern = compileSearchRegex(query);
+  return pattern ? (text) => pattern.test(text) : () => false;
+}
+
 function matchesSearchQuery(
   query: string,
-  pattern: RegExp | null,
-  useRegex: boolean,
+  matcher: TextMatcher | null,
   matchNames: boolean,
   name: string,
   description?: string | null,
   tags: readonly MediaTag[] = [],
 ): boolean {
-  // An invalid pattern matches nothing: a literal fallback would contradict the regex toggle.
-  if (useRegex) {
-    if (!pattern) return false;
-    if (matchNames && pattern.test(name)) return true;
-    if (description != null && pattern.test(description)) return true;
-    return tags.some((tag) => pattern.test(tag.label));
+  if (matcher) {
+    if (matchNames && matcher(name)) return true;
+    if (description != null && matcher(description)) return true;
+    return tags.some((tag) => matcher(tag.label));
   }
 
   const needle = query.toLowerCase();
@@ -169,20 +168,24 @@ function matchesSearchQuery(
   return tags.some((tag) => tag.label.includes(needle));
 }
 
-/** matchNames off searches captions only: an OR over both fields would keep every item. */
+/**
+ * matchNames off searches captions only: an OR over both fields would keep every item.
+ * `regexMatches` holds the texts a regex search matched, so no pattern runs on this thread.
+ */
 export function filterBySearch(
   items: GalleryItem[],
   query: string,
   regex: boolean,
   matchNames: boolean,
+  regexMatches?: ReadonlySet<string> | null,
 ): GalleryItem[] {
   const trimmed = query.trim();
   if (!trimmed) return items;
 
-  const pattern = regex ? compileSearchRegex(trimmed) : null;
+  const matcher = regex ? regexMatcher(trimmed, regexMatches) : null;
 
   return items.filter((item) =>
-    matchesSearchQuery(trimmed, pattern, regex, matchNames, item.name, item.description, item.tags),
+    matchesSearchQuery(trimmed, matcher, matchNames, item.name, item.description, item.tags),
   );
 }
 
@@ -190,13 +193,14 @@ export function filterSubfoldersBySearch(
   folders: Subfolder[],
   query: string,
   regex: boolean,
+  regexMatches?: ReadonlySet<string> | null,
 ): Subfolder[] {
   const trimmed = query.trim();
   if (!trimmed) return folders;
 
-  const pattern = regex ? compileSearchRegex(trimmed) : null;
+  const matcher = regex ? regexMatcher(trimmed, regexMatches) : null;
 
-  return folders.filter((folder) => matchesSearchQuery(trimmed, pattern, regex, true, folder.name));
+  return folders.filter((folder) => matchesSearchQuery(trimmed, matcher, true, folder.name));
 }
 
 export function applyItemFilter(items: GalleryItem[], filter: ItemFilter): GalleryItem[] {
@@ -234,6 +238,7 @@ export function processGalleryItems(
     searchQuery: string;
     searchRegex: boolean;
     searchNames: boolean;
+    regexMatches?: ReadonlySet<string> | null;
     sort: SortOption;
   },
 ): GalleryItem[] {
@@ -246,6 +251,7 @@ export function processGalleryItems(
       options.searchQuery,
       options.searchRegex,
       options.searchNames,
+      options.regexMatches,
     ),
     options.sort,
   );

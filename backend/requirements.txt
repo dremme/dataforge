@@ -18,6 +18,8 @@ imageio-ffmpeg==0.6.0
 # The Adjust tool's LUT, detail filters and analysis; OpenCV installs it anyway.
 numpy>=2.1,<3
 PyYAML==6.0.3
+# Caption find-and-replace: `re` syntax with a per-call timeout, which `re` lacks.
+regex==2026.9.29
 opencv-python-headless>=4.14.0.94,<5
 
 # torch is optional: it is only a fallback for GPU name/VRAM in the automation

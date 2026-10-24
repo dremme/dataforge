@@ -266,7 +266,7 @@ export function AppContent() {
                 selectedPath: gallery.selectedPath,
                 selectedIndex: gallery.selectedIndex,
                 dialogItems: gallery.dialogItems,
-                searchQuery: query.searchQuery,
+                searchQuery: query.highlightQuery,
                 searchRegex: query.searchRegex,
                 hasCaptionBackup: folder?.has_caption_backup ?? false,
                 focusView: gallery.focusView,

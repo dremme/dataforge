@@ -1,5 +1,6 @@
 import { act, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { REGEX_SEARCH_BUDGET_MS } from "./useRegexSearch";
 import { FILTER_OPTIONS } from "@/features/gallery/lib/filters";
 import { readGallerySessionQuery } from "@/features/gallery/lib/sessionPreferences";
 import { useGalleryQuery } from "./useGalleryQuery";
@@ -616,5 +617,35 @@ describe("useGalleryQuery", () => {
     });
 
     expect(result.current.filteredItems).toHaveLength(expected);
+  });
+});
+
+describe("useGalleryQuery regex search", () => {
+  it("shows nothing for a pattern that runs out of time, and says why", async () => {
+    // A worker that never answers, as one stuck backtracking would not.
+    class SilentWorker {
+      addEventListener() {}
+      removeEventListener() {}
+      postMessage() {}
+      terminate() {}
+    }
+    vi.stubGlobal("Worker", SilentWorker);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { result } = renderHookWithQueryClient(() => useGalleryQuery(items));
+      act(() => {
+        result.current.setSearchRegex(true);
+        result.current.setSearchQuery("^(a|aa)+$");
+      });
+
+      await act(() => vi.advanceTimersByTimeAsync(REGEX_SEARCH_BUDGET_MS));
+
+      await waitFor(() => expect(result.current.filterEmptyState?.title).toBe("Pattern too slow"));
+      expect(result.current.filteredItems).toEqual([]);
+      expect(result.current.highlightQuery).toBe("");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 });

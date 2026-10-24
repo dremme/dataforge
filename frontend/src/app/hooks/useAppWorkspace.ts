@@ -31,7 +31,8 @@ import { useSettingsDialog } from "@/features/settings/hooks/useSettingsDialog";
 import { useShortcutsDialog } from "@/features/shortcuts/hooks/useShortcutsDialog";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionHost";
-import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
+import { filterSubfoldersBySearch, searchRegexError } from "@/features/gallery/lib/query";
+import { useRegexSearch } from "@/features/gallery/hooks/useRegexSearch";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 import type { GalleryItem, JobType } from "@/shared/types";
 import { useWorkspaceTransitions } from "@/app/hooks/useWorkspaceTransitions";
@@ -137,12 +138,23 @@ export function useAppWorkspace() {
   });
 
   const { searchQuery, searchRegex, searchNames } = gallery.query;
+  const subfolderNames = useMemo(() => subfolders.map((subfolder) => subfolder.name), [subfolders]);
+  const trimmedSearch = searchQuery.trim();
+  const subfolderRegex = useRegexSearch(
+    searchRegex && searchNames && trimmedSearch && !searchRegexError(trimmedSearch)
+      ? trimmedSearch
+      : null,
+    subfolderNames,
+  );
+  const subfolderMatches = subfolderRegex.status === "idle" ? null : subfolderRegex.matches;
 
   // Caption-only search cannot match folders; leave the subfolder list unfiltered.
   const filteredSubfolders = useMemo(
     () =>
-      searchNames ? filterSubfoldersBySearch(subfolders, searchQuery, searchRegex) : subfolders,
-    [subfolders, searchQuery, searchRegex, searchNames],
+      searchNames
+        ? filterSubfoldersBySearch(subfolders, searchQuery, searchRegex, subfolderMatches)
+        : subfolders,
+    [subfolders, searchQuery, searchRegex, searchNames, subfolderMatches],
   );
 
   const selectionActions = useGallerySelectionActions({

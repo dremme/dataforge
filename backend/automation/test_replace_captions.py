@@ -9,6 +9,7 @@ from testing_fixtures import isolate_test_database
 isolate_test_database()
 
 from automation.replace_captions import (
+    PatternTooSlowError,
     build_caption_replacer,
     preview_caption_replacements,
     run_replace_captions_job,
@@ -86,6 +87,19 @@ class CaptionReplacerTests(unittest.TestCase):
         replace = build_caption_replacer(search="dog", replacement="$1")
 
         self.assertEqual(replace("a dog"), "a $1")
+
+    def test_literal_replacement_is_inserted_exactly_as_typed(self) -> None:
+        """The audit's F08: ``\\new`` became a line break and ``\\item`` a "bad escape"."""
+        for replacement in (r"\new", r"\item", r"\1", r"\g<0>", "$1", "a\\b"):
+            with self.subTest(replacement=replacement):
+                replace = build_caption_replacer(search="dog", replacement=replacement)
+
+                self.assertEqual(replace("a dog"), f"a {replacement}")
+
+    def test_regex_replacement_still_expands_groups(self) -> None:
+        replace = build_caption_replacer(search=r"(\w+) (dog)", replacement="$2 $1", use_regex=True)
+
+        self.assertEqual(replace("brown dog"), "dog brown")
 
     def test_regex_replacement_rejects_a_missing_dollar_group(self) -> None:
         replace = build_caption_replacer(search=r"(dog)", replacement="$9", use_regex=True)
@@ -357,6 +371,44 @@ class SharedCaptionTests(unittest.TestCase):
             preview = preview_caption_replacements(root, search="a", replacement="aa")
 
             self.assertEqual((preview["total"], preview["matched"]), (1, 1))
+
+
+SLOW_PATTERN = r"^(a|aa)+$"
+SLOW_CAPTION = "a" * 40 + "!"
+
+
+@patch("automation.replace_captions.CAPTION_REGEX_TIMEOUT_SECONDS", 0.1)
+class SlowPatternTests(unittest.TestCase):
+    """The audit's F09: a valid pattern could backtrack for minutes inside one caption."""
+
+    def test_a_pattern_that_runs_too_long_is_stopped(self) -> None:
+        replace = build_caption_replacer(search=SLOW_PATTERN, replacement="x", use_regex=True)
+
+        with self.assertRaisesRegex(PatternTooSlowError, "took too long"):
+            replace(SLOW_CAPTION)
+
+    def test_the_job_stops_at_the_first_caption_it_times_out_on(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_txt_caption(write_media(root, "one.png"), SLOW_CAPTION)
+            second = write_txt_caption(write_media(root, "two.png"), SLOW_CAPTION)
+
+            result = run_replace_captions_job(
+                root, search=SLOW_PATTERN, replacement="x", use_regex=True
+            )
+
+            self.assertEqual(result["stats"]["pattern_error"], 1)
+            self.assertEqual([entry["status"] for entry in result["results"]], ["pattern_error"])
+            self.assertEqual(first.read_text(encoding="utf-8"), SLOW_CAPTION)
+            self.assertEqual(second.read_text(encoding="utf-8"), SLOW_CAPTION)
+
+    def test_the_preview_reports_it_as_an_error(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "one.png"), SLOW_CAPTION)
+
+            with self.assertRaises(PatternTooSlowError):
+                preview_caption_replacements(
+                    root, search=SLOW_PATTERN, replacement="x", use_regex=True
+                )
 
 
 class ReplaceCaptionsPreviewTests(unittest.TestCase):

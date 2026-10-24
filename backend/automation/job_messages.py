@@ -162,6 +162,11 @@ def set_captions_error_message(stats: dict[str, int]) -> str | None:
 
 
 def replace_captions_error_message(stats: dict[str, int]) -> str | None:
+    if _count(stats, "pattern_error"):
+        return (
+            "Stopped: the search pattern took too long to evaluate. "
+            "Simplify it and run the job again."
+        )
     read_errors = _count(stats, "read_error")
     error_count = _count(stats, "read_error", "write_error")
     if error_count == 0:
