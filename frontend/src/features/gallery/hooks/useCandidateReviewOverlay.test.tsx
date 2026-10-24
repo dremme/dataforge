@@ -240,4 +240,59 @@ describe("useCandidateReviewOverlay", () => {
       expect(onReturnToItem).not.toHaveBeenCalled();
     });
   });
+
+  describe("scoped to a selection", () => {
+    const lake = mediaItem("lake.png", HOME_PATH, {
+      has_candidate: true,
+      candidate_name: "lake.png",
+    });
+    const ridge = mediaItem("ridge.png", HOME_PATH, {
+      has_candidate: true,
+      candidate_name: "ridge.png",
+    });
+
+    beforeEach(() => {
+      fetchFolderMock.mockResolvedValue(
+        stagingListing([
+          mediaItem("lake.png", STAGING_PATH),
+          mediaItem("ridge.png", STAGING_PATH),
+          mediaItem("orphan.png", STAGING_PATH),
+        ]),
+      );
+    });
+
+    it("queues only the selected files' candidates", async () => {
+      const { result } = renderHook(() => useCandidateReviewOverlay(), { wrapper });
+
+      await act(async () => {
+        await result.current.openCandidateReview(
+          HOME_PATH,
+          [lake, ridge],
+          undefined,
+          new Set([lake.path]),
+        );
+      });
+
+      expect(result.current.open).toBe(true);
+      expect(result.current.entries.map((entry) => entry.path)).toEqual([lake.path]);
+    });
+
+    it("says so when nothing selected has a candidate", async () => {
+      const { result } = renderHook(() => useCandidateReviewOverlay(), { wrapper });
+
+      await act(async () => {
+        await result.current.openCandidateReview(
+          HOME_PATH,
+          [lake, ridge],
+          undefined,
+          new Set([`${HOME_PATH}\\elsewhere.png`]),
+        );
+      });
+
+      expect(result.current.open).toBe(false);
+      expect(
+        await screen.findByText("No candidates are waiting in the selection."),
+      ).toBeInTheDocument();
+    });
+  });
 });

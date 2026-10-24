@@ -24,7 +24,8 @@ import {
   isDuplicateItem,
 } from "@/features/gallery/lib/duplicates";
 import { jobEligibleItems } from "@/features/gallery/lib/itemKind";
-import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
+import { countCandidates, isCandidateItem } from "@/features/gallery/lib/candidateReview";
+import { countResolvableIssues } from "@/features/gallery/lib/issues";
 import { useStatsDialog } from "@/features/gallery/hooks/useStatsDialog";
 import { useSettingsDialog } from "@/features/settings/hooks/useSettingsDialog";
 import { useShortcutsDialog } from "@/features/shortcuts/hooks/useShortcutsDialog";
@@ -176,12 +177,22 @@ export function useAppWorkspace() {
     refreshFolder,
     gallery.returnToGalleryItem,
   );
-  const duplicateGroupCount = useMemo(() => countDuplicateGroups(items), [items]);
+  const selectedPaths =
+    selection.selectionMode && gallery.visibleSelectedCount > 0
+      ? gallery.visibleSelectedPaths
+      : null;
+  // The Review queues walk the selection when there is one, so a pick-review loop stays short.
+  const reviewItems = useMemo(
+    () => (selectedPaths ? items.filter((item) => selectedPaths.has(item.path)) : items),
+    [items, selectedPaths],
+  );
+  const reviewIssueCount = useMemo(() => countResolvableIssues(reviewItems), [reviewItems]);
+  const duplicateGroupCount = useMemo(() => countDuplicateGroups(reviewItems), [reviewItems]);
+  const candidateCount = useMemo(() => countCandidates(reviewItems), [reviewItems]);
   const candidateSourcePaths = useMemo(
     () => items.filter(isCandidateItem).map((item) => item.path),
     [items],
   );
-  const candidateCount = candidateSourcePaths.length;
 
   const candidateReviewOverlay = useCandidateReviewOverlay(
     refreshFolder,
@@ -214,10 +225,7 @@ export function useAppWorkspace() {
     folderLabel,
     folderItemCount: items.length,
     candidatePaths: candidateSourcePaths,
-    selectedPaths:
-      selection.selectionMode && gallery.visibleSelectedCount > 0
-        ? gallery.visibleSelectedPaths
-        : null,
+    selectedPaths,
     onSettled: refreshFolder,
   });
 
@@ -248,13 +256,13 @@ export function useAppWorkspace() {
     requestTransition,
     automation: folderAutomation,
     onEditSysprompt: gallery.openSysPrompt,
-    issueCount: gallery.issueCount,
+    issueCount: reviewIssueCount,
     onResolveIssues:
-      gallery.issueCount > 0
+      reviewIssueCount > 0
         ? () =>
             void requestTransition(() => {
               gallery.closeGalleryItem();
-              gallery.issueResolver.openIssueResolver(items);
+              gallery.issueResolver.openIssueResolver(reviewItems);
             })
         : undefined,
     duplicateGroupCount,
@@ -263,7 +271,11 @@ export function useAppWorkspace() {
         ? () =>
             void requestTransition(async () => {
               gallery.closeGalleryItem();
-              await duplicateResolver.openDuplicateResolver(folder.path);
+              await duplicateResolver.openDuplicateResolver(
+                folder.path,
+                undefined,
+                selectedPaths ?? undefined,
+              );
             })
         : undefined,
     candidateCount,
@@ -272,7 +284,12 @@ export function useAppWorkspace() {
         ? () =>
             void requestTransition(async () => {
               gallery.closeGalleryItem();
-              await candidateReview.openCandidateReview(folder.path, items);
+              await candidateReview.openCandidateReview(
+                folder.path,
+                items,
+                undefined,
+                selectedPaths ?? undefined,
+              );
             })
         : undefined,
     onOpenItem: gallery.openGalleryItem,

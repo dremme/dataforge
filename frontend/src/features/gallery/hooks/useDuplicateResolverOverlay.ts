@@ -27,24 +27,32 @@ export function useDuplicateResolverOverlay(
   const [deletesToTrash, setDeletesToTrash] = useState(false);
 
   const openDuplicateResolver = useCallback(
-    async (folder: string, focus?: DuplicateResolverFocus) => {
+    async (folder: string, focus?: DuplicateResolverFocus, selectedPaths?: ReadonlySet<string>) => {
       try {
         const response = await fetchDuplicateGroups(folder);
 
         const outcome = duplicateOpenOutcome(response.stale.length, response.groups.length);
         if (outcome && !focus) notify(outcome);
 
-        const shown = focus
-          ? response.groups.filter((group) =>
-              group.members.some((member) => member.path === focus.path),
-            )
-          : response.groups;
+        // Whole groups: a selected file needs its unselected copies to be compared against.
+        const shown = response.groups.filter((group) =>
+          group.members.some(
+            (member) =>
+              (!focus || member.path === focus.path) &&
+              (!selectedPaths || selectedPaths.has(member.path)),
+          ),
+        );
 
         if (shown.length === 0) {
           if (focus) {
             notify({
               variant: "warning",
               message: `${pathBaseName(focus.path)} has no duplicate left to compare.`,
+            });
+          } else if (selectedPaths && !outcome) {
+            notify({
+              variant: "warning",
+              message: "No duplicate group includes the selected files.",
             });
           }
           return;

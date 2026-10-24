@@ -16,6 +16,7 @@ function stagingPath(folderPath: string): string {
 }
 
 const NOTHING_TO_REVIEW = "No candidates are waiting for review.";
+const NOTHING_IN_SELECTION = "No candidates are waiting in the selection.";
 
 export interface CandidateReviewFocus {
   path: string;
@@ -34,11 +35,19 @@ export function useCandidateReviewOverlay(
   const [returnPath, setReturnPath] = useState<string | null>(null);
 
   const openCandidateReview = useCallback(
-    async (folderPath: string, items: readonly GalleryItem[], focus?: CandidateReviewFocus) => {
+    async (
+      folderPath: string,
+      items: readonly GalleryItem[],
+      focus?: CandidateReviewFocus,
+      selectedPaths?: ReadonlySet<string>,
+    ) => {
       try {
         const staging = await fetchFolder(stagingPath(folderPath));
+        // Filtered after pairing: unpaired `items` would turn unselected candidates into orphans.
         const queue = buildCandidateReviewQueue(folderPath, items, staging.items).filter(
-          (entry) => !focus || entry.path === focus.path,
+          (entry) =>
+            (!focus || entry.path === focus.path) &&
+            (!selectedPaths || selectedPaths.has(entry.path)),
         );
 
         if (queue.length === 0) {
@@ -46,7 +55,9 @@ export function useCandidateReviewOverlay(
             variant: "warning",
             message: focus
               ? `No candidate is waiting for ${pathBaseName(focus.path)}.`
-              : NOTHING_TO_REVIEW,
+              : selectedPaths
+                ? NOTHING_IN_SELECTION
+                : NOTHING_TO_REVIEW,
           });
           return;
         }

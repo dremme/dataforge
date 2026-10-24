@@ -341,6 +341,41 @@ describe("App: gallery item dialog", () => {
     expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
   });
 
+  it("reviews only the selected files' issues from the Review menu", async () => {
+    const user = userEvent.setup();
+    const flagged = new Set(["sunset.png", "beach.jpg"]);
+    const twoIssueFolder: FolderResponse = {
+      ...homeFolder,
+      items: homeFolder.items.map((item) =>
+        flagged.has(item.name)
+          ? {
+              ...item,
+              has_issue_file: true,
+              has_duplicate_file: false,
+              issue_fixes: ['Replace "lake" with "river".'],
+            }
+          : item,
+      ),
+    };
+    installMockBackend({
+      folderByPath: { undefined: twoIssueFolder, [HOME_PATH]: twoIssueFolder },
+    });
+    await renderApp();
+
+    expect(await screen.findByRole("button", { name: /^Review 2/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Select" }));
+    await user.click(await screen.findByRole("button", { name: "Select beach.jpg" }));
+
+    await user.click(await screen.findByRole("button", { name: /^Review 1/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /Caption issues/ }));
+
+    const resolver = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for beach.jpg",
+    });
+    expect(within(resolver).getByText("1 / 1")).toBeInTheDocument();
+  });
+
   it("reviews only the open file's candidate, then returns to that file", async () => {
     const user = userEvent.setup();
     installCandidateBackend();

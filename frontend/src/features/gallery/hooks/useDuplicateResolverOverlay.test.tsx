@@ -172,6 +172,37 @@ describe("useDuplicateResolverOverlay", () => {
     expect(result.current.open).toBe(false);
   });
 
+  it("opens every group touching the selection, with all of its members", async () => {
+    fetchGroups.mockResolvedValue(listing({ groups: [group("g1"), group("g2")] }));
+    const { result } = renderHook(() => useDuplicateResolverOverlay(), { wrapper });
+
+    await result.current.openDuplicateResolver(
+      HOME_PATH,
+      undefined,
+      new Set([`${HOME_PATH}\\g2-one.png`]),
+    );
+
+    await waitFor(() => expect(result.current.open).toBe(true));
+    expect(result.current.groups.map((entry) => entry.group)).toEqual(["g2"]);
+    // The unselected copy stays: a group of one has nothing to compare against.
+    expect(result.current.groups[0].members).toHaveLength(2);
+  });
+
+  it("says so when no group touches the selection", async () => {
+    const { result } = renderHook(() => useDuplicateResolverOverlay(), { wrapper });
+
+    await result.current.openDuplicateResolver(
+      HOME_PATH,
+      undefined,
+      new Set([`${HOME_PATH}\\elsewhere.png`]),
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "No duplicate group includes the selected files.",
+    );
+    expect(result.current.open).toBe(false);
+  });
+
   it("reports a failed fetch instead of failing silently", async () => {
     fetchGroups.mockRejectedValue(new Error("Backend unreachable"));
     const { result } = renderHook(() => useDuplicateResolverOverlay(), { wrapper });
