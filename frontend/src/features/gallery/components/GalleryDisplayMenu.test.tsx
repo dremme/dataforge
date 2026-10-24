@@ -30,6 +30,39 @@ describe("GalleryDisplayMenu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("switches modes with Ctrl+1, Ctrl+2 and Ctrl+3", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn<(value: GalleryDisplayMode) => void>();
+
+    const { rerender } = render(<GalleryDisplayMenu value="large" onChange={onChange} />);
+
+    await user.keyboard("{Control>}1{/Control}");
+    expect(onChange).not.toHaveBeenCalled();
+
+    await user.keyboard("{Control>}2{/Control}");
+    rerender(<GalleryDisplayMenu value="small" onChange={onChange} />);
+    await user.keyboard("{Control>}3{/Control}");
+    rerender(<GalleryDisplayMenu value="list" onChange={onChange} />);
+    await user.keyboard("{Control>}1{/Control}");
+
+    expect(onChange.mock.calls).toEqual([["small"], ["list"], ["large"]]);
+  });
+
+  it("names each mode's shortcut on its menu item", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <GalleryDisplayMenu value="large" onChange={vi.fn<(value: GalleryDisplayMode) => void>()} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Display mode" }));
+
+    expect(screen.getByRole("menuitemradio", { name: "Small cards" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Control+2 Meta+2",
+    );
+  });
+
   it("closes on Escape", async () => {
     const user = userEvent.setup();
 

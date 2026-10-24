@@ -45,6 +45,15 @@ describe("matchesChord", () => {
     expect(matchesShortcut(ctrlY, SHORTCUTS.editorUndo)).toBe(false);
   });
 
+  it("matches digits by position on a layout whose digit row types symbols", () => {
+    // French AZERTY: the 1 key types & unless Shift is held.
+    const chord = { key: "1", mod: true };
+
+    expect(matchesChord(keydown({ key: "&", code: "Digit1", ctrlKey: true }), chord)).toBe(true);
+    expect(matchesChord(keydown({ key: "1", code: "Numpad1", ctrlKey: true }), chord)).toBe(true);
+    expect(matchesChord(keydown({ key: "&", code: "Digit2", ctrlKey: true }), chord)).toBe(false);
+  });
+
   it("leaves Shift to the layout for printable symbols", () => {
     expect(matchesChord(keydown({ key: "?", shiftKey: true }), { key: "?" })).toBe(true);
     expect(matchesChord(keydown({ key: "/", shiftKey: true }), { key: "/" })).toBe(true);

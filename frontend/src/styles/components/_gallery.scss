@@ -30,16 +30,16 @@
   }
 }
 
-// The file open in the caption inspector.
 .gallery-list-row[data-inspected] {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  box-shadow:
+    inset 2px 2px 0 var(--text),
+    inset -2px -2px 0 var(--text);
 }
 
 .card[data-inspected] {
   &,
   &:hover {
-    border-color: var(--accent);
+    border-color: var(--text);
   }
 
   // Paint above the preview, which otherwise covers the inner pixel of an inset outline.
@@ -48,7 +48,7 @@
     position: absolute;
     inset: -1px;
     z-index: 3;
-    border: 2px solid var(--accent);
+    border: 2px solid var(--text);
     border-radius: inherit;
     pointer-events: none;
   }

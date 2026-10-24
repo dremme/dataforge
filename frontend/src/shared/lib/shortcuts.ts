@@ -68,6 +68,17 @@ export const SHORTCUTS = {
     label: "Clear the selection, then leave selection mode",
     chords: [{ key: "Escape" }],
   },
+  displayLarge: {
+    group: "selection",
+    label: "Show large cards",
+    chords: [{ key: "1", mod: true }],
+  },
+  displaySmall: {
+    group: "selection",
+    label: "Show small cards",
+    chords: [{ key: "2", mod: true }],
+  },
+  displayList: { group: "selection", label: "Show a list", chords: [{ key: "3", mod: true }] },
 
   previousItem: { group: "viewer", label: "Previous item", chords: [{ key: "ArrowLeft" }] },
   nextItem: { group: "viewer", label: "Next item", chords: [{ key: "ArrowRight" }] },
@@ -318,6 +329,10 @@ function isLetter(key: string): boolean {
   return /^[a-z]$/i.test(key);
 }
 
+function isDigit(key: string): boolean {
+  return /^\d$/.test(key);
+}
+
 /** A printable symbol whose Shift state belongs to the keyboard layout, not the chord. */
 function isLayoutSymbol(key: string): boolean {
   return key.length === 1 && !isLetter(key) && key !== " ";
@@ -331,6 +346,8 @@ function keyMatches(event: KeyboardEvent, key: string): boolean {
       ? event.key.toLowerCase() === key
       : event.code === `Key${key.toUpperCase()}`;
   }
+  // Position too, because AZERTY's digit row types symbols unless Shift is held.
+  if (isDigit(key)) return event.key === key || event.code === `Digit${key}`;
   return event.key === key;
 }
 
