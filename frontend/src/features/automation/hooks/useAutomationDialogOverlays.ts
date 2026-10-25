@@ -240,6 +240,7 @@ export function useAutomationDialogOverlays({
             preset: draft.preset,
             seed: draft.seed,
             prompt_text: draft.promptText,
+            inputs: draft.inputs,
             overwrite_candidates: draft.overwriteCandidates,
           }),
       },

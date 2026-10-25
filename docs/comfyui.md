@@ -96,15 +96,16 @@ The following are unsupported:
 
 ### Optional nodes
 
-| Node title         | Input DataForge changes                                               |
-| ------------------ | --------------------------------------------------------------------- |
-| `DataForge Prompt` | `text`, `value` or `prompt`, if a prompt is entered                   |
-| `DataForge Seed`   | `seed` or `noise_seed`, if a seed is entered                          |
-| `DataForge FPS`    | The node's own numeric value, set to the source's measured frame rate |
+| Node title         | Input DataForge changes                               |
+| ------------------ | ----------------------------------------------------- |
+| `DataForge Prompt` | `text`, `value` or `prompt`, if a prompt is entered   |
+| `DataForge Seed`   | `seed`, `noise_seed` or `value`, if a seed is entered |
 
-Without these nodes, or with optional fields left empty, the workflow uses its saved values. The dialog disables Prompt or Seed when the matching node is absent. A prompt/FPS value must belong to the titled node, rather than be wired from another node; an unusable prompt node causes a supplied prompt to be refused.
+Without these nodes, or with optional fields left empty, the workflow uses its saved values. The dialog disables Prompt or Seed when the matching node is absent. A prompt or custom input value must belong to the titled node, rather than be wired from another node; an unusable prompt node causes a supplied prompt to be refused.
 
-For interpolation, multiply the source rate by the interpolation factor: doubling 24 fps footage requires 48 fps output to retain its duration. Use `DataForge FPS` as the source-rate input to that calculation. The review warns about duration mismatches.
+### Custom inputs
+
+Any other node titled `DataForge <name>`, such as `DataForge Denoise`, adds a field called `<name>` to the dialog. Title a primitive node (Int, Float, String or Boolean) and wire its output wherever the value is needed; the dialog shows a number, whole-number, text or on/off field to match the saved value, with that value as the placeholder. DataForge writes the node's `value`, or its only literal input when it has no `value`. Leave a field empty to keep the saved value. Like the seed and prompt, values are remembered per preset. Two nodes with the same title add no field.
 
 ## Inspect embedded workflows
 

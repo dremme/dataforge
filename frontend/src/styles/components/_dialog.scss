@@ -1073,6 +1073,24 @@
     min-width: 0;
   }
 
+  // Custom inputs pack three to a row; text takes a whole row like the prompt.
+  &__inputs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    align-items: start;
+
+    // A boolean renders as a DialogSelect, whose own field spacing the grid gap replaces.
+    > .dialog__field {
+      margin-top: 0;
+      min-width: 0;
+    }
+  }
+
+  &__cell--wide {
+    grid-column: 1 / -1;
+  }
+
   [type="number"] {
     @include tabular-nums;
     text-align: right;

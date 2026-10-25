@@ -54,6 +54,9 @@ type ComfyMapNodeKind = Literal[
     "pass", "model", "loras", "clip", "vae", "prompt", "input", "output"
 ]
 type ComfyMediaKind = Literal["image", "video", "audio"]
+#: How the dialog edits a ``DataForge <name>`` node: a checkbox, whole number, number or text.
+type ComfyInputKind = Literal["boolean", "integer", "number", "text"]
+type ComfyInputValue = bool | int | float | str
 
 #: Keys of ``TRAINING_TEMPLATES``; ``h3_*`` are video, the rest image.
 type TrainingModel = Literal[
@@ -895,6 +898,8 @@ class ComfyPresetSettings(BaseModel):
     seed: int | None = None
     #: Named ``prompt_text`` because ``prompt`` is the whole graph elsewhere.
     prompt_text: str = ""
+    #: By custom input name; a name left out runs with the value the preset was saved with.
+    inputs: dict[str, ComfyInputValue] = Field(default_factory=dict)
 
 
 class ComfyProcessJobSettings(ComfyPresetSettings):
@@ -918,12 +923,23 @@ class ComfyProcessSettingsResponse(BaseModel):
     by_preset: dict[str, ComfyPresetSettings] = Field(default_factory=dict)
 
 
+class ComfyPresetInput(BaseModel):
+    """A node titled ``DataForge <name>`` beyond the fixed roles, editable in the dialog."""
+
+    name: str
+    kind: ComfyInputKind
+    #: What the preset was saved with, shown as the placeholder.
+    default: ComfyInputValue
+
+
 class ComfyPresetSummary(BaseModel):
     name: str
     modified_at: str | None = None
     #: Null when the preset could not be parsed, so the dialog leaves both fields enabled.
     accepts_prompt: bool | None = None
     accepts_seed: bool | None = None
+    #: Empty for an unparseable preset too; queueing it names the fix.
+    inputs: list[ComfyPresetInput] = Field(default_factory=list)
 
 
 class ComfyLogsResponse(BaseModel):
@@ -1587,6 +1603,8 @@ class ComfyCandidateSidecar(BaseModel):
     prompt_id: str | None = None
     seed: int | None = None
     prompt_text: str | None = None
+    #: Only the custom inputs this run overrode.
+    inputs: dict[str, ComfyInputValue] = Field(default_factory=dict)
     #: Written at job time, the one moment both images are already decoded.
     difference_percent: float | None = None
     #: Both sides, so review can show 24 -> 48 rather than a bare number.

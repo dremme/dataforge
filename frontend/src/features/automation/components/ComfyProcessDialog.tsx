@@ -9,7 +9,13 @@ import { DialogActions } from "@/shared/ui/Dialog";
 import { DialogSelect } from "@/shared/ui/DialogSelect";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import { Icon } from "@/shared/ui/Icon";
-import type { ComfyPresetSettings, ComfyPresetSummary } from "@/shared/types";
+import { classNames } from "@/shared/lib/classNames";
+import type {
+  ComfyInputValue,
+  ComfyPresetInput,
+  ComfyPresetSettings,
+  ComfyPresetSummary,
+} from "@/shared/types";
 
 export interface ComfyProcessSettings {
   preset: string;
@@ -17,6 +23,8 @@ export interface ComfyProcessSettings {
   seed: number | null;
   /** Empty runs whatever text the preset's prompt node was saved with. */
   promptText: string;
+  /** By custom input name; a name left out runs with the preset's saved value. */
+  inputs: Record<string, ComfyInputValue>;
   overwriteCandidates: boolean;
 }
 
@@ -28,18 +36,57 @@ interface ComfyProcessDialogProps {
   onCancel: () => void;
 }
 
+type BooleanChoice = "" | "on" | "off";
+
 interface PresetDraft {
   seedText: string;
   promptText: string;
+  /** Field text by input name; a boolean holds a `BooleanChoice`. Empty runs the saved value. */
+  inputs: Record<string, string>;
 }
 
-const EMPTY_DRAFT: PresetDraft = { seedText: "", promptText: "" };
+const EMPTY_DRAFT: PresetDraft = { seedText: "", promptText: "", inputs: {} };
+
+function inputText(value: ComfyInputValue): string {
+  if (typeof value === "boolean") return value ? "on" : "off";
+  return String(value);
+}
 
 function toDraft(settings: ComfyPresetSettings): PresetDraft {
   return {
     seedText: settings.seed == null ? "" : String(settings.seed),
     promptText: settings.prompt_text,
+    inputs: Object.fromEntries(
+      Object.entries(settings.inputs).map(([name, value]) => [name, inputText(value)]),
+    ),
   };
+}
+
+function sameDraft(a: PresetDraft, b: PresetDraft): boolean {
+  const names = new Set([...Object.keys(a.inputs), ...Object.keys(b.inputs)]);
+  return (
+    a.seedText === b.seedText &&
+    a.promptText === b.promptText &&
+    [...names].every((name) => (a.inputs[name] ?? "") === (b.inputs[name] ?? ""))
+  );
+}
+
+const KIND_NOUNS: Record<ComfyPresetInput["kind"], string> = {
+  boolean: "on or off",
+  integer: "a whole number",
+  number: "a number",
+  text: "text",
+};
+
+/** The value to send, null for an empty field, or undefined when the text does not parse. */
+function parseInput(input: ComfyPresetInput, text: string): ComfyInputValue | null | undefined {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  if (input.kind === "text") return text;
+  if (input.kind === "boolean") return trimmed === "on";
+  if (input.kind === "integer") return /^-?\d+$/.test(trimmed) ? Number(trimmed) : undefined;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 type PresetsState =
@@ -79,7 +126,7 @@ export function ComfyProcessDialog({
       Object.entries(initialSettings.by_preset).map(([name, saved]) => [name, toDraft(saved)]),
     ),
   );
-  const { seedText, promptText } = drafts[preset] ?? EMPTY_DRAFT;
+  const { seedText, promptText, inputs: inputTexts } = drafts[preset] ?? EMPTY_DRAFT;
   const updateDraft = (patch: Partial<PresetDraft>) =>
     setDrafts((current) => ({
       ...current,
@@ -96,6 +143,7 @@ export function ComfyProcessDialog({
   // Only false blocks: a preset that could not be parsed reports null and keeps both fields live.
   const promptBlocked = selected?.accepts_prompt === false;
   const seedBlocked = selected?.accepts_seed === false;
+  const customInputs = selected?.inputs ?? [];
 
   const handleConfirm = () => {
     if (busy || state.status !== "ready") return;
@@ -111,11 +159,25 @@ export function ComfyProcessDialog({
       return;
     }
 
+    // Only the selected preset's inputs: a remembered name its file no longer has is dropped.
+    const inputs: Record<string, ComfyInputValue> = {};
+    for (const input of customInputs) {
+      const value = parseInput(input, inputTexts[input.name] ?? "");
+      if (value === undefined) {
+        setError(
+          `${input.name} must be ${KIND_NOUNS[input.kind]}, or empty to use the preset's own.`,
+        );
+        return;
+      }
+      if (value !== null) inputs[input.name] = value;
+    }
+
     setError(null);
     onConfirm({
       preset,
       seed: seedBlocked || !trimmed ? null : Number(trimmed),
       promptText: promptBlocked ? "" : promptText.trim(),
+      inputs,
       overwriteCandidates: overwrite,
     });
   };
@@ -131,8 +193,7 @@ export function ComfyProcessDialog({
         overwrite !== initialSettings.overwrite_candidates ||
         Object.entries(drafts).some(([name, draft]) => {
           const saved = initialSettings.by_preset[name];
-          const initial = saved ? toDraft(saved) : EMPTY_DRAFT;
-          return draft.seedText !== initial.seedText || draft.promptText !== initial.promptText;
+          return !sameDraft(draft, saved ? toDraft(saved) : EMPTY_DRAFT);
         })
       }
       scope={scope}
@@ -269,6 +330,23 @@ export function ComfyProcessDialog({
         )}
       </p>
 
+      {customInputs.length > 0 && (
+        <div className="dialog__field comfy-process-dialog__inputs">
+          {customInputs.map((input) => (
+            <CustomInputField
+              key={input.name}
+              input={input}
+              text={inputTexts[input.name] ?? ""}
+              disabled={busy}
+              onChange={(text) => {
+                updateDraft({ inputs: { ...inputTexts, [input.name]: text } });
+                setError(null);
+              }}
+            />
+          ))}
+        </div>
+      )}
+
       {error && (
         <p id={errorId} className="dialog__error" role="alert">
           {error}
@@ -292,5 +370,59 @@ export function ComfyProcessDialog({
         </label>
       </div>
     </GuardedDialog>
+  );
+}
+
+interface CustomInputFieldProps {
+  input: ComfyPresetInput;
+  text: string;
+  disabled: boolean;
+  onChange: (text: string) => void;
+}
+
+/** One `DataForge <name>` node; the saved value is the placeholder an empty field runs with. */
+function CustomInputField({ input, text, disabled, onChange }: CustomInputFieldProps) {
+  const id = useId();
+
+  if (input.kind === "boolean") {
+    return (
+      <DialogSelect<BooleanChoice>
+        label={input.name}
+        value={text === "on" || text === "off" ? text : ""}
+        options={[
+          { value: "", title: `Default (${input.default ? "on" : "off"})` },
+          { value: "on", title: "On" },
+          { value: "off", title: "Off" },
+        ]}
+        disabled={disabled}
+        onChange={onChange}
+      />
+    );
+  }
+
+  const numeric = input.kind !== "text";
+  return (
+    <div
+      className={classNames(
+        "comfy-process-dialog__cell",
+        !numeric && "comfy-process-dialog__cell--wide",
+      )}
+    >
+      <label htmlFor={id} className="dialog__label">
+        {input.name}
+      </label>
+      <input
+        id={id}
+        type={numeric ? "number" : "text"}
+        step={input.kind === "integer" ? 1 : numeric ? "any" : undefined}
+        className="dialog__input"
+        value={text}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={String(input.default)}
+        spellCheck={false}
+        autoComplete="off"
+        disabled={disabled}
+      />
+    </div>
   );
 }

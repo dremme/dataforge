@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchComfyPresets } from "@/features/automation/api/jobs";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
-import type { ComfyPresetSettings, ComfyPresetsResponse } from "@/shared/types";
+import type { ComfyPresetInput, ComfyPresetSettings, ComfyPresetsResponse } from "@/shared/types";
 import { ComfyProcessDialog } from "./ComfyProcessDialog";
 import { renderWithQueryClient } from "@/test/queryClient";
 import type { ComfyProcessSettings } from "@/features/automation/components/ComfyProcessDialog";
@@ -24,7 +24,7 @@ function settings(
 }
 
 function saved(overrides: Partial<ComfyPresetSettings> = {}): ComfyPresetSettings {
-  return { seed: null, prompt_text: "", ...overrides };
+  return { seed: null, prompt_text: "", inputs: {}, ...overrides };
 }
 
 function presets(
@@ -41,6 +41,7 @@ function presets(
       modified_at: null,
       accepts_prompt: roles[name]?.accepts_prompt ?? true,
       accepts_seed: roles[name]?.accepts_seed ?? true,
+      inputs: [],
     })),
     available,
     base_url: baseUrl,
@@ -185,6 +186,7 @@ describe("ComfyProcessDialog", () => {
       preset: "upscale-2x",
       seed: 4321,
       promptText: "",
+      inputs: {},
       overwriteCandidates: false,
     });
   });
@@ -319,6 +321,88 @@ describe("ComfyProcessDialog", () => {
     renderDialog();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Backend is down");
+  });
+
+  describe("custom DataForge inputs", () => {
+    const INPUTS: ComfyPresetInput[] = [
+      { name: "Denoise", kind: "number", default: 0.5 },
+      { name: "Steps", kind: "integer", default: 20 },
+      { name: "Tiled", kind: "boolean", default: false },
+      { name: "Style", kind: "text", default: "photo" },
+    ];
+
+    function withInputs(): ComfyPresetsResponse {
+      const response = presets(["detailer", "upscale-2x"]);
+      response.presets[0].inputs = INPUTS;
+      return response;
+    }
+
+    it("shows a field per input with the saved value as its placeholder", async () => {
+      fetchPresets.mockResolvedValue(withInputs());
+      renderDialog();
+
+      await screen.findByLabelText("Workflow");
+
+      expect(screen.getByLabelText("Denoise")).toHaveAttribute("placeholder", "0.5");
+      expect(screen.getByLabelText("Steps")).toHaveAttribute("placeholder", "20");
+      expect(screen.getByLabelText("Style")).toHaveAttribute("placeholder", "photo");
+      expect(screen.getByLabelText("Tiled")).toHaveDisplayValue("Default (off)");
+    });
+
+    it("sends typed values and leaves empty fields to the preset", async () => {
+      fetchPresets.mockResolvedValue(withInputs());
+      const user = userEvent.setup();
+      const { onConfirm } = renderDialog();
+
+      await screen.findByLabelText("Workflow");
+      await user.type(screen.getByLabelText("Denoise"), "0.35");
+      await user.selectOptions(screen.getByLabelText("Tiled"), "on");
+      await user.click(screen.getByRole("button", { name: "Start processing" }));
+
+      expect(onConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ preset: "detailer", inputs: { Denoise: 0.35, Tiled: true } }),
+      );
+    });
+
+    it("refuses a fraction for a whole-number input", async () => {
+      fetchPresets.mockResolvedValue(withInputs());
+      const user = userEvent.setup();
+      const { onConfirm } = renderDialog();
+
+      await screen.findByLabelText("Workflow");
+      await user.type(screen.getByLabelText("Steps"), "2.5");
+      await user.click(screen.getByRole("button", { name: "Start processing" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Steps must be a whole number");
+      expect(onConfirm).not.toHaveBeenCalled();
+    });
+
+    it("restores remembered values and drops names the preset no longer has", async () => {
+      fetchPresets.mockResolvedValue(withInputs());
+      const user = userEvent.setup();
+      const { onConfirm } = renderDialog(
+        settings({
+          preset: "detailer",
+          by_preset: { detailer: saved({ inputs: { Steps: 30, Removed: 1 } }) },
+        }),
+      );
+
+      await screen.findByLabelText("Workflow");
+      expect(screen.getByLabelText("Steps")).toHaveValue(30);
+      await user.click(screen.getByRole("button", { name: "Start processing" }));
+
+      expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ inputs: { Steps: 30 } }));
+    });
+
+    it("shows no custom fields for a preset without them", async () => {
+      fetchPresets.mockResolvedValue(withInputs());
+      const user = userEvent.setup();
+      renderDialog();
+
+      await user.selectOptions(await screen.findByLabelText("Workflow"), "upscale-2x");
+
+      expect(screen.queryByLabelText("Denoise")).not.toBeInTheDocument();
+    });
   });
 
   describe("a preset without the optional nodes", () => {

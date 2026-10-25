@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from comfy_settings import get_comfy_workflows_dir
+from schemas import ComfyInputKind, ComfyInputValue
 
 WORKFLOW_EXTENSION = ".json"
 
@@ -18,7 +20,10 @@ INPUT_NODE_TITLE = "DataForge Input"
 OUTPUT_NODE_TITLE = "DataForge Output"
 SEED_NODE_TITLE = "DataForge Seed"
 PROMPT_NODE_TITLE = "DataForge Prompt"
-FPS_NODE_TITLE = "DataForge FPS"
+
+#: Any other node titled with this prefix is a custom input, named by the rest of its title.
+CUSTOM_INPUT_TITLE_PREFIX = "DataForge "
+_ROLE_TITLES = frozenset({INPUT_NODE_TITLE, OUTPUT_NODE_TITLE, SEED_NODE_TITLE, PROMPT_NODE_TITLE})
 
 #: The filename widget each known loader takes; the keys are also the inferrable input classes.
 INPUT_KEYS = {"LoadImage": "image", "VHS_LoadVideo": "video"}
@@ -51,10 +56,15 @@ OUTPUT_WIDGET_KEYS = ("filename_prefix", "filename")
 #: KSampler holds "seed", SamplerCustom "noise_seed", and the native Int node "value".
 _SEED_INPUT_KEYS = ("seed", "noise_seed", "value")
 
-_FPS_INPUT_KEYS = ("value", "fps", "frame_rate")
-
 #: CLIPTextEncode holds "text", Text (Multiline) "value", and Qwen's encoders "prompt".
 _PROMPT_INPUT_KEYS = ("text", "value", "prompt")
+
+_KIND_NOUNS: dict[ComfyInputKind, str] = {
+    "boolean": "on or off",
+    "integer": "a whole number",
+    "number": "a number",
+    "text": "text",
+}
 
 _EXPORT_HINT = "Use Save (API Format) in ComfyUI, not the editor's Save."
 
@@ -73,6 +83,19 @@ class ComfyPreset:
     #: None when the preset cannot be parsed: it still lists, and fails at queue time by name.
     accepts_prompt: bool | None = None
     accepts_seed: bool | None = None
+    custom_inputs: tuple[ComfyCustomInput, ...] = ()
+
+
+@dataclass(frozen=True)
+class ComfyCustomInput:
+    """A ``DataForge <name>`` node whose one widget the dialog can overwrite."""
+
+    name: str
+    node: str
+    key: str
+    kind: ComfyInputKind
+    #: What the preset was saved with, which runs when the field is left empty.
+    default: ComfyInputValue
 
 
 @dataclass(frozen=True)
@@ -88,9 +111,8 @@ class ComfyWorkflow:
     output_key: str | None
     seed_nodes: tuple[str, ...]
     prompt_node: str | None
-    fps_node: str | None = None
-    fps_key: str | None = None
     prompt_key: str | None = None
+    custom_inputs: tuple[ComfyCustomInput, ...] = ()
 
 
 def _node_title(node: dict[str, Any]) -> str:
@@ -196,6 +218,91 @@ def _output_widget_key(node: dict[str, Any]) -> str | None:
     return None
 
 
+def _custom_input_key(node: dict[str, Any]) -> str | None:
+    """``value``, as every primitive node names it, else the node's only literal scalar."""
+    inputs = _node_inputs(node)
+    literals = [key for key, value in inputs.items() if isinstance(value, bool | int | float | str)]
+    if "value" in literals:
+        return "value"
+    return literals[0] if len(literals) == 1 else None
+
+
+def _custom_input_kind(node: dict[str, Any], value: ComfyInputValue) -> ComfyInputKind:
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, str):
+        return "text"
+    # The editor exports a whole float such as 24.0 as 24, so the class has to say "float".
+    if isinstance(value, float) or "float" in node["class_type"].lower():
+        return "number"
+    return "integer"
+
+
+def _custom_inputs(payload: dict[str, Any], source: str) -> tuple[ComfyCustomInput, ...]:
+    titled: dict[str, list[str]] = {}
+    for node_id, node in _nodes(payload):
+        title = _node_title(node)
+        if title.startswith(CUSTOM_INPUT_TITLE_PREFIX) and title not in _ROLE_TITLES:
+            name = title.removeprefix(CUSTOM_INPUT_TITLE_PREFIX).strip()
+            if name:
+                titled.setdefault(name, []).append(node_id)
+
+    found: list[ComfyCustomInput] = []
+    for name, node_ids in sorted(titled.items(), key=lambda item: item[0].lower()):
+        # Same rule as the seed and prompt nodes: ambiguous means no input, not a guess.
+        if len(node_ids) > 1:
+            continue
+        node = payload[node_ids[0]]
+        key = _custom_input_key(node)
+        if key is None:
+            raise ComfyWorkflowError(
+                f'The node titled "{CUSTOM_INPUT_TITLE_PREFIX}{name}" in preset "{source}" has no '
+                "single value to write. Title a node holding its own value, such as Int, Float, "
+                "String or Boolean."
+            )
+        default = _node_inputs(node)[key]
+        found.append(
+            ComfyCustomInput(
+                name=name,
+                node=node_ids[0],
+                key=key,
+                kind=_custom_input_kind(node, default),
+                default=default,
+            )
+        )
+    return tuple(found)
+
+
+def resolve_custom_inputs(
+    workflow: ComfyWorkflow, values: Mapping[str, object]
+) -> dict[str, ComfyInputValue]:
+    """Check each value against its input's kind, refusing names the preset has no node for."""
+    by_name = {entry.name: entry for entry in workflow.custom_inputs}
+    resolved: dict[str, ComfyInputValue] = {}
+    for name, value in values.items():
+        entry = by_name.get(name)
+        if entry is None:
+            raise ComfyWorkflowError(
+                f'The preset "{workflow.preset}" has no node titled '
+                f'"{CUSTOM_INPUT_TITLE_PREFIX}{name}". Re-open the dialog to see its inputs.'
+            )
+        resolved[name] = _coerce_custom_value(entry, value)
+    return resolved
+
+
+def _coerce_custom_value(entry: ComfyCustomInput, value: object) -> ComfyInputValue:
+    # bool is an int subclass, so it is ruled out before either number check.
+    if entry.kind == "boolean" and isinstance(value, bool):
+        return value
+    if entry.kind == "text" and isinstance(value, str):
+        return value
+    if entry.kind == "integer" and isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if entry.kind == "number" and isinstance(value, int | float) and not isinstance(value, bool):
+        return float(value)
+    raise ComfyWorkflowError(f'"{entry.name}" must be {_KIND_NOUNS[entry.kind]}, not {value!r}.')
+
+
 def parse_comfy_workflow(raw: str, *, source: str) -> ComfyWorkflow:
     """Parse a preset and resolve its roles, or explain what is wrong with it."""
     if len(raw.encode("utf-8")) > MAX_WORKFLOW_BYTES:
@@ -259,15 +366,6 @@ def parse_comfy_workflow(raw: str, *, source: str) -> ComfyWorkflow:
             f"Title a node holding its own number under one of {keys}, such as KSampler or Int."
         )
 
-    fps_node = _optional_titled_node(payload, FPS_NODE_TITLE)
-    fps_key = _numeric_key(payload[fps_node], _FPS_INPUT_KEYS) if fps_node else None
-    if fps_node is not None and fps_key is None:
-        keys = ", ".join(repr(key) for key in _FPS_INPUT_KEYS)
-        raise ComfyWorkflowError(
-            f'The node titled "{FPS_NODE_TITLE}" in preset "{source}" has no frame rate to write. '
-            f"Title a node holding its own number under one of {keys}, such as FloatConstant."
-        )
-
     prompt_node = _optional_titled_node(payload, PROMPT_NODE_TITLE)
     prompt_key = _prompt_key(payload[prompt_node]) if prompt_node else None
     if prompt_node is not None and prompt_key is None:
@@ -287,9 +385,8 @@ def parse_comfy_workflow(raw: str, *, source: str) -> ComfyWorkflow:
         output_key=output_key,
         seed_nodes=(seed_node,) if seed_node else (),
         prompt_node=prompt_node,
-        fps_node=fps_node,
-        fps_key=fps_key,
         prompt_key=prompt_key,
+        custom_inputs=_custom_inputs(payload, source),
     )
 
 
@@ -300,18 +397,22 @@ def _preset_path(name: str) -> Path:
     return get_comfy_workflows_dir() / f"{name}{WORKFLOW_EXTENSION}"
 
 
-def preset_roles(path: Path) -> tuple[bool | None, bool | None]:
-    """Whether this preset has a writable prompt and seed node, or ``(None, None)`` if unparseable.
-
-    Never raises: the dialog lists a broken preset so queueing it can name the fix.
-    """
+def _parse_preset_file(path: Path) -> ComfyWorkflow | None:
+    """None when unparseable. Never raises: the dialog lists a broken preset so queueing it can
+    name the fix."""
     try:
         if path.stat().st_size > MAX_WORKFLOW_BYTES:
-            return None, None
-        workflow = parse_comfy_workflow(path.read_text(encoding="utf-8"), source=path.stem)
+            return None
+        return parse_comfy_workflow(path.read_text(encoding="utf-8"), source=path.stem)
     except (ComfyWorkflowError, OSError, UnicodeDecodeError, ValueError):
-        return None, None
+        return None
 
+
+def preset_roles(path: Path) -> tuple[bool | None, bool | None]:
+    """Whether this preset has a writable prompt and seed node, or ``(None, None)`` if unparseable."""
+    workflow = _parse_preset_file(path)
+    if workflow is None:
+        return None, None
     return workflow.prompt_node is not None, bool(workflow.seed_nodes)
 
 
@@ -332,14 +433,15 @@ def list_comfy_presets() -> list[ComfyPreset]:
             continue
         if not path.is_file():
             continue
-        accepts_prompt, accepts_seed = preset_roles(path)
+        workflow = _parse_preset_file(path)
         presets.append(
             ComfyPreset(
                 name=path.stem,
                 path=path,
                 modified_at=stat.st_mtime,
-                accepts_prompt=accepts_prompt,
-                accepts_seed=accepts_seed,
+                accepts_prompt=None if workflow is None else workflow.prompt_node is not None,
+                accepts_seed=None if workflow is None else bool(workflow.seed_nodes),
+                custom_inputs=() if workflow is None else workflow.custom_inputs,
             )
         )
 
@@ -381,9 +483,13 @@ def build_comfy_prompt(
     filename_prefix: str,
     seed: int | None = None,
     prompt_text: str | None = None,
-    frame_rate: float | None = None,
+    custom_values: Mapping[str, ComfyInputValue] | None = None,
 ) -> dict[str, Any]:
-    """A run-ready copy of the graph with this file's values filled in."""
+    """A run-ready copy of the graph with this file's values filled in.
+
+    ``custom_values`` must come from :func:`resolve_custom_inputs`; names missing from it run as
+    saved.
+    """
     prompt = deepcopy(workflow.prompt)
 
     prompt[workflow.input_node]["inputs"][workflow.input_key] = media_ref
@@ -400,14 +506,15 @@ def build_comfy_prompt(
             if key is not None:
                 prompt[node_id]["inputs"][key] = seed
 
-    if frame_rate is not None and workflow.fps_node is not None and workflow.fps_key is not None:
-        prompt[workflow.fps_node]["inputs"][workflow.fps_key] = frame_rate
-
     if (
         prompt_text is not None
         and workflow.prompt_node is not None
         and workflow.prompt_key is not None
     ):
         prompt[workflow.prompt_node]["inputs"][workflow.prompt_key] = prompt_text
+
+    for entry in workflow.custom_inputs:
+        if custom_values is not None and entry.name in custom_values:
+            prompt[entry.node]["inputs"][entry.key] = custom_values[entry.name]
 
     return prompt

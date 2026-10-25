@@ -13,9 +13,8 @@ from PIL import Image
 from constants import COMFY_ACCEPT_DECODE_TIMEOUT_SECONDS, GIF_EXTENSION, IMAGE_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
 from folder_scan import get_media_type
-from gif_frames import extract_gif_first_frame, gif_frame_rate
+from gif_frames import extract_gif_first_frame
 from image_io import displayed_image
-from video_edit import probe_source
 
 logger = logging.getLogger(__name__)
 
@@ -61,17 +60,6 @@ def media_first_frame(media: Path, *, suffix: str | None = None) -> Image.Image 
     except Exception:
         logger.debug("No first frame for %s", media.name, exc_info=True)
         return None
-
-
-def source_frame_rate(media: Path) -> float | None:
-    """Frames per second, or None for a still and for anything unmeasurable."""
-    media_type = get_media_type(media)
-    if media_type == "video":
-        return probe_source(media).frame_rate
-    if media_type == "gif":
-        # cv2 reports 0 fps for most GIFs, so the per-frame delays are the only real source.
-        return gif_frame_rate(media)
-    return None
 
 
 def validate_candidate_media(

@@ -39,6 +39,11 @@ WORKFLOW_WITH_PROMPT = {
         "inputs": {"text": "as saved", "clip": ["4", 0]},
         "_meta": {"title": "DataForge Prompt"},
     },
+    "8": {
+        "class_type": "PrimitiveFloat",
+        "inputs": {"value": 0.5},
+        "_meta": {"title": "DataForge Denoise"},
+    },
 }
 
 
@@ -152,7 +157,7 @@ VIDEO_WORKFLOW = {
     "13": {
         "class_type": "FloatConstant",
         "inputs": {"value": 24},
-        "_meta": {"title": "DataForge FPS"},
+        "_meta": {"title": "DataForge Rate"},
     },
     "16": {
         "class_type": "ComfyMathExpression",
@@ -310,6 +315,20 @@ class ValidateTests(unittest.TestCase):
         with Workspace() as workspace:
             validate_comfy_process_folder(workspace.folder, preset="upscale", prompt_text="   ")
 
+    def test_a_custom_input_the_preset_lacks_is_refused(self) -> None:
+        with Workspace() as workspace, self.assertRaises(ValueError) as caught:
+            validate_comfy_process_folder(workspace.folder, preset="upscale", inputs={"Denoise": 1})
+
+        self.assertIn("DataForge Denoise", str(caught.exception))
+
+    def test_a_custom_input_of_the_wrong_kind_is_refused(self) -> None:
+        with Workspace() as workspace, self.assertRaises(ValueError) as caught:
+            validate_comfy_process_folder(
+                workspace.folder, preset="prompted", inputs={"Denoise": "high"}
+            )
+
+        self.assertIn("must be a number", str(caught.exception))
+
     def test_staging_existing_as_a_file_is_refused(self) -> None:
         with Workspace() as workspace:
             (workspace.folder / STAGING_DIR_NAME).write_text("not a folder", encoding="utf-8")
@@ -361,6 +380,23 @@ class RunJobTests(unittest.TestCase):
             stored = read_candidate_sidecar(candidate_write_path(workspace.folder / "a.png"))
             assert stored is not None
             self.assertIsNone(stored.prompt_text)
+
+    def test_custom_inputs_reach_the_graph_and_the_record(self) -> None:
+        submitted: list[dict] = []
+
+        def capturing(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/prompt":
+                submitted.append(json.loads(request.content)["prompt"])
+            return comfy_handler()(request)
+
+        with Workspace(names=("a.png",)) as workspace:
+            run_with(capturing, workspace.folder, preset="prompted", inputs={"Denoise": 0.25})
+
+            self.assertEqual(submitted[0]["8"]["inputs"]["value"], 0.25)
+
+            stored = read_candidate_sidecar(candidate_write_path(workspace.folder / "a.png"))
+            assert stored is not None
+            self.assertEqual(stored.inputs, {"Denoise": 0.25})
 
     def test_every_image_is_staged_and_the_originals_are_untouched(self) -> None:
         with Workspace() as workspace:
@@ -640,34 +676,6 @@ class VideoJobTests(unittest.TestCase):
                 (stored.source_duration_seconds, stored.duration_seconds), (10.0, 10.0)
             )
             self.assertFalse(stored.length_mismatch)
-
-    def test_the_measured_rate_reaches_the_graphs_rate_node(self) -> None:
-        submitted: list[dict] = []
-
-        def capturing(request: httpx.Request) -> httpx.Response:
-            if request.url.path == "/prompt":
-                submitted.append(json.loads(request.content)["prompt"])
-            return video_handler()(request)
-
-        with VideoWorkspace() as workspace:
-            with patch("automation.comfy_process.source_frame_rate", return_value=30.0):
-                self.run_video(workspace, capturing)
-
-            self.assertEqual(submitted[0]["13"]["inputs"]["value"], 30.0)
-
-    def test_an_unmeasurable_source_leaves_the_presets_own_rate(self) -> None:
-        submitted: list[dict] = []
-
-        def capturing(request: httpx.Request) -> httpx.Response:
-            if request.url.path == "/prompt":
-                submitted.append(json.loads(request.content)["prompt"])
-            return video_handler()(request)
-
-        with VideoWorkspace() as workspace:
-            with patch("automation.comfy_process.source_frame_rate", return_value=None):
-                self.run_video(workspace, capturing)
-
-            self.assertEqual(submitted[0]["13"]["inputs"]["value"], 24)
 
     def test_a_short_clip_is_staged_but_flagged(self) -> None:
         """A truncated render is still worth looking at; refusing throws away paid-for GPU time."""

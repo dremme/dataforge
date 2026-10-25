@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import time
 import uuid
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
 from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -64,18 +64,18 @@ from external.comfy_workflows import (
     ComfyWorkflowError,
     build_comfy_prompt,
     load_comfy_workflow,
+    resolve_custom_inputs,
 )
 from file_publish import publish_replacing
 from folder_scan import get_media_type
 from image_io import ImageReadError, load_image_for_edit
 from media_claims import claim
 from media_dimensions import media_info
-from schemas import ComfyCandidateSidecar
+from schemas import ComfyCandidateSidecar, ComfyInputValue
 from video_edit import SourceProbe, probe_source
 from video_frames import (
     media_first_frame,
     media_has_audio,
-    source_frame_rate,
     validate_candidate_media,
 )
 
@@ -149,6 +149,7 @@ def validate_comfy_process_folder(
     *,
     preset: str = "",
     prompt_text: str = "",
+    inputs: Mapping[str, object] | None = None,
     selected_paths: list[Path] | None = None,
 ) -> None:
     """Refuse at queue time what would otherwise fail on the first file. Does not probe ComfyUI."""
@@ -169,6 +170,7 @@ def validate_comfy_process_folder(
 
     try:
         workflow = load_comfy_workflow(preset)
+        resolve_custom_inputs(workflow, inputs or {})
     except ComfyWorkflowError as exc:
         # ValueError is a 400; ComfyWorkflowError would escape the route as a 500.
         raise ValueError(str(exc)) from exc
@@ -339,13 +341,12 @@ def _process_one(
     index: int,
     seed: int | None,
     prompt_text: str,
+    custom_values: dict[str, ComfyInputValue],
     client_id: str,
     should_cancel: ShouldCancel | None,
 ) -> Path:
     media_type = get_media_type(media_path)
     upload_name = f"{job_tag}_{index:05d}{media_path.suffix.lower()}"
-    # Measured before the upload: a rate the graph never reads costs nothing to have missed.
-    frame_rate = source_frame_rate(media_path)
     media_ref = upload_media(client, media_path, name=upload_name)
 
     prompt = build_comfy_prompt(
@@ -355,7 +356,7 @@ def _process_one(
         seed=seed,
         # Empty box means run the graph as saved, not write "" into the prompt node.
         prompt_text=prompt_text or None,
-        frame_rate=frame_rate,
+        custom_values=custom_values,
     )
 
     with _gpu_slot(should_cancel):
@@ -404,6 +405,7 @@ def _process_one(
                 prompt_id=prompt_id,
                 seed=seed,
                 prompt_text=prompt_text or None,
+                inputs=custom_values,
                 created_at=datetime.now(tz=UTC).isoformat(),
                 **asdict(facts),
             ),
@@ -420,14 +422,20 @@ def run_comfy_process_job(
     preset: str = "",
     seed: int | None = None,
     prompt_text: str = "",
+    inputs: Mapping[str, object] | None = None,
     overwrite_candidates: bool = False,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
     validate_comfy_process_folder(
-        folder, preset=preset, prompt_text=prompt_text, selected_paths=selected_paths
+        folder,
+        preset=preset,
+        prompt_text=prompt_text,
+        inputs=inputs,
+        selected_paths=selected_paths,
     )
 
     workflow = load_comfy_workflow(preset)
+    custom_values = resolve_custom_inputs(workflow, inputs or {})
     media_files = filter_media_list(list_comfy_process_files(folder), selected_paths)
 
     output_dir = staging_dir(folder)
@@ -456,6 +464,7 @@ def run_comfy_process_job(
                 index=counter["index"],
                 seed=seed,
                 prompt_text=prompt_text.strip(),
+                custom_values=custom_values,
                 client_id=client_id,
                 should_cancel=should_cancel,
             )

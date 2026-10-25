@@ -691,7 +691,11 @@ class JobSettingsPersistenceTests(unittest.TestCase):
                     "preset": body["preset"],
                     "overwrite_candidates": body["overwrite_candidates"],
                     "by_preset": {
-                        body["preset"]: {"seed": body["seed"], "prompt_text": body["prompt_text"]}
+                        body["preset"]: {
+                            "seed": body["seed"],
+                            "prompt_text": body["prompt_text"],
+                            "inputs": {},
+                        }
                     },
                 },
             )

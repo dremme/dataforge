@@ -14,6 +14,7 @@ from external.comfy_workflows import (
     parse_comfy_workflow,
     preset_roles,
     read_comfy_preset_text,
+    resolve_custom_inputs,
 )
 
 
@@ -60,7 +61,7 @@ def video_graph(**overrides: dict) -> dict:
             "DataForge Output",
         ),
         "10": node("SeedNode", {"seed": 42}, "DataForge Seed"),
-        "13": node("FloatConstant", {"value": 24}, "DataForge FPS"),
+        "13": node("FloatConstant", {"value": 24}, "DataForge Rate"),
         "15": node("INTConstant", {"value": 2}, "DataForge Multiplier"),
         "16": node("ComfyMathExpression", {"expression": "round(a * b)", "values.a": ["13", 0]}),
     }
@@ -76,7 +77,6 @@ class VideoGraphTests(unittest.TestCase):
         self.assertEqual(workflow.input_key, "video")
         self.assertEqual(workflow.output_node, "11")
         self.assertEqual(workflow.seed_nodes, ("10",))
-        self.assertEqual((workflow.fps_node, workflow.fps_key), ("13", "value"))
 
     def test_a_still_loader_still_names_its_own_widget(self) -> None:
         self.assertEqual(parse(graph()).input_key, "image")
@@ -103,18 +103,16 @@ class VideoGraphTests(unittest.TestCase):
 
         self.assertIn("2 output nodes", str(caught.exception))
 
-    def test_an_unwritable_multiplier_title_is_ignored(self) -> None:
-        """DataForge writes no multiplier, so an unknown DataForge title must not refuse."""
-        parse(video_graph())
-
-    def test_a_linked_rate_input_is_refused(self) -> None:
+    def test_a_custom_input_whose_value_is_wired_in_is_refused(self) -> None:
         # Writing over a link would be dropped without a word, exactly like the prompt node.
-        payload = video_graph(**{"13": node("FloatConstant", {"value": ["9", 0]}, "DataForge FPS")})
+        payload = video_graph(
+            **{"13": node("FloatConstant", {"value": ["9", 0]}, "DataForge Rate")}
+        )
 
         with self.assertRaises(ComfyWorkflowError) as caught:
             parse(payload)
 
-        self.assertIn("DataForge FPS", str(caught.exception))
+        self.assertIn("DataForge Rate", str(caught.exception))
 
     def test_a_loader_with_neither_widget_names_both(self) -> None:
         payload = video_graph(
@@ -189,42 +187,19 @@ class SelfNamingOutputTests(unittest.TestCase):
 
 
 class VideoPromptTests(unittest.TestCase):
-    def test_the_measured_rate_overwrites_the_presets_constant(self) -> None:
+    def test_the_rate_and_multiplier_are_written_only_when_supplied(self) -> None:
         workflow = parse(video_graph())
 
         prompt = build_comfy_prompt(
-            workflow, media_ref="dataforge/clip.mp4", filename_prefix="out", frame_rate=30.0
+            workflow,
+            media_ref="dataforge/clip.mp4",
+            filename_prefix="out",
+            custom_values=resolve_custom_inputs(workflow, {"Rate": 30}),
         )
 
         self.assertEqual(prompt["13"]["inputs"]["value"], 30.0)
-        self.assertEqual(prompt["8"]["inputs"]["video"], "dataforge/clip.mp4")
-
-    def test_an_unmeasured_rate_leaves_the_presets_constant_alone(self) -> None:
-        workflow = parse(video_graph())
-
-        prompt = build_comfy_prompt(workflow, media_ref="a.mp4", filename_prefix="out")
-
-        self.assertEqual(prompt["13"]["inputs"]["value"], 24)
-
-    def test_the_multiplier_is_never_written(self) -> None:
-        workflow = parse(video_graph())
-
-        prompt = build_comfy_prompt(
-            workflow, media_ref="a.mp4", filename_prefix="out", frame_rate=60.0
-        )
-
         self.assertEqual(prompt["15"]["inputs"]["value"], 2)
-
-    def test_a_rate_for_a_graph_without_the_node_changes_nothing(self) -> None:
-        workflow = parse(graph())
-
-        prompt = build_comfy_prompt(
-            workflow, media_ref="a.png", filename_prefix="out", frame_rate=30.0
-        )
-
-        self.assertEqual(
-            prompt, build_comfy_prompt(workflow, media_ref="a.png", filename_prefix="out")
-        )
+        self.assertEqual(prompt["8"]["inputs"]["video"], "dataforge/clip.mp4")
 
 
 class ResolveRolesTests(unittest.TestCase):
@@ -363,6 +338,94 @@ class PromptNodeTests(unittest.TestCase):
         )
 
         self.assertIsNone(parse(payload).prompt_node)
+
+
+class CustomInputTests(unittest.TestCase):
+    def test_each_custom_title_becomes_an_input_typed_by_its_value(self) -> None:
+        payload = graph(
+            **{
+                "5": node("PrimitiveInt", {"value": 4}, "DataForge Steps"),
+                "6": node("PrimitiveBoolean", {"value": True}, "DataForge Tiled"),
+                "7": node("PrimitiveString", {"value": "lanczos"}, "DataForge Method"),
+            }
+        )
+
+        inputs = parse(payload).custom_inputs
+
+        self.assertEqual(
+            [(entry.name, entry.kind, entry.default) for entry in inputs],
+            [("Method", "text", "lanczos"), ("Steps", "integer", 4), ("Tiled", "boolean", True)],
+        )
+
+    def test_a_float_node_saved_with_a_whole_value_is_still_a_number(self) -> None:
+        # The editor exports 24.0 as 24, so only the class tells a float from an int.
+        payload = graph(**{"5": node("FloatConstant", {"value": 24}, "DataForge Strength")})
+
+        self.assertEqual(parse(payload).custom_inputs[0].kind, "number")
+
+    def test_the_fixed_roles_are_not_custom_inputs(self) -> None:
+        self.assertEqual(
+            [entry.name for entry in parse(video_graph()).custom_inputs], ["Multiplier", "Rate"]
+        )
+
+    def test_a_node_with_its_only_literal_under_another_key_is_used(self) -> None:
+        payload = graph(
+            **{"5": node("CustomScale", {"factor": 2.0, "image": ["1", 0]}, "DataForge Scale")}
+        )
+
+        self.assertEqual(parse(payload).custom_inputs[0].key, "factor")
+
+    def test_a_titled_node_with_no_single_value_is_refused(self) -> None:
+        payload = graph(**{"5": node("KSampler", {"steps": 20, "cfg": 7.0}, "DataForge Detail")})
+
+        with self.assertRaises(ComfyWorkflowError) as caught:
+            parse(payload)
+
+        self.assertIn("DataForge Detail", str(caught.exception))
+
+    def test_two_nodes_with_one_title_leave_it_unresolved(self) -> None:
+        payload = graph(
+            **{
+                "5": node("PrimitiveInt", {"value": 1}, "DataForge Steps"),
+                "6": node("PrimitiveInt", {"value": 2}, "DataForge Steps"),
+            }
+        )
+
+        self.assertEqual(parse(payload).custom_inputs, ())
+
+    def test_values_are_written_and_left_out_names_run_as_saved(self) -> None:
+        workflow = parse(
+            graph(
+                **{
+                    "5": node("PrimitiveInt", {"value": 4}, "DataForge Steps"),
+                    "6": node("PrimitiveFloat", {"value": 0.5}, "DataForge Denoise"),
+                }
+            )
+        )
+
+        values = resolve_custom_inputs(workflow, {"Steps": 8})
+        prompt = build_comfy_prompt(
+            workflow, media_ref="a.png", filename_prefix="out", custom_values=values
+        )
+
+        self.assertEqual(prompt["5"]["inputs"]["value"], 8)
+        self.assertEqual(prompt["6"]["inputs"]["value"], 0.5)
+
+    def test_a_whole_number_input_refuses_a_fraction_and_a_boolean(self) -> None:
+        workflow = parse(graph(**{"5": node("PrimitiveInt", {"value": 4}, "DataForge Steps")}))
+
+        for value in (2.5, True):
+            with self.subTest(value=value), self.assertRaises(ComfyWorkflowError) as caught:
+                resolve_custom_inputs(workflow, {"Steps": value})
+            self.assertIn("whole number", str(caught.exception))
+
+    def test_an_unknown_name_is_refused(self) -> None:
+        workflow = parse(graph())
+
+        with self.assertRaises(ComfyWorkflowError) as caught:
+            resolve_custom_inputs(workflow, {"Steps": 8})
+
+        self.assertIn("DataForge Steps", str(caught.exception))
 
 
 class BuildPromptTests(unittest.TestCase):

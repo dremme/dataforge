@@ -257,11 +257,17 @@ def _validate_resize(folder: Path, **params: object) -> None:
     validate_resize_folder(folder, _selected_paths(params))
 
 
+def _comfy_inputs(params: dict[str, object]) -> dict[str, object]:
+    inputs = params.get("inputs")
+    return {str(name): value for name, value in inputs.items()} if isinstance(inputs, dict) else {}
+
+
 def _validate_comfy_process(folder: Path, **params: object) -> None:
     validate_comfy_process_folder(
         folder,
         preset=str(params.get("preset", "")),
         prompt_text=str(params.get("prompt_text", "")),
+        inputs=_comfy_inputs(params),
         selected_paths=_selected_paths(params),
     )
 
