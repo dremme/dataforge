@@ -48,7 +48,8 @@ INPUT_WIDGET_KEYS = ("image", "video")
 #: completes; nodes that write the file themselves, like SwiftVRRestoreVideo, take a whole name.
 OUTPUT_WIDGET_KEYS = ("filename_prefix", "filename")
 
-_SEED_INPUT_KEYS = ("seed", "noise_seed")
+#: KSampler holds "seed", SamplerCustom "noise_seed", and the native Int node "value".
+_SEED_INPUT_KEYS = ("seed", "noise_seed", "value")
 
 _FPS_INPUT_KEYS = ("value", "fps", "frame_rate")
 
@@ -252,8 +253,10 @@ def parse_comfy_workflow(raw: str, *, source: str) -> ComfyWorkflow:
 
     seed_node = _optional_titled_node(payload, SEED_NODE_TITLE)
     if seed_node is not None and _seed_key(payload[seed_node]) is None:
+        keys = ", ".join(repr(key) for key in _SEED_INPUT_KEYS)
         raise ComfyWorkflowError(
-            f'The node titled "{SEED_NODE_TITLE}" in preset "{source}" has no seed input.'
+            f'The node titled "{SEED_NODE_TITLE}" in preset "{source}" has no seed input. '
+            f"Title a node holding its own number under one of {keys}, such as KSampler or Int."
         )
 
     fps_node = _optional_titled_node(payload, FPS_NODE_TITLE)

@@ -408,6 +408,13 @@ class BuildPromptTests(unittest.TestCase):
 
         self.assertEqual(prompt["5"]["inputs"]["noise_seed"], 77)
 
+    def test_a_native_int_node_value_is_patched_as_the_seed(self) -> None:
+        workflow = parse(graph(**{"5": node("PrimitiveInt", {"value": 5}, "DataForge Seed")}))
+
+        prompt = build_comfy_prompt(workflow, media_ref="a.png", filename_prefix="out", seed=77)
+
+        self.assertEqual(prompt["5"]["inputs"]["value"], 77)
+
     def test_the_presets_own_prompt_is_left_alone_by_default(self) -> None:
         workflow = parse(
             graph(**{"7": node("CLIPTextEncode", {"text": "as saved"}, "DataForge Prompt")})
