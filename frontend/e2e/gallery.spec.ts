@@ -41,7 +41,7 @@ test("inspected cards keep a two-pixel border over the preview", async ({ page }
     await page.getByRole("menuitemradio", { name: mode, exact: true }).click();
     await page.mouse.move(0, 0);
     await expect(card.locator(".card__img--ready")).toBeVisible();
-    await card.evaluate((node) => node.style.setProperty("--accent", "rgb(255, 0, 0)"));
+    await card.evaluate((node) => node.style.setProperty("--text", "rgb(255, 0, 0)"));
     for (const hovered of [false, true]) {
       if (hovered) await card.hover();
       const box = (await card.boundingBox())!;
