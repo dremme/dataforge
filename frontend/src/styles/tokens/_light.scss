@@ -1,3 +1,5 @@
+@use "root";
+
 // Overrides only what differs from the dark default; media overlays stay as they are.
 :root[data-theme="light"] {
   --bg: #f4f5f8;
@@ -98,4 +100,17 @@
   --map-negative: #c2410c;
 
   color-scheme: light;
+}
+
+// Card media shows images and video, which look the same in either theme, so badges, the
+// hover overlay and placeholders over it keep the dark theme.
+:root[data-theme="light"] .card__media {
+  .card__overlay,
+  .card__badge--video,
+  .card__badge--candidate,
+  .card__badge--duplicate {
+    @include root.dark-theme;
+    // Inherited color was already resolved against the light --text on .card.
+    color: var(--text);
+  }
 }

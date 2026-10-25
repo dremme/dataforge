@@ -1,6 +1,7 @@
 @use "../abstracts/variables" as *;
 
-:root {
+// A mixin, so light-theme regions that show media can take the dark theme back.
+@mixin dark-theme {
   --bg: #0f1115;
   --bg-elevated: #171a21;
   --bg-card: #1c2029;
@@ -178,4 +179,8 @@
   --tracking-tight: #{$tracking-tight};
   --tracking-normal: #{$tracking-normal};
   --tracking-caps: #{$tracking-caps};
+}
+
+:root {
+  @include dark-theme;
 }
