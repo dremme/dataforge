@@ -8,6 +8,7 @@ import type { VerifyCaptionsMode } from "@/features/automation/components/Verify
 import {
   loadAutomationSettings,
   type AutomationSettings,
+  type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
 import type { AutomationDialogsState } from "@/features/automation/types";
 import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
@@ -17,14 +18,7 @@ import {
   type BulkScopeKind,
   type BulkScopeSnapshot,
 } from "@/features/automation/lib/bulkScope";
-import type {
-  DuplicateThreshold,
-  JobType,
-  ReasoningEffort,
-  WatermarkOpacity,
-  WatermarkPosition,
-  WatermarkSizeName,
-} from "@/shared/types";
+import type { DuplicateThreshold, JobType, ReasoningEffort } from "@/shared/types";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
 import { useChanged } from "@/shared/hooks/useChanged";
 
@@ -218,20 +212,8 @@ export function useAutomationDialogOverlays({
       },
       watermark: {
         ...shared("watermark"),
-        onConfirm: (
-          text: string,
-          size: WatermarkSizeName,
-          opacity: WatermarkOpacity,
-          position: WatermarkPosition,
-          stripMetadata: boolean,
-        ) =>
-          startJobFromDialog("watermark", {
-            text,
-            size,
-            opacity,
-            position,
-            strip_metadata: stripMetadata,
-          }),
+        onConfirm: (settings: JobSettingsByType["watermark"]) =>
+          startJobFromDialog("watermark", settings),
       },
       comfyProcess: {
         ...shared("comfy_process"),

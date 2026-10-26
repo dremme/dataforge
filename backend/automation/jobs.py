@@ -72,6 +72,9 @@ from automation.strip_metadata import run_strip_metadata_job, validate_strip_met
 from automation.train_lora import run_train_lora_job, validate_train_lora_folder
 from automation.verify_captions import run_verify_captions_job, validate_verify_captions_folder
 from automation.watermark import (
+    DEFAULT_WATERMARK_IMAGE_OPACITY,
+    DEFAULT_WATERMARK_IMAGE_POSITION,
+    DEFAULT_WATERMARK_IMAGE_SIZE,
     DEFAULT_WATERMARK_OPACITY,
     DEFAULT_WATERMARK_POSITION,
     DEFAULT_WATERMARK_SIZE,
@@ -241,10 +244,15 @@ def _validate_find_duplicates(folder: Path, **params: object) -> None:
 def _validate_watermark(folder: Path, **params: object) -> None:
     validate_watermark_folder(
         folder,
+        text_enabled=params.get("text_enabled", True) is not False,
         text=str(params.get("text", "")),
         size=str(params.get("size", DEFAULT_WATERMARK_SIZE)),
         opacity=_stored_int(params, "opacity") or DEFAULT_WATERMARK_OPACITY,
         position=str(params.get("position", DEFAULT_WATERMARK_POSITION)),
+        image_enabled=params.get("image_enabled") is True,
+        image_size=str(params.get("image_size", DEFAULT_WATERMARK_IMAGE_SIZE)),
+        image_opacity=_stored_int(params, "image_opacity") or DEFAULT_WATERMARK_IMAGE_OPACITY,
+        image_position=str(params.get("image_position", DEFAULT_WATERMARK_IMAGE_POSITION)),
         selected_paths=_selected_paths(params),
     )
 

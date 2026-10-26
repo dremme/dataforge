@@ -34,7 +34,9 @@ const DEFAULT_REASONING_EFFORT: ReasoningEffort = "medium";
 const DEFAULT_PRESERVE_THINKING = true;
 const DEFAULT_WATERMARK_SIZE: WatermarkSizeName = "medium";
 const DEFAULT_WATERMARK_OPACITY: WatermarkOpacity = 50;
-const DEFAULT_WATERMARK_POSITION: WatermarkPosition = "bottom";
+const DEFAULT_WATERMARK_POSITION: WatermarkPosition = "bottom_right";
+const DEFAULT_WATERMARK_IMAGE_OPACITY: WatermarkOpacity = 100;
+const DEFAULT_WATERMARK_IMAGE_POSITION: WatermarkPosition = "top_right";
 const DEFAULT_RESIZE_MEGAPIXELS = 2;
 const DEFAULT_RESIZE_MULTIPLE = 32;
 
@@ -73,10 +75,15 @@ export function emptyAutomationSettings(folderPath: string): AutomationSettings 
     find_duplicates: { threshold: "near" },
     train_lora: { trigger_word: "", prompts: [], model: DEFAULT_TRAINING_MODEL },
     watermark: {
+      text_enabled: true,
       text: "",
       size: DEFAULT_WATERMARK_SIZE,
       opacity: DEFAULT_WATERMARK_OPACITY,
       position: DEFAULT_WATERMARK_POSITION,
+      image_enabled: false,
+      image_size: DEFAULT_WATERMARK_SIZE,
+      image_opacity: DEFAULT_WATERMARK_IMAGE_OPACITY,
+      image_position: DEFAULT_WATERMARK_IMAGE_POSITION,
       strip_metadata: false,
     },
     resize: { megapixels: DEFAULT_RESIZE_MEGAPIXELS, multiple: DEFAULT_RESIZE_MULTIPLE },

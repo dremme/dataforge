@@ -230,7 +230,7 @@ A clean finish leaves no strip. After a failure, cancellation, warnings, or fail
 | **Find duplicates** | `.duplicate.json` groups | Deletes media only when you confirm in the resolver |
 | **Backup captions** / **Restore captions** | `.backup/` copies / `.txt` captions | See [Caption backups](#caption-backups) |
 | **Rename** | New file names | Sequential, with related files; no undo |
-| **Watermark** | Copies in `watermarked/` | Overwrites earlier copies; captions are not copied. Can strip metadata from the copies |
+| **Watermark** | Copies in `watermarked/` | Text, a PNG such as a logo, or both, each with its own size, opacity, and position. The PNG is kept for later runs. Overwrites earlier copies; captions are not copied. Can strip metadata from the copies |
 | **Strip metadata** | Files in place | Removes EXIF, XMP, text and workflow metadata, video tags, and chapters. Keeps image color and density data and every video and audio stream; video is remuxed, not re-encoded. No undo |
 | **Auto-adjust** | Files in place, originals kept | See [Auto-adjust a batch](#auto-adjust-a-batch) |
 | **Process with ComfyUI** | Results in `staging/` | Accepting a result replaces the source with no backup; see [ComfyUI](comfyui.md#review-candidates) |
@@ -277,6 +277,7 @@ Files with the same stem, such as `scene.jpg` and `scene.png`, share one caption
 | Watermarked media | `watermarked/` | Watermark | You delete it |
 | Result, `<result-name>.comfy.json` | `staging/` | Process with ComfyUI | It is accepted, rejected, or deleted |
 | Database, thumbnails | `backend/data/` | The app: settings, jobs, notifications, tags | Pruned by [retention](configuration.md#server-storage-and-logging) |
+| `watermark.png` | `backend/data/` | The PNG chosen in the Watermark dialog | Choosing another PNG replaces it |
 | `tag_vocabulary.txt` | `backend/data/` | You: extra tag terms | You delete it |
 | Tagging model | `backend/data/models/` | The first tagging run; `DATAFORGE_MODELS_DIR` moves it | You delete it |
 

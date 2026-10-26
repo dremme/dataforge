@@ -16,6 +16,7 @@ import type {
   TrainingTemplateCheckResponse,
   TrainingTemplateResponse,
   TrainLoraStartRequest,
+  WatermarkImageInfo,
 } from "@/shared/types";
 
 export type { JobStartBody };
@@ -101,6 +102,18 @@ export async function fetchComfyPresets(signal?: AbortSignal): Promise<ComfyPres
 
 export async function fetchComfyLogs(signal?: AbortSignal): Promise<ComfyLogsResponse> {
   return requestJson<ComfyLogsResponse>("/api/automation/comfy-process/logs", { signal });
+}
+
+export const WATERMARK_IMAGE_URL = "/api/automation/watermark/image";
+
+export async function fetchWatermarkImageInfo(signal?: AbortSignal): Promise<WatermarkImageInfo> {
+  return requestJson<WatermarkImageInfo>(`${WATERMARK_IMAGE_URL}/info`, { signal });
+}
+
+export async function uploadWatermarkImage(file: File): Promise<WatermarkImageInfo> {
+  const body = new FormData();
+  body.append("file", file, file.name);
+  return requestJson<WatermarkImageInfo>(WATERMARK_IMAGE_URL, { method: "PUT", body });
 }
 
 export async function fetchTrainingTemplate(model: TrainingModel): Promise<string> {

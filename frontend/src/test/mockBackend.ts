@@ -667,10 +667,15 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         find_duplicates: { threshold: "near" },
         train_lora: { trigger_word: "", prompts: [], model: "krea2_turbo" },
         watermark: {
+          text_enabled: true,
           text: "",
           size: "medium",
           opacity: 50,
-          position: "bottom",
+          position: "bottom_right",
+          image_enabled: false,
+          image_size: "medium",
+          image_opacity: 100,
+          image_position: "top_right",
           strip_metadata: false,
         },
         resize: { megapixels: 2, multiple: 32 },
@@ -1066,6 +1071,14 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/automation/watermark" && method === "POST") {
       const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "watermark"));
+    }
+
+    if (url.pathname === "/api/automation/watermark/image/info" && method === "GET") {
+      return jsonResponse({ available: false, width: 0, height: 0, revision: 0 });
+    }
+
+    if (url.pathname === "/api/automation/watermark/image" && method === "PUT") {
+      return jsonResponse({ available: true, width: 40, height: 20, revision: 1 });
     }
 
     if (url.pathname === "/api/automation/backup-captions" && method === "POST") {

@@ -24,10 +24,15 @@ vi.mock("@/features/automation/preferences/automationPreferences", async (import
         context: "Outdoor portraits.",
       },
       watermark: {
+        text_enabled: true,
         text: "Sample Studio",
         size: "large" as const,
         opacity: 75 as const,
-        position: "top" as const,
+        position: "top_left" as const,
+        image_enabled: false,
+        image_size: "medium" as const,
+        image_opacity: 100 as const,
+        image_position: "top_right" as const,
         strip_metadata: false,
       },
       find_duplicates: { threshold: "loose" as const },
@@ -344,31 +349,35 @@ describe("useAutomationDialogOverlays", () => {
       result.current.openDialogForJobType("watermark");
     });
     expect(result.current.dialogs.watermark.open).toBe(true);
-    expect(result.current.dialogs.watermark.initialSettings).toEqual({
+    const stored = {
+      text_enabled: true,
       text: "Sample Studio",
       size: "large",
       opacity: 75,
-      position: "top",
+      position: "top_left",
+      image_enabled: false,
+      image_size: "medium",
+      image_opacity: 100,
+      image_position: "top_right",
       strip_metadata: false,
-    });
+    } as const;
+    expect(result.current.dialogs.watermark.initialSettings).toEqual(stored);
 
+    const draft = {
+      ...stored,
+      text_enabled: false,
+      image_enabled: true,
+      image_size: "large",
+      image_opacity: 50,
+      image_position: "bottom_left",
+      strip_metadata: true,
+    } as const;
     await act(async () => {
-      result.current.dialogs.watermark.onConfirm("Sample Studio", "large", 75, "center", true);
+      result.current.dialogs.watermark.onConfirm(draft);
     });
 
     expect(result.current.dialogs.watermark.open).toBe(false);
-    expect(startJob).toHaveBeenCalledWith(
-      "watermark",
-      "C:\\Photos",
-      {
-        text: "Sample Studio",
-        size: "large",
-        opacity: 75,
-        position: "center",
-        strip_metadata: true,
-      },
-      undefined,
-    );
+    expect(startJob).toHaveBeenCalledWith("watermark", "C:\\Photos", draft, undefined);
   });
 
   it("starts auto-adjust with the choice to replace earlier adjustments", async () => {

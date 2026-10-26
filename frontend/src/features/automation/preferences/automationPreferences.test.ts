@@ -75,7 +75,7 @@ describe("loadAutomationSettings", () => {
         text: "Sample Studio",
         size: "large",
         opacity: 75,
-        position: "top",
+        position: "top_left",
         strip_metadata: true,
       },
       resize: { megapixels: 1.5, multiple: 8 },
@@ -109,7 +109,7 @@ describe("loadAutomationSettings", () => {
       text: "Sample Studio",
       size: "large",
       opacity: 75,
-      position: "top",
+      position: "top_left",
       strip_metadata: true,
     });
     expect(settings.resize).toEqual({ megapixels: 1.5, multiple: 8 });

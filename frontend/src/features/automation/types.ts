@@ -5,14 +5,7 @@ import type { ReplaceCaptionsSettings } from "@/features/automation/components/R
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
-import type {
-  AutomationMode,
-  DuplicateThreshold,
-  ReasoningEffort,
-  WatermarkOpacity,
-  WatermarkPosition,
-  WatermarkSizeName,
-} from "@/shared/types";
+import type { AutomationMode, DuplicateThreshold, ReasoningEffort } from "@/shared/types";
 
 type FolderBusyDialogState<TConfirm, TSettings> = {
   open: boolean;
@@ -84,13 +77,7 @@ export type AutomationDialogsState = {
     JobSettingsByType["train_lora"]
   >;
   watermark: FolderBusyDialogState<
-    (
-      text: string,
-      size: WatermarkSizeName,
-      opacity: WatermarkOpacity,
-      position: WatermarkPosition,
-      stripMetadata: boolean,
-    ) => void,
+    (settings: JobSettingsByType["watermark"]) => void,
     JobSettingsByType["watermark"]
   >;
   comfyProcess: FolderBusyDialogState<

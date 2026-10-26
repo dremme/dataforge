@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import os
 import unittest
 from collections.abc import Callable, Generator
@@ -9,8 +10,11 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import quote
 
+from PIL import Image
+
 from automation.backup_captions import run_backup_captions_job
 from automation.jobs import JOB_SPECS, job_manager
+from automation.watermark import watermark_image_path
 from automation_settings import AUTOMATION_SETTINGS_KEY_PREFIX, JOB_SETTINGS_MODELS
 from image_edit import apply_image_edit, read_image_edit_spec
 from routes._test_client import client
@@ -121,10 +125,16 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
     "watermark": (
         "watermark",
         {
+            "text_enabled": True,
             "text": "Sample Studio",
             "size": "large",
             "opacity": 75,
-            "position": "top",
+            "position": "top_left",
+            # Off, since queueing would refuse it without a stored PNG; the rest still round-trips.
+            "image_enabled": False,
+            "image_size": "large",
+            "image_opacity": 25,
+            "image_position": "bottom_left",
             "strip_metadata": True,
         },
     ),
@@ -580,6 +590,98 @@ class TrainingTemplateEndpointTests(unittest.TestCase):
         payload = response.json()
         self.assertFalse(payload["ok"])
         self.assertIn("edited training template", payload["error"])
+
+
+def _png_bytes(size: tuple[int, int] = (40, 20)) -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGBA", size, (255, 0, 0, 255)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _upload_watermark(content: bytes, name: str = "logo.png"):
+    return client.put(
+        "/api/automation/watermark/image", files={"file": (name, content, "image/png")}
+    )
+
+
+class WatermarkImageEndpointTests(unittest.TestCase):
+    """The one stored PNG the Watermark dialog previews and the job reads."""
+
+    def setUp(self) -> None:
+        reset_job_manager()
+        watermark_image_path().unlink(missing_ok=True)
+        self.addCleanup(watermark_image_path().unlink, missing_ok=True)
+
+    def test_nothing_is_stored_until_an_upload(self) -> None:
+        self.assertEqual(
+            client.get("/api/automation/watermark/image/info").json(),
+            {"available": False, "width": 0, "height": 0, "revision": 0},
+        )
+        self.assertEqual(client.get("/api/automation/watermark/image").status_code, 404)
+
+    def test_an_uploaded_png_is_described_and_served_back(self) -> None:
+        content = _png_bytes((40, 20))
+
+        uploaded = _upload_watermark(content)
+
+        self.assertEqual(uploaded.status_code, 200)
+        info = uploaded.json()
+        self.assertEqual((info["available"], info["width"], info["height"]), (True, 40, 20))
+        self.assertEqual(client.get("/api/automation/watermark/image/info").json(), info)
+        served = client.get("/api/automation/watermark/image")
+        self.assertEqual(served.status_code, 200)
+        self.assertEqual(served.headers["content-type"], "image/png")
+        self.assertEqual(served.headers["cache-control"], "no-store")
+        self.assertEqual(served.content, content)
+
+    def test_a_new_upload_replaces_the_old_one(self) -> None:
+        _upload_watermark(_png_bytes((40, 20)))
+
+        replaced = _upload_watermark(_png_bytes((10, 30)))
+
+        self.assertEqual((replaced.json()["width"], replaced.json()["height"]), (10, 30))
+
+    def test_refuses_anything_but_a_png(self) -> None:
+        jpeg = io.BytesIO()
+        Image.new("RGB", (8, 8)).save(jpeg, format="JPEG")
+        cases = {
+            "a JPEG named .png": (jpeg.getvalue(), "must be a PNG"),
+            "not an image": (b"not a png", "not a readable PNG"),
+            "a truncated PNG": (_png_bytes((64, 64))[:60], "not a readable PNG"),
+        }
+        for label, (content, reason) in cases.items():
+            with self.subTest(label):
+                response = _upload_watermark(content)
+
+                self.assertEqual(response.status_code, 400)
+                self.assertIn(reason, response.json()["detail"])
+                self.assertFalse(watermark_image_path().exists())
+
+    def test_refuses_an_oversized_upload(self) -> None:
+        with patch("automation.watermark.MAX_WATERMARK_IMAGE_BYTES", 100):
+            response = _upload_watermark(_png_bytes((200, 200)) + b"\0" * 200)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("larger than", response.json()["detail"])
+
+    def test_a_png_only_job_queues_once_a_png_is_stored(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            body = {"text_enabled": False, "image_enabled": True}
+
+            refused = _post("watermark", root, body)
+            self.assertEqual(refused.status_code, 400)
+            self.assertIn("Choose a PNG watermark first", refused.json()["detail"])
+
+            _upload_watermark(_png_bytes())
+            received: dict[str, object] = {}
+            with _patched_job_runner("watermark", _capturing_runner(received)):
+                queued = _post("watermark", root, body)
+                wait_for_job(queued.json()["id"])
+
+            self.assertEqual(queued.status_code, 200)
+            self.assertIs(received["image_enabled"], True)
+            self.assertIs(received["text_enabled"], False)
 
 
 class ComfyPresetsEndpointTests(unittest.TestCase):

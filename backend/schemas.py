@@ -37,12 +37,9 @@ type CaptionReadError = Literal["encoding", "access"]
 type MediaType = Literal["image", "video", "gif", "audio"]
 
 type WatermarkSizeName = Literal["small", "medium", "large"]
-type WatermarkOpacity = Literal[25, 50, 75]
-# Annotated so the note reaches generated TypeScript; a ``#:`` comment does not.
-type WatermarkPosition = Annotated[
-    Literal["top", "center", "bottom"],
-    Field(description="top = top-left, center = middle, bottom = bottom-right."),
-]
+#: Shared by the text and the PNG mark.
+type WatermarkOpacity = Literal[25, 50, 75, 100]
+type WatermarkPosition = Literal["top_left", "top_right", "center", "bottom_left", "bottom_right"]
 
 type AutomationMode = Literal["thinking", "instruct"]
 
@@ -862,11 +859,20 @@ class RestoreCaptionsPreviewResponse(BaseModel):
 
 
 class WatermarkJobSettings(BaseModel):
+    text_enabled: bool = True
     # Unconstrained so refusal is the job's own 400.
     text: str = ""
     size: WatermarkSizeName = "medium"
     opacity: WatermarkOpacity = 50
-    position: WatermarkPosition = "bottom"
+    position: WatermarkPosition = "bottom_right"
+    image_enabled: bool = Field(
+        default=False,
+        description="Composite the stored watermark PNG; upload it first.",
+    )
+    image_size: WatermarkSizeName = "medium"
+    image_opacity: WatermarkOpacity = 100
+    #: Not the text's corner, so turning both marks on does not stack them.
+    image_position: WatermarkPosition = "top_right"
     #: Off by default: the marked copy keeps the original's metadata unless asked otherwise.
     strip_metadata: bool = Field(
         default=False,
@@ -876,6 +882,15 @@ class WatermarkJobSettings(BaseModel):
 
 class WatermarkStartRequest(JobSelectionRequest, WatermarkJobSettings):
     pass
+
+
+class WatermarkImageInfo(BaseModel):
+    available: bool
+    width: int = 0
+    height: int = 0
+    #: The stored file's mtime in µs (ns would pass 2**53 and round in JavaScript); part of the
+    #: preview URL so a replaced PNG is refetched.
+    revision: int = 0
 
 
 class ResizeJobSettings(BaseModel):

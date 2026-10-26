@@ -4,20 +4,27 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 import automation.watermark as watermark_module
 from automation.watermark import (
     FONT_MISSING_MESSAGE,
+    IMAGE_MISSING_MESSAGE,
     MAX_WATERMARK_TEXT_LENGTH,
+    NO_MARK_MESSAGE,
     WATERMARK_SIZES,
     WATERMARK_STALE_MARKER,
     WATERMARK_TEMP_MARKER,
+    ImageMark,
+    TextMark,
     build_drawtext_filter,
+    build_gif_watermark_command,
+    build_mark_graph,
     escape_drawtext_path,
     escape_drawtext_text,
     list_watermark_files,
@@ -27,6 +34,7 @@ from automation.watermark import (
     resolve_watermark_size,
     run_watermark_job,
     validate_watermark_folder,
+    watermark_image_path,
 )
 from constants import WATERMARK_DIR_NAME
 from ffmpeg_bin import ffmpeg_path
@@ -41,6 +49,22 @@ from testing_fixtures import (
 )
 
 SAMPLE_FONT = Path(r"C:\Windows\Fonts\segoeui.ttf")
+
+
+def text_mark(
+    text: str = "Sample",
+    *,
+    size: str = "medium",
+    alpha: float = 0.5,
+    position: str = "bottom_right",
+) -> TextMark:
+    return TextMark(
+        text=text,
+        font_path=SAMPLE_FONT,
+        size=WATERMARK_SIZES[size],
+        alpha=alpha,
+        position=resolve_watermark_position(position),
+    )
 
 
 def watermarked(root: Path, name: str) -> Path:
@@ -91,15 +115,9 @@ class DrawtextFilterTests(unittest.TestCase):
         size: str = "medium",
         alpha: float = 0.5,
         text: str = "Sample",
-        position: str = "bottom",
+        position: str = "bottom_right",
     ) -> str:
-        return build_drawtext_filter(
-            text=text,
-            font_path=SAMPLE_FONT,
-            size=WATERMARK_SIZES[size],
-            alpha=alpha,
-            position=position,
-        )
+        return build_drawtext_filter(text_mark(text, size=size, alpha=alpha, position=position))
 
     def test_builds_the_expected_filter(self) -> None:
         self.assertEqual(
@@ -116,9 +134,11 @@ class DrawtextFilterTests(unittest.TestCase):
 
     def test_positions_map_to_the_matching_x_y_expressions(self) -> None:
         cases = {
-            "top": (":x=max(8\\,h*0.02)", ":y=max(8\\,h*0.02)"),
+            "top_left": (":x=max(8\\,h*0.02)", ":y=max(8\\,h*0.02)"),
+            "top_right": (":x=w-tw-(max(8\\,h*0.02))", ":y=max(8\\,h*0.02)"),
             "center": (":x=(w-tw)/2", ":y=(h-th)/2"),
-            "bottom": (":x=w-tw-(max(8\\,h*0.02))", ":y=h-th-(max(8\\,h*0.02))"),
+            "bottom_left": (":x=max(8\\,h*0.02)", ":y=h-th-(max(8\\,h*0.02))"),
+            "bottom_right": (":x=w-tw-(max(8\\,h*0.02))", ":y=h-th-(max(8\\,h*0.02))"),
         }
         for position, (x_fragment, y_fragment) in cases.items():
             with self.subTest(position=position):
@@ -220,7 +240,7 @@ class WatermarkValidationTests(unittest.TestCase):
         self.assertEqual(resolve_watermark_alpha(75), 0.75)
 
     def test_resolves_known_positions(self) -> None:
-        for position in ("top", "center", "bottom"):
+        for position in ("top_left", "top_right", "center", "bottom_left", "bottom_right"):
             with self.subTest(position=position):
                 self.assertEqual(resolve_watermark_position(position), position)
 
@@ -377,11 +397,42 @@ class WatermarkImageTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_media(root, "photo.png", width=400, height=300)
 
-            run_watermark_job(root, text="Sample Studio", position="top")
+            run_watermark_job(root, text="Sample Studio", position="top_left")
 
             with Image.open(watermarked(root, "photo.png")) as output:
                 self.assertIsNotNone(top_left(output).convert("L").getbbox())
                 self.assertIsNone(bottom_right(output).convert("L").getbbox())
+
+    def test_text_takes_the_same_five_positions_as_the_png(self) -> None:
+        expected = {
+            "top_left": (lambda x: x < 200, lambda y: y < 150),
+            "top_right": (lambda x: x > 200, lambda y: y < 150),
+            "bottom_left": (lambda x: x < 200, lambda y: y > 150),
+            "bottom_right": (lambda x: x > 200, lambda y: y > 150),
+        }
+        for position, (check_x, check_y) in expected.items():
+            with self.subTest(position=position), TempMediaFolder() as root:
+                write_media(root, "photo.png", width=400, height=300)
+
+                run_watermark_job(root, text="Sample Studio", position=position)
+
+                with Image.open(watermarked(root, "photo.png")) as output:
+                    box = output.convert("L").getbbox()
+                assert box is not None
+                self.assertTrue(check_x((box[0] + box[2]) / 2), (position, box))
+                self.assertTrue(check_y((box[1] + box[3]) / 2), (position, box))
+
+    def test_text_can_be_fully_opaque(self) -> None:
+        brightest = {}
+        for opacity in (75, 100):
+            with TempMediaFolder() as root:
+                write_media(root, "photo.png", width=400, height=300)
+                run_watermark_job(root, text="Sample Studio", opacity=opacity)
+                with Image.open(watermarked(root, "photo.png")) as output:
+                    brightest[opacity] = max(output.convert("L").tobytes())
+
+        self.assertEqual(brightest[100], 255)
+        self.assertLess(brightest[75], 255)
 
     def test_center_places_the_mark_near_the_middle(self) -> None:
         with TempMediaFolder() as root:
@@ -509,11 +560,8 @@ class WatermarkVideoTests(unittest.TestCase):
             watermark_module.watermark_video(
                 Path("in.mp4"),
                 Path("out.mp4"),
-                text="Sample Studio",
-                font_path=SAMPLE_FONT,
-                size=WATERMARK_SIZES["medium"],
-                alpha=0.5,
-                position="bottom",
+                text=text_mark("Sample Studio"),
+                image=None,
                 ffmpeg="ffmpeg",
             )
 
@@ -521,7 +569,9 @@ class WatermarkVideoTests(unittest.TestCase):
         mapped = [command[i + 1] for i, token in enumerate(command) if token == "-map"]
         # The first video and every audio track: not `-map 0`, which would pull in cover art
         # (drawtext cannot filter two video streams) and untyped subtitle/data streams.
-        self.assertEqual(mapped, ["0:v:0", "0:a?"])
+        self.assertEqual(mapped, ["[v]", "0:a?"])
+        graph = command[command.index("-filter_complex") + 1]
+        self.assertTrue(graph.startswith("[0:v:0]drawtext="), graph)
 
 
 def write_jpeg_with_exif(root: Path, name: str = "photo.jpg") -> Path:
@@ -841,6 +891,445 @@ class WatermarkGifEncodeTests(unittest.TestCase):
             self.assertEqual(stats["success"], 1)
             _, _, info = read_gif(watermarked(root, "tagged.gif"))
             self.assertNotIn("comment", info)
+
+
+RED = (255, 0, 0, 255)
+
+
+def store_watermark_png(
+    test: unittest.TestCase,
+    size: tuple[int, int] = (40, 20),
+    colour: tuple[int, int, int, int] = RED,
+) -> None:
+    path = watermark_image_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGBA", size, colour).save(path)
+    test.addCleanup(path.unlink, missing_ok=True)
+
+
+def red_box(image: Image.Image) -> tuple[int, int, int, int] | None:
+    """Where the red mark landed on a black frame."""
+    red, green, _blue = image.convert("RGB").split()
+    # Text is white, so a pixel that is red but not green is the PNG's, never the text's.
+    return ImageChops.multiply(
+        red.point(lambda value: 255 if value > 40 else 0),
+        green.point(lambda value: 255 if value < 40 else 0),
+    ).getbbox()
+
+
+def box_centre(box: tuple[int, int, int, int]) -> tuple[float, float]:
+    return (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+
+
+class WatermarkPngTests(unittest.TestCase):
+    def test_each_position_puts_the_png_where_it_says(self) -> None:
+        expected = {
+            "top_left": (lambda x: x < 200, lambda y: y < 150),
+            "top_right": (lambda x: x > 200, lambda y: y < 150),
+            "center": (lambda x: abs(x - 200) < 2, lambda y: abs(y - 150) < 2),
+            "bottom_left": (lambda x: x < 200, lambda y: y > 150),
+            "bottom_right": (lambda x: x > 200, lambda y: y > 150),
+        }
+        store_watermark_png(self)
+        for position, (check_x, check_y) in expected.items():
+            with self.subTest(position=position), TempMediaFolder() as root:
+                write_media(root, "photo.png", width=400, height=300)
+
+                run_watermark_job(
+                    root, text_enabled=False, image_enabled=True, image_position=position
+                )
+
+                with Image.open(watermarked(root, "photo.png")) as output:
+                    box = red_box(output)
+                assert box is not None
+                centre_x, centre_y = box_centre(box)
+                self.assertTrue(check_x(centre_x), (position, box))
+                self.assertTrue(check_y(centre_y), (position, box))
+
+    def test_corners_keep_the_text_margin(self) -> None:
+        store_watermark_png(self)
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png", width=1000, height=800)
+
+            run_watermark_job(
+                root, text_enabled=False, image_enabled=True, image_position="bottom_right"
+            )
+
+            with Image.open(watermarked(root, "photo.png")) as output:
+                box = red_box(output)
+        # 2% of the 800px height.
+        self.assertEqual(box[2:] if box else None, (1000 - 16, 800 - 16))
+
+    def test_fits_a_square_sized_from_the_shorter_side(self) -> None:
+        store_watermark_png(self, size=(40, 20))
+        widths = {}
+        for size in ("small", "medium", "large"):
+            with self.subTest(size=size), TempMediaFolder() as root:
+                write_media(root, "photo.png", width=400, height=300)
+
+                run_watermark_job(root, text_enabled=False, image_enabled=True, image_size=size)
+
+                with Image.open(watermarked(root, "photo.png")) as output:
+                    box = red_box(output)
+                assert box is not None
+                widths[size] = box[2] - box[0]
+                # A 2:1 logo keeps its aspect ratio.
+                self.assertAlmostEqual(widths[size] / (box[3] - box[1]), 2, delta=0.1)
+
+        # The wide side fills the square: 10%, 15% and 22% of 300px.
+        self.assertEqual(widths, {"small": 30, "medium": 45, "large": 66})
+
+    def test_opacity_fades_the_png(self) -> None:
+        store_watermark_png(self)
+        reds = {}
+        for opacity in (25, 100):
+            with TempMediaFolder() as root:
+                write_media(root, "photo.png", width=400, height=300)
+
+                run_watermark_job(
+                    root,
+                    text_enabled=False,
+                    image_enabled=True,
+                    image_opacity=opacity,
+                    image_position="center",
+                )
+
+                with Image.open(watermarked(root, "photo.png")) as output:
+                    reds[opacity] = output.convert("RGB").getpixel((200, 150))[0]
+
+        self.assertEqual(reds[100], 255)
+        self.assertAlmostEqual(reds[25], 64, delta=2)
+
+    def test_png_transparency_shows_the_photo_through(self) -> None:
+        store_watermark_png(self, colour=(255, 0, 0, 0))
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png", width=400, height=300)
+
+            run_watermark_job(root, text_enabled=False, image_enabled=True)
+
+            with Image.open(watermarked(root, "photo.png")) as output:
+                self.assertIsNone(output.convert("L").getbbox())
+
+    def test_text_and_png_land_in_their_own_corners(self) -> None:
+        store_watermark_png(self)
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png", width=400, height=300)
+
+            run_watermark_job(
+                root,
+                text="Sample Studio",
+                position="bottom_right",
+                image_enabled=True,
+                image_position="top_left",
+            )
+
+            with Image.open(watermarked(root, "photo.png")) as output:
+                box = red_box(output)
+                self.assertIsNotNone(bottom_right(output).convert("L").getbbox())
+        assert box is not None
+        self.assertLess(box_centre(box)[0], 200)
+        self.assertLess(box_centre(box)[1], 150)
+
+    def test_png_only_needs_neither_text_nor_a_font(self) -> None:
+        store_watermark_png(self)
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png", width=200, height=150)
+
+            with patch("automation.watermark.resolve_watermark_font", return_value=None):
+                result = run_watermark_job(root, text_enabled=False, text="", image_enabled=True)
+
+            self.assertEqual(result["processed"], 1)
+
+    def test_transparent_png_source_keeps_its_alpha_channel(self) -> None:
+        store_watermark_png(self)
+        with TempMediaFolder() as root:
+            Image.new("RGBA", (200, 150), (0, 0, 0, 0)).save(root / "logo.png")
+
+            run_watermark_job(root, text_enabled=False, image_enabled=True)
+
+            with Image.open(watermarked(root, "logo.png")) as output:
+                self.assertEqual(output.mode, "RGBA")
+
+    def test_replacing_the_png_mid_job_does_not_change_the_rest(self) -> None:
+        store_watermark_png(self)
+        with TempMediaFolder() as root:
+            write_media(root, "first.png", width=200, height=150)
+            write_media(root, "second.png", width=200, height=150)
+
+            def replace_stored_png(*_: object) -> None:
+                Image.new("RGBA", (40, 20), (0, 0, 255, 255)).save(watermark_image_path())
+
+            run_watermark_job(
+                root, text_enabled=False, image_enabled=True, on_progress=replace_stored_png
+            )
+
+            for name in ("first.png", "second.png"):
+                with Image.open(watermarked(root, name)) as output:
+                    self.assertIsNotNone(red_box(output), name)
+
+    def test_an_unreadable_stored_png_refuses_the_job(self) -> None:
+        store_watermark_png(self)
+        watermark_image_path().write_bytes(b"not a png")
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            with self.assertRaisesRegex(ValueError, "cannot be read"):
+                run_watermark_job(root, text_enabled=False, image_enabled=True)
+
+
+class WatermarkPngValidationTests(unittest.TestCase):
+    def test_needs_at_least_one_mark(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            with self.assertRaisesRegex(ValueError, NO_MARK_MESSAGE):
+                validate_watermark_folder(root, text_enabled=False, image_enabled=False)
+
+    def test_png_on_needs_a_stored_png(self) -> None:
+        watermark_image_path().unlink(missing_ok=True)
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            with self.assertRaisesRegex(ValueError, IMAGE_MISSING_MESSAGE):
+                validate_watermark_folder(root, text_enabled=False, image_enabled=True)
+
+    def test_text_off_ignores_the_text(self) -> None:
+        store_watermark_png(self)
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            validate_watermark_folder(root, text_enabled=False, text="   ", image_enabled=True)
+
+    def test_refuses_unknown_png_settings(self) -> None:
+        store_watermark_png(self)
+        cases = {
+            "image_size": ("huge", "PNG watermark size"),
+            "image_opacity": (10, "PNG watermark opacity"),
+            "image_position": ("top", "PNG watermark position"),
+        }
+        for key, (value, message) in cases.items():
+            with self.subTest(key=key), TempMediaFolder() as root:
+                write_media(root, "photo.png")
+
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_watermark_folder(
+                        root, text_enabled=False, image_enabled=True, **{key: value}
+                    )
+
+
+def image_mark(position: str = "bottom_right", scale: float = 0.15) -> ImageMark:
+    return ImageMark(
+        image=Image.new("RGBA", (4, 2)),
+        path=Path("mark.png"),
+        scale=scale,
+        position=resolve_watermark_position(position),
+    )
+
+
+class WatermarkGraphTests(unittest.TestCase):
+    def test_png_only_scales_against_the_frame_and_overlays_it(self) -> None:
+        self.assertEqual(
+            build_mark_graph(None, image_mark()),
+            "[0:v:0]split[base][ref];"
+            "[1:v][ref]scale=w=max(16\\,min(rw\\,rh)*0.15):h=max(16\\,min(rw\\,rh)*0.15)"
+            ":force_original_aspect_ratio=decrease:flags=lanczos[mark];"
+            "[base][mark]overlay=x=W-w-(max(8\\,H*0.02)):y=H-h-(max(8\\,H*0.02))"
+            ":format=auto:shortest=1[marked]",
+        )
+
+    def test_positions_map_to_overlay_expressions(self) -> None:
+        margin = "max(8\\,H*0.02)"
+        cases = {
+            "top_left": f"x={margin}:y={margin}",
+            "top_right": f"x=W-w-({margin}):y={margin}",
+            "center": "x=(W-w)/2:y=(H-h)/2",
+            "bottom_left": f"x={margin}:y=H-h-({margin})",
+            "bottom_right": f"x=W-w-({margin}):y=H-h-({margin})",
+        }
+        for position, expected in cases.items():
+            with self.subTest(position=position):
+                self.assertIn(f"overlay={expected}:", build_mark_graph(None, image_mark(position)))
+
+    def test_text_is_drawn_after_the_png(self) -> None:
+        graph = build_mark_graph(text_mark(), image_mark())
+        self.assertIn("[imaged]", graph)
+        self.assertLess(graph.index("overlay="), graph.index("drawtext="))
+        self.assertTrue(graph.endswith("[marked]"))
+
+    def test_text_only_draws_straight_from_the_source(self) -> None:
+        graph = build_mark_graph(text_mark(), None)
+        self.assertTrue(graph.startswith("[0:v:0]drawtext="))
+        self.assertNotIn("[1:v]", graph)
+
+    def test_the_video_command_loops_the_png_and_drops_the_display_matrix(self) -> None:
+        commands: list[list[str]] = []
+
+        with patch(
+            "automation.watermark.run_ffmpeg",
+            side_effect=lambda command, **_: commands.append(command),
+        ):
+            watermark_module.watermark_video(
+                Path("in.mp4"), Path("out.mp4"), text=None, image=image_mark(), ffmpeg="ffmpeg"
+            )
+
+        command = commands[0]
+        second_input = command.index("-i", command.index("-i") + 1)
+        self.assertEqual(
+            command[second_input - 2 : second_input + 2], ["-loop", "1", "-i", "mark.png"]
+        )
+        graph = command[command.index("-filter_complex") + 1]
+        self.assertTrue(graph.endswith(";[marked]sidedata=mode=delete:type=DISPLAYMATRIX[v]"))
+
+    def test_the_gif_command_marks_before_building_palettes(self) -> None:
+        command = build_gif_watermark_command(
+            Path("in.gif"),
+            Path("out.gif"),
+            executable="ffmpeg",
+            text=None,
+            image=image_mark(),
+            loop="0",
+        )
+
+        graph = command[command.index("-filter_complex") + 1]
+        self.assertLess(graph.index("overlay="), graph.index("palettegen"))
+        self.assertIn("mark.png", command)
+
+
+def make_black_mp4(root: Path, name: str, *, rotation: int | None = None) -> Path:
+    executable = ffmpeg_path()
+    assert executable is not None
+    plain = root / f"plain-{name}"
+    subprocess.run(
+        [
+            executable,
+            *("-nostdin", "-v", "error", "-y"),
+            *("-f", "lavfi", "-i", "color=black:size=160x120:rate=10:duration=0.5"),
+            *("-c:v", "libx264", "-pix_fmt", "yuv420p", str(plain)),
+        ],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+    if rotation is None:
+        return plain.rename(root / name)
+    rotated = root / name
+    subprocess.run(
+        [
+            executable,
+            *("-nostdin", "-v", "error", "-y"),
+            *("-display_rotation", str(rotation), "-i", str(plain), "-c", "copy", str(rotated)),
+        ],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+    plain.unlink()
+    return rotated
+
+
+def first_frame(video: Path, root: Path) -> Image.Image:
+    """Decoded as a player would show it, display matrix applied."""
+    executable = ffmpeg_path()
+    assert executable is not None
+    frame = root / "frame.png"
+    subprocess.run(
+        [
+            executable,
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-i",
+            str(video),
+            "-frames:v",
+            "1",
+            str(frame),
+        ],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+    with Image.open(frame) as opened:
+        return opened.convert("RGB")
+
+
+@unittest.skipUnless(ffmpeg_path(), "ffmpeg is not installed")
+class WatermarkPngEncodeTests(unittest.TestCase):
+    """Real encodes: frame-relative scaling and the display matrix only show in the output."""
+
+    def test_marks_a_video_in_the_chosen_corner_at_the_chosen_size(self) -> None:
+        store_watermark_png(self)
+        with TempMediaFolder() as root:
+            make_black_mp4(root, "clip.mp4")
+
+            result = run_watermark_job(
+                root, text_enabled=False, image_enabled=True, image_position="top_right"
+            )
+
+            self.assertEqual(result["processed"], 1)
+            with TempMediaFolder() as scratch:
+                frame = first_frame(watermarked(root, "clip.mp4"), scratch)
+            box = red_box(frame)
+            assert box is not None
+            self.assertEqual(frame.size, (160, 120))
+            self.assertGreater(box_centre(box)[0], 80)
+            self.assertLess(box_centre(box)[1], 60)
+            # 15% of the 120px short side, give or take chroma bleed.
+            self.assertAlmostEqual(box[2] - box[0], 18, delta=3)
+
+    def test_a_rotated_video_is_marked_upright_and_not_rotated_again(self) -> None:
+        store_watermark_png(self)
+        with TempMediaFolder() as root:
+            make_black_mp4(root, "portrait.mp4", rotation=90)
+
+            run_watermark_job(
+                root, text_enabled=False, image_enabled=True, image_position="bottom_left"
+            )
+
+            with TempMediaFolder() as scratch:
+                frame = first_frame(watermarked(root, "portrait.mp4"), scratch)
+            # A display matrix left on the copy would turn it back to landscape here.
+            self.assertEqual(frame.size, (120, 160))
+            box = red_box(frame)
+            assert box is not None
+            self.assertLess(box_centre(box)[0], 60)
+            self.assertGreater(box_centre(box)[1], 80)
+            # Still a 2:1 logo: it was scaled after the rotation, not before.
+            self.assertGreater(box[2] - box[0], box[3] - box[1])
+
+    def test_marks_every_gif_frame_and_keeps_the_frame_count(self) -> None:
+        store_watermark_png(self)
+        with TempMediaFolder() as root:
+            write_flat_gif(
+                root,
+                "loop.gif",
+                colours=[(20, 20, 20), (30, 30, 30), (40, 40, 40)],
+                durations=[100, 100, 100],
+                loop=0,
+            )
+
+            run_watermark_job(root, text_enabled=False, image_enabled=True, image_size="large")
+
+            frames, delays, _ = read_gif(watermarked(root, "loop.gif"))
+            self.assertEqual(delays, [100, 100, 100])
+            for frame in frames:
+                self.assertIsNotNone(red_box(frame))
+
+    def test_a_transparent_gif_keeps_its_transparency_around_the_png(self) -> None:
+        store_watermark_png(self)
+        with TempMediaFolder() as root:
+            write_flat_gif(
+                root,
+                "clear.gif",
+                colours=[(255, 0, 0), (0, 0, 255)],
+                durations=[100, 100],
+                transparent=True,
+            )
+
+            run_watermark_job(root, text_enabled=False, image_enabled=True)
+
+            frames, _, _ = read_gif(watermarked(root, "clear.gif"))
+            self.assertEqual([frame.getpixel((5, 5))[3] for frame in frames], [0, 0])
 
 
 if __name__ == "__main__":

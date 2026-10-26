@@ -301,10 +301,15 @@ class AutomationPreferencesEndpointTests(unittest.TestCase):
         self.assertEqual(
             body["watermark"],
             {
+                "text_enabled": True,
                 "text": "",
                 "size": "medium",
                 "opacity": 50,
-                "position": "bottom",
+                "position": "bottom_right",
+                "image_enabled": False,
+                "image_size": "medium",
+                "image_opacity": 100,
+                "image_position": "top_right",
                 "strip_metadata": False,
             },
         )

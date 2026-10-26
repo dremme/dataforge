@@ -1,6 +1,7 @@
+import asyncio
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
 
 from automation.auto_caption import preview_auto_caption
 from automation.backup_captions import preview_restore_captions
@@ -8,6 +9,11 @@ from automation.edit_captions import preview_caption_edits
 from automation.jobs import JobType, job_manager
 from automation.replace_captions import preview_caption_replacements
 from automation.selection import resolve_selected_media
+from automation.watermark import (
+    read_watermark_image_info,
+    save_watermark_image,
+    watermark_image_path,
+)
 from automation_settings import remember_job_settings
 from comfy_settings import get_comfy_base_url
 from external.comfy_client import probe_available, read_log_lines
@@ -57,6 +63,7 @@ from schemas import (
     TrainingTemplateResponse,
     TrainLoraStartRequest,
     VerifyCaptionsStartRequest,
+    WatermarkImageInfo,
     WatermarkStartRequest,
 )
 
@@ -255,6 +262,39 @@ def start_watermark_job(
     path: str = FOLDER_QUERY, body: WatermarkStartRequest = WatermarkStartRequest()
 ) -> JobResponse:
     return _start_job("watermark", path, body)
+
+
+@router.get("/automation/watermark/image/info", response_model=WatermarkImageInfo)
+def get_watermark_image_info() -> WatermarkImageInfo:
+    return read_watermark_image_info()
+
+
+@router.get(
+    "/automation/watermark/image",
+    response_class=Response,
+    responses={200: {"content": {"image/png": {}}}, 404: {"description": "No PNG is stored"}},
+)
+def get_watermark_image() -> Response:
+    try:
+        content = watermark_image_path().read_bytes()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="No PNG watermark is stored") from exc
+    # Bytes rather than a streamed file, so an upload never has to replace an open file.
+    return Response(content=content, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@router.put("/automation/watermark/image", response_model=WatermarkImageInfo)
+async def put_watermark_image(
+    file: UploadFile = File(..., description="The PNG to use as the watermark"),
+) -> WatermarkImageInfo:
+    try:
+        return await asyncio.to_thread(save_watermark_image, file.file)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to save the PNG watermark: {exc}"
+        ) from exc
 
 
 @router.post("/automation/comfy-process", response_model=JobResponse)
