@@ -556,6 +556,7 @@ function InspectorContent({
         <SoundPanel
           effects={clip.audio_effects}
           preparing={preparingSound.has(clip.id)}
+          keyed={{ clip, time, onEdit, onSeek }}
           onChange={(change, final) =>
             onEdit({ audio_effects: { ...clip.audio_effects, ...change } }, final)
           }

@@ -187,7 +187,7 @@ Select the outgoing picture clip and add a **cross-dissolve** in the inspector. 
 
 ## Animate settings
 
-Position, Scale, Rotation, Opacity, and an audio clip's Gain support keyframes.
+Position, Scale, Rotation, Opacity, and an audio clip's Gain, Bass, Mid, and Treble support keyframes.
 
 1. Select a clip and place the timeline playhead where the animation should begin.
 2. Click the **diamond** beside a setting to add a keyframe at that time.
@@ -208,7 +208,7 @@ The **Fades** setting in the clip's **Audio** panel controls fades and crossfade
 
 ### Shape the sound
 
-An audio clip's **Sound** panel has the gallery audio editor's EQ and noise reduction: **Low cut**, **Bass**, **Mid**, **Treble**, **High cut**, and **Noise reduction**. Select several audio clips, for example every clip on a track, to set them all at once. **Paste attributes** can copy them as **EQ and noise reduction**.
+An audio clip's **Sound** panel has the gallery audio editor's EQ and noise reduction: **Low cut**, **Bass**, **Mid**, **Treble**, **High cut**, and **Noise reduction**. Bass, Mid, and Treble can be keyframed like any other setting (see [Animate settings](#animate-settings)); the cuts and noise reduction stay fixed for the whole clip. Select several audio clips, for example every clip on a track, to set them all at once; that sets the static values, not keyframes. **Paste attributes** can copy them as **EQ and noise reduction**, keyframes included.
 
 The EQ plays live. Noise reduction is rendered on the server first; the clip plays unprocessed while the panel says **Preparing noise reduction...**. The export reads that same render, so the clip stays in sync with its picture and sounds as previewed.
 

@@ -1,4 +1,5 @@
 import { VIDEO_PROJECT_DUCK_RAMP_SECONDS } from "@/shared/constants";
+import type { GainBand } from "@/shared/lib/audioEffects";
 import type {
   VideoProjectEasing,
   VideoProjectKeyframe,
@@ -12,7 +13,14 @@ import type { Clip } from "./timeline";
  */
 
 export type AnimatedProperty = keyof VideoProjectKeyframes;
-export type TransformProperty = Exclude<AnimatedProperty, "gain">;
+export type TransformProperty = Exclude<AnimatedProperty, "gain" | GainBand>;
+
+/** The EQ's gain bands in `audio_effects`, in dB. */
+export const EQ_PROPERTIES: GainBand[] = ["bass", "mid", "treble"];
+
+function isEq(property: AnimatedProperty): property is GainBand {
+  return (EQ_PROPERTIES as AnimatedProperty[]).includes(property);
+}
 
 export const EASINGS: { value: VideoProjectEasing; label: string }[] = [
   { value: "linear", label: "Linear" },
@@ -23,7 +31,17 @@ export const EASINGS: { value: VideoProjectEasing; label: string }[] = [
 ];
 
 export function noKeyframes(): VideoProjectKeyframes {
-  return { x: [], y: [], scale: [], rotation: [], opacity: [], gain: [] };
+  return {
+    x: [],
+    y: [],
+    scale: [],
+    rotation: [],
+    opacity: [],
+    gain: [],
+    bass: [],
+    mid: [],
+    treble: [],
+  };
 }
 
 export function ease(easing: VideoProjectEasing, progress: number): number {
@@ -54,7 +72,13 @@ export function keyframeValue(
 }
 
 function staticValue(clip: Clip, property: AnimatedProperty): number {
-  return property === "gain" ? clip.gain : clip.transform[property];
+  if (property === "gain") return clip.gain;
+  return isEq(property) ? clip.audio_effects[property] : clip.transform[property];
+}
+
+/** One distinct value is a constant, as `is_animated` in the export reads it. */
+export function isAnimated(keys: readonly VideoProjectKeyframe[]): boolean {
+  return keys.some((key) => key.value !== keys[0].value);
 }
 
 /** ``property`` at ``time`` on the timeline. */
@@ -69,6 +93,15 @@ export function transformAt(clip: Clip, time: number): Clip["transform"] {
     scale: clipValueAt(clip, "scale", time),
     rotation: clipValueAt(clip, "rotation", time),
     opacity: clipValueAt(clip, "opacity", time),
+  };
+}
+
+export function effectsAt(clip: Clip, time: number): Clip["audio_effects"] {
+  return {
+    ...clip.audio_effects,
+    bass: clipValueAt(clip, "bass", time),
+    mid: clipValueAt(clip, "mid", time),
+    treble: clipValueAt(clip, "treble", time),
   };
 }
 
@@ -90,9 +123,16 @@ function withKeys(clip: Clip, property: AnimatedProperty, keys: VideoProjectKeyf
 }
 
 function withStatic(clip: Clip, property: AnimatedProperty, value: number): Clip {
-  return property === "gain"
-    ? { ...clip, gain: value }
+  if (property === "gain") return { ...clip, gain: value };
+  return isEq(property)
+    ? { ...clip, audio_effects: { ...clip.audio_effects, [property]: value } }
     : { ...clip, transform: { ...clip.transform, [property]: value } };
+}
+
+/** The field of the clip that holds ``property``'s static value. */
+function staticPatch(clip: Clip, property: AnimatedProperty): Partial<Clip> {
+  if (property === "gain") return { gain: clip.gain };
+  return isEq(property) ? { audio_effects: clip.audio_effects } : { transform: clip.transform };
 }
 
 /**
@@ -106,10 +146,7 @@ export function setValueAt(
   value: number,
 ): Partial<Clip> {
   const keys = clip.keyframes[property];
-  if (keys.length === 0) {
-    const next = withStatic(clip, property, value);
-    return property === "gain" ? { gain: next.gain } : { transform: next.transform };
-  }
+  if (keys.length === 0) return staticPatch(withStatic(clip, property, value), property);
   return { keyframes: upsert(clip, property, time, value).keyframes };
 }
 

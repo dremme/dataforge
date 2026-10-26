@@ -228,6 +228,30 @@ describe("ClipInspector", () => {
     expect(screen.queryByRole("button", { name: "Color" })).not.toBeInTheDocument();
   });
 
+  it("keys a sound clip's EQ band at the playhead and steps between its keyframes", () => {
+    const bassy = { ...sound, audio_effects: { ...sound.audio_effects, bass: 3 } };
+    const first = renderInspector({ project: projectWith([bassy]), selection: [bassy], time: 0.5 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a keyframe for Bass" }));
+    const added = vi.mocked(first.onEdit).mock.calls[0][0];
+    expect(added.keyframes?.bass).toEqual([{ time: 0.5, value: 3, easing: "linear" }]);
+    first.unmount();
+
+    const keyed = { ...bassy, keyframes: added.keyframes ?? bassy.keyframes };
+    const second = renderInspector({
+      project: projectWith([keyed]),
+      selection: [keyed],
+      time: 1.5,
+    });
+    fireEvent.change(screen.getByRole("slider", { name: "Bass" }), { target: { value: "-6" } });
+    expect(vi.mocked(second.onEdit).mock.calls[0][0].keyframes?.bass).toEqual([
+      { time: 0.5, value: 3, easing: "linear" },
+      { time: 1.5, value: -6, easing: "linear" },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Previous keyframe" }));
+    expect(second.onSeek).toHaveBeenCalledWith(0.5);
+  });
+
   it("shapes a sound clip's EQ and noise reduction in its Sound section", () => {
     const { onEdit } = renderInspector({ selection: [sound] });
 

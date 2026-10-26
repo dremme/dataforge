@@ -1869,6 +1869,9 @@ KEYFRAME_RANGES: dict[str, tuple[float, float]] = {
     "rotation": (-360.0, 360.0),
     "opacity": (0.0, 1.0),
     "gain": (MIN_EDIT_VOLUME, MAX_EDIT_VOLUME),
+    "bass": (-AUDIO_EQ_MAX_DB, AUDIO_EQ_MAX_DB),
+    "mid": (-AUDIO_EQ_MAX_DB, AUDIO_EQ_MAX_DB),
+    "treble": (-AUDIO_EQ_MAX_DB, AUDIO_EQ_MAX_DB),
 }
 
 
@@ -1884,6 +1887,10 @@ class VideoProjectKeyframes(BaseModel):
     opacity: KeyframeList = Field(default_factory=list)
     #: Audio clips only: the gain envelope.
     gain: KeyframeList = Field(default_factory=list)
+    #: Audio clips only: the EQ bands of ``audio_effects``, in dB.
+    bass: KeyframeList = Field(default_factory=list)
+    mid: KeyframeList = Field(default_factory=list)
+    treble: KeyframeList = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check(self) -> "VideoProjectKeyframes":
@@ -1974,8 +1981,8 @@ class VideoProjectClip(BaseModel):
         if self.kind == "audio":
             if keys.x or keys.y or keys.scale or keys.rotation or keys.opacity:
                 raise ValueError("Only pictures and titles animate a transform")
-        elif keys.gain:
-            raise ValueError("Only sound clips carry a gain envelope")
+        elif keys.gain or keys.bass or keys.mid or keys.treble:
+            raise ValueError("Only sound clips animate their sound")
         if self.kind != "audio" and self.audio_effects != AudioEffects():
             raise ValueError("Only sound clips carry sound effects")
         return self

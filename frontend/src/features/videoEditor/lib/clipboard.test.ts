@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeClip, makeProject, makeSource, makeTrack } from "@/test/videoProject";
 import { copyClips, pasteAttributes, pastableGroups, pasteClips } from "./clipboard";
-import { restingAdjust, type Project } from "./timeline";
+import { restingAdjust, type Clip, type Project } from "./timeline";
 
 const graded = { ...restingAdjust(), saturation: -0.3 };
 
@@ -100,5 +100,25 @@ describe("paste attributes", () => {
     expect(still.transform.scale).toBe(1);
     expect(sound.adjust).toEqual(restingAdjust());
     expect(sound.fade_in).toBe(0.2);
+  });
+
+  it("pastes sound with its EQ keyframes and keeps the target's gain envelope", () => {
+    const key = (time: number, value: number) => ({ time, value, easing: "linear" as const });
+    const sound = (id: string, keyframes: Partial<Clip["keyframes"]>) => {
+      const clip = makeClip(id, "a1", 0, 1, { kind: "audio", source_id: "film" });
+      return { ...clip, keyframes: { ...clip.keyframes, ...keyframes } };
+    };
+    const donor = sound("donor", { treble: [key(0, -6), key(1, 6)] });
+    const target = sound("target", { gain: [key(0, 0), key(1, 1)], bass: [key(0, 3)] });
+    const project = makeProject({
+      sources: [makeSource("film", "film.mp4", "video")],
+      clips: [donor, { ...target, start: 2 }],
+    });
+
+    const pasted = pasteAttributes(project, ["target"], donor, ["sound"]).project!.clips[1];
+
+    expect(pasted.keyframes.treble).toEqual(donor.keyframes.treble);
+    expect(pasted.keyframes.bass).toEqual([]);
+    expect(pasted.keyframes.gain).toEqual(target.keyframes.gain);
   });
 });

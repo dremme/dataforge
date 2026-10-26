@@ -90,6 +90,15 @@ describe("audio effects chain", () => {
     expect((path(chain) as FakeFilter[]).map((filter) => filter.type)).toEqual(["peaking"]);
   });
 
+  it("keeps a held band in the path at rest, so an animated gain is never rewired", () => {
+    const chain = createEffectsChain(fakeContext());
+    chain.update({ ...RESTING_EFFECTS, treble: 3 }, ["treble"]);
+    const [treble] = path(chain) as FakeFilter[];
+    chain.update(RESTING_EFFECTS, ["treble"]);
+    expect(path(chain)).toEqual([treble]);
+    expect(treble.gain.value).toBe(0);
+  });
+
   it("ramps fades as ffmpeg's tri and qsin", () => {
     expect(fadeCurveLevel("linear", 0.5)).toBe(0.5);
     expect(fadeCurveLevel("equal_power", 0.5)).toBeCloseTo(Math.SQRT1_2);

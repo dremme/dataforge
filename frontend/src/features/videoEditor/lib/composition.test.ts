@@ -50,7 +50,17 @@ function clip(
     fade_curve: "equal_power",
     audio_effects: { ...RESTING_EFFECTS },
     title: null,
-    keyframes: { x: [], y: [], scale: [], rotation: [], opacity: [], gain: [] },
+    keyframes: {
+      x: [],
+      y: [],
+      scale: [],
+      rotation: [],
+      opacity: [],
+      gain: [],
+      bass: [],
+      mid: [],
+      treble: [],
+    },
     ...extra,
   };
 }
@@ -230,6 +240,9 @@ describe("audio", () => {
           { time: 0, value: 0, easing: "linear" },
           { time: 1, value: 1, easing: "linear" },
         ],
+        bass: [],
+        mid: [],
+        treble: [],
       },
     });
     const speech = clip("speech", "a1", 2, 1);
@@ -267,6 +280,9 @@ describe("placement", () => {
         rotation: [],
         opacity: [],
         gain: [],
+        bass: [],
+        mid: [],
+        treble: [],
       },
     });
     expect(placement(project([]), keyed, 1.5).centerX).toBeCloseTo(960 + 1920 * 0.125);

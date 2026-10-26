@@ -26,7 +26,7 @@ from pathlib import Path
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 
-from audio_effects import eq_filters
+from audio_effects import EQ_BAND_FILTERS, eq_filters
 from audio_level import MEASURE_FILTER, audio_level_filters
 from automation.watermark import resolve_watermark_font
 from color_adjust import adjust_lut, is_adjust_identity, is_global_identity, write_cube
@@ -454,8 +454,36 @@ def is_silent(clip: VideoProjectClip) -> bool:
     return clip.gain <= IDENTITY_EPSILON
 
 
+def _eq_filters(clip: VideoProjectClip, index: int, workspace: Path) -> list[str]:
+    """The clip's EQ. The biquads take no expression, so an animated band's gain is sent per
+    frame by ``asendcmd``, which sits right before them."""
+    keys = clip.keyframes
+    effects = clip.audio_effects.model_copy(
+        update={
+            band: constant_value(getattr(keys, band), getattr(clip.audio_effects, band))
+            for band in EQ_BAND_FILTERS
+        }
+    )
+    animated = [band for band in EQ_BAND_FILTERS if is_animated(getattr(keys, band))]
+    if not animated:
+        return eq_filters(effects)
+    named = {band: f"{band}{index}" for band in animated}
+    commands = f"eq{index}.cmd"
+    sent = ", ".join(
+        f"[expr] {EQ_BAND_FILTERS[band]}@{named[band]} g "
+        f"'{keyframe_expression(getattr(keys, band), 'T')}'"
+        for band in animated
+    )
+    (workspace / commands).write_text(f"0-{COMMAND_INTERVAL_END} {sent};\n", encoding="utf-8")
+    return [f"asendcmd=f={commands}", *eq_filters(effects, named)]
+
+
 def _audio_chain(
-    clip: VideoProjectClip, index: int, input_label: str, fades: tuple[float, float]
+    clip: VideoProjectClip,
+    index: int,
+    input_label: str,
+    fades: tuple[float, float],
+    workspace: Path,
 ) -> str:
     filters = [
         f"aresample={AUDIO_SAMPLE_RATE}",
@@ -467,13 +495,12 @@ def _audio_chain(
         filters.append(atempo_chain(clip.speed))
     filters.append(f"atrim=duration={_seconds(clip.duration)}")
     filters.append("asetpts=PTS-STARTPTS")
-    filters += eq_filters(clip.audio_effects)
     envelope = clip.keyframes.gain
+    if any(is_animated(getattr(clip.keyframes, name)) for name in ("gain", *EQ_BAND_FILTERS)):
+        filters.append(f"asetnsamples=n={ENVELOPE_SAMPLES}:p=0")
+    filters += _eq_filters(clip, index, workspace)
     if is_animated(envelope):
-        filters += [
-            f"asetnsamples=n={ENVELOPE_SAMPLES}:p=0",
-            f"volume=volume='{keyframe_expression(envelope, 't')}':eval=frame",
-        ]
+        filters.append(f"volume=volume='{keyframe_expression(envelope, 't')}':eval=frame")
     else:
         gain = constant_value(envelope, clip.gain)
         if abs(gain - 1.0) > IDENTITY_EPSILON:
@@ -574,6 +601,7 @@ def _mix_links(
     inputs: RenderInputs,
     *,
     duration: float,
+    workspace: Path,
     sound_source: SoundSource,
 ) -> tuple[list[str], str]:
     """Every audible clip summed per track, the tracks summed over silence of the full length.
@@ -600,7 +628,8 @@ def _mix_links(
                 continue
             source = sources[clip.source_id or ""]
             index = _audio_input(inputs, sound_source(folder / source.name, clip), clip)
-            links.append(_audio_chain(clip, count, f"{index}:a", effective_fades(clip, overlaps)))
+            fades = effective_fades(clip, overlaps)
+            links.append(_audio_chain(clip, count, f"{index}:a", fades, workspace))
             voices.append(f"aud{count}")
             count += 1
         if not voices:
@@ -681,7 +710,12 @@ def build_render(
     links.append(f"[{base}]{','.join(finish)},format=yuv420p[vout]")
 
     mix_links, mix = _mix_links(
-        part, folder, inputs, duration=window.composed, sound_source=sound_source
+        part,
+        folder,
+        inputs,
+        duration=window.composed,
+        workspace=workspace,
+        sound_source=sound_source,
     )
     links += mix_links
     level = audio_level_filters(settings.audio_level, measured_lufs, AUDIO_SAMPLE_RATE)
@@ -754,7 +788,12 @@ def build_mix_measure(
     window = render_window(project, span)
     inputs = RenderInputs(arguments=[])
     links, mix = _mix_links(
-        window.project, folder, inputs, duration=window.composed, sound_source=sound_source
+        window.project,
+        folder,
+        inputs,
+        duration=window.composed,
+        workspace=workspace,
+        sound_source=sound_source,
     )
     stages = [*_span_audio(window), MEASURE_FILTER]
     links.append(f"[{mix}]{','.join(stages)}[aout]")

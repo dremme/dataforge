@@ -63,12 +63,19 @@ export interface EffectsChain {
   /** Connect the sound into this, and this chain's output on; both stay put across updates. */
   input: AudioNode;
   output: AudioNode;
-  update: (effects: AudioEffects) => void;
+  /**
+   * `held` gain bands stay in the path at 0 dB too: an animated band that passes through rest
+   * would otherwise be rewired mid-play, as the render keeps its filter throughout.
+   */
+  update: (effects: AudioEffects, held?: readonly GainBand[]) => void;
   disconnect: () => void;
 }
 
+export type GainBand = "bass" | "mid" | "treble";
+
 interface Band {
   node: BiquadFilterNode;
+  gain?: GainBand;
   active: (effects: AudioEffects) => boolean;
   set: (effects: AudioEffects) => void;
 }
@@ -86,12 +93,13 @@ export function createEffectsChain(context: BaseAudioContext): EffectsChain {
     q: number,
     active: Band["active"],
     set: Band["set"],
+    gain?: GainBand,
   ): Band => {
     const node = context.createBiquadFilter();
     node.type = type;
     node.frequency.value = frequency;
     node.Q.value = q;
-    return { node, active, set };
+    return { node, gain, active, set };
   };
   const bands = [
     band(
@@ -107,6 +115,7 @@ export function createEffectsChain(context: BaseAudioContext): EffectsChain {
       0,
       (effects) => Math.abs(effects.bass) >= EPSILON,
       (effects) => (bands[1].node.gain.value = effects.bass),
+      "bass",
     ),
     band(
       "peaking",
@@ -114,6 +123,7 @@ export function createEffectsChain(context: BaseAudioContext): EffectsChain {
       AUDIO_EQ_MID_Q,
       (effects) => Math.abs(effects.mid) >= EPSILON,
       (effects) => (bands[2].node.gain.value = effects.mid),
+      "mid",
     ),
     band(
       "highshelf",
@@ -121,6 +131,7 @@ export function createEffectsChain(context: BaseAudioContext): EffectsChain {
       0,
       (effects) => Math.abs(effects.treble) >= EPSILON,
       (effects) => (bands[3].node.gain.value = effects.treble),
+      "treble",
     ),
     band(
       "lowpass",
@@ -142,8 +153,10 @@ export function createEffectsChain(context: BaseAudioContext): EffectsChain {
     }
     last.connect(output);
   };
-  const update = (effects: AudioEffects) => {
-    const active = bands.filter((entry) => entry.active(effects));
+  const update = (effects: AudioEffects, held: readonly GainBand[] = []) => {
+    const active = bands.filter(
+      (entry) => entry.active(effects) || (entry.gain !== undefined && held.includes(entry.gain)),
+    );
     for (const entry of active) entry.set(effects);
     // Rewired only when a band comes or goes, so dragging a gain does not click.
     const next = active.map((entry) => entry.node.type).join(",");

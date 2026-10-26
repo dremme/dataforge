@@ -36,6 +36,7 @@ import type { PreviewEngine, SourceLocation } from "@/features/videoEditor/lib/p
 import {
   clipValueAt,
   keyframeTimes,
+  noKeyframes,
   type AnimatedProperty,
 } from "@/features/videoEditor/lib/keyframes";
 import {
@@ -1198,7 +1199,7 @@ function TimelineClip({
   );
 }
 
-const ANIMATED_PROPERTIES: AnimatedProperty[] = ["x", "y", "scale", "rotation", "opacity", "gain"];
+const ANIMATED_PROPERTIES = Object.keys(noKeyframes()) as AnimatedProperty[];
 
 /** Pixels between the envelope line's samples; eased segments need more points than keys. */
 const ENVELOPE_STEP_PX = 4;

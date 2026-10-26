@@ -17,6 +17,7 @@ import {
   voicesAt,
   type Layer,
 } from "./composition";
+import { effectsAt, EQ_PROPERTIES, isAnimated } from "./keyframes";
 import { clipEnd, projectDuration, sourceById, type Clip, type Project } from "./timeline";
 import {
   MEDIA_PROBLEM_LABELS,
@@ -644,7 +645,10 @@ export class PreviewEngine {
       const element = this.audioFor(clip);
       if (!element) continue;
       const level = voice?.gain ?? 0;
-      this.chains.get(clip.id)?.update(clip.audio_effects);
+      this.chains.get(clip.id)?.update(
+        effectsAt(clip, time),
+        EQ_PROPERTIES.filter((band) => isAnimated(clip.keyframes[band])),
+      );
       const gain = this.gains.get(clip.id);
       if (gain) {
         gain.gain.value = level;

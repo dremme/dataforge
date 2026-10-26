@@ -5,6 +5,8 @@ import { clipValueAt } from "./keyframes";
 import {
   duckLevel,
   ease,
+  effectsAt,
+  isAnimated,
   keyframeValue,
   setValueAt,
   shiftKeyframes,
@@ -12,6 +14,7 @@ import {
   transformPatchAt,
 } from "./keyframes";
 import { VIDEO_PROJECT_DUCK_RAMP_SECONDS } from "@/shared/constants";
+import { RESTING_EFFECTS } from "@/shared/lib/audioEffects";
 
 const key = (
   time: number,
@@ -85,6 +88,26 @@ describe("editing keyframes", () => {
     expect(patch.transform?.y).toBe(0.2);
   });
 
+  it("keys an EQ band over its static gain and plays it back as the effects", () => {
+    const clip = makeClip("c", "a1", 1, 4, {
+      kind: "audio",
+      audio_effects: { ...RESTING_EFFECTS, mid: 2, high_cut: 9000 },
+    });
+    expect(setValueAt(clip, "mid", 2, -3)).toEqual({
+      audio_effects: { ...clip.audio_effects, mid: -3 },
+    });
+
+    const keyed = toggleKeyframe(clip, "mid", 1);
+    const ramped = { ...keyed, ...setValueAt(keyed, "mid", 3, 6) };
+    expect(ramped.keyframes.mid).toEqual([key(0, 2), key(2, 6)]);
+    expect(isAnimated(ramped.keyframes.mid)).toBe(true);
+    expect(effectsAt(ramped, 2)).toEqual({ ...clip.audio_effects, mid: 4 });
+
+    const plain = toggleKeyframe(toggleKeyframe(ramped, "mid", 3), "mid", 1);
+    expect(plain.keyframes.mid).toEqual([]);
+    expect(plain.audio_effects.mid).toBe(2);
+  });
+
   it("keeps keyframes on their moment when the clip's start moves under them", () => {
     const clip = makeClip("c", "v1", 0, 4);
     const keyed = { ...clip, keyframes: { ...clip.keyframes, x: [key(1, 0), key(3, 1)] } };
@@ -101,6 +124,9 @@ describe("edits keep the motion", () => {
       rotation: [],
       opacity: [],
       gain: [],
+      bass: [],
+      mid: [],
+      treble: [],
     },
   });
   const project = makeProject({ clips: [moving] });

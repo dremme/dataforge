@@ -58,7 +58,17 @@ function clip(
     fade_curve: "equal_power",
     audio_effects: { ...RESTING_EFFECTS },
     title: null,
-    keyframes: { x: [], y: [], scale: [], rotation: [], opacity: [], gain: [] },
+    keyframes: {
+      x: [],
+      y: [],
+      scale: [],
+      rotation: [],
+      opacity: [],
+      gain: [],
+      bass: [],
+      mid: [],
+      treble: [],
+    },
     ...extra,
   };
 }

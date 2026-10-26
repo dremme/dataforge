@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -64,20 +65,28 @@ def is_effects_identity(effects: AudioEffects) -> bool:
     return is_eq_identity(effects) and effects.noise_reduction < IDENTITY_EPSILON
 
 
-def eq_filters(effects: AudioEffects) -> list[str]:
+#: The EQ's gain bands, which a video project clip can animate, and the filter each one runs.
+EQ_BAND_FILTERS = {"bass": "lowshelf", "mid": "equalizer", "treble": "highshelf"}
+
+
+def eq_filters(effects: AudioEffects, named: Mapping[str, str] | None = None) -> list[str]:
     """Low to high. ``p=2`` is a Butterworth pole pair (Q 0.707); the shelves use slope 1 and the
-    peak a linear Q, which is how the browser's biquads read the same numbers."""
+    peak a linear Q, which is how the browser's biquads read the same numbers. A gain band in
+    ``named`` stays in at 0 dB too, under that instance name, so commands can move its gain."""
+    named = named or {}
     filters: list[str] = []
+
+    def band(name: str, gain: float, options: str) -> None:
+        if name in named:
+            filters.append(f"{EQ_BAND_FILTERS[name]}@{named[name]}={options}")
+        elif abs(gain) >= IDENTITY_EPSILON:
+            filters.append(f"{EQ_BAND_FILTERS[name]}={options}")
+
     if effects.low_cut:
         filters.append(f"highpass=f={effects.low_cut:.3f}:p=2")
-    if abs(effects.bass) >= IDENTITY_EPSILON:
-        filters.append(f"lowshelf=g={effects.bass:.3f}:f={AUDIO_EQ_BASS_HZ:g}:t=s:w=1")
-    if abs(effects.mid) >= IDENTITY_EPSILON:
-        filters.append(
-            f"equalizer=f={AUDIO_EQ_MID_HZ:g}:t=q:w={AUDIO_EQ_MID_Q:g}:g={effects.mid:.3f}"
-        )
-    if abs(effects.treble) >= IDENTITY_EPSILON:
-        filters.append(f"highshelf=g={effects.treble:.3f}:f={AUDIO_EQ_TREBLE_HZ:g}:t=s:w=1")
+    band("bass", effects.bass, f"g={effects.bass:.3f}:f={AUDIO_EQ_BASS_HZ:g}:t=s:w=1")
+    band("mid", effects.mid, f"f={AUDIO_EQ_MID_HZ:g}:t=q:w={AUDIO_EQ_MID_Q:g}:g={effects.mid:.3f}")
+    band("treble", effects.treble, f"g={effects.treble:.3f}:f={AUDIO_EQ_TREBLE_HZ:g}:t=s:w=1")
     if effects.high_cut:
         filters.append(f"lowpass=f={effects.high_cut:.3f}:p=2")
     return filters

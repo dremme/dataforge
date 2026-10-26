@@ -188,10 +188,14 @@ function attributePatch(group: AttributeGroup, donor: Clip, target: Clip): Parti
       return donor.kind === "audio" && target.kind === "audio"
         ? { gain: donor.gain, keyframes: { ...target.keyframes, gain: donor.keyframes.gain } }
         : null;
-    case "sound":
-      return donor.kind === "audio" && target.kind === "audio"
-        ? { audio_effects: donor.audio_effects }
-        : null;
+    case "sound": {
+      if (donor.kind !== "audio" || target.kind !== "audio") return null;
+      const { bass, mid, treble } = donor.keyframes;
+      return {
+        audio_effects: donor.audio_effects,
+        keyframes: { ...target.keyframes, bass, mid, treble },
+      };
+    }
     case "title":
       return donor.title && target.title
         ? { title: { ...donor.title, text: target.title.text } }

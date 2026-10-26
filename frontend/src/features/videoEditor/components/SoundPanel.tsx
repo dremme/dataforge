@@ -12,15 +12,28 @@ import {
   highCutFromDial,
   isEffectsIdentity,
   lowCutFromDial,
+  type GainBand,
 } from "@/shared/lib/audioEffects";
 import type { AudioEffects } from "@/shared/types";
-import { Panel, Slider } from "./InspectorParts";
+import { EQ_PROPERTIES } from "@/features/videoEditor/lib/keyframes";
+import type { Clip } from "@/features/videoEditor/lib/timeline";
+import { Panel, Slider, type ClipEdit } from "./InspectorParts";
+import { KeyedSlider, KeyframeBar } from "./KeyframeControls";
+
+/** One clip's EQ bands can be keyframed; several clips' only set their static values. */
+interface Keyed {
+  clip: Clip;
+  time: number;
+  onEdit: ClipEdit;
+  onSeek: (time: number) => void;
+}
 
 /** Sound shaping for audio clips: the gallery audio edit's EQ and noise reduction, per clip. */
 export function SoundPanel({
   effects,
   preparing,
   mixed = false,
+  keyed,
   onChange,
 }: {
   effects: AudioEffects;
@@ -28,24 +41,48 @@ export function SoundPanel({
   preparing: boolean;
   /** Several clips are shown and their settings differ; the first one's are shown. */
   mixed?: boolean;
+  keyed?: Keyed;
   onChange: (change: Partial<AudioEffects>, final: boolean) => void;
 }) {
   const label = (text: string) => (mixed ? `${text} (mixed)` : text);
-  const gain = (key: "bass" | "mid" | "treble", text: string) => (
-    <Slider
-      label={label(text)}
-      value={effects[key]}
-      resting={0}
-      min={-AUDIO_EQ_MAX_DB}
-      max={AUDIO_EQ_MAX_DB}
-      step={0.5}
-      format={formatDecibels}
-      onChange={(value, final) => onChange({ [key]: value }, final)}
-    />
-  );
+  const range = {
+    resting: 0,
+    min: -AUDIO_EQ_MAX_DB,
+    max: AUDIO_EQ_MAX_DB,
+    step: 0.5,
+    format: formatDecibels,
+  };
+  const gain = (key: GainBand, text: string) =>
+    keyed ? (
+      <KeyedSlider
+        clip={keyed.clip}
+        property={key}
+        time={keyed.time}
+        label={text}
+        onEdit={keyed.onEdit}
+        {...range}
+      />
+    ) : (
+      <Slider
+        label={label(text)}
+        value={effects[key]}
+        onChange={(value, final) => onChange({ [key]: value }, final)}
+        {...range}
+      />
+    );
+  const animated = keyed && EQ_PROPERTIES.some((key) => keyed.clip.keyframes[key].length > 0);
 
   return (
-    <Panel title="Sound" changed={!isEffectsIdentity(effects)}>
+    <Panel title="Sound" changed={!isEffectsIdentity(effects) || Boolean(animated)}>
+      {keyed && (
+        <KeyframeBar
+          clip={keyed.clip}
+          properties={EQ_PROPERTIES}
+          time={keyed.time}
+          onEdit={keyed.onEdit}
+          onSeek={keyed.onSeek}
+        />
+      )}
       <Slider
         label={label("Low cut")}
         value={effects.low_cut}

@@ -22,7 +22,12 @@ function timeOnClip(clip: Clip, time: number): number {
 }
 
 function keyPatch(clip: Clip): Partial<Clip> {
-  return { keyframes: clip.keyframes, transform: clip.transform, gain: clip.gain };
+  return {
+    keyframes: clip.keyframes,
+    transform: clip.transform,
+    gain: clip.gain,
+    audio_effects: clip.audio_effects,
+  };
 }
 
 interface KeyedSliderProps {

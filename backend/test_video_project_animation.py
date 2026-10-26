@@ -18,8 +18,9 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
-from constants import VIDEO_PROJECT_DUCK_RAMP_SECONDS
+from constants import AUDIO_EQ_MID_HZ, VIDEO_PROJECT_DUCK_RAMP_SECONDS
 from schemas import (
+    AudioEffects,
     VideoProject,
     VideoProjectClip,
     VideoProjectKeyframe,
@@ -185,6 +186,10 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             still_clip(1, keyframes=VideoProjectKeyframes(gain=[key(0, 1)]))
         with self.assertRaises(ValidationError):
+            still_clip(1, keyframes=VideoProjectKeyframes(bass=[key(0, 3)]))
+        with self.assertRaises(ValidationError):
+            VideoProjectKeyframes(treble=[key(0, 13)])
+        with self.assertRaises(ValidationError):
             audio_clip("a", "a1", "x.wav", 0, 1, keyframes=VideoProjectKeyframes(x=[key(0, 0)]))
 
     def test_sound_overlaps_its_next_neighbour_but_never_covers_a_clip_or_stacks_three(
@@ -337,6 +342,37 @@ class MixTests(unittest.TestCase):
         for at in (0.25, 0.5, 0.75, 1.25, 1.75):
             expected = full * keyframe_value(keys, at, 1)
             self.assertAlmostEqual(rms(sound, at, 0.02), expected, delta=0.02, msg=f"at {at}")
+
+    def test_eq_bands_follow_their_keyframes(self) -> None:
+        # The mid band peaks at exactly its gain on its own frequency.
+        keys = [key(0, 0), key(1, 12), key(1.5, -6, "hold")]
+        with TempMediaFolder() as root:
+            write_sine(root, "tone.wav", 0.1, round(AUDIO_EQ_MID_HZ), 2)
+            sound = self.render(
+                root,
+                make_project(
+                    root,
+                    ["tone.wav"],
+                    [
+                        spacer(2),
+                        audio_clip(
+                            "tone",
+                            "a1",
+                            "tone.wav",
+                            0,
+                            2,
+                            audio_effects=AudioEffects(mid=-12),
+                            keyframes=VideoProjectKeyframes(mid=keys),
+                        ),
+                    ],
+                ),
+            )
+        full = 0.1 / math.sqrt(2)
+        for at in (0.25, 0.5, 0.75, 1.25, 1.75):
+            expected = full * 10 ** (keyframe_value(keys, at, 0) / 20)
+            self.assertAlmostEqual(
+                rms(sound, at, 0.02), expected, delta=expected * 0.05, msg=f"at {at}"
+            )
 
     def test_an_overlap_on_one_track_crossfades_at_equal_power(self) -> None:
         with TempMediaFolder() as root:
