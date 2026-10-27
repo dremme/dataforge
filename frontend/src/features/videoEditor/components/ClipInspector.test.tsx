@@ -81,6 +81,82 @@ describe("ClipInspector", () => {
     expect(screen.getByLabelText("Easing to the next keyframe")).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Previous keyframe" }));
     expect(second.onSeek).toHaveBeenCalledWith(2);
+    vi.mocked(second.onSeek).mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Go to the keyframe at 2.00 s" }));
+    expect(second.onSeek).toHaveBeenCalledWith(2);
+  });
+
+  it("applies a typed value on the slider's scale and grid, and puts back what it can't read", async () => {
+    const user = userEvent.setup();
+    const { onEdit } = renderInspector({ selection: [video] });
+    const scale = screen.getByRole("textbox", { name: "Scale value" });
+    expect(scale).toHaveValue("100%");
+
+    await user.clear(scale);
+    await user.type(scale, "150{Enter}");
+    expect(onEdit).toHaveBeenLastCalledWith(
+      { transform: expect.objectContaining({ scale: 1.5 }) },
+      true,
+    );
+    await user.clear(scale);
+    await user.type(scale, "900%{Enter}");
+    expect(onEdit).toHaveBeenLastCalledWith(
+      { transform: expect.objectContaining({ scale: 4 }) },
+      true,
+    );
+
+    vi.mocked(onEdit).mockClear();
+    await user.clear(scale);
+    await user.type(scale, "big{Enter}");
+    expect(scale).toHaveAttribute("aria-invalid", "true");
+    // Escape puts back the clip's own value, which these props never moved.
+    await user.keyboard("{Escape}");
+    expect(scale).toHaveValue("100%");
+    expect(scale).not.toHaveAttribute("aria-invalid");
+    expect(onEdit).not.toHaveBeenCalled();
+
+    // The arrow keys step it, ten steps at a time with Shift.
+    await user.click(screen.getByRole("textbox", { name: "Rotation value" }));
+    await user.keyboard("{Shift>}{ArrowUp}{/Shift}");
+    expect(onEdit).toHaveBeenLastCalledWith(
+      { transform: expect.objectContaining({ rotation: 10 }) },
+      true,
+    );
+  });
+
+  it("offers a reset only on a slider that moved from rest", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderInspector({ selection: [video] });
+    expect(screen.queryByRole("button", { name: "Reset Scale" })).not.toBeInTheDocument();
+    unmount();
+
+    const scaled = { ...video, transform: { ...video.transform, scale: 2 } };
+    const { onEdit } = renderInspector({ project: projectWith([scaled]), selection: [scaled] });
+    await user.click(screen.getByRole("button", { name: "Reset Scale" }));
+    expect(onEdit).toHaveBeenLastCalledWith(
+      { transform: expect.objectContaining({ scale: 1 }) },
+      true,
+    );
+  });
+
+  it("shows a setting the selected clips don't share as mixed, under its plain name", () => {
+    const faded = { ...after, fade_in: 0.5 };
+    renderInspector({ project: projectWith([video, faded]), selection: [video, faded] });
+
+    expect(screen.getByRole("slider", { name: "Fade in" })).toHaveAttribute(
+      "aria-valuetext",
+      "Mixed",
+    );
+    const field = screen.getByRole("textbox", { name: "Fade in value" });
+    expect(field).toHaveValue("");
+    expect(field).toHaveAttribute("placeholder", "Mixed");
+  });
+
+  it("deletes the one selected clip from its header", async () => {
+    const user = userEvent.setup();
+    const { onDelete } = renderInspector({ selection: [video] });
+    await user.click(screen.getByRole("button", { name: "Delete clip" }));
+    expect(onDelete).toHaveBeenCalled();
   });
 
   it("sets track levels, speech and the master in the mix while nothing is selected", () => {
@@ -94,11 +170,14 @@ describe("ClipInspector", () => {
     expect(onMixEdit).toHaveBeenCalledWith({ master_gain: 1.5 }, false);
   });
 
-  it("sums up the project and lists the main keys while nothing is selected", () => {
+  it("sums up the project and lists the main keys while nothing is selected", async () => {
+    const user = userEvent.setup();
     renderInspector();
 
     expect(screen.getByText("640 × 360")).toBeInTheDocument();
     expect(screen.getByText("30 fps")).toBeInTheDocument();
+    // The keys start folded, so the mix and markers come first.
+    await user.click(screen.getByRole("button", { name: "Keys" }));
     expect(screen.getByText("Split at the playhead")).toBeInTheDocument();
     // One way to press each action, with the row's actions split by commas.
     expect(screen.getByText("Undo, redo").closest("li")).toHaveTextContent(
@@ -306,6 +385,43 @@ describe("ClipInspector", () => {
     expect(vi.mocked(onEdit).mock.lastCall?.[0].adjust?.saturation).toBe(0.3);
     await user.click(screen.getByRole("button", { name: "Reset color" }));
     expect(vi.mocked(onEdit).mock.lastCall?.[0].auto_adjust).toBeNull();
+  });
+
+  it("crops each edge on its own and stops an edge short of the opposite one", async () => {
+    const user = userEvent.setup();
+    // 20% off the left and 30% off the right.
+    const cropped = { ...after, crop: { x: 0.2, y: 0, width: 0.5, height: 1 } };
+    const { onEdit } = renderInspector({
+      project: projectWith([cropped]),
+      selection: [cropped],
+    });
+    await user.click(screen.getByRole("button", { name: "Crop" }));
+    expect(screen.getByRole("slider", { name: "Right" })).toHaveValue("0.3");
+
+    // The left edge stays where it is while the right one moves out.
+    fireEvent.change(screen.getByRole("slider", { name: "Right" }), { target: { value: "0.1" } });
+    expect(onEdit).toHaveBeenLastCalledWith(
+      { crop: { x: 0.2, y: 0, width: 0.7, height: 1 } },
+      false,
+    );
+    fireEvent.change(screen.getByRole("slider", { name: "Left" }), { target: { value: "0.9" } });
+    expect(onEdit).toHaveBeenLastCalledWith(
+      { crop: { x: 0.65, y: 0, width: 0.05, height: 1 } },
+      false,
+    );
+  });
+
+  it("resets one group of color sliders and leaves the others", async () => {
+    const user = userEvent.setup();
+    const graded = { ...after, adjust: { ...after.adjust, contrast: 0.2, saturation: 0.3 } };
+    const { onEdit } = renderInspector({ project: projectWith([graded]), selection: [graded] });
+    await user.click(screen.getByRole("button", { name: "Color" }));
+
+    expect(screen.queryByRole("button", { name: "Reset Detail sliders" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reset Light sliders" }));
+    const adjust = vi.mocked(onEdit).mock.lastCall?.[0].adjust;
+    expect(adjust?.contrast).toBe(0);
+    expect(adjust?.saturation).toBe(0.3);
   });
 
   it("remembers a folded section for the next clip", async () => {

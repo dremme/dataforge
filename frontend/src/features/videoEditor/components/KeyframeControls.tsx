@@ -13,6 +13,8 @@ import {
   toggleKeyframe,
   type AnimatedProperty,
 } from "@/features/videoEditor/lib/keyframes";
+import type { SliderUnit } from "@/features/videoEditor/lib/sliderUnits";
+import { formatClockSeconds } from "@/features/videoEditor/lib/timecode";
 import { clipEnd, type Clip } from "@/features/videoEditor/lib/timeline";
 import { Slider, type ClipEdit } from "./InspectorParts";
 
@@ -35,11 +37,13 @@ interface KeyedSliderProps {
   property: AnimatedProperty;
   time: number;
   label: string;
+  /** Shown instead of ``label`` inside a pair. */
+  short?: string;
   min: number;
   max: number;
   step: number;
   resting: number;
-  format: (value: number) => string;
+  unit: SliderUnit;
   onEdit: ClipEdit;
 }
 
@@ -53,29 +57,29 @@ export function KeyedSlider({ clip, property, time, label, onEdit, ...slider }: 
   const onKey = keyframeAt(clip, property, at) !== undefined;
   const action = onKey ? `Remove the keyframe for ${label}` : `Add a keyframe for ${label}`;
   return (
-    <div className="video-editor__keyed">
-      <Slider
-        label={label}
-        value={clipValueAt(clip, property, at)}
-        onChange={(value, final) => onEdit(setValueAt(clip, property, at, value), final)}
-        {...slider}
-      />
-      <Tooltip content={action}>
-        <button
-          type="button"
-          className={classNames(
-            "video-editor__key-btn",
-            animated && "video-editor__key-btn--animated",
-            onKey && "video-editor__key-btn--on",
-          )}
-          aria-pressed={onKey}
-          aria-label={action}
-          onClick={() => onEdit(keyPatch(toggleKeyframe(clip, property, at)), true)}
-        >
-          <Icon icon={iconDiamond} />
-        </button>
-      </Tooltip>
-    </div>
+    <Slider
+      label={label}
+      value={clipValueAt(clip, property, at)}
+      onChange={(value, final) => onEdit(setValueAt(clip, property, at, value), final)}
+      trailing={
+        <Tooltip content={action}>
+          <button
+            type="button"
+            className={classNames(
+              "video-editor__key-btn",
+              animated && "video-editor__key-btn--animated",
+              onKey && "video-editor__key-btn--on",
+            )}
+            aria-pressed={onKey}
+            aria-label={action}
+            onClick={() => onEdit(keyPatch(toggleKeyframe(clip, property, at)), true)}
+          >
+            <Icon icon={iconDiamond} />
+          </button>
+        </Tooltip>
+      }
+      {...slider}
+    />
   );
 }
 
@@ -106,6 +110,11 @@ export function KeyframeBar({
     for (const property of here) changed = setKeyframeEasing(changed, property, at, value);
     onEdit({ keyframes: changed.keyframes }, true);
   };
+  const end = clipEnd(clip);
+  const place = (key: number) => ({
+    left: `${(((key - clip.start) / (clip.duration || 1)) * 100).toFixed(2)}%`,
+  });
+  const playheadOnClip = time >= clip.start && time <= end;
   return (
     <div className="video-editor__keyframe-bar">
       <Tooltip content="Previous keyframe">
@@ -119,20 +128,24 @@ export function KeyframeBar({
           <Icon icon={iconChevronLeft} />
         </button>
       </Tooltip>
-      <select
-        aria-label="Easing to the next keyframe"
-        className="video-editor__easing-select"
-        value={easing ?? ""}
-        disabled={!easing}
-        onChange={(event) => setEasing(event.target.value as VideoProjectEasing)}
-      >
-        {!easing && <option value="">No keyframe at the playhead</option>}
-        {EASINGS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
+      {/* The clip's length; keyboard users step with the buttons either side. */}
+      <div className="video-editor__keyframe-strip">
+        {playheadOnClip && <span className="video-editor__keyframe-playhead" style={place(time)} />}
+        {times.map((key) => (
+          <button
+            key={key}
+            type="button"
+            tabIndex={-1}
+            className={classNames(
+              "video-editor__keyframe-dot",
+              Math.abs(key - at) < tolerance && "video-editor__keyframe-dot--here",
+            )}
+            style={place(key)}
+            aria-label={`Go to the keyframe at ${formatClockSeconds(key)}`}
+            onClick={() => onSeek(key)}
+          />
         ))}
-      </select>
+      </div>
       <Tooltip content="Next keyframe">
         <button
           type="button"
@@ -144,6 +157,20 @@ export function KeyframeBar({
           <Icon icon={iconChevronRight} />
         </button>
       </Tooltip>
+      <select
+        aria-label="Easing to the next keyframe"
+        className="video-editor__easing-select"
+        value={easing ?? ""}
+        disabled={!easing}
+        onChange={(event) => setEasing(event.target.value as VideoProjectEasing)}
+      >
+        {!easing && <option value="">Easing</option>}
+        {EASINGS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

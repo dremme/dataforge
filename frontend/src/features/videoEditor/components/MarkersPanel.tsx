@@ -1,6 +1,6 @@
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { useState } from "react";
-import { iconBookmarkPlus, iconSearch, iconTrash2 } from "@/shared/icons";
+import { iconBookmark, iconBookmarkPlus, iconSearch, iconTrash2 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { SHORTCUTS } from "@/shared/lib/shortcuts";
 import { Icon } from "@/shared/ui/Icon";
@@ -47,6 +47,7 @@ export function MarkersPanel({
   return (
     <Panel
       title="Markers"
+      icon={iconBookmark}
       changed={project.markers.length > 0}
       action={
         <ToolButton

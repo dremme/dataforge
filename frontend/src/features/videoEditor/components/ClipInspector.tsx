@@ -3,14 +3,20 @@ import { Fragment, useId } from "react";
 import {
   iconBlend,
   iconClipboardPaste,
+  iconCrop,
   iconFilm,
   iconImage,
+  iconKeyboard,
   iconLink,
   iconLoader2,
   iconMusic,
+  iconPalette,
+  iconScaling,
+  iconTimer,
   iconTrash2,
   iconType,
   iconUnlink,
+  iconVolume2,
   iconWandSparkles,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -19,12 +25,7 @@ import { Icon } from "@/shared/ui/Icon";
 import { ShortcutKeys } from "@/shared/ui/ShortcutKeys";
 import { AUTO_ADJUST_DEFAULT_AMOUNT } from "@/shared/constants";
 import type { ColorAdjust, VideoProjectFadeCurve, VideoProjectTitleAlign } from "@/shared/types";
-import {
-  adjustRange,
-  formatAdjustValue,
-  isAdjustIdentity,
-  type AdjustTool,
-} from "@/features/gallery/lib/colorAdjust";
+import { adjustRange, isAdjustIdentity, type AdjustTool } from "@/features/gallery/lib/colorAdjust";
 import { rescaleAuto, withoutAuto } from "@/features/gallery/lib/autoAdjust";
 import { SPEED_PRESETS } from "@/features/gallery/lib/videoEdit";
 import {
@@ -42,17 +43,27 @@ import {
   type EditResult,
   type Project,
 } from "@/features/videoEditor/lib/timeline";
+import {
+  adjustUnit,
+  amount,
+  degrees,
+  percent,
+  seconds,
+} from "@/features/videoEditor/lib/sliderUnits";
 import { formatClockSeconds } from "@/features/videoEditor/lib/timecode";
 
 import { TRANSFORM_PROPERTIES } from "@/features/videoEditor/lib/keyframes";
 import { FontPicker } from "./FontPicker";
 import { GradePresets } from "./GradePresets";
 import {
+  HeaderAction,
   InspectorHeader,
   Panel,
   ResetButton,
   SectionMemory,
   Slider,
+  SliderPair,
+  Subgroup,
   type ClipEdit,
 } from "./InspectorParts";
 import { KeyedSlider, KeyframeBar } from "./KeyframeControls";
@@ -254,8 +265,16 @@ function InspectorContent({
           meta={`${outgoing ? clipLabel(project, outgoing) : "?"} → ${
             incoming ? clipLabel(project, incoming) : "?"
           }`}
+          actions={
+            <HeaderAction
+              icon={iconTrash2}
+              label="Remove dissolve"
+              danger
+              onClick={onRemoveDissolve}
+            />
+          }
         />
-        <Panel title="Dissolve">
+        <Panel title="Dissolve" icon={iconBlend}>
           <p className="video-editor__hint">
             Its length is the overlap; changing it slides the incoming clip and its sound.
           </p>
@@ -265,18 +284,9 @@ function InspectorContent({
             min={MIN_CLIP_SECONDS}
             max={Math.max(MIN_CLIP_SECONDS, longest)}
             step={1 / project.frame_rate}
-            format={(value) => `${value.toFixed(2)} s`}
+            unit={seconds}
             onChange={onDissolveDuration}
           />
-          <div className="video-editor__inspector-actions">
-            <button
-              type="button"
-              className="video-editor__secondary-btn video-editor__secondary-btn--danger"
-              onClick={onRemoveDissolve}
-            >
-              <Icon icon={iconTrash2} /> Remove dissolve
-            </button>
-          </div>
         </Panel>
       </div>
     );
@@ -318,7 +328,7 @@ function InspectorContent({
         </p>
         <MarkersPanel project={project} time={time} onSeek={onSeek} onEdit={onMarkersEdit} />
         <MixPanel project={project} onTrackEdit={onTrackEdit} onMixEdit={onMixEdit} />
-        <Panel title="Keys">
+        <Panel title="Keys" icon={iconKeyboard} defaultOpen={false}>
           <ul className="video-editor__quick-keys">
             {QUICK_KEYS.map((item) => (
               <li key={item.label}>
@@ -356,17 +366,9 @@ function InspectorContent({
         actions={
           <>
             {linkable && (
-              <button type="button" className="video-editor__secondary-btn" onClick={onLink}>
-                <Icon icon={iconLink} /> Link video and audio
-              </button>
+              <HeaderAction icon={iconLink} label="Link video and audio" onClick={onLink} />
             )}
-            <button
-              type="button"
-              className="video-editor__secondary-btn video-editor__secondary-btn--danger"
-              onClick={onDelete}
-            >
-              <Icon icon={iconTrash2} /> Delete clips
-            </button>
+            <HeaderAction icon={iconTrash2} label="Delete clips" danger onClick={onDelete} />
           </>
         }
       />
@@ -380,7 +382,6 @@ function InspectorContent({
   const outgoingDissolve = findTransition(project, clip.id).find((t) => t.from_clip_id === clip.id);
   const neighbour = visual ? nextNeighbour(project, clip) : undefined;
   const frame = 1 / project.frame_rate;
-  const seconds = (value: number) => `${value.toFixed(2)} s`;
 
   return (
     <div className="video-editor__inspector-body" data-scroll-lock-allow>
@@ -393,24 +394,26 @@ function InspectorContent({
           project.frame_rate,
         )} · ${clip.duration.toFixed(2)} s`}
         detail={source && source.name !== clipLabel(project, clip) ? source.name : undefined}
-        action={
-          clip.link_id ? (
-            <button type="button" className="video-editor__secondary-btn" onClick={onUnlink}>
-              <Icon icon={iconUnlink} /> Unlink
-            </button>
-          ) : undefined
+        actions={
+          <>
+            {onPasteAttributes && (
+              <HeaderAction
+                icon={iconClipboardPaste}
+                label="Paste attributes..."
+                onClick={onPasteAttributes}
+              />
+            )}
+            {clip.link_id && <HeaderAction icon={iconUnlink} label="Unlink" onClick={onUnlink} />}
+            <HeaderAction icon={iconTrash2} label="Delete clip" danger onClick={onDelete} />
+          </>
         }
       />
 
-      {onPasteAttributes && (
-        <div className="video-editor__inspector-actions video-editor__inspector-actions--padded">
-          <button type="button" className="video-editor__secondary-btn" onClick={onPasteAttributes}>
-            <Icon icon={iconClipboardPaste} /> Paste attributes...
-          </button>
-        </div>
-      )}
-
-      <Panel title="Timing" changed={clip.speed !== 1 || clip.fade_in > 0 || clip.fade_out > 0}>
+      <Panel
+        title="Timing"
+        icon={iconTimer}
+        changed={clip.speed !== 1 || clip.fade_in > 0 || clip.fade_out > 0}
+      >
         <div className="video-editor__timing">
           <label className="video-editor__field">
             <span>Start</span>
@@ -482,7 +485,7 @@ function InspectorContent({
           min={0}
           max={clip.duration}
           step={frame}
-          format={seconds}
+          unit={seconds}
           onChange={(value, final) =>
             onEdit({ fade_in: Math.min(value, clip.duration - clip.fade_out) }, final)
           }
@@ -494,7 +497,7 @@ function InspectorContent({
           min={0}
           max={clip.duration}
           step={frame}
-          format={seconds}
+          unit={seconds}
           onChange={(value, final) =>
             onEdit({ fade_out: Math.min(value, clip.duration - clip.fade_in) }, final)
           }
@@ -502,7 +505,11 @@ function InspectorContent({
       </Panel>
 
       {clip.kind === "audio" && (
-        <Panel title="Audio" changed={clip.gain !== 1 || clip.keyframes.gain.length > 0}>
+        <Panel
+          title="Audio"
+          icon={iconVolume2}
+          changed={clip.gain !== 1 || clip.keyframes.gain.length > 0}
+        >
           <KeyframeBar
             clip={clip}
             properties={["gain"]}
@@ -519,7 +526,7 @@ function InspectorContent({
             min={0}
             max={2}
             step={0.01}
-            format={(value) => `${Math.round(value * 100)}%`}
+            unit={percent}
             onEdit={onEdit}
           />
           <div className="video-editor__field">
@@ -568,6 +575,7 @@ function InspectorContent({
       {visual && (
         <Panel
           title="Transform"
+          icon={iconScaling}
           changed={
             !sameTransform(clip.transform, RESTING_TRANSFORM) ||
             clip.fit !== "fit" ||
@@ -638,7 +646,7 @@ function InspectorContent({
       )}
 
       {visual && (
-        <Panel title="Cross-dissolve" changed={Boolean(outgoingDissolve)}>
+        <Panel title="Cross-dissolve" icon={iconBlend} changed={Boolean(outgoingDissolve)}>
           {outgoingDissolve ? (
             <p className="video-editor__hint">
               Dissolves into the next clip over{" "}
@@ -690,30 +698,14 @@ const FADE_CURVES: { value: VideoProjectFadeCurve; label: string; hint: string }
 ];
 
 function TransformSliders({ clip, time, onEdit }: { clip: Clip; time: number; onEdit: ClipEdit }) {
-  const percent = (value: number) => `${Math.round(value * 100)}%`;
   const common = { clip, time, onEdit };
+  const position = { resting: 0, min: -1, max: 1, step: 0.005, unit: percent };
   return (
     <>
-      <KeyedSlider
-        {...common}
-        property="x"
-        label="Position X"
-        resting={0}
-        min={-1}
-        max={1}
-        step={0.005}
-        format={percent}
-      />
-      <KeyedSlider
-        {...common}
-        property="y"
-        label="Position Y"
-        resting={0}
-        min={-1}
-        max={1}
-        step={0.005}
-        format={percent}
-      />
+      <SliderPair label="Position">
+        <KeyedSlider {...common} {...position} property="x" label="Position X" short="X" />
+        <KeyedSlider {...common} {...position} property="y" label="Position Y" short="Y" />
+      </SliderPair>
       <KeyedSlider
         {...common}
         property="scale"
@@ -722,7 +714,7 @@ function TransformSliders({ clip, time, onEdit }: { clip: Clip; time: number; on
         min={0.05}
         max={4}
         step={0.01}
-        format={percent}
+        unit={percent}
       />
       <KeyedSlider
         {...common}
@@ -732,7 +724,7 @@ function TransformSliders({ clip, time, onEdit }: { clip: Clip; time: number; on
         min={-180}
         max={180}
         step={1}
-        format={(value) => `${Math.round(value)}°`}
+        unit={degrees}
       />
       <KeyedSlider
         {...common}
@@ -742,69 +734,77 @@ function TransformSliders({ clip, time, onEdit }: { clip: Clip; time: number; on
         min={0}
         max={1}
         step={0.01}
-        format={percent}
+        unit={percent}
       />
     </>
   );
 }
 
+/** The narrowest a crop may leave the picture, as a fraction of each side. */
+const MIN_CROP = 0.05;
+
+type CropEdge = "left" | "right" | "top" | "bottom";
+
+const CROP_EDGES: { edge: CropEdge; label: string; opposite: CropEdge }[][] = [
+  [
+    { edge: "left", label: "Left", opposite: "right" },
+    { edge: "right", label: "Right", opposite: "left" },
+  ],
+  [
+    { edge: "top", label: "Top", opposite: "bottom" },
+    { edge: "bottom", label: "Bottom", opposite: "top" },
+  ],
+];
+
+/**
+ * Each side is cut on its own, on a fixed scale, so moving one edge never moves another or
+ * rescales its slider; an edge dragged into the opposite one stops just short of it.
+ */
 function CropPanel({ clip, onEdit }: { clip: Clip; onEdit: ClipEdit }) {
   const crop = clip.crop ?? { x: 0, y: 0, width: 1, height: 1 };
-  const set = (patch: Partial<typeof crop>, final: boolean) => {
-    const next = { ...crop, ...patch };
-    next.width = Math.min(next.width, 1 - next.x);
-    next.height = Math.min(next.height, 1 - next.y);
-    const whole = next.x === 0 && next.y === 0 && next.width === 1 && next.height === 1;
-    onEdit({ crop: whole ? null : next }, final);
+  const rounded = (fraction: number) => Number(fraction.toFixed(6));
+  const edges: Record<CropEdge, number> = {
+    left: crop.x,
+    right: rounded(1 - crop.x - crop.width),
+    top: crop.y,
+    bottom: rounded(1 - crop.y - crop.height),
   };
-  const percent = (value: number) => `${Math.round(value * 100)}%`;
+  const set = (edge: CropEdge, opposite: CropEdge, value: number, final: boolean) => {
+    const next = { ...edges, [edge]: Math.min(value, 1 - MIN_CROP - edges[opposite]) };
+    const cropped = {
+      x: rounded(next.left),
+      y: rounded(next.top),
+      width: rounded(1 - next.left - next.right),
+      height: rounded(1 - next.top - next.bottom),
+    };
+    const whole = cropped.x === 0 && cropped.y === 0 && cropped.width === 1 && cropped.height === 1;
+    onEdit({ crop: whole ? null : cropped }, final);
+  };
   return (
     <Panel
       title="Crop"
+      icon={iconCrop}
       defaultOpen={false}
       changed={clip.crop !== null}
       action={<ResetButton label="Reset crop" onClick={() => onEdit({ crop: null }, true)} />}
     >
-      <Slider
-        label="Left"
-        value={crop.x}
-        resting={0}
-        min={0}
-        max={0.95}
-        step={0.005}
-        format={percent}
-        onChange={(x, f) => set({ x }, f)}
-      />
-      <Slider
-        label="Top"
-        value={crop.y}
-        resting={0}
-        min={0}
-        max={0.95}
-        step={0.005}
-        format={percent}
-        onChange={(y, f) => set({ y }, f)}
-      />
-      <Slider
-        label="Width"
-        value={crop.width}
-        resting={1 - crop.x}
-        min={0.05}
-        max={1 - crop.x}
-        step={0.005}
-        format={percent}
-        onChange={(width, f) => set({ width }, f)}
-      />
-      <Slider
-        label="Height"
-        value={crop.height}
-        resting={1 - crop.y}
-        min={0.05}
-        max={1 - crop.y}
-        step={0.005}
-        format={percent}
-        onChange={(height, f) => set({ height }, f)}
-      />
+      {CROP_EDGES.map((pair) => (
+        <SliderPair key={pair[0].edge}>
+          {pair.map(({ edge, label, opposite }) => (
+            <Slider
+              key={edge}
+              label={label}
+              value={edges[edge]}
+              resting={0}
+              min={0}
+              max={1 - MIN_CROP}
+              step={0.005}
+              unit={percent}
+              onChange={(value, final) => set(edge, opposite, value, final)}
+            />
+          ))}
+        </SliderPair>
+      ))}
     </Panel>
   );
 }
@@ -827,6 +827,7 @@ function ColorPanel({
   return (
     <Panel
       title="Color"
+      icon={iconPalette}
       defaultOpen={false}
       changed={!isAdjustIdentity(clip.adjust) || auto !== null}
       action={
@@ -863,10 +864,10 @@ function ColorPanel({
             min={0}
             max={1}
             step={0.01}
-            format={(amount) => String(Math.round(amount * 100))}
-            onChange={(amount, final) => {
-              const next = rescaleAuto(clip.adjust, auto, amount);
-              onEdit({ adjust: next.adjust, auto_adjust: next.autoAdjust }, final);
+            unit={amount}
+            onChange={(next, final) => {
+              const rescaled = rescaleAuto(clip.adjust, auto, next);
+              onEdit({ adjust: rescaled.adjust, auto_adjust: rescaled.autoAdjust }, final);
             }}
           />
         ) : (
@@ -879,27 +880,43 @@ function ColorPanel({
         current={clip.adjust}
         onApply={(adjust) => onEdit({ adjust, auto_adjust: null }, true)}
       />
-      {COLOR_GROUPS.map((group) => (
-        <div key={group.label} className="video-editor__group">
-          <h4 className="video-editor__group-title">{group.label}</h4>
-          {group.tools.map((tool) => {
-            const range = adjustRange(tool.id);
-            return (
-              <Slider
-                key={tool.id}
-                label={tool.label}
-                value={clip.adjust[tool.id]}
-                resting={resting[tool.id]}
-                min={range.min}
-                max={range.max}
-                step={range.step}
-                format={(value) => formatAdjustValue(tool.id, value)}
-                onChange={(value, final) => set(tool.id, value, final)}
-              />
-            );
-          })}
-        </div>
-      ))}
+      {COLOR_GROUPS.map((group) => {
+        const moved = group.tools.some((tool) => clip.adjust[tool.id] !== resting[tool.id]);
+        const reset = () => {
+          const adjust = { ...clip.adjust };
+          for (const tool of group.tools) adjust[tool.id] = resting[tool.id];
+          // Auto's amount rescales its whole suggestion, so a partly reset grade lets go of it.
+          onEdit({ adjust, auto_adjust: null }, true);
+        };
+        return (
+          <Subgroup
+            key={group.label}
+            title={group.label}
+            memoryKey={`Color/${group.label}`}
+            changed={moved}
+            action={
+              moved ? <ResetButton label={`Reset ${group.label} sliders`} onClick={reset} /> : null
+            }
+          >
+            {group.tools.map((tool) => {
+              const range = adjustRange(tool.id);
+              return (
+                <Slider
+                  key={tool.id}
+                  label={tool.label}
+                  value={clip.adjust[tool.id]}
+                  resting={resting[tool.id]}
+                  min={range.min}
+                  max={range.max}
+                  step={range.step}
+                  unit={adjustUnit(tool.id)}
+                  onChange={(value, final) => set(tool.id, value, final)}
+                />
+              );
+            })}
+          </Subgroup>
+        );
+      })}
     </Panel>
   );
 }
@@ -910,9 +927,9 @@ function TitlePanel({ clip, onEdit }: { clip: Clip; onEdit: ClipEdit }) {
   if (!title) return null;
   const set = (patch: Partial<typeof title>, final: boolean) =>
     onEdit({ title: { ...title, ...patch } }, final);
-  const percent = (value: number) => `${Math.round(value * 100)}%`;
+  const position = { resting: 0.5, min: 0, max: 1, step: 0.005, unit: percent };
   return (
-    <Panel title="Title">
+    <Panel title="Title" icon={iconType}>
       <label className="video-editor__field video-editor__field--stacked" htmlFor={textId}>
         <span>Text</span>
       </label>
@@ -957,29 +974,25 @@ function TitlePanel({ clip, onEdit }: { clip: Clip; onEdit: ClipEdit }) {
         min={0.02}
         max={0.3}
         step={0.005}
-        format={percent}
+        unit={percent}
         onChange={(size, f) => set({ size }, f)}
       />
-      <Slider
-        label="Position X"
-        value={title.x}
-        resting={0.5}
-        min={0}
-        max={1}
-        step={0.005}
-        format={percent}
-        onChange={(x, f) => set({ x }, f)}
-      />
-      <Slider
-        label="Position Y"
-        value={title.y}
-        resting={0.5}
-        min={0}
-        max={1}
-        step={0.005}
-        format={percent}
-        onChange={(y, f) => set({ y }, f)}
-      />
+      <SliderPair label="Position">
+        <Slider
+          {...position}
+          label="Position X"
+          short="X"
+          value={title.x}
+          onChange={(x, f) => set({ x }, f)}
+        />
+        <Slider
+          {...position}
+          label="Position Y"
+          short="Y"
+          value={title.y}
+          onChange={(y, f) => set({ y }, f)}
+        />
+      </SliderPair>
       <Slider
         label="Outline"
         value={title.outline}
@@ -987,7 +1000,7 @@ function TitlePanel({ clip, onEdit }: { clip: Clip; onEdit: ClipEdit }) {
         min={0}
         max={0.25}
         step={0.005}
-        format={percent}
+        unit={percent}
         onChange={(outline, f) => set({ outline }, f)}
       />
       <div className="video-editor__swatches">

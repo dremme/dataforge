@@ -194,6 +194,7 @@ export {
   Strikethrough as iconStrikethrough,
   Sun as iconSun,
   Tag as iconTag,
+  Timer as iconTimer,
   Type as iconType,
   Trash2 as iconTrash2,
   TriangleAlert as iconTriangleAlert,
