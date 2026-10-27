@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { iconCircleAlert, iconCircleCheck, iconTriangleAlert, type AppIcon } from "@/shared/icons";
 import type { NotificationRecord, NotificationVariant } from "@/shared/types";
 
@@ -27,6 +27,9 @@ export interface NotifyOptions {
   action?: ToastAction;
 }
 
+/** The follow-up for a server notification, such as opening the file an export wrote. */
+export type NotificationActionFor = (record: NotificationRecord) => ToastAction | undefined;
+
 export const NOTIFICATION_EXIT_MS = 220;
 
 export const variantIcons: Record<NotificationVariant, AppIcon> = {
@@ -54,6 +57,8 @@ export interface NotificationsContextValue {
   markAllRead: () => void;
   clearHistory: () => void;
   refreshHistory: () => void;
+  actionFor: NotificationActionFor;
+  provideActions: (key: string, actionFor: NotificationActionFor | null) => void;
 }
 
 export const NotificationsContext = createContext<NotificationsContextValue | null>(null);
@@ -79,6 +84,7 @@ export function useNotificationHistory() {
     markAllRead,
     clearHistory,
     refreshHistory,
+    actionFor,
   } = useNotifications();
   return {
     history,
@@ -88,7 +94,17 @@ export function useNotificationHistory() {
     markAllRead,
     clearHistory,
     refreshHistory,
+    actionFor,
   };
+}
+
+/** Offers a feature's follow-ups on the toasts and rows of what it reported, while mounted. */
+export function useNotificationActions(key: string, actionFor: NotificationActionFor) {
+  const { provideActions } = useNotifications();
+  useEffect(() => {
+    provideActions(key, actionFor);
+  }, [provideActions, key, actionFor]);
+  useEffect(() => () => provideActions(key, null), [provideActions, key]);
 }
 
 export function upsertNotification(

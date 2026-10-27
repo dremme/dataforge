@@ -9,9 +9,16 @@ import { NotificationsPanel } from "./NotificationsPanel";
 import { useNotificationHistory } from "./notifications";
 
 export function NotificationsButton() {
-  const { history, unreadCount, setPanelOpen, markAllRead, clearHistory, refreshHistory } =
-    useNotificationHistory();
-  const { open, menuId, rootRef, panelRef, triggerProps } = usePopupMenu();
+  const {
+    history,
+    unreadCount,
+    setPanelOpen,
+    markAllRead,
+    clearHistory,
+    refreshHistory,
+    actionFor,
+  } = useNotificationHistory();
+  const { open, close, menuId, rootRef, panelRef, triggerProps } = usePopupMenu();
 
   // Read state is flushed on close: marking on open would erase the unread marks being read.
   useEffect(() => {
@@ -63,7 +70,12 @@ export function NotificationsButton() {
         role="group"
         label="Notifications"
       >
-        <NotificationsPanel history={history} onClear={clearHistory} />
+        <NotificationsPanel
+          history={history}
+          actionFor={actionFor}
+          onClear={clearHistory}
+          onActionDone={close}
+        />
       </AnchoredLayer>
     </div>
   );

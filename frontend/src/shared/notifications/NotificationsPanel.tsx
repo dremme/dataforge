@@ -4,16 +4,24 @@ import { formatRelativeTime } from "@/shared/lib/format";
 import { classNames } from "@/shared/lib/classNames";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { Icon } from "@/shared/ui/Icon";
-import { variantIcons, type NotificationRecord } from "./notifications";
+import { variantIcons, type NotificationActionFor, type NotificationRecord } from "./notifications";
 
 const RETICK_MS = 30_000;
 
 interface NotificationsPanelProps {
   history: NotificationRecord[];
+  actionFor: NotificationActionFor;
   onClear: () => void;
+  /** After a row's follow-up ran: it leads somewhere else, so the panel closes. */
+  onActionDone: () => void;
 }
 
-export function NotificationsPanel({ history, onClear }: NotificationsPanelProps) {
+export function NotificationsPanel({
+  history,
+  actionFor,
+  onClear,
+  onActionDone,
+}: NotificationsPanelProps) {
   const nowMs = useTicker(RETICK_MS);
 
   if (history.length === 0) {
@@ -39,27 +47,42 @@ export function NotificationsPanel({ history, onClear }: NotificationsPanelProps
       </div>
 
       <ul className="notifications-panel__list">
-        {history.map((entry) => (
-          <li
-            key={entry.id}
-            className={classNames(
-              "notifications-panel__row",
-              `notifications-panel__row--${entry.variant}`,
-              !entry.read_at && "notifications-panel__row--unread",
-            )}
-          >
-            <Icon icon={variantIcons[entry.variant]} className="notifications-panel__row-icon" />
-            <div className="notifications-panel__row-body">
-              <p className="notifications-panel__row-message">{entry.message}</p>
-              <span className="notifications-panel__row-meta">
-                {formatRelativeTime(entry.created_at, nowMs)}
-                {entry.count > 1 && (
-                  <span className="notifications-panel__row-count">{`×${entry.count}`}</span>
-                )}
-              </span>
-            </div>
-          </li>
-        ))}
+        {history.map((entry) => {
+          const action = actionFor(entry);
+          return (
+            <li
+              key={entry.id}
+              className={classNames(
+                "notifications-panel__row",
+                `notifications-panel__row--${entry.variant}`,
+                !entry.read_at && "notifications-panel__row--unread",
+              )}
+            >
+              <Icon icon={variantIcons[entry.variant]} className="notifications-panel__row-icon" />
+              <div className="notifications-panel__row-body">
+                <p className="notifications-panel__row-message">{entry.message}</p>
+                <span className="notifications-panel__row-meta">
+                  {formatRelativeTime(entry.created_at, nowMs)}
+                  {entry.count > 1 && (
+                    <span className="notifications-panel__row-count">{`×${entry.count}`}</span>
+                  )}
+                </span>
+              </div>
+              {action && (
+                <button
+                  type="button"
+                  className="notifications-panel__row-action"
+                  onClick={() => {
+                    action.run();
+                    onActionDone();
+                  }}
+                >
+                  {action.label}
+                </button>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </>
   );

@@ -6,7 +6,7 @@ import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
 import { fetchJobs } from "@/features/jobs/api/jobs";
 import type * as JobsApi from "@/features/jobs/api/jobs";
 import { resetScrollLockManagerForTests } from "@/shared/hooks/scrollLockManager";
-import type { ExternalOstrisJob, Job } from "@/shared/types";
+import type { ExternalOstrisJob, Job, VideoProjectExportState } from "@/shared/types";
 import { JobsDialog } from "./JobsDialog";
 import { renderWithQueryClient } from "@/test/queryClient";
 
@@ -69,6 +69,8 @@ const externalJob: ExternalOstrisJob = {
 const jobsContext = {
   jobs: [] as Job[],
   externalJobs: [] as ExternalOstrisJob[],
+  videoExports: [] as VideoProjectExportState[],
+  cancelVideoExport: vi.fn<(exportId: string) => void>(),
   drawerOpen: true,
   closeDrawer: vi.fn<() => void>(),
   cancelJob: vi.fn<(jobId: string) => Promise<Job | null>>(),
@@ -104,6 +106,7 @@ function renderDrawer(
 beforeEach(() => {
   jobsContext.drawerOpen = true;
   jobsContext.seenAtMs = 0;
+  jobsContext.videoExports = [];
   fetchSamples.mockResolvedValue({ samples: [], step: null, available: true });
   fetchJobsMock.mockResolvedValue({ jobs: [], active_count: 0, total: 0, revision: 1 });
 });
@@ -115,6 +118,34 @@ afterEach(() => {
 });
 
 describe("JobsDialog", () => {
+  it("shows a running video export beside the jobs, where it can be cancelled", async () => {
+    const user = userEvent.setup();
+    jobsContext.videoExports = [
+      {
+        id: "export-1",
+        folder: "C:\\datasets\\landscapes",
+        status: "running",
+        progress: 0.4,
+        output_path: "C:\\datasets\\landscapes\\trip-edited.mp4",
+        output_name: "trip-edited.mp4",
+        project_name: "Trip",
+        started_at: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+
+    renderDrawer([]);
+
+    const section = screen.getByRole("region", { name: "Video exports" });
+    const card = within(section).getByRole("article", { name: "video export trip-edited.mp4" });
+    expect(
+      within(card).getByRole("progressbar", { name: "Progress for trip-edited.mp4" }),
+    ).toHaveAttribute("aria-valuenow", "40");
+    expect(screen.getByText("1 running")).toBeInTheDocument();
+    await user.click(within(card).getByRole("button", { name: "Cancel export trip-edited.mp4" }));
+
+    expect(jobsContext.cancelVideoExport).toHaveBeenCalledWith("export-1");
+  });
+
   describe("history", () => {
     const finishedCaption: Job = {
       ...captionJob,

@@ -26,7 +26,14 @@ import {
 } from "@/shared/hooks/useFolderInstructions";
 import { useNotify } from "@/shared/notifications/notifications";
 import { mergedRead } from "@/shared/query/queryClient";
-import type { ExternalOstrisJob, ExternalOstrisJobsResponse, Job, JobType } from "@/shared/types";
+import type {
+  ExternalOstrisJob,
+  ExternalOstrisJobsResponse,
+  Job,
+  JobType,
+  VideoProjectExportState,
+} from "@/shared/types";
+import { useVideoExports } from "@/features/videoEditor/hooks/useVideoExports";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
 import {
   isActiveJobStatus,
@@ -94,6 +101,8 @@ interface JobsContextValue {
   jobs: Job[];
   externalJobs: ExternalOstrisJob[];
   ostrisAvailable: boolean;
+  /** Video exports still rendering; they run outside the job queue but show beside its jobs. */
+  videoExports: VideoProjectExportState[];
   activeCount: number;
   /** Jobs that finished after the drawer was last closed; the drawer marks them "New". */
   seenAtMs: number;
@@ -116,6 +125,7 @@ interface JobsContextValue {
   ) => Promise<Job | null>;
   cancelJob: (jobId: string) => Promise<Job | null>;
   stopExternalOstrisJob: (jobId: string) => Promise<boolean>;
+  cancelVideoExport: (exportId: string) => void;
   deleteJob: (jobId: string) => Promise<boolean>;
   deleteAllJobs: () => Promise<boolean>;
 }
@@ -248,7 +258,16 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     return { unseenCount: unseen.length, unseenFailed: unseen.some(jobShowsErrorState) };
   }, [jobs, seenAtMs]);
 
-  const activeCount = useMemo(() => runningJobCount(jobs, external.jobs), [jobs, external.jobs]);
+  const { exports: allExports, cancel: cancelExport } = useVideoExports();
+  const videoExports = useMemo(
+    () => allExports.filter((item) => item.status === "running"),
+    [allExports],
+  );
+
+  const activeCount = useMemo(
+    () => runningJobCount(jobs, external.jobs) + videoExports.length,
+    [jobs, external.jobs, videoExports.length],
+  );
 
   // The backend reports which instruction files these jobs lock, so re-read when the set changes.
   const instructionJobIds = jobs
@@ -362,6 +381,14 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       ),
     [stopAsync],
   );
+  const cancelVideoExport = useCallback(
+    (exportId: string) => {
+      cancelExport(exportId).catch((error: unknown) =>
+        reportError("Could not cancel the export: ", error),
+      );
+    },
+    [cancelExport, reportError],
+  );
   const deleteJobImpl = useCallback(
     (jobId: string) =>
       settle(
@@ -387,6 +414,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       jobs,
       externalJobs: external.jobs,
       ostrisAvailable: external.available,
+      videoExports,
       activeCount,
       seenAtMs,
       unseenCount,
@@ -401,12 +429,14 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       startJob,
       cancelJob: cancelJobImpl,
       stopExternalOstrisJob,
+      cancelVideoExport,
       deleteJob: deleteJobImpl,
       deleteAllJobs: deleteAllJobsImpl,
     }),
     [
       jobs,
       external,
+      videoExports,
       activeCount,
       seenAtMs,
       unseenCount,
@@ -421,6 +451,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       startJob,
       cancelJobImpl,
       stopExternalOstrisJob,
+      cancelVideoExport,
       deleteJobImpl,
       deleteAllJobsImpl,
     ],

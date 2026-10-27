@@ -45,8 +45,6 @@ $z-index-dialog: 1000;
 $z-index-lightbox: 1075;
 // A whole workspace over the gallery; its own dialogs (confirm level) still open above it.
 $z-index-video-editor: 1080;
-// Background exports in the gallery: under every overlay, over the page.
-$z-index-export-tracker: 990;
 $z-index-confirm: 1100;
 // Portalled to the body; must clear every overlay except notifications.
 $z-index-anchored: 1150;

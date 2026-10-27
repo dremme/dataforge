@@ -2434,7 +2434,7 @@ class NotificationRecord(BaseModel):
     message: str
     variant: NotificationVariant
     source: NotificationSource = "client"
-    #: The job whose outcome this reports; null for toasts the UI raised.
+    #: The job or video export whose outcome this reports; null for toasts the UI raised.
     job_id: str | None = None
     #: Repeats of the newest identical message raise this instead of adding a row.
     count: int = 1

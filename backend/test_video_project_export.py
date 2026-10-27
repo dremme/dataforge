@@ -111,7 +111,10 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(recorded.clips, project.clips)
             self.assertFalse((root / "clip-edited.txt").exists())
             self.assertEqual(media.read_bytes(), before)
-            self.notified.assert_called_once()
+            # The export's id lets the toast offer to open what it wrote.
+            self.notified.assert_called_once_with(
+                "Exported clip-edited.mp4", "success", source="job", job_id=state.id
+            )
 
     def test_the_caption_is_copied_only_when_asked_for(self) -> None:
         with TempMediaFolder() as root:

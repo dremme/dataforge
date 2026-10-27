@@ -290,7 +290,7 @@ class ExportManager:
             outcome = (f"Export of {name} failed: {error}", "danger")
         if outcome is not None:
             with suppress(Exception):
-                notifications.record_notification(*outcome, source="job")
+                notifications.record_notification(*outcome, source="job", job_id=record.state.id)
 
     def _measure(self, record: _Export, executable: str, media: Path) -> None:
         """What the delivered file measures, not what the settings meant it to; a file that

@@ -13,6 +13,7 @@ import {
   NOTIFICATION_DURATION_MS,
   NotificationsContext,
   upsertNotification,
+  type NotificationActionFor,
   type NotificationRecord,
   type NotificationVariant,
   type NotifyOptions,
@@ -38,6 +39,30 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [providers, setProviders] = useState<ReadonlyMap<string, NotificationActionFor>>(
+    () => new Map(),
+  );
+
+  const provideActions = useCallback((key: string, provider: NotificationActionFor | null) => {
+    setProviders((current) => {
+      if ((current.get(key) ?? null) === provider) return current;
+      const next = new Map(current);
+      if (provider) next.set(key, provider);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const actionFor = useCallback(
+    (record: NotificationRecord) => {
+      for (const provider of providers.values()) {
+        const action = provider(record);
+        if (action) return action;
+      }
+      return undefined;
+    },
+    [providers],
+  );
 
   // Nothing replays the frames a disconnected tab missed, so every way back in re-reads the
   // feed: mount, a reconnect or reported loss (push-fed), the tab being looked at again
@@ -144,7 +169,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     setHistory((current) => upsertNotification(current, event.notification));
     // A client toast already showed in the tab that raised it, and is not this tab's business.
     if (event.notification.source === "job") {
-      pushToast(event.notification.message, event.notification.variant);
+      pushToast(
+        event.notification.message,
+        event.notification.variant,
+        actionFor(event.notification),
+      );
     }
   });
 
@@ -183,8 +212,21 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       markAllRead,
       clearHistory,
       refreshHistory,
+      actionFor,
+      provideActions,
     }),
-    [notify, dismiss, history, unreadCount, panelOpen, markAllRead, clearHistory, refreshHistory],
+    [
+      notify,
+      dismiss,
+      history,
+      unreadCount,
+      panelOpen,
+      markAllRead,
+      clearHistory,
+      refreshHistory,
+      actionFor,
+      provideActions,
+    ],
   );
 
   return (

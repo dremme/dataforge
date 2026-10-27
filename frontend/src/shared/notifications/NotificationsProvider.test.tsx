@@ -1,4 +1,4 @@
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NotificationRecord, ServerEvent } from "@/shared/types";
 import { ServerEventsContext } from "@/shared/events/serverEvents";
@@ -9,7 +9,9 @@ import {
   MAX_VISIBLE_TOASTS,
   NOTIFICATION_DURATION_MS,
   NOTIFICATION_EXIT_MS,
+  useNotificationActions,
   useNotify,
+  type NotificationActionFor,
 } from "./notifications";
 import { NotificationsProvider } from "./NotificationsProvider";
 import { renderWithQueryClient } from "@/test/queryClient";
@@ -282,6 +284,37 @@ describe("NotificationsProvider", () => {
     });
 
     expect(screen.getByRole("status")).toHaveTextContent('Auto-caption completed in "Photos".');
+  });
+
+  it("offers the follow-up a contributor has for a pushed outcome", () => {
+    const open = vi.fn<() => void>();
+    const actionFor: NotificationActionFor = (entry) =>
+      entry.job_id === "export-1" ? { label: "Open", run: open } : undefined;
+    function Actions() {
+      useNotificationActions("exports", actionFor);
+      return null;
+    }
+    renderProvider(<Actions />);
+
+    act(() => {
+      emit({
+        type: "notification",
+        notification: record({ job_id: "export-1", message: "Exported trip.mp4" }),
+      });
+    });
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    });
+
+    expect(open).toHaveBeenCalledTimes(1);
+    act(() => {
+      emit({ type: "notification", notification: record({ id: "other" }) });
+    });
+    const plain = screen
+      .getAllByRole("status")
+      .find((toast) => toast.textContent?.includes("Auto-caption completed"));
+    expect(plain).toBeDefined();
+    expect(within(plain!).queryByRole("button", { name: "Open" })).not.toBeInTheDocument();
   });
 
   it("does not re-toast a client notification another tab raised", () => {

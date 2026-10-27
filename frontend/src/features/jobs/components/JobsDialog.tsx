@@ -36,6 +36,7 @@ import {
   runningJobCount,
 } from "@/features/jobs/lib/jobs";
 import { ExternalJobCard } from "./ExternalJobCard";
+import { VideoExportCard } from "./VideoExportCard";
 import { Icon } from "@/shared/ui/Icon";
 import { CancelJobDialog } from "./CancelJobDialog";
 import { JobCard, type JobFollowUp } from "./JobCard";
@@ -121,6 +122,8 @@ export function JobsDialog({ currentFolder, onOpenFolder, currentActions }: Jobs
   const {
     jobs,
     externalJobs,
+    videoExports,
+    cancelVideoExport,
     drawerOpen,
     closeDrawer,
     cancelJob,
@@ -184,10 +187,11 @@ export function JobsDialog({ currentFolder, onOpenFolder, currentActions }: Jobs
   const sections = groupJobsForDrawer(localJobs, seenAtMs, nowMs);
   const hasLocalJobs = localJobs.length > 0;
   const hasExternalJobs = externalJobs.length > 0;
-  const hasAnyJobs = hasLocalJobs || hasExternalJobs;
+  const hasExports = videoExports.length > 0;
+  const hasAnyJobs = hasLocalJobs || hasExternalJobs || hasExports;
   const hasHistory = jobs.length > 0 || history.total > 0 || filtering;
   const recordCount = filtering ? null : Math.max(history.total, jobs.length);
-  const runningCount = runningJobCount(jobs, externalJobs);
+  const runningCount = runningJobCount(jobs, externalJobs) + videoExports.length;
   const newCount = jobs.filter((job) => isUnseenJob(job, seenAtMs)).length;
   const summary = [
     runningCount > 0 && `${runningCount} running`,
@@ -387,6 +391,22 @@ export function JobsDialog({ currentFolder, onOpenFolder, currentActions }: Jobs
             </div>
           ) : (
             <>
+              {hasExports && (
+                <section className="jobs-dialog__section" aria-label="Video exports">
+                  <h3 className="jobs-dialog__section-title">Video exports</h3>
+                  <div className="jobs-dialog__list">
+                    {videoExports.map((item) => (
+                      <VideoExportCard
+                        key={`export-${item.id}`}
+                        item={item}
+                        isCurrentFolder={foldersMatch(currentFolder, item.folder)}
+                        onOpenFolder={openFolder}
+                        onCancel={cancelVideoExport}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
               {hasExternalJobs && (
                 <section className="jobs-dialog__section" aria-label="External jobs">
                   <h3 className="jobs-dialog__section-title">AI-Toolkit</h3>

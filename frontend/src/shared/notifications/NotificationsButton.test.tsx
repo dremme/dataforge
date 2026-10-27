@@ -5,6 +5,7 @@ import type { NotificationRecord } from "@/shared/types";
 import * as notificationsApi from "@/shared/api/notifications";
 import { NotificationsButton } from "./NotificationsButton";
 import { NotificationsProvider } from "./NotificationsProvider";
+import { useNotificationActions, type NotificationActionFor } from "./notifications";
 import { renderWithQueryClient } from "@/test/queryClient";
 import type { postNotification } from "@/shared/api/notifications";
 
@@ -158,6 +159,35 @@ describe("NotificationsButton", () => {
 
     expect(clearNotifications).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("No notifications")).toBeVisible();
+  });
+
+  it("offers a row's follow-up, and closes once it ran", async () => {
+    const user = userEvent.setup();
+    const open = vi.fn<() => void>();
+    const actionFor: NotificationActionFor = (entry) =>
+      entry.id === "done" ? { label: "Open", run: open } : undefined;
+    function Actions() {
+      useNotificationActions("exports", actionFor);
+      return null;
+    }
+    const feed = [
+      record({ id: "done", message: "Exported party.mp4", read_at: READ_AT }),
+      record({ id: "plain", read_at: READ_AT }),
+    ];
+    fetchNotifications.mockResolvedValue(feed);
+    markNotificationsRead.mockResolvedValue(feed);
+    renderWithQueryClient(
+      <NotificationsProvider>
+        <Actions />
+        <NotificationsButton />
+      </NotificationsProvider>,
+    );
+
+    const panel = await openPanel(user, 0);
+    await user.click(await within(panel).findByRole("button", { name: "Open" }));
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("group", { name: "Notifications" })).not.toBeInTheDocument();
   });
 
   it("offers the empty state when nothing has arrived yet", async () => {

@@ -266,4 +266,11 @@
   &__row-count {
     @include count-pill-muted;
   }
+
+  &__row-action {
+    @include pill-btn-compact(default);
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+  }
 }

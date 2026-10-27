@@ -13,6 +13,9 @@ export const VIDEO_EXPORTS_QUERY_KEY = ["video-project-exports"] as const;
 /** While one is running, in case the event stream is down (a hidden tab gives it up). */
 const RUNNING_POLL_MS = 2000;
 
+/** One empty list, so consumers that memoize on it settle before the first fetch lands. */
+const NO_EXPORTS: VideoProjectExportState[] = [];
+
 /** The later of two copies: a finished export never goes back to running, nor progress back. */
 function newer(
   known: VideoProjectExportState | undefined,
@@ -77,5 +80,5 @@ export function useVideoExports() {
     [queryClient],
   );
 
-  return { exports: query.data ?? [], track, cancel, dismiss };
+  return { exports: query.data ?? NO_EXPORTS, track, cancel, dismiss };
 }
