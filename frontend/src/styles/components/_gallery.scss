@@ -305,9 +305,15 @@
       opacity: 0.5;
     }
 
+    // Solid, so the check reads over light and dark media in both themes.
     .card__selection-indicator {
       opacity: 1;
       border-color: var(--accent);
+      background: var(--accent);
+    }
+
+    .card__selection-indicator-icon {
+      color: var(--bg);
     }
   }
 
