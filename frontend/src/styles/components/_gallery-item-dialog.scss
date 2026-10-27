@@ -150,8 +150,9 @@
     max-height: $dialog-media-max-height;
   }
 
+  // Never positioned: the edit overlays beside it place themselves from the video's offsets,
+  // which must be measured against the stage they share.
   &__video-backdrop {
-    position: relative;
     display: grid;
     width: 100%;
     max-height: $dialog-media-max-height;
@@ -161,6 +162,12 @@
 
     > video {
       grid-area: 1 / 1;
+    }
+
+    > .media-problem {
+      position: relative;
+      grid-area: 1 / 1;
+      align-self: end;
     }
   }
 
