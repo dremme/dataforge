@@ -684,7 +684,18 @@ $jobs-content-pad-top: 0.75rem;
   &__outcome-segment {
     flex-basis: 0;
     min-width: 0.1875rem;
-    border-radius: var(--radius-pill);
+
+    &:first-child {
+      border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+    }
+
+    &:last-child {
+      border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+    }
+
+    &:only-child {
+      border-radius: var(--radius-pill);
+    }
 
     &--done {
       background: var(--success);
