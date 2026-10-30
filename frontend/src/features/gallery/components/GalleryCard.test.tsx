@@ -553,18 +553,18 @@ describe("GalleryCard", () => {
   describe("quick actions", () => {
     const renderWithActions = (item: GalleryItem, selectionMode = false) => {
       const onSelect = vi.fn<(path: string) => void>();
-      const onCopyCaption = vi.fn<(caption: string) => void>();
+      const onCopyCaptionFailed = vi.fn<() => void>();
       const onDelete = vi.fn<(path: string) => void>();
       render(
         <GalleryCard
           item={item}
           onSelect={onSelect}
           selectionMode={selectionMode}
-          onCopyCaption={onCopyCaption}
+          onCopyCaptionFailed={onCopyCaptionFailed}
           onDelete={onDelete}
         />,
       );
-      return { onSelect, onCopyCaption, onDelete };
+      return { onSelect, onCopyCaptionFailed, onDelete };
     };
 
     it("sits beside the card button, never inside it", () => {
@@ -575,17 +575,49 @@ describe("GalleryCard", () => {
       expect(card).not.toContainElement(toolbar);
     });
 
-    it("opens, copies the caption and deletes with the card's own path", async () => {
+    it("opens and deletes with the card's own path", async () => {
       const user = userEvent.setup();
-      const { onSelect, onCopyCaption, onDelete } = renderWithActions(captionedItem);
+      const { onSelect, onDelete } = renderWithActions(captionedItem);
 
       await user.click(screen.getByRole("button", { name: "Open" }));
-      await user.click(screen.getByRole("button", { name: "Copy caption" }));
       await user.click(screen.getByRole("button", { name: "Delete" }));
 
       expect(onSelect).toHaveBeenCalledWith(captionedItem.path);
-      expect(onCopyCaption).toHaveBeenCalledWith("Golden hour over the harbour");
       expect(onDelete).toHaveBeenCalledWith(captionedItem.path);
+    });
+
+    it("turns the copy icon into a green check for a moment after copying", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+      const { onCopyCaptionFailed } = renderWithActions(captionedItem);
+
+      await user.click(screen.getByRole("button", { name: "Copy caption" }));
+
+      expect(writeText).toHaveBeenCalledWith("Golden hour over the harbour");
+      const copied = await screen.findByRole("button", { name: "Copied!" });
+      expect(copied).toHaveClass("card-actions__button--copied");
+      expect(copied.querySelector(".lucide-check")).not.toBeNull();
+      expect(onCopyCaptionFailed).not.toHaveBeenCalled();
+
+      act(() => vi.advanceTimersByTime(2000));
+
+      const idle = screen.getByRole("button", { name: "Copy caption" });
+      expect(idle).not.toHaveClass("card-actions__button--copied");
+      expect(idle.querySelector(".lucide-copy")).not.toBeNull();
+      vi.useRealTimers();
+    });
+
+    it("reports a failed copy and shows no check", async () => {
+      const user = userEvent.setup();
+      vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"));
+      const { onCopyCaptionFailed } = renderWithActions(captionedItem);
+
+      await user.click(screen.getByRole("button", { name: "Copy caption" }));
+
+      await vi.waitFor(() => expect(onCopyCaptionFailed).toHaveBeenCalledOnce());
+      const button = screen.getByRole("button", { name: "Copy caption" });
+      expect(button.querySelector(".lucide-check")).toBeNull();
     });
 
     it("offers no copy when there is no caption", () => {

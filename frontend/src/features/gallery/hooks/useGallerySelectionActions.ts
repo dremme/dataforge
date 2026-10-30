@@ -64,15 +64,9 @@ export function useGallerySelectionActions({
     setDeleteTarget(null);
   }, [deleting]);
 
-  const copyCaption = useCallback(
-    (caption: string) => {
-      void navigator.clipboard.writeText(caption).then(
-        () => notify({ variant: "success", message: "Caption copied." }),
-        () => notify({ variant: "danger", message: "Could not copy the caption." }),
-      );
-    },
-    [notify],
-  );
+  const notifyCopyCaptionFailed = useCallback(() => {
+    notify({ variant: "danger", message: "Could not copy the caption." });
+  }, [notify]);
 
   const confirmDelete = useCallback(async () => {
     const paths = Array.from(deletePaths);
@@ -118,7 +112,7 @@ export function useGallerySelectionActions({
       canAct,
       openDeleteConfirm,
       openDeleteConfirmFor,
-      copyCaption,
+      notifyCopyCaptionFailed,
       startTransfer,
       overlay: {
         currentFolder,
@@ -143,12 +137,12 @@ export function useGallerySelectionActions({
       canAct,
       cancelDeleteConfirm,
       confirmDelete,
-      copyCaption,
       currentFolder,
       deleteConfirmOpen,
       deletePaths,
       deleteTarget,
       deleting,
+      notifyCopyCaptionFailed,
       openDeleteConfirm,
       openDeleteConfirmFor,
       overwritePrompt,

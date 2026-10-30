@@ -1,5 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from "react";
-import { iconCopy, iconExpand, iconTrash2, type AppIcon } from "@/shared/icons";
+import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
+import { iconCheck, iconCopy, iconExpand, iconTrash2, type AppIcon } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -9,6 +10,7 @@ interface CardAction {
   label: string;
   icon: AppIcon;
   danger?: boolean;
+  copied?: boolean;
   run: () => void;
 }
 
@@ -20,7 +22,7 @@ interface GalleryCardActionsProps {
   /** Selecting owns the card click, so only Open stays: it is the one way left to the viewer. */
   selectionMode: boolean;
   onOpen: (path: string) => void;
-  onCopyCaption?: (caption: string) => void;
+  onCopyCaptionFailed?: () => void;
   onDelete?: (path: string) => void;
 }
 
@@ -35,21 +37,28 @@ export function GalleryCardActions({
   displayMode,
   selectionMode,
   onOpen,
-  onCopyCaption,
+  onCopyCaptionFailed,
   onDelete,
 }: GalleryCardActionsProps) {
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [active, setActive] = useState(0);
+  const { copyState, copyLabel, copyText } = useCopyFeedback();
 
   const actions: CardAction[] = [
     { id: "open", label: "Open", icon: iconExpand, run: () => onOpen(path) },
   ];
-  if (!selectionMode && caption && onCopyCaption) {
+  if (!selectionMode && caption) {
+    const copied = copyState === "copied";
     actions.push({
       id: "copy",
-      label: "Copy caption",
-      icon: iconCopy,
-      run: () => onCopyCaption(caption),
+      label: copied ? copyLabel : "Copy caption",
+      icon: copied ? iconCheck : iconCopy,
+      copied,
+      run: () => {
+        void copyText(caption).then((succeeded) => {
+          if (!succeeded) onCopyCaptionFailed?.();
+        });
+      },
     });
   }
   if (!selectionMode && onDelete) {
@@ -97,6 +106,7 @@ export function GalleryCardActions({
               className={classNames(
                 "card-actions__button",
                 action.danger && "card-actions__button--danger",
+                action.copied && "card-actions__button--copied",
               )}
               aria-label={action.label}
               tabIndex={index === current ? 0 : -1}

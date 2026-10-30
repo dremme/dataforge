@@ -52,7 +52,7 @@ interface GalleryCardProps {
   onToggleSelect?: (path: string) => void;
   onExtendSelect?: (path: string) => void;
   /** Quick actions over the media; both must be stable, since the card is memoized. */
-  onCopyCaption?: (caption: string) => void;
+  onCopyCaptionFailed?: () => void;
   onDelete?: (path: string) => void;
 }
 
@@ -71,7 +71,7 @@ export const GalleryCard = memo(function GalleryCard({
   selected = false,
   onToggleSelect,
   onExtendSelect,
-  onCopyCaption,
+  onCopyCaptionFailed,
   onDelete,
 }: GalleryCardProps) {
   const captionDisplay = getCardCaptionDisplay(item);
@@ -251,7 +251,7 @@ export const GalleryCard = memo(function GalleryCard({
         displayMode={displayMode}
         selectionMode={selectionMode}
         onOpen={onSelect}
-        onCopyCaption={onCopyCaption}
+        onCopyCaptionFailed={onCopyCaptionFailed}
         onDelete={onDelete}
       />
     </div>

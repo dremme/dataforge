@@ -48,6 +48,14 @@ describe("useGallerySelectionActions", () => {
     }));
   });
 
+  it("says when a card could not copy its caption", async () => {
+    const { result } = renderActions();
+
+    act(() => result.current.notifyCopyCaptionFailed());
+
+    expect(await screen.findByText("Could not copy the caption.")).toBeInTheDocument();
+  });
+
   it("offers Undo for what went to the Recycle Bin, restoring each file with its sidecars", async () => {
     const caption = CARD.replace(".png", ".txt");
     deleteMock.mockResolvedValue({

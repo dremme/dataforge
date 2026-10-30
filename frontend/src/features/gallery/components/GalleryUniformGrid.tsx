@@ -50,7 +50,7 @@ export function GalleryUniformGrid({
     toggleSelectedPath,
     extendSelectionTo,
     inspectedPath,
-    actions: { copyCaption, openDeleteConfirmFor },
+    actions: { notifyCopyCaptionFailed, openDeleteConfirmFor },
   } = useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
   const layout = galleryLayoutFor(displayMode);
@@ -151,7 +151,7 @@ export function GalleryUniformGrid({
                       selected={selectedPaths.has(item.path)}
                       onToggleSelect={toggleSelectedPath}
                       onExtendSelect={extendSelectionTo}
-                      onCopyCaption={copyCaption}
+                      onCopyCaptionFailed={notifyCopyCaptionFailed}
                       onDelete={openDeleteConfirmFor}
                     />
                   ),

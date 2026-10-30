@@ -278,6 +278,10 @@
       @include fade-bg(var(--danger-soft));
       color: var(--danger);
     }
+
+    &--copied {
+      color: var(--success);
+    }
   }
 }
 

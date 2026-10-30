@@ -16,7 +16,7 @@ const stubActions: GallerySelectionActions = {
   canAct: false,
   openDeleteConfirm: noop,
   openDeleteConfirmFor: noop,
-  copyCaption: noop,
+  notifyCopyCaptionFailed: noop,
   startTransfer: noop,
   overlay: {
     currentFolder: undefined,
