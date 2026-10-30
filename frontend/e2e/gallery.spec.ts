@@ -154,30 +154,31 @@ test("video playback fades in evenly along the preview edge", async ({ page }, t
       json: { ...folder, items, item_count: 1, subfolders: [], subfolder_count: 0 },
     });
   });
-  // Pause the fade as it starts so screenshots can inspect intermediate playback frames.
+  // React may apply the ready class after the playing event's next animation frame.
+  // Pause the actual fade so screenshots can inspect intermediate playback frames.
   await page.addInitScript(() => {
-    document.addEventListener(
-      "playing",
-      (event) => {
-        const card = (event.target as Element).closest(".card");
-        if (!card) return;
-        requestAnimationFrame(() => {
-          for (const animation of card.getAnimations({ subtree: true })) animation.pause();
-        });
-      },
-      true,
-    );
+    document.addEventListener("transitionrun", (event) => {
+      const target = event.target;
+      if (
+        !(target instanceof HTMLVideoElement) ||
+        !target.matches(".card__video-preview") ||
+        event.propertyName !== "opacity"
+      )
+        return;
+      for (const animation of target.getAnimations()) animation.pause();
+    });
   });
   await page.setViewportSize({ width: 1202, height: 900 });
   await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
   const card = page.getByRole("button", { name: "View clip.mp4", exact: true });
   await expect(card.locator(".card__img--ready")).toBeVisible();
   await card.hover();
-  await expect(card.locator(".card__video-preview--ready")).toBeAttached();
+  const preview = card.locator(".card__video-preview--ready");
+  await expect(preview).toBeAttached();
   await expect
     .poll(() =>
-      card.evaluate((node) =>
-        node.getAnimations({ subtree: true }).some((animation) => animation.playState === "paused"),
+      preview.evaluate((node) =>
+        node.getAnimations().some((animation) => animation.playState === "paused"),
       ),
     )
     .toBe(true);
@@ -185,8 +186,8 @@ test("video playback fades in evenly along the preview edge", async ({ page }, t
   const x = media.x + media.width / 2;
   const bottom = Math.round(media.y + media.height) - 1;
   for (const time of [0, 60, 150, 200]) {
-    await card.evaluate((node, time) => {
-      for (const animation of node.getAnimations({ subtree: true })) animation.currentTime = time;
+    await preview.evaluate((node, time) => {
+      for (const animation of node.getAnimations()) animation.currentTime = time;
     }, time);
     const pixels = await screenshotPixels(
       page,
