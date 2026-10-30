@@ -12,6 +12,7 @@ from constants import (
     AUDIO_LOW_CUT_MIN_HZ,
     AUDIO_PITCH_MAX_SEMITONES,
     AUTO_ADJUST_DEFAULT_AMOUNT,
+    DEFAULT_GALLERY_CARD_ACTIONS,
     DEFAULT_GALLERY_SORT,
     DEFAULT_RESIZE_MEGAPIXELS,
     DEFAULT_RESIZE_MULTIPLE,
@@ -353,6 +354,22 @@ class JobsDialogFilters(BaseModel):
 type SmallCardCaptionLines = Literal[0, 1, 2, 4]
 type LargeCardCaptionLines = Literal[0, 2, 4, 6]
 
+type GalleryCardAction = Literal[
+    "open",
+    "open_in_video_editor",
+    "open_in_image_preview",
+    "edit",
+    "save_frame",
+    "copy_caption",
+    "copy_file",
+    "move_file",
+    "rename_file",
+    "resolve_issue",
+    "review_candidate",
+    "resolve_duplicate",
+    "delete",
+]
+
 
 class GalleryCardSettings(BaseModel):
     small_caption_lines: SmallCardCaptionLines = 2
@@ -364,6 +381,10 @@ class GalleryCardSettings(BaseModel):
     #: Large cards only; the strongest tags in one row under the caption.
     large_tags: bool = True
     list_caption_preview: bool = False
+    #: Empty leaves a card without its actions bar, except Open while selecting.
+    card_actions: list[GalleryCardAction] = Field(
+        default_factory=lambda: list[GalleryCardAction](DEFAULT_GALLERY_CARD_ACTIONS)
+    )
 
 
 # Languages browsers commonly ship spelling dictionaries for.

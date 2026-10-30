@@ -1,7 +1,13 @@
 import type { MediaTransferMode } from "@/features/gallery/api/media";
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import { useGlobalShortcut } from "@/shared/hooks/useGlobalShortcut";
-import { iconCopy, iconFolderInput, iconLoader2, iconTrash2, type AppIcon } from "@/shared/icons";
+import {
+  iconCopyPlus,
+  iconFolderInput,
+  iconLoader2,
+  iconTrash2,
+  type AppIcon,
+} from "@/shared/icons";
 import { ariaKeyShortcuts, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { Icon } from "@/shared/ui/Icon";
 import { ShortcutHint } from "@/shared/ui/ShortcutKeys";
@@ -140,7 +146,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
       </button>
       <TransferButton
         mode="copy"
-        icon={iconCopy}
+        icon={iconCopyPlus}
         label="Copy selected files"
         transferring={transferring}
         disabled={visibleSelectedCount === 0 || busy}

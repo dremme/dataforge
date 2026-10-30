@@ -6,6 +6,7 @@ import { AppHeader } from "@/app/components/AppHeader";
 import { AppOverlays } from "@/app/components/AppOverlays";
 import { useAppWorkspace } from "@/app/hooks/useAppWorkspace";
 import { GallerySelectionProvider } from "@/features/gallery/context/GallerySelectionContext";
+import { useGalleryCardActions } from "@/features/gallery/hooks/useGalleryCardActions";
 import { WorkspaceSidebar } from "@/app/components/WorkspaceSidebar";
 import { ActiveFilters } from "@/features/gallery/components/ActiveFilters";
 import { FolderNoteBanner } from "@/features/folder/components/FolderNoteBanner";
@@ -26,6 +27,7 @@ export function AppContent() {
   const {
     mainRef,
     transitionRef,
+    requestTransition,
     folder,
     loading,
     refreshing,
@@ -91,6 +93,17 @@ export function AppContent() {
     }),
     [editorRequest, openEditor],
   );
+  const cardActions = useGalleryCardActions({
+    requestTransition,
+    openItem: openGalleryItem,
+    openInVideoEditor: editorLauncher.open,
+    startTransferFor: selectionActions.startTransferFor,
+    openDeleteConfirmFor: selectionActions.openDeleteConfirmFor,
+    onResolveIssue: gallery.onResolveGalleryItemIssue,
+    onReviewCandidate: candidateReview.reviewGalleryItemCandidate,
+    onResolveDuplicate: duplicateResolver.resolveGalleryItemDuplicate,
+    onRenamed: gallery.onGalleryItemRenamed,
+  });
   // History as the gallery's own way in, its folder under the editor, so Back lands there.
   const { switchTo: switchEditor } = editor;
   const openProjectElsewhere = useCallback(
@@ -148,6 +161,7 @@ export function AppContent() {
         onDeleted={onGalleryItemsDeleted}
         onMoved={onGalleryItemsMoved}
         onCopied={onGalleryItemsCopied}
+        runCardAction={cardActions.run}
         actions={selectionActions}
       >
         <div className="app">
@@ -262,6 +276,7 @@ export function AppContent() {
               onOpenFolder={navigateTo}
               quickAction={quickAction}
               selectionActions={selectionActions.overlay}
+              renameFile={cardActions.renameFile}
               sidecarSweep={sidecarSweep.overlay}
               settleAllCandidates={settleAllCandidates.overlay}
               onCaptionSaved={gallery.onCaptionSaved}
@@ -269,6 +284,7 @@ export function AppContent() {
                 selectedPath: gallery.selectedPath,
                 selectedIndex: gallery.selectedIndex,
                 dialogItems: gallery.dialogItems,
+                openIntent: gallery.openIntent,
                 searchQuery: query.highlightQuery,
                 searchRegex: query.searchRegex,
                 hasCaptionBackup: folder?.has_caption_backup ?? false,

@@ -3,7 +3,11 @@ import { deleteSelectedMedia, type MediaTransferMode } from "@/features/gallery/
 import { useDeleteLeftoversNotice } from "@/features/gallery/hooks/useDeleteLeftoversNotice";
 import { useDeleteUndoNotice } from "@/features/gallery/hooks/useDeleteUndoNotice";
 import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
-import { failureMessage } from "@/features/gallery/lib/mediaActionMessages";
+import {
+  failureMessage,
+  singleFileCopySuccessMessage,
+  singleFileEmptyPreviewMessage,
+} from "@/features/gallery/lib/mediaActionMessages";
 import { useNotify } from "@/shared/notifications/notifications";
 
 interface UseGallerySelectionActionsOptions {
@@ -31,13 +35,21 @@ export function useGallerySelectionActions({
   const [deleteTarget, setDeleteTarget] = useState<ReadonlySet<string> | null>(null);
   const [deleting, setDeleting] = useState(false);
   const deletePaths = deleteTarget ?? visibleSelectedPaths;
+  // Set by a card's own Move or Copy; otherwise the transfer acts on the selection.
+  const [transferTarget, setTransferTarget] = useState<string | null>(null);
 
-  const transferPaths = useMemo(() => Array.from(visibleSelectedPaths), [visibleSelectedPaths]);
+  const selectionPaths = useMemo(() => Array.from(visibleSelectedPaths), [visibleSelectedPaths]);
+  const transferPaths = useMemo(
+    () => (transferTarget ? [transferTarget] : selectionPaths),
+    [selectionPaths, transferTarget],
+  );
 
   const transfer = useMediaTransfer({
     paths: transferPaths,
     onMoved,
     onCopied,
+    emptyPreviewMessage: transferTarget ? singleFileEmptyPreviewMessage : undefined,
+    copySuccessMessage: transferTarget ? singleFileCopySuccessMessage : undefined,
   });
 
   const { transferPicker, overwritePrompt, transferring, openTransferPicker } = transfer;
@@ -99,9 +111,19 @@ export function useGallerySelectionActions({
 
   const startTransfer = useCallback(
     (mode: MediaTransferMode) => {
-      openTransferPicker(mode);
+      setTransferTarget(null);
+      openTransferPicker(mode, selectionPaths);
     },
-    [openTransferPicker],
+    [openTransferPicker, selectionPaths],
+  );
+
+  const startTransferFor = useCallback(
+    (path: string, mode: MediaTransferMode) => {
+      if (busy) return;
+      setTransferTarget(path);
+      openTransferPicker(mode, [path]);
+    },
+    [busy, openTransferPicker],
   );
 
   return useMemo(
@@ -114,9 +136,11 @@ export function useGallerySelectionActions({
       openDeleteConfirmFor,
       notifyCopyCaptionFailed,
       startTransfer,
+      startTransferFor,
       overlay: {
         currentFolder,
         selectedCount: visibleSelectedCount,
+        transferPath: transferTarget,
         transferPicker,
         overwritePrompt,
         transferring,
@@ -147,11 +171,13 @@ export function useGallerySelectionActions({
       openDeleteConfirmFor,
       overwritePrompt,
       startTransfer,
+      startTransferFor,
       transfer.closeOverwritePrompt,
       transfer.closeTransferPicker,
       transfer.confirmOverwrite,
       transfer.selectDestination,
       transferPicker,
+      transferTarget,
       transferring,
       visibleSelectedCount,
     ],

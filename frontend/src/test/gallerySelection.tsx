@@ -18,9 +18,11 @@ const stubActions: GallerySelectionActions = {
   openDeleteConfirmFor: noop,
   notifyCopyCaptionFailed: noop,
   startTransfer: noop,
+  startTransferFor: noop,
   overlay: {
     currentFolder: undefined,
     selectedCount: 0,
+    transferPath: null,
     transferPicker: null,
     overwritePrompt: null,
     transferring: null,
@@ -53,6 +55,7 @@ function baseValue(overrides: Partial<GallerySelectionValue>): GallerySelectionV
     onDeleted: noop,
     onMoved: noop,
     onCopied: noop,
+    runCardAction: noop,
     actions: stubActions,
     ...overrides,
   };

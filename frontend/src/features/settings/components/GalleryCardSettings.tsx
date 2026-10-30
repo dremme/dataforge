@@ -1,9 +1,10 @@
+import { CARD_ACTION_IDS, CARD_ACTIONS, withCardAction } from "@/features/gallery/lib/cardActions";
 import {
   LARGE_CARD_CAPTION_LINES,
   SMALL_CARD_CAPTION_LINES,
   type GalleryCardOptions,
 } from "@/features/gallery/lib/cardOptions";
-import { iconGrid2x2, iconRows3 } from "@/shared/icons";
+import { iconGrid2x2, iconMousePointer, iconRows3 } from "@/shared/icons";
 import { DialogSelect, type DialogSelectOption } from "@/shared/ui/DialogSelect";
 import { SettingsCheckbox } from "./SettingsCheckbox";
 import { SettingsGroup } from "./SettingsGroup";
@@ -74,6 +75,25 @@ export function GalleryCardSettings({ value, disabled, onChange }: GalleryCardSe
             disabled={disabled}
             onChange={(largeTags) => change({ largeTags })}
           />
+        </div>
+      </SettingsGroup>
+      <SettingsGroup
+        title="Card actions"
+        icon={iconMousePointer}
+        hint="Shown on a hovered card when they apply to its file. Only Open stays while selecting."
+      >
+        <div className="settings-group__checks settings-group__checks--columns">
+          {CARD_ACTION_IDS.map((action) => (
+            <SettingsCheckbox
+              key={action}
+              label={CARD_ACTIONS[action].label}
+              checked={value.cardActions.includes(action)}
+              disabled={disabled}
+              onChange={(on) =>
+                change({ cardActions: withCardAction(value.cardActions, action, on) })
+              }
+            />
+          ))}
         </div>
       </SettingsGroup>
       <SettingsGroup title="List" icon={iconRows3}>

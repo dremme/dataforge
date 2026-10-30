@@ -24,7 +24,7 @@ import {
 import { useHoverVideoPreview } from "@/features/gallery/hooks/useHoverVideoPreview";
 import { useWrappedCount } from "@/features/gallery/hooks/useWrappedCount";
 import { selectionIntentFor } from "@/features/gallery/lib/selectionIntent";
-import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
+import type { GalleryCardAction, GalleryDisplayMode, GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { formatDurationSeconds, formatMegapixels } from "@/shared/lib/format";
 import { CardBadge } from "./CardBadge";
@@ -51,9 +51,10 @@ interface GalleryCardProps {
   selected?: boolean;
   onToggleSelect?: (path: string) => void;
   onExtendSelect?: (path: string) => void;
-  /** Quick actions over the media; both must be stable, since the card is memoized. */
+  /** Must keep its identity, as both callbacks below must: the card is memoized. */
+  cardActions?: readonly GalleryCardAction[];
   onCopyCaptionFailed?: () => void;
-  onDelete?: (path: string) => void;
+  onAction?: (action: GalleryCardAction, item: GalleryItem) => void;
 }
 
 export const GalleryCard = memo(function GalleryCard({
@@ -71,8 +72,9 @@ export const GalleryCard = memo(function GalleryCard({
   selected = false,
   onToggleSelect,
   onExtendSelect,
+  cardActions = DEFAULT_CARD_OPTIONS.cardActions,
   onCopyCaptionFailed,
-  onDelete,
+  onAction,
 }: GalleryCardProps) {
   const captionDisplay = getCardCaptionDisplay(item);
   const statusIcon = captionDisplay?.variant === "warning" ? iconTriangleAlert : iconMessageDashed;
@@ -245,14 +247,13 @@ export const GalleryCard = memo(function GalleryCard({
         </button>
       </Tooltip>
       <GalleryCardActions
-        name={item.name}
-        path={item.path}
-        caption={item.description}
+        item={item}
         displayMode={displayMode}
         selectionMode={selectionMode}
+        cardActions={cardActions}
         onOpen={onSelect}
         onCopyCaptionFailed={onCopyCaptionFailed}
-        onDelete={onDelete}
+        onAction={onAction}
       />
     </div>
   );

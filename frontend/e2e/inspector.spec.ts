@@ -223,6 +223,46 @@ test("retains an unsuccessful caption draft until it is explicitly discarded", a
   await expect(page.getByRole("complementary", { name: "Viewing clip.mp4" })).toBeVisible();
 });
 
+test("a card's Rename waits for the inspected file's unsaved caption", async ({ page }) => {
+  await page.route("**/api/preferences/ui", async (route) => {
+    const response = await route.fetch();
+    const settings = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...settings,
+        gallery_cards: { ...settings.gallery_cards, card_actions: ["rename_file"] },
+      },
+    });
+  });
+  await openWorkspace(page);
+  const card = page.getByRole("button", { name: "View photo.png", exact: true });
+  await card.click();
+  const inspector = page.getByRole("complementary", { name: "Viewing photo.png" });
+  await page.route("**/api/caption?**", async (route) => {
+    if (route.request().method() === "PUT")
+      await route.fulfill({ status: 500, json: { detail: "Write failed" } });
+    else await route.continue();
+  });
+  await inspector
+    .getByRole("textbox", { name: "Caption for photo.png" })
+    .fill("Unsaved caption for a lake");
+
+  await card.hover();
+  await page
+    .getByRole("toolbar", { name: "Actions for photo.png" })
+    .getByRole("button", { name: "Rename file" })
+    .click();
+
+  await expect(inspector.getByRole("alert")).toContainText("The caption could not be saved");
+  const rename = page.getByRole("dialog", { name: "Rename file" });
+  await expect(rename).toBeHidden();
+
+  await inspector.getByRole("button", { name: "Discard and continue" }).click();
+  await expect(rename).toBeVisible();
+  await rename.getByRole("button", { name: "Cancel" }).click();
+});
+
 for (const theme of ["dark", "light"]) {
   for (const width of [1920, 1440, 1024, 768]) {
     test(`${theme} caption inspector at ${width}px`, async ({ page }, testInfo) => {

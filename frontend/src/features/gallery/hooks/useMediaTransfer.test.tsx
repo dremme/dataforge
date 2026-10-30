@@ -29,6 +29,36 @@ function renderTransfer() {
   return { ...hook, onMoved, onCopied };
 }
 
+describe("useMediaTransfer picker", () => {
+  function renderWithoutPaths() {
+    return renderHook(
+      () =>
+        useMediaTransfer({
+          paths: [],
+          onMoved: vi.fn<(paths: string[]) => void>(),
+          onCopied: vi.fn<() => void>(),
+        }),
+      { wrapper: AppProviders },
+    );
+  }
+
+  it("stays closed with nothing to transfer", () => {
+    const { result } = renderWithoutPaths();
+
+    act(() => result.current.openTransferPicker("move"));
+
+    expect(result.current.transferPicker).toBeNull();
+  });
+
+  it("opens for paths the options have not caught up with yet", () => {
+    const { result } = renderWithoutPaths();
+
+    act(() => result.current.openTransferPicker("move", [SOURCE]));
+
+    expect(result.current.transferPicker).toBe("move");
+  });
+});
+
 describe("useMediaTransfer undo", () => {
   beforeEach(() => {
     previewMock.mockReset();

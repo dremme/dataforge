@@ -5,6 +5,7 @@ import {
   IMAGE_EDIT_EXTENSIONS,
   VIDEO_EDIT_EXTENSIONS,
   VIDEO_EXTENSIONS,
+  VIDEO_PROJECT_VIDEO_EXTENSIONS,
 } from "@/shared/constants";
 import type { GalleryItem } from "@/shared/types";
 
@@ -13,6 +14,7 @@ const AUDIO_EXTENSION_SET = new Set<string>(AUDIO_EXTENSIONS);
 const AUDIO_EDIT_EXTENSION_SET = new Set<string>(AUDIO_EDIT_EXTENSIONS);
 const VIDEO_EDIT_EXTENSION_SET = new Set<string>(VIDEO_EDIT_EXTENSIONS);
 const IMAGE_EDIT_EXTENSION_SET = new Set<string>(IMAGE_EDIT_EXTENSIONS);
+const VIDEO_PROJECT_EXTENSION_SET = new Set<string>(VIDEO_PROJECT_VIDEO_EXTENSIONS);
 
 function extensionOfName(name: string): string | null {
   const dot = name.lastIndexOf(".");
@@ -68,6 +70,14 @@ export function isEditableVideo(item: GalleryItem): boolean {
 
   const extension = extensionOf(item);
   return extension !== null && VIDEO_EDIT_EXTENSION_SET.has(extension);
+}
+
+/** What a video editor project can place as a clip. */
+export function isVideoProjectVideo(item: GalleryItem): boolean {
+  if (!isVideo(item)) return false;
+
+  const extension = extensionOf(item);
+  return extension !== null && VIDEO_PROJECT_EXTENSION_SET.has(extension);
 }
 
 export function isEditableAudio(item: GalleryItem): boolean {

@@ -312,6 +312,9 @@ MAX_RESIZE_MULTIPLE = 256
 #: The gallery order until the user picks one: the newest files are the ones being worked on.
 DEFAULT_GALLERY_SORT: Final = "date-desc"
 
+#: The card actions shown until the user picks others.
+DEFAULT_GALLERY_CARD_ACTIONS: Final = ("open", "copy_caption", "delete")
+
 #: Emitted into ``frontend/src/shared/constants.ts``. Sets are sorted; sequences keep walk order.
 SHARED_CONSTANTS: dict[str, object] = {
     "IMPORT_EXTENSIONS": sorted(IMPORT_EXTENSIONS),
@@ -362,6 +365,7 @@ SHARED_CONSTANTS: dict[str, object] = {
     "ADJUST_PREVIEW_LUT_SIZE": ADJUST_PREVIEW_LUT_SIZE,
     "AUTO_ADJUST_DEFAULT_AMOUNT": AUTO_ADJUST_DEFAULT_AMOUNT,
     "DEFAULT_GALLERY_SORT": DEFAULT_GALLERY_SORT,
+    "DEFAULT_GALLERY_CARD_ACTIONS": list(DEFAULT_GALLERY_CARD_ACTIONS),
     "MEGAPIXEL": MEGAPIXEL,
     "MAX_RESIZE_MEGAPIXELS": MAX_RESIZE_MEGAPIXELS,
     "MAX_RESIZE_MULTIPLE": MAX_RESIZE_MULTIPLE,

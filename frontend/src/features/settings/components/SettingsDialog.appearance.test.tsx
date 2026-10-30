@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installMockBackend } from "@/test/mockBackend";
@@ -92,8 +92,42 @@ describe("SettingsDialog: appearance", () => {
         large_aspect_ratio: false,
         large_tags: false,
         list_caption_preview: true,
+        card_actions: ["open", "copy_caption", "delete"],
       },
     });
+  });
+
+  it("saves the card actions a card shows, in catalog order", async () => {
+    const { onClose, user } = await openAppearance();
+
+    await user.click(screen.getByRole("tab", { name: "Gallery" }));
+    const group = within(screen.getByRole("region", { name: "Card actions" }));
+    expect(group.getByRole("checkbox", { name: "Open" })).toBeChecked();
+    expect(group.getByRole("checkbox", { name: "Rename file" })).not.toBeChecked();
+    await user.click(group.getByRole("checkbox", { name: "Rename file" }));
+    await user.click(group.getByRole("checkbox", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(requests("/api/preferences/ui", "PUT")).toHaveLength(1));
+    const [[, init]] = requests("/api/preferences/ui", "PUT");
+    expect(JSON.parse(init?.body as string).gallery_cards.card_actions).toEqual([
+      "open",
+      "copy_caption",
+      "rename_file",
+    ]);
+  });
+
+  it("does not count card actions put back as they were", async () => {
+    const { user } = await openAppearance();
+
+    await user.click(screen.getByRole("tab", { name: "Gallery" }));
+    const delete_ = screen.getByRole("checkbox", { name: "Delete" });
+    await user.click(delete_);
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    await user.click(delete_);
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
   it("does not count gallery options put back as they were", async () => {

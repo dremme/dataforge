@@ -5,7 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { HOME_PATH } from "@/test/fixtures";
-import type { GalleryItem } from "@/shared/types";
+import { CARD_ACTION_IDS } from "@/features/gallery/lib/cardActions";
+import type { GalleryCardAction, GalleryItem } from "@/shared/types";
 import { GalleryCard } from "./GalleryCard";
 
 const captionedItem: GalleryItem = {
@@ -550,22 +551,32 @@ describe("GalleryCard", () => {
     });
   });
 
-  describe("quick actions", () => {
-    const renderWithActions = (item: GalleryItem, selectionMode = false) => {
+  describe("card actions", () => {
+    const renderWithActions = (
+      item: GalleryItem,
+      selectionMode = false,
+      cardActions?: GalleryCardAction[],
+    ) => {
       const onSelect = vi.fn<(path: string) => void>();
       const onCopyCaptionFailed = vi.fn<() => void>();
-      const onDelete = vi.fn<(path: string) => void>();
+      const onAction = vi.fn<(action: GalleryCardAction, item: GalleryItem) => void>();
       render(
         <GalleryCard
           item={item}
           onSelect={onSelect}
           selectionMode={selectionMode}
+          cardActions={cardActions}
           onCopyCaptionFailed={onCopyCaptionFailed}
-          onDelete={onDelete}
+          onAction={onAction}
         />,
       );
-      return { onSelect, onCopyCaptionFailed, onDelete };
+      return { onSelect, onCopyCaptionFailed, onAction };
     };
+
+    const buttonLabels = () =>
+      Array.from(screen.getByRole("toolbar").querySelectorAll("button")).map(
+        (button) => button.ariaLabel,
+      );
 
     it("sits beside the card button, never inside it", () => {
       renderWithActions(captionedItem);
@@ -575,15 +586,33 @@ describe("GalleryCard", () => {
       expect(card).not.toContainElement(toolbar);
     });
 
-    it("opens and deletes with the card's own path", async () => {
+    it("opens with the card's own path and hands its other actions the card's item", async () => {
       const user = userEvent.setup();
-      const { onSelect, onDelete } = renderWithActions(captionedItem);
+      const { onSelect, onAction } = renderWithActions(captionedItem);
 
       await user.click(screen.getByRole("button", { name: "Open" }));
       await user.click(screen.getByRole("button", { name: "Delete" }));
 
       expect(onSelect).toHaveBeenCalledWith(captionedItem.path);
-      expect(onDelete).toHaveBeenCalledWith(captionedItem.path);
+      expect(onAction).toHaveBeenCalledWith("delete", captionedItem);
+    });
+
+    it("shows the saved actions, in catalog order, on the files they apply to", () => {
+      renderWithActions(captionedItem, false, ["delete", "rename_file", "resolve_issue", "open"]);
+
+      expect(buttonLabels()).toEqual(["Open", "Rename file", "Delete"]);
+    });
+
+    it("leaves a card without a bar when none of its actions apply", () => {
+      renderWithActions(uncaptionedItem, false, ["copy_caption"]);
+
+      expect(screen.queryByRole("toolbar")).toBeNull();
+    });
+
+    it("leaves a card without a bar when no action is saved", () => {
+      renderWithActions(captionedItem, false, []);
+
+      expect(screen.queryByRole("toolbar")).toBeNull();
     });
 
     it("turns the copy icon into a green check for a moment after copying", async () => {
@@ -627,13 +656,16 @@ describe("GalleryCard", () => {
       expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
     });
 
-    it("keeps only Open while selecting, since the card click toggles selection", () => {
-      renderWithActions(captionedItem, true);
+    it("keeps only Open while selecting, whatever is saved", () => {
+      renderWithActions(captionedItem, true, CARD_ACTION_IDS);
 
-      const toolbar = screen.getByRole("toolbar");
-      expect(
-        Array.from(toolbar.querySelectorAll("button")).map((button) => button.ariaLabel),
-      ).toEqual(["Open"]);
+      expect(buttonLabels()).toEqual(["Open"]);
+    });
+
+    it("keeps Open while selecting even when it is not among the saved actions", () => {
+      renderWithActions(captionedItem, true, []);
+
+      expect(buttonLabels()).toEqual(["Open"]);
     });
 
     it("is one tab stop, with arrows moving between its buttons", async () => {

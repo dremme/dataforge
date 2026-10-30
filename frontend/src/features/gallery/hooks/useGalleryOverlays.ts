@@ -5,6 +5,11 @@ import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
 import { readStored, writeStored } from "@/shared/lib/storage";
 import { useChanged } from "@/shared/hooks/useChanged";
 
+export type GalleryItemOpenMode = "edit" | "frame";
+
+/** A new object per request, so asking again for the same mode is seen as a new request. */
+export type GalleryItemOpenIntent = { mode: GalleryItemOpenMode };
+
 type UseGalleryOverlaysArgs = {
   images: GalleryItem[];
   filteredItems: GalleryItem[];
@@ -28,6 +33,7 @@ export function useGalleryOverlays({
   }, []);
   // Editing or capture expands a docked view for its duration without saving that layout.
   const [editExpanded, setEditExpanded] = useState(false);
+  const [openIntent, setOpenIntent] = useState<GalleryItemOpenIntent | null>(null);
 
   const {
     selectedPath,
@@ -47,9 +53,10 @@ export function useGalleryOverlays({
   }
 
   const openGalleryItem = useCallback(
-    (path: string) => {
+    (path: string, mode?: GalleryItemOpenMode) => {
       const open = () => {
         setInstructionsOpen(false);
+        setOpenIntent(mode ? { mode } : null);
         openGalleryItemBase(path);
       };
       if (requestTransition) void requestTransition(open);
@@ -72,6 +79,7 @@ export function useGalleryOverlays({
     selectedPath,
     selectedIndex,
     dialogItems,
+    openIntent,
     openGalleryItem,
     closeGalleryItem,
     goToPrevious,

@@ -70,9 +70,10 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
     setTransferring(null);
   }, []);
 
+  /** `paths` is for a caller changing them in this same tick, before optionsRef catches up. */
   const openTransferPicker = useCallback(
-    (mode: MediaTransferMode) => {
-      if (transferringRef.current || optionsRef.current.paths.length === 0) return;
+    (mode: MediaTransferMode, paths: readonly string[] = optionsRef.current.paths) => {
+      if (transferringRef.current || paths.length === 0) return;
       setTransferPicker(mode);
     },
     [optionsRef],

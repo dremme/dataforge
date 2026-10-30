@@ -1,5 +1,6 @@
 import type { InstructionKind } from "@/shared/api/folderInstructions";
 import type { AutomationDialogsState } from "@/features/automation/types";
+import type { GalleryItemOpenIntent } from "@/features/gallery/hooks/useGalleryOverlays";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { SelectionActionOverlaysProps } from "@/features/gallery/components/SelectionActionOverlays";
 import type { SidecarSweepDialogProps } from "@/features/gallery/components/SidecarSweepDialog";
@@ -25,6 +26,7 @@ type GalleryOverlayState = {
   selectedPath: string | null;
   selectedIndex: number;
   dialogItems: GalleryItem[];
+  openIntent: GalleryItemOpenIntent | null;
   searchQuery: string;
   searchRegex: boolean;
   hasCaptionBackup: boolean;
@@ -111,6 +113,14 @@ type CreateFolderOverlayState = {
   onCancel: () => void;
 };
 
+type RenameFileOverlayState = {
+  fileName: string;
+  busy: boolean;
+  error: string | null;
+  onConfirm: (name: string) => Promise<void>;
+  onCancel: () => void;
+};
+
 type SettingsOverlayState = {
   open: boolean;
   onClose: () => void;
@@ -127,6 +137,7 @@ export type AppOverlaysProps = {
   onOpenFolder: (path?: string) => void;
   quickAction: QuickActionOverlayState;
   selectionActions: SelectionActionOverlaysProps;
+  renameFile: RenameFileOverlayState | null;
   sidecarSweep: SidecarSweepDialogProps;
   settleAllCandidates: SettleAllCandidatesDialogProps;
   onCaptionSaved: CaptionSavedHandler;

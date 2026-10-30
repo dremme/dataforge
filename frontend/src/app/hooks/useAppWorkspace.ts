@@ -384,6 +384,7 @@ export function useAppWorkspace() {
   return {
     mainRef,
     transitionRef,
+    requestTransition,
     folder,
     showFolderUnderEditor,
     loading,

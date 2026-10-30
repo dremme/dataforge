@@ -222,6 +222,8 @@
 
   &--large {
     height: var(--card-media-h);
+    // A wrapped bar on a panorama hangs over the card body rather than past the card's top.
+    min-height: fit-content;
   }
 
   &--small {
@@ -230,10 +232,13 @@
 
   &__bar {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: var(--space-0_5);
     padding: var(--space-0_5);
     border: 1px solid var(--media-scrim-border);
-    border-radius: var(--radius-pill);
+    // Reads as a pill on one row, and keeps its corners when the actions wrap.
+    border-radius: var(--radius-lg);
     background: var(--media-scrim);
     backdrop-filter: blur(6px);
     box-shadow: var(--elevation-2);

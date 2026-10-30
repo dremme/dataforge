@@ -14,7 +14,7 @@ A dataset is a folder: `scene.jpg` uses `scene.txt` beside it. DataForge reads a
 - **View** as large cards, small cards, or a list. Each folder remembers its view.
 - The **captioned** and **issue** counts in the toolbar filter to those files; click again to clear.
 
-Cards mark missing, empty, and unreadable captions, and show badges for findings, ComfyUI candidates, and edits. The **statistics** drawer covers the whole folder, ignoring filters: caption coverage and lengths, frequent words and tags, issues, duplicates, formats, durations, megapixels, aspect ratios, and files whose size or length could not be read.
+Cards mark missing, empty, and unreadable captions, and show badges for findings, ComfyUI candidates, and edits. Hovering a card shows its actions: Open, Copy caption, and Delete by default. **Settings > Appearance > Gallery** adds others from the inspector, such as Edit, Move file, or Rename file. The **statistics** drawer covers the whole folder, ignoring filters: caption coverage and lengths, frequent words and tags, issues, duplicates, formats, durations, megapixels, aspect ratios, and files whose size or length could not be read.
 
 ### Layout
 

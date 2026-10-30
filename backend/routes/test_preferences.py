@@ -118,6 +118,7 @@ class UiPreferencesEndpointTests(unittest.TestCase):
                 "large_aspect_ratio": True,
                 "large_tags": True,
                 "list_caption_preview": False,
+                "card_actions": ["open", "copy_caption", "delete"],
             },
         )
 
@@ -129,11 +130,31 @@ class UiPreferencesEndpointTests(unittest.TestCase):
             "large_aspect_ratio": False,
             "large_tags": False,
             "list_caption_preview": True,
+            "card_actions": ["open", "rename_file"],
         }
 
         client.put("/api/preferences/ui", json={"gallery_cards": cards})
 
         self.assertEqual(client.get("/api/preferences/ui").json()["gallery_cards"], cards)
+
+    def test_an_empty_card_action_list_stays_empty(self) -> None:
+        client.put("/api/preferences/ui", json={"gallery_cards": {"card_actions": []}})
+
+        read_back = client.get("/api/preferences/ui").json()["gallery_cards"]
+        self.assertEqual(read_back["card_actions"], [])
+
+    def test_gallery_cards_saved_without_card_actions_get_the_default(self) -> None:
+        client.put("/api/preferences/ui", json={"gallery_cards": {"megapixels": False}})
+
+        read_back = client.get("/api/preferences/ui").json()["gallery_cards"]
+        self.assertEqual(read_back["card_actions"], ["open", "copy_caption", "delete"])
+
+    def test_an_unknown_card_action_is_refused(self) -> None:
+        response = client.put(
+            "/api/preferences/ui", json={"gallery_cards": {"card_actions": ["launch"]}}
+        )
+
+        self.assertEqual(response.status_code, 422)
 
     def test_editor_defaults_to_wrapped_numbered_lines_with_spelling_and_suggestions(
         self,

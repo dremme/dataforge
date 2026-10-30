@@ -21,12 +21,7 @@ import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { matchesShortcut, queueIndexAfter, queueStepFor, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
-import {
-  deleteMedia,
-  openMediaInViewer,
-  renameMedia,
-  type MediaTransferMode,
-} from "@/features/gallery/api/media";
+import { deleteMedia, openMediaInViewer, renameMedia } from "@/features/gallery/api/media";
 import {
   galleryItemMediaUrl,
   galleryItemWaveformUrl,
@@ -60,11 +55,12 @@ import {
   iconChevronRight,
   iconClapperboard,
   iconCopy,
+  iconCopyPlus,
   iconFileDiff,
   iconFiles,
   iconFolderInput,
   iconLoader2,
-  iconMessageCheck,
+  iconMessageWarning,
   iconScanSquare,
   iconSquarePen,
   iconTrash2,
@@ -77,7 +73,6 @@ import {
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import { isUncaptionedItem, nextIndexWhere } from "@/features/gallery/lib/reviewJump";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
-import { splitFileName } from "@/features/gallery/lib/fileName";
 import { isDuplicateItem } from "@/features/gallery/lib/duplicates";
 import {
   isAudio,
@@ -87,13 +82,18 @@ import {
   isGif,
   isMotion,
   isVideo,
+  isVideoProjectVideo,
   mediaLabelFor,
 } from "@/features/gallery/lib/itemKind";
 import type { AdjustedPicture } from "@/features/gallery/lib/adjustedPicture";
 import type { FrameCapture } from "@/features/gallery/lib/frameCapture";
 import { formatFrameOrdinal } from "@/features/gallery/lib/gifFrameCapture";
 import { formatFrameTime, FRAME_STEP_SECONDS } from "@/features/gallery/lib/videoFrameCapture";
-import { pathBaseName } from "@/features/gallery/lib/mediaActionMessages";
+import {
+  singleFileCopySuccessMessage,
+  singleFileEmptyPreviewMessage,
+} from "@/features/gallery/lib/mediaActionMessages";
+import type { GalleryItemOpenIntent } from "@/features/gallery/hooks/useGalleryOverlays";
 import {
   collectAdjacentDialogMediaTargets,
   schedulePrefetchDialogMedia,
@@ -105,9 +105,9 @@ import { buildCaptionVocabulary } from "@/features/gallery/lib/captionVocabulary
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { CaptionWordDiff } from "@/shared/ui/CaptionWordDiff";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { RenameDialog } from "@/shared/ui/RenameDialog";
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
 import { CaptionSaveStatus } from "./CaptionSaveStatus";
+import { FileRenameDialog } from "./FileRenameDialog";
 import { MediaInfoBar } from "./MediaInfoBar";
 import { MediaTagList } from "./MediaTagList";
 import { Icon } from "@/shared/ui/Icon";
@@ -132,15 +132,9 @@ import { canTranscodeAway } from "@/shared/lib/mediaProblems";
 import { MediaProblemNotice } from "@/shared/ui/MediaProblemNotice";
 import { evenTrunc } from "@/features/gallery/lib/videoEdit";
 import { useVideoEditorLauncher } from "@/features/videoEditor/context/VideoEditorContext";
-import { VIDEO_PROJECT_VIDEO_EXTENSIONS } from "@/shared/constants";
 import { useChanged } from "@/shared/hooks/useChanged";
 
 const noop = () => {};
-
-function hasExtension(name: string, extensions: readonly string[]): boolean {
-  const dot = name.lastIndexOf(".");
-  return dot >= 0 && extensions.includes(name.slice(dot).toLowerCase());
-}
 
 type ReviewJump = "uncaptioned" | "issue";
 
@@ -157,6 +151,8 @@ const OUTSIDE_ARROW_OWNERS =
 interface GalleryItemDialogProps {
   items: GalleryItem[];
   index: number;
+  /** A card asked for this item in a mode; each new object enters it once. */
+  openIntent?: GalleryItemOpenIntent | null;
   searchQuery?: string;
   searchRegex?: boolean;
   /** Whether this folder has a caption backup at all; gates the per-file restore. */
@@ -195,6 +191,7 @@ const AUDIO_TRACK_WAVEFORM_HEIGHT = 64;
 export function GalleryItemDialog({
   items,
   index,
+  openIntent = null,
   searchQuery = "",
   searchRegex = false,
   hasCaptionBackup = false,
@@ -257,10 +254,10 @@ export function GalleryItemDialog({
   const showingBackupDiff = comparedBackup !== null;
   const [viewerError, setViewerError] = useState<string | null>(null);
   // Owned here so next/prev keeps capture across videos and GIFs; per-hook flags dropped it.
-  const [frameMode, setFrameMode] = useState(false);
+  const [frameMode, setFrameMode] = useState(openIntent?.mode === "frame");
   // Mutually exclusive with frameMode: one `<video>` cannot serve a scrubber and a timeline.
   // One flag for both editors; which one it turns on follows from the item.
-  const [editMode, setEditMode] = useState(false);
+  const [editMode, setEditMode] = useState(openIntent?.mode === "edit");
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
   const [comfyWorkflowOpen, setComfyWorkflowOpen] = useState(false);
   const [inspectorWidth, setInspectorWidth] = useState(() => {
@@ -277,23 +274,12 @@ export function GalleryItemDialog({
 
   const transferPaths = useMemo(() => (item ? [item.path] : []), [item]);
 
-  const emptyPreviewMessage = useCallback((mode: MediaTransferMode, paths: string[]) => {
-    const verb = mode === "move" ? "moved" : "copied";
-    return `${pathBaseName(paths[0])} cannot be ${verb} to that folder.`;
-  }, []);
-
-  const copySuccessMessage = useCallback(
-    (succeeded: string[], destinationLabel: string) =>
-      `Copied ${pathBaseName(succeeded[0])} to ${destinationLabel}.`,
-    [],
-  );
-
   const transfer = useMediaTransfer({
     paths: transferPaths,
     onMoved: onMoved ?? noop,
     onCopied: onCopied ?? noop,
-    emptyPreviewMessage,
-    copySuccessMessage,
+    emptyPreviewMessage: singleFileEmptyPreviewMessage,
+    copySuccessMessage: singleFileCopySuccessMessage,
   });
 
   const itemIsGif = item ? isGif(item) : false;
@@ -459,6 +445,12 @@ export function GalleryItemDialog({
     setViewerError(null);
     setComfyWorkflowOpen(false);
     setComparingBackup(false);
+  }
+
+  // The initial states cover a dialog this intent mounted; this one was already open.
+  if (useChanged(openIntent) && openIntent) {
+    setFrameMode(openIntent.mode === "frame");
+    setEditMode(openIntent.mode === "edit");
   }
 
   // Drop sticky capture on a still or missing destination so the bar needs no scrubber.
@@ -658,9 +650,7 @@ export function GalleryItemDialog({
   // Derived above the early return so the hooks below are not called conditionally.
   const canEditVideoItem = item ? isEditableVideo(item) : false;
   const videoEditor = useVideoEditorLauncher();
-  const canOpenInVideoEditor = Boolean(
-    videoEditor && item && isVideo(item) && hasExtension(item.name, VIDEO_PROJECT_VIDEO_EXTENSIONS),
-  );
+  const canOpenInVideoEditor = Boolean(videoEditor && item && isVideoProjectVideo(item));
   const canEditImageItem = item ? isEditableImage(item) : false;
   const canEditAudioItem = item ? isEditableAudio(item) : false;
   const editing = editMode && (canEditVideoItem || canEditImageItem || canEditAudioItem);
@@ -858,7 +848,6 @@ export function GalleryItemDialog({
   );
 
   const mediaLabel = mediaLabelFor(item);
-  const nameParts = splitFileName(item.name);
   const resolution = getResolution(item);
   const captionDisplay = getGalleryItemCaptionDisplay(item, mediaLabel);
   const copyContent = caption;
@@ -1092,7 +1081,7 @@ export function GalleryItemDialog({
                     aria-label={`Copy ${item.name} to another folder`}
                   >
                     <Icon
-                      icon={transferring === "copy" ? iconLoader2 : iconCopy}
+                      icon={transferring === "copy" ? iconLoader2 : iconCopyPlus}
                       spin={transferring === "copy"}
                     />
                   </button>
@@ -1495,7 +1484,7 @@ export function GalleryItemDialog({
                         aria-label={`Resolve caption issue for ${item.name}`}
                       >
                         <Icon
-                          icon={iconMessageCheck}
+                          icon={iconMessageWarning}
                           className="gallery-item-dialog__caption-action-icon"
                         />
                         Resolve issue
@@ -1710,22 +1699,8 @@ export function GalleryItemDialog({
       )}
 
       {renameOpen && (
-        <RenameDialog
-          title="Rename file"
-          description={
-            <span>
-              Renames <strong>{item.name}</strong> together with its captions and other related
-              files.
-              {nameParts.extension && (
-                <>
-                  {" "}
-                  The extension <strong>{nameParts.extension}</strong> stays.
-                </>
-              )}
-            </span>
-          }
-          fieldLabel="File name"
-          initialName={nameParts.stem}
+        <FileRenameDialog
+          fileName={item.name}
           busy={renaming}
           suspended={renameDiscard.confirming}
           error={renameError}

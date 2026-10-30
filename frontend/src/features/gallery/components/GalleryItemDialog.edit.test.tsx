@@ -72,8 +72,8 @@ describe("GalleryItemDialog", () => {
       restoreVideo = undefined;
     });
 
-    function renderDialog(item: GalleryItem, overrides: Record<string, unknown> = {}) {
-      const props = {
+    function dialogProps(item: GalleryItem, overrides: Record<string, unknown> = {}) {
+      return {
         items: [item],
         index: 0,
         currentFolder: HOME_PATH,
@@ -84,7 +84,10 @@ describe("GalleryItemDialog", () => {
         onCopied: vi.fn<() => void | Promise<void>>(),
         ...overrides,
       };
+    }
 
+    function renderDialog(item: GalleryItem, overrides: Record<string, unknown> = {}) {
+      const props = dialogProps(item, overrides);
       renderWithProviders(<GalleryItemDialog {...props} />);
       return props;
     }
@@ -122,6 +125,62 @@ describe("GalleryItemDialog", () => {
       fireEvent.loadedMetadata(dialog.querySelector("video")!);
       return dialog;
     }
+
+    describe("opened by a card in a mode", () => {
+      const EXIT_EDIT = "Exit video editing for clip.mp4";
+
+      it("starts editing", async () => {
+        renderDialog(videoItem(), { openIntent: { mode: "edit" } });
+
+        const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+        expect(within(dialog).getByRole("button", { name: EXIT_EDIT })).toBeInTheDocument();
+      });
+
+      it("starts capturing a frame", async () => {
+        renderDialog(videoItem(), { openIntent: { mode: "frame" } });
+
+        const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+        expect(
+          within(dialog).getByRole("button", { name: /^Exit frame capture/ }),
+        ).toBeInTheDocument();
+      });
+
+      it("drops a mode the file cannot take", async () => {
+        const item = makeItem("photo.png", { media_type: "image" });
+        renderDialog(item, { openIntent: { mode: "frame" } });
+
+        const dialog = await screen.findByRole("dialog", { name: "Viewing photo.png" });
+        expect(within(dialog).queryByRole("button", { name: /^Exit frame capture/ })).toBeNull();
+      });
+
+      it("takes a new request on an open dialog, and the same one after leaving it", async () => {
+        const user = userEvent.setup();
+        const props = dialogProps(videoItem());
+        const { rerender } = renderWithProviders(<GalleryItemDialog {...props} />);
+        const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+
+        rerender(<GalleryItemDialog {...props} openIntent={{ mode: "edit" }} />);
+        await user.click(await within(dialog).findByRole("button", { name: EXIT_EDIT }));
+        expect(within(dialog).queryByRole("button", { name: EXIT_EDIT })).toBeNull();
+
+        rerender(<GalleryItemDialog {...props} openIntent={{ mode: "edit" }} />);
+
+        expect(await within(dialog).findByRole("button", { name: EXIT_EDIT })).toBeInTheDocument();
+      });
+
+      it("stays out of the mode once left, whatever else re-renders", async () => {
+        const user = userEvent.setup();
+        const openIntent = { mode: "edit" };
+        const props = dialogProps(videoItem(), { openIntent });
+        const { rerender } = renderWithProviders(<GalleryItemDialog {...props} />);
+        const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+
+        await user.click(within(dialog).getByRole("button", { name: EXIT_EDIT }));
+        rerender(<GalleryItemDialog {...props} searchQuery="lake" />);
+
+        expect(within(dialog).queryByRole("button", { name: EXIT_EDIT })).toBeNull();
+      });
+    });
 
     it("offers the toggle for an editable video", async () => {
       renderDialog(videoItem());

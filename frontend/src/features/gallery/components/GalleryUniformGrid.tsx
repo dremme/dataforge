@@ -9,7 +9,7 @@ import { useGalleryListColumns } from "@/features/gallery/hooks/useGalleryListCo
 import { useGalleryScrollMargin } from "@/features/gallery/hooks/useGalleryScrollMargin";
 import { useInspectedCardAnchor } from "@/features/gallery/hooks/useInspectedCardAnchor";
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
-import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
+import type { GalleryCardAction, GalleryDisplayMode, GalleryItem } from "@/shared/types";
 import { GalleryBackToTop } from "./GalleryBackToTop";
 import { GalleryCard } from "./GalleryCard";
 import { GalleryListRow } from "./GalleryListRow";
@@ -24,6 +24,8 @@ interface GalleryUniformGridProps {
   showMegapixels: boolean;
   /** List rows only. */
   captionPreview: boolean;
+  /** Small cards only. */
+  cardActions: readonly GalleryCardAction[];
 }
 
 function estimateRowSize(
@@ -43,6 +45,7 @@ export function GalleryUniformGrid({
   captionLines,
   showMegapixels,
   captionPreview,
+  cardActions,
 }: GalleryUniformGridProps) {
   const {
     selectionMode,
@@ -50,7 +53,8 @@ export function GalleryUniformGrid({
     toggleSelectedPath,
     extendSelectionTo,
     inspectedPath,
-    actions: { notifyCopyCaptionFailed, openDeleteConfirmFor },
+    runCardAction,
+    actions: { notifyCopyCaptionFailed },
   } = useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
   const layout = galleryLayoutFor(displayMode);
@@ -151,8 +155,9 @@ export function GalleryUniformGrid({
                       selected={selectedPaths.has(item.path)}
                       onToggleSelect={toggleSelectedPath}
                       onExtendSelect={extendSelectionTo}
+                      cardActions={cardActions}
                       onCopyCaptionFailed={notifyCopyCaptionFailed}
-                      onDelete={openDeleteConfirmFor}
+                      onAction={runCardAction}
                     />
                   ),
                 )}

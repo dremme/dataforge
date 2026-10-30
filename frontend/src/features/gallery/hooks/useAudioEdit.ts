@@ -21,6 +21,7 @@ import {
   toAudioEditSpec,
   type AudioEditDraft,
 } from "@/features/gallery/lib/audioEdit";
+import { isEditableAudio } from "@/features/gallery/lib/itemKind";
 import { snapTrimEnd, snapTrimStart, trimForLength } from "@/features/gallery/lib/videoEdit";
 import { useVideoPreviewPlayback } from "@/features/gallery/hooks/useVideoPreviewPlayback";
 import { formatFrameTime, hasUsableDuration } from "@/features/gallery/lib/videoFrameCapture";
@@ -199,15 +200,16 @@ export function useAudioEdit(options: UseAudioEditOptions): AudioEdit {
   );
 
   // The spec and the original's length come from the server; the element fills in a length it
-  // could not read.
+  // could not read. Every item runs this hook, and the server refuses what is not audio.
+  const audioPath = item && isEditableAudio(item) ? item.path : undefined;
   useEffect(() => {
-    if (!editMode || !path) {
+    if (!editMode || !audioPath) {
       seededPathRef.current = null;
       return;
     }
-    if (seededPathRef.current === path) return;
-    seededPathRef.current = path;
-    const forPath = path;
+    if (seededPathRef.current === audioPath) return;
+    seededPathRef.current = audioPath;
+    const forPath = audioPath;
     void (async () => {
       try {
         const state = await fetchAudioEditState(forPath);
@@ -220,7 +222,7 @@ export function useAudioEdit(options: UseAudioEditOptions): AudioEdit {
       }
       if (mountedRef.current && optionsRef.current.item?.path === forPath) setLoadedPath(forPath);
     })();
-  }, [editMode, optionsRef, path]);
+  }, [audioPath, editMode, optionsRef]);
 
   // Seeded once both the spec and a length are in, whichever arrives last.
   const seededForRef = useRef<string | null>(null);

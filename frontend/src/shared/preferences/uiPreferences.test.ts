@@ -32,6 +32,7 @@ const serverCopy = {
     large_aspect_ratio: false,
     large_tags: false,
     list_caption_preview: false,
+    card_actions: ["open", "rename_file"],
   },
   editor: {
     line_wrap: false,
@@ -77,6 +78,7 @@ describe("useUiSettings", () => {
           largeAspectRatio: false,
           largeTags: false,
           listCaptionPreview: false,
+          cardActions: ["open", "rename_file"],
         },
         editor: {
           lineWrap: false,
@@ -115,6 +117,7 @@ describe("useUiSettings", () => {
       largeAspectRatio: false,
       largeTags: false,
       listCaptionPreview: true,
+      cardActions: ["delete"],
     };
     localStorage.setItem("gallery-card-options", JSON.stringify(cards));
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));

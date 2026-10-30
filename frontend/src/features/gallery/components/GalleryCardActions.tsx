@@ -1,12 +1,14 @@
 import { useRef, useState, type KeyboardEvent } from "react";
+import { CARD_ACTIONS, cardActionsFor } from "@/features/gallery/lib/cardActions";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
-import { iconCheck, iconCopy, iconExpand, iconTrash2, type AppIcon } from "@/shared/icons";
+import { iconCheck, type AppIcon } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
+import type { GalleryCardAction, GalleryItem } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
 interface CardAction {
-  id: string;
+  id: GalleryCardAction;
   label: string;
   icon: AppIcon;
   danger?: boolean;
@@ -15,15 +17,14 @@ interface CardAction {
 }
 
 interface GalleryCardActionsProps {
-  name: string;
-  path: string;
-  caption: string | null | undefined;
+  item: GalleryItem;
   displayMode: "large" | "small";
-  /** Selecting owns the card click, so only Open stays: it is the one way left to the viewer. */
   selectionMode: boolean;
+  cardActions: readonly GalleryCardAction[];
   onOpen: (path: string) => void;
   onCopyCaptionFailed?: () => void;
-  onDelete?: (path: string) => void;
+  /** Everything but Open and Copy caption, which stay hidden without it. */
+  onAction?: (action: GalleryCardAction, item: GalleryItem) => void;
 }
 
 /**
@@ -31,45 +32,43 @@ interface GalleryCardActionsProps {
  * One tab stop for the whole bar; arrows move between its buttons.
  */
 export function GalleryCardActions({
-  name,
-  path,
-  caption,
+  item,
   displayMode,
   selectionMode,
+  cardActions,
   onOpen,
   onCopyCaptionFailed,
-  onDelete,
+  onAction,
 }: GalleryCardActionsProps) {
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [active, setActive] = useState(0);
   const { copyState, copyLabel, copyText } = useCopyFeedback();
 
-  const actions: CardAction[] = [
-    { id: "open", label: "Open", icon: iconExpand, run: () => onOpen(path) },
-  ];
-  if (!selectionMode && caption) {
-    const copied = copyState === "copied";
-    actions.push({
-      id: "copy",
-      label: copied ? copyLabel : "Copy caption",
-      icon: copied ? iconCheck : iconCopy,
-      copied,
-      run: () => {
-        void copyText(caption).then((succeeded) => {
-          if (!succeeded) onCopyCaptionFailed?.();
-        });
-      },
-    });
+  const actions: CardAction[] = [];
+  for (const id of cardActionsFor(item, cardActions, selectionMode)) {
+    const { label, icon, danger } = CARD_ACTIONS[id];
+    if (id === "open") {
+      actions.push({ id, label, icon, run: () => onOpen(item.path) });
+    } else if (id === "copy_caption") {
+      const copied = copyState === "copied";
+      actions.push({
+        id,
+        label: copied ? copyLabel : label,
+        icon: copied ? iconCheck : icon,
+        copied,
+        run: () => {
+          void copyText(item.description ?? "").then((succeeded) => {
+            if (!succeeded) onCopyCaptionFailed?.();
+          });
+        },
+      });
+    } else if (onAction) {
+      actions.push({ id, label, icon, danger, run: () => onAction(id, item) });
+    }
   }
-  if (!selectionMode && onDelete) {
-    actions.push({
-      id: "delete",
-      label: "Delete",
-      icon: iconTrash2,
-      danger: true,
-      run: () => onDelete(path),
-    });
-  }
+
+  if (actions.length === 0) return null;
+
   const current = Math.min(active, actions.length - 1);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -93,7 +92,7 @@ export function GalleryCardActions({
       <div
         className="card-actions__bar"
         role="toolbar"
-        aria-label={`Actions for ${name}`}
+        aria-label={`Actions for ${item.name}`}
         onKeyDown={handleKeyDown}
       >
         {actions.map((action, index) => (

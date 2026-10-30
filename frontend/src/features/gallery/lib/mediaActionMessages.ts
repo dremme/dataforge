@@ -1,7 +1,21 @@
+import type { MediaTransferMode } from "@/features/gallery/api/media";
 import { formatApiError } from "@/shared/api/http";
 
 export function pathBaseName(path: string): string {
   return path.split(/[/\\]/).pop() ?? path;
+}
+
+/** A transfer of one named file, as opposed to the selection's counted ones. */
+export function singleFileEmptyPreviewMessage(mode: MediaTransferMode, paths: string[]): string {
+  const verb = mode === "move" ? "moved" : "copied";
+  return `${pathBaseName(paths[0])} cannot be ${verb} to that folder.`;
+}
+
+export function singleFileCopySuccessMessage(
+  succeeded: string[],
+  destinationLabel: string,
+): string {
+  return `Copied ${pathBaseName(succeeded[0])} to ${destinationLabel}.`;
 }
 
 /** An edit or revert found the file replaced outside DataForge and kept the replacement. */

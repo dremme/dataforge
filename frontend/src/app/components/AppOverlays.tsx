@@ -2,6 +2,7 @@ import { AutomationDialogOverlays } from "@/features/automation/components/Autom
 import { CreateFolderDialog } from "@/features/folder/components/CreateFolderDialog";
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
 import { QuickActionDialog } from "@/features/quickAction/components/QuickActionDialog";
+import { FileRenameDialog } from "@/features/gallery/components/FileRenameDialog";
 import { GalleryItemDialog } from "@/features/gallery/components/GalleryItemDialog";
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import { IssueResolverDialog } from "@/features/gallery/components/IssueResolverDialog";
@@ -26,6 +27,7 @@ export function AppOverlays({
   onOpenFolder,
   quickAction,
   selectionActions,
+  renameFile,
   sidecarSweep,
   settleAllCandidates,
   onCaptionSaved,
@@ -62,6 +64,18 @@ export function AppOverlays({
       />
 
       <SelectionActionOverlays {...selectionActions} />
+
+      {renameFile && (
+        <FileRenameDialog
+          fileName={renameFile.fileName}
+          busy={renameFile.busy}
+          error={renameFile.error}
+          onConfirm={(name) => {
+            void renameFile.onConfirm(name);
+          }}
+          onCancel={renameFile.onCancel}
+        />
+      )}
 
       <SidecarSweepDialog {...sidecarSweep} />
 
@@ -115,6 +129,7 @@ export function AppOverlays({
           transitionRef={gallery.transitionRef}
           items={gallery.dialogItems}
           index={gallery.selectedIndex}
+          openIntent={gallery.openIntent}
           searchQuery={gallery.searchQuery}
           searchRegex={gallery.searchRegex}
           hasCaptionBackup={gallery.hasCaptionBackup}

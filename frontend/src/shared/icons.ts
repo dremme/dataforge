@@ -67,6 +67,7 @@ export {
   Code as iconCode,
   Columns2 as iconColumns2,
   Copy as iconCopy,
+  CopyPlus as iconCopyPlus,
   Cpu as iconCpu,
   Crop as iconCrop,
   Diamond as iconDiamond,

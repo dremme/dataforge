@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
+import type { GalleryCardAction, GalleryItem } from "@/shared/types";
 
 /** GalleryCard must not subscribe: selectedPaths changes identity and re-renders the grid. */
 export interface GallerySelectionValue {
@@ -18,6 +19,7 @@ export interface GallerySelectionValue {
   onDeleted: (paths: string[]) => void | Promise<void>;
   onMoved: (paths: string[]) => void | Promise<void>;
   onCopied: () => void | Promise<void>;
+  runCardAction: (action: GalleryCardAction, item: GalleryItem) => void;
   actions: GallerySelectionActions;
 }
 
@@ -43,6 +45,7 @@ export function GallerySelectionProvider({
     onDeleted,
     onMoved,
     onCopied,
+    runCardAction,
     actions,
   } = value;
 
@@ -63,6 +66,7 @@ export function GallerySelectionProvider({
       onDeleted,
       onMoved,
       onCopied,
+      runCardAction,
       actions,
     }),
     [
@@ -81,6 +85,7 @@ export function GallerySelectionProvider({
       onDeleted,
       onMoved,
       onCopied,
+      runCardAction,
       actions,
     ],
   );

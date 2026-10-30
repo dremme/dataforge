@@ -10,6 +10,8 @@ import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 export interface SelectionActionOverlaysProps {
   currentFolder: string | undefined;
   selectedCount: number;
+  /** The one file a card's own Move or Copy names; null for the selection. */
+  transferPath: string | null;
   transferPicker: MediaTransferMode | null;
   overwritePrompt: MediaTransferPrompt | null;
   transferring: MediaTransferMode | null;
@@ -29,6 +31,7 @@ export interface SelectionActionOverlaysProps {
 export function SelectionActionOverlays({
   currentFolder,
   selectedCount,
+  transferPath,
   transferPicker,
   overwritePrompt,
   transferring,
@@ -74,8 +77,15 @@ export function SelectionActionOverlays({
         <TransferMediaDialog
           mode={transferPicker}
           currentFolder={currentFolder}
-          scope={scope}
-          selectedCount={selectedCount}
+          scope={transferPath ? undefined : scope}
+          selectedCount={transferPath ? 1 : selectedCount}
+          description={
+            transferPath ? (
+              <>
+                Choose a destination for <strong>{pathBaseName(transferPath)}</strong>.
+              </>
+            ) : undefined
+          }
           busy={transferring !== null}
           onClose={onCloseTransferPicker}
           onSelectDestination={(path) => {

@@ -18,7 +18,7 @@ import {
   type PackedMasonryLayout,
 } from "@/features/gallery/lib/packColumnMasonry";
 import { useGalleryItemPrefetch } from "@/features/gallery/lib/visiblePrefetch";
-import type { GalleryItem } from "@/shared/types";
+import type { GalleryCardAction, GalleryItem } from "@/shared/types";
 import { GalleryBackToTop } from "./GalleryBackToTop";
 import { GalleryCard } from "./GalleryCard";
 
@@ -30,6 +30,7 @@ interface GalleryMasonryProps {
   showMegapixels: boolean;
   showAspectRatio: boolean;
   showTags: boolean;
+  cardActions: readonly GalleryCardAction[];
 }
 
 const UNMEASURED: PackedMasonryLayout<GalleryItem> = { cards: [], columnCount: 1, totalHeight: 0 };
@@ -41,6 +42,7 @@ export function GalleryMasonry({
   showMegapixels,
   showAspectRatio,
   showTags,
+  cardActions,
 }: GalleryMasonryProps) {
   const {
     selectionMode,
@@ -48,7 +50,8 @@ export function GalleryMasonry({
     toggleSelectedPath,
     extendSelectionTo,
     inspectedPath,
-    actions: { notifyCopyCaptionFailed, openDeleteConfirmFor },
+    runCardAction,
+    actions: { notifyCopyCaptionFailed },
   } = useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
   const layout = galleryLayoutFor("large");
@@ -124,8 +127,9 @@ export function GalleryMasonry({
               inspected={inspectedPath === card.item.path}
               onToggleSelect={toggleSelectedPath}
               onExtendSelect={extendSelectionTo}
+              cardActions={cardActions}
               onCopyCaptionFailed={notifyCopyCaptionFailed}
-              onDelete={openDeleteConfirmFor}
+              onAction={runCardAction}
             />
           ))}
         </div>
@@ -149,8 +153,9 @@ interface MasonryCardProps {
   inspected: boolean;
   onToggleSelect: (path: string) => void;
   onExtendSelect: (path: string) => void;
+  cardActions: readonly GalleryCardAction[];
   onCopyCaptionFailed: () => void;
-  onDelete: (path: string) => void;
+  onAction: (action: GalleryCardAction, item: GalleryItem) => void;
 }
 
 function MasonryCard({
@@ -167,8 +172,9 @@ function MasonryCard({
   inspected,
   onToggleSelect,
   onExtendSelect,
+  cardActions,
   onCopyCaptionFailed,
-  onDelete,
+  onAction,
 }: MasonryCardProps) {
   const box = largeCardBox(card.item, columnWidth, captionLines, showTags);
 
@@ -200,8 +206,9 @@ function MasonryCard({
         inspected={inspected}
         onToggleSelect={onToggleSelect}
         onExtendSelect={onExtendSelect}
+        cardActions={cardActions}
         onCopyCaptionFailed={onCopyCaptionFailed}
-        onDelete={onDelete}
+        onAction={onAction}
       />
     </div>
   );

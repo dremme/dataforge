@@ -54,9 +54,10 @@ describe("GalleryItemDialog", () => {
   describe("image editing", () => {
     let restoreImage: (() => void) | undefined;
     let restoreVideo: (() => void) | undefined;
+    let fetchMock: ReturnType<typeof installMockBackend>["fetchMock"];
 
     beforeEach(() => {
-      installMockBackend();
+      ({ fetchMock } = installMockBackend());
       restoreImage = stubImageElement({ width: 1920, height: 1080 });
       restoreVideo = stubVideoElement({ duration: 12, width: 1920, height: 1080 });
       fetchStateMock.mockReset().mockResolvedValue({ path: PHOTO, has_backup: false, spec: null });
@@ -101,6 +102,32 @@ describe("GalleryItemDialog", () => {
       fireEvent.load(dialog.querySelector("img")!);
       return dialog;
     }
+
+    describe("the audio editor", () => {
+      const audioStateRequests = () =>
+        fetchMock.mock.calls.filter(([input]) => String(input).startsWith("/api/media/audio-edit"));
+
+      it("asks nothing about an image being edited", async () => {
+        const user = userEvent.setup();
+        renderDialog(imageItem());
+
+        await openEditMode(user);
+
+        await waitFor(() => expect(fetchStateMock).toHaveBeenCalled());
+        expect(audioStateRequests()).toHaveLength(0);
+      });
+
+      it("asks nothing about a video being edited", async () => {
+        const user = userEvent.setup();
+        renderDialog(makeItem("clip.mp4", { media_type: "video" }));
+
+        const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+        await user.click(within(dialog).getByRole("button", { name: "Edit clip.mp4" }));
+
+        await within(dialog).findByRole("button", { name: "Exit video editing for clip.mp4" });
+        expect(audioStateRequests()).toHaveLength(0);
+      });
+    });
 
     describe("the toggle", () => {
       it.each([["sunset.png"], ["sunset.jpg"], ["sunset.jpeg"], ["photo.webp"], ["photo.bmp"]])(

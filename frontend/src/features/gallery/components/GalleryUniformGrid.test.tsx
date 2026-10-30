@@ -20,6 +20,7 @@ function reservedHeight(items: GalleryItem[], captionLines = 2): string | undefi
         captionLines={captionLines}
         showMegapixels
         captionPreview={false}
+        cardActions={[]}
       />,
     ),
   );
