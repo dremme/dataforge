@@ -482,6 +482,7 @@ describe("GallerySelectionControls", () => {
       succeeded: Array.from(selectedPaths),
       skipped: [],
       failed: [],
+      transferred: [],
     });
 
     renderControls({ selectedPaths, onMoved, exitSelectionMode });
@@ -522,6 +523,7 @@ describe("GallerySelectionControls", () => {
       succeeded: Array.from(selectedPaths),
       skipped: [],
       failed: [],
+      transferred: [],
     });
 
     renderControls({ selectedPaths });
@@ -560,6 +562,7 @@ describe("GallerySelectionControls", () => {
       skipped: [],
     });
     transferSelectedMediaMock.mockResolvedValue({
+      transferred: [],
       succeeded: [`${HOME_PATH}\\beach.jpg`],
       skipped: [],
       failed: [
@@ -596,6 +599,7 @@ describe("GallerySelectionControls", () => {
       succeeded: Array.from(selectedPaths),
       skipped: [],
       failed: [],
+      transferred: [],
     });
 
     renderControls({ selectedPaths, onMoved, onCopied, exitSelectionMode });
@@ -640,6 +644,7 @@ describe("GallerySelectionControls", () => {
       succeeded: [],
       skipped: Array.from(selectedPaths),
       failed: [],
+      transferred: [],
     });
 
     renderControls({ selectedPaths });
@@ -677,6 +682,7 @@ describe("GallerySelectionControls", () => {
       succeeded: Array.from(selectedPaths),
       skipped: [],
       failed: [],
+      transferred: [],
     });
 
     renderControls({ selectedPaths });
@@ -714,6 +720,7 @@ describe("GallerySelectionControls", () => {
       skipped: [],
     });
     transferSelectedMediaMock.mockResolvedValue({
+      transferred: [],
       succeeded: [],
       skipped: [],
       failed: [{ path: `${HOME_PATH}\\sunset.png`, error: "destination is read-only" }],
@@ -775,6 +782,7 @@ describe("GallerySelectionControls", () => {
           path: sunset,
           deleted: ["sunset.png"],
           retained: [{ path: caption, message: "The file is in use" }],
+          recycled: [],
         },
       ],
     });
@@ -782,6 +790,7 @@ describe("GallerySelectionControls", () => {
       path: sunset,
       deleted: ["sunset.txt"],
       retained: [],
+      recycled: [],
     });
 
     renderControls({ selectedPaths: new Set([sunset]) }, 1);

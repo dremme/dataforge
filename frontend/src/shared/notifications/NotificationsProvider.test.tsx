@@ -227,6 +227,72 @@ describe("NotificationsProvider", () => {
     expect(screen.getByRole("alert")).not.toHaveClass("notifications__toast--exiting");
   });
 
+  it("keeps a repeat that carries its own action apart, so each Undo undoes its own change", () => {
+    const first = vi.fn<() => void>();
+    const second = vi.fn<() => void>();
+    function UndoButtons() {
+      const notify = useNotify();
+      const undoable = (run: () => void) =>
+        notify({
+          message: "Moved 1 file to Archive.",
+          variant: "success",
+          action: { label: "Undo", run },
+        });
+      return (
+        <>
+          <button type="button" onClick={() => undoable(first)}>
+            First
+          </button>
+          <button type="button" onClick={() => undoable(second)}>
+            Second
+          </button>
+        </>
+      );
+    }
+    renderWithQueryClient(
+      <NotificationsProvider>
+        <UndoButtons />
+      </NotificationsProvider>,
+    );
+
+    act(() => fireEvent.click(screen.getByRole("button", { name: "First" })));
+    act(() => fireEvent.click(screen.getByRole("button", { name: "Second" })));
+
+    const undos = screen.getAllByRole("button", { name: "Undo" });
+    expect(undos).toHaveLength(2);
+    act(() => fireEvent.click(undos[1]));
+    expect(second).toHaveBeenCalledOnce();
+    expect(first).not.toHaveBeenCalled();
+  });
+
+  it("holds a toast for the duration its caller asks for", () => {
+    function LongToast() {
+      const notify = useNotify();
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            notify({ message: "Deleted sunset.png.", variant: "success", durationMs: 9000 })
+          }
+        >
+          Long
+        </button>
+      );
+    }
+    renderWithQueryClient(
+      <NotificationsProvider>
+        <LongToast />
+      </NotificationsProvider>,
+    );
+
+    act(() => fireEvent.click(screen.getByRole("button", { name: "Long" })));
+    act(() => vi.advanceTimersByTime(NOTIFICATION_DURATION_MS.success + 1000));
+
+    expect(
+      screen.getByText("Deleted sunset.png.").closest(".notifications__toast"),
+    ).not.toHaveClass("notifications__toast--exiting");
+  });
+
   it("caps the visible stack so a burst cannot cover the screen", () => {
     const messages = ["First.", "Second.", "Third.", "Fourth."];
 

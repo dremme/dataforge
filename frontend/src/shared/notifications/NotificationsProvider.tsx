@@ -116,14 +116,25 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   );
 
   const pushToast = useCallback(
-    (message: string, variant: NotificationVariant, action?: ToastAction) => {
+    (
+      message: string,
+      variant: NotificationVariant,
+      action?: ToastAction,
+      durationMs = NOTIFICATION_DURATION_MS[variant],
+    ) => {
       // An open panel already lists what arrives, so a toast would only cover the list.
       if (panelOpenRef.current) return;
 
-      const durationMs = NOTIFICATION_DURATION_MS[variant];
-      const existing = toastsRef.current.find(
-        (toast) => !toast.exiting && toast.variant === variant && toast.message === message,
-      );
+      // A toast with an action stands alone: merged, a repeat would run the first one's action.
+      const existing = action
+        ? undefined
+        : toastsRef.current.find(
+            (toast) =>
+              !toast.exiting &&
+              !toast.action &&
+              toast.variant === variant &&
+              toast.message === message,
+          );
 
       if (existing) {
         applyToasts(
@@ -149,11 +160,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   );
 
   const notify = useCallback(
-    ({ message, variant, action }: NotifyOptions) => {
+    ({ message, variant, action, durationMs }: NotifyOptions) => {
       const trimmed = message.trim();
       if (!trimmed) return;
 
-      pushToast(trimmed, variant, action);
+      pushToast(trimmed, variant, action, durationMs);
 
       // The toast must outlive a failed POST: most danger toasts report the backend being down.
       void postNotification(trimmed, variant)

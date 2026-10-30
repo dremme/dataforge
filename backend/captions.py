@@ -25,7 +25,7 @@ from constants import (
     MAX_ISSUE_FIXES,
     MAX_RULE_FINDINGS,
 )
-from file_write import write_text_atomic
+from file_write import write_bytes_atomic, write_text_atomic
 from media_claims import claim
 from schemas import CaptionReadError, CaptionStatus
 
@@ -228,6 +228,52 @@ def save_caption(
         if resolve_issue:
             delete_issue_file(media_path)
         return build_caption_response(media_path)
+
+
+class CaptionUndo(NamedTuple):
+    """What undoing one job write takes: the bytes it replaced and the revision it left."""
+
+    media_path: Path
+    #: ``None``: the job created the caption, so undoing it deletes the file.
+    previous: bytes | None
+    revision: str | None
+
+
+def save_caption_undoably(media_path: Path, text: str, *, base_revision: str | None) -> CaptionUndo:
+    """:func:`save_caption`, keeping the replaced bytes so :func:`restore_caption` can undo it.
+
+    The bytes are read before the write, so they must still be ``base_revision``: otherwise the
+    snapshot would be of someone else's edit, and the write is refused like any stale one.
+    """
+    caption_path = caption_path_for(media_path)
+    try:
+        previous: bytes | None = caption_path.read_bytes()
+    except FileNotFoundError:
+        previous = None
+    if (None if previous is None else caption_revision(previous)) != base_revision:
+        raise CaptionConflictError(f"The caption of {media_path.name} changed since it was loaded")
+    written = save_caption(media_path, text, base_revision=base_revision)
+    revision = written["caption_revision"]
+    return CaptionUndo(media_path, previous, revision if isinstance(revision, str) else None)
+
+
+def restore_caption(undo: CaptionUndo) -> bool:
+    """Put back what a job replaced, only while the caption is still what the job wrote.
+
+    ``False`` when it changed since, so an edit made after the job is never undone with it.
+    """
+    caption_path = caption_path_for(undo.media_path)
+    with claim([caption_path], "caption", wait_s=CAPTION_CLAIM_WAIT_SECONDS):
+        current = read_caption_file(caption_path)
+        if current.read_error == "access":
+            raise PermissionError(f"{caption_path.name} could not be read, so it was not restored")
+        if current.revision != undo.revision:
+            return False
+        if undo.previous is None:
+            caption_path.unlink(missing_ok=True)
+        else:
+            write_bytes_atomic(caption_path, undo.previous)
+    return True
 
 
 def issue_file_path(media_path: Path) -> Path:

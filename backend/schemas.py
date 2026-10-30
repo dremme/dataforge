@@ -221,6 +221,8 @@ class MediaDeleteResponse(BaseModel):
     path: str
     deleted: list[str] = Field(default_factory=list)
     retained: list[RetainedFile] = Field(default_factory=list)
+    #: Full paths now in the Recycle Bin, media first; empty where deletes are permanent.
+    recycled: list[str] = Field(default_factory=list)
 
 
 class DuplicateResolveResponse(BaseModel):
@@ -1127,6 +1129,20 @@ class JobResponse(BaseModel):
     workflow_edited: bool = False
     #: Of two copies of this job, the one with the higher revision is newer.
     revision: int = 0
+    #: Its caption writes can still be taken back, once, with ``POST /jobs/{id}/undo``.
+    undoable: bool = False
+
+
+class JobUndoFailure(BaseModel):
+    path: str
+    detail: str
+
+
+class JobUndoResponse(BaseModel):
+    restored: list[str] = Field(default_factory=list)
+    #: Edited after the job, so left as they are.
+    changed: list[str] = Field(default_factory=list)
+    failed: list[JobUndoFailure] = Field(default_factory=list)
 
 
 class JobResultsResponse(BaseModel):
@@ -1371,6 +1387,25 @@ class MediaCleanupRequest(BaseModel):
 
     path: str
     files: list[str] = Field(min_length=1)
+
+
+class MediaRestoreRequest(BaseModel):
+    """Undo a delete: ``path`` is the media, ``files`` the rest of its ``recycled`` list."""
+
+    path: str
+    files: list[str] = Field(default_factory=list)
+
+
+class MediaRestoreFailure(BaseModel):
+    path: str
+    detail: str
+
+
+class MediaRestoreResponse(BaseModel):
+    restored: list[str] = Field(default_factory=list)
+    #: No longer in the Recycle Bin: emptied, or too large to have been kept there.
+    missing: list[str] = Field(default_factory=list)
+    failed: list[MediaRestoreFailure] = Field(default_factory=list)
 
 
 class RenameResponse(BaseModel):
@@ -2466,7 +2501,9 @@ class NotificationEvent(BaseModel):
 
 
 #: Machine-readable reasons the client branches on; every other error carries ``detail`` only.
-type ApiErrorCode = Literal["folder_not_found", "media_busy", "caption_conflict"]
+type ApiErrorCode = Literal[
+    "folder_not_found", "media_busy", "caption_conflict", "job_undo_unavailable"
+]
 
 
 class ApiErrorResponse(BaseModel):

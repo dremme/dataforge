@@ -65,10 +65,9 @@ $remove-size: 1.125rem;
     padding: 0.1875rem 0.4375rem;
     border-radius: var(--radius-sm);
     background: var(--bg-elevated);
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--elevation-2);
     color: var(--text);
-    // Below the type scale on purpose: small regions have little room inside.
-    font-size: 0.625rem;
+    font-size: var(--text-3xs);
     font-weight: var(--font-semibold);
     letter-spacing: 0.02em;
     // Stated rather than inherited: a host that collapses line-height leaves the background behind nothing but padding.
@@ -93,7 +92,7 @@ $remove-size: 1.125rem;
     border: 0;
     border-radius: 50%;
     background: var(--bg-elevated);
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--elevation-2);
     color: var(--text-muted);
     transform: var(--mask-remove-transform, none)
       translate(calc(-100% - #{$chip-inset}), $chip-inset);

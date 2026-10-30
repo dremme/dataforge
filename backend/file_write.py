@@ -40,6 +40,12 @@ def write_text_atomic(destination: Path, text: str) -> None:
         os.replace(temporary, destination)
 
 
+def write_bytes_atomic(destination: Path, data: bytes) -> None:
+    with _temporary_file(destination) as temporary:
+        temporary.write_bytes(data)
+        os.replace(temporary, destination)
+
+
 def copy_file_atomic(source: Path, destination: Path, *, overwrite: bool = True) -> bool:
     if not overwrite and destination.exists():
         return False

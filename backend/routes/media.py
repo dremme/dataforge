@@ -42,7 +42,12 @@ from image_edit import apply_image_edit, read_image_edit_spec, revert_image_edit
 from image_edit import is_identity_spec as is_identity_image_spec
 from image_io import ImageReadError
 from media_claims import MediaBusyError, cancel
-from media_delete import MediaReappearedError, delete_leftovers, delete_media_with_sidecars
+from media_delete import (
+    MediaReappearedError,
+    delete_leftovers,
+    delete_media_with_sidecars,
+    restore_media_with_sidecars,
+)
 from media_file_response import MediaFileResponse
 from media_rename import rename_media_file
 from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
@@ -81,6 +86,8 @@ from schemas import (
     MediaCleanupRequest,
     MediaDeleteResponse,
     MediaOpenResponse,
+    MediaRestoreRequest,
+    MediaRestoreResponse,
     MediaTransferPreviewRequest,
     MediaTransferPreviewResponse,
     MediaTransferRequest,
@@ -243,6 +250,21 @@ def clean_up_after_delete(body: MediaCleanupRequest) -> MediaDeleteResponse:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/media/restore", response_model=MediaRestoreResponse)
+def restore_deleted_media(body: MediaRestoreRequest) -> MediaRestoreResponse:
+    """Bring a deleted file and its own sidecars back from the Recycle Bin."""
+    requested = Path(body.path)
+    folder = resolve_folder(str(requested.parent))
+    media = folder / requested.name
+    if media.suffix.lower() not in GALLERY_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Not a supported media file")
+    try:
+        files = [normalize_user_path(raw) for raw in body.files]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return MediaRestoreResponse.model_validate(restore_media_with_sidecars(media, files))
 
 
 @router.post("/media/rename", response_model=RenameResponse)

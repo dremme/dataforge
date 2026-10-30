@@ -41,6 +41,11 @@ function languageExtension(language: CodeEditorLanguage): Extension {
   return [];
 }
 
+function focusAtEnd(view: EditorView) {
+  view.focus();
+  view.dispatch({ selection: { anchor: view.state.doc.length } });
+}
+
 export interface CodeMirrorEditorProps {
   language: CodeEditorLanguage;
   id?: string;
@@ -48,6 +53,8 @@ export interface CodeMirrorEditorProps {
   placeholder?: string;
   className?: string;
   editable?: boolean;
+  /** Focus the editor once it exists, with the cursor at the end of the text. */
+  autoFocus?: boolean;
   /** Extra extensions merged after the built-in language/search setup. */
   extensions?: Extension[];
   /** Defaults to on, in English, for Markdown and plain text. */
@@ -69,6 +76,7 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
       placeholder,
       className,
       editable = true,
+      autoFocus = false,
       extensions: extraExtensions,
       spellcheck = language === "markdown" || language === "plaintext",
       spellcheckLanguage = "en",
@@ -200,6 +208,7 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
           title={title}
           editable={editable}
           extensions={extensions}
+          onCreateEditor={autoFocus ? focusAtEnd : undefined}
           theme="none"
           basicSetup={basicSetup}
           onChange={handleChange}

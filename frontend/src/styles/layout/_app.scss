@@ -24,7 +24,7 @@
   background: var(--bg-elevated);
   // Path, stats and controls are chrome throughout; the search field opts back in.
   user-select: none;
-  box-shadow: var(--shadow-app-bar);
+  box-shadow: var(--elevation-1);
 
   &__inner {
     display: flex;

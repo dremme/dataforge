@@ -138,6 +138,28 @@ class MediaEndpointTests(unittest.TestCase):
             self.assertFalse(media.with_suffix(".txt").exists())
             self.assertTrue(media.with_suffix(".json").is_file())
 
+    @unittest.skipUnless(os.name == "nt", "Recycle Bin is a Windows concern")
+    def test_undoes_a_delete_through_restore(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            caption = write_txt_caption(media, "Golden hour.")
+            recycled = client.delete(f"/api/media?path={quote(str(media))}").json()["recycled"]
+
+            response = client.post(
+                "/api/media/restore", json={"path": recycled[0], "files": recycled[1:]}
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["restored"], [str(media), str(caption)])
+            self.assertTrue(media.is_file())
+            self.assertEqual(caption.read_text(encoding="utf-8"), "Golden hour.")
+
+    def test_restore_refuses_what_is_not_media(self) -> None:
+        with TempMediaFolder() as root:
+            response = client.post("/api/media/restore", json={"path": str(root / "notes.txt")})
+
+            self.assertEqual(response.status_code, 400)
+
     def test_deletes_audio_and_its_caption(self) -> None:
         with TempMediaFolder() as root:
             media = write_wav(root, "voice.wav")

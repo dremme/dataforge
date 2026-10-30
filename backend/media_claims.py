@@ -23,12 +23,23 @@ from typing import Literal
 from api_errors import ConflictError
 
 type ClaimActivity = Literal[
-    "render", "delete", "rename", "move", "import", "strip", "settle", "stage", "caption", "export"
+    "render",
+    "delete",
+    "restore",
+    "rename",
+    "move",
+    "import",
+    "strip",
+    "settle",
+    "stage",
+    "caption",
+    "export",
 ]
 
 _ACTIVITY_PHRASES: dict[ClaimActivity, str] = {
     "render": "being edited",
     "delete": "being deleted",
+    "restore": "being restored",
     "rename": "being renamed",
     "move": "being moved",
     "import": "being replaced by an import",

@@ -7,10 +7,12 @@
   --bg-card: #1c2029;
   --bg-media: #0a0c10;
   --bg-sticky: rgba(23, 26, 33, 0.8);
-  --border: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.16);
   --text: #f3f4f6;
   --text-muted: #9ca3af;
-  --text-subtle: #6b7280;
+  // At least 4.5:1 on every surface up to --bg-card, so 11-12px meta text stays legible.
+  --text-subtle: #848c9b;
   --accent: #7c9cff;
   --accent-soft: rgba(124, 156, 255, 0.15);
   --accent-border: rgba(124, 156, 255, 0.25);
@@ -34,8 +36,6 @@
   --dialog-backdrop: rgba(0, 0, 0, 0.62);
   --dialog-backdrop-blur: #{$dialog-backdrop-blur};
   --bg-soft: rgba(23, 26, 33, 0.25);
-  --body-glow: rgba(124, 156, 255, 0.18);
-  --card-hover-border: rgba(255, 255, 255, 0.14);
   // Translucent, so one keycap reads on every surface it lands on.
   --kbd-bg: rgba(255, 255, 255, 0.06);
   --kbd-border: rgba(255, 255, 255, 0.14);
@@ -132,11 +132,19 @@
   --radius-md: #{$radius-md};
   --radius-lg: calc(var(--radius) + #{$radius-lg-offset});
   --radius-pill: #{$radius-pill};
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-  --shadow-soft: 0 0 8px rgba(0, 0, 0, 0.28);
+  // Elevation: 1 resting surface, 2 raised or docked, 3 menu and tooltip, 4 dialog. Dark
+  // surfaces add a top highlight, since a shadow alone barely reads on a near-black page.
+  --elevation-1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --elevation-2:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 3px rgba(0, 0, 0, 0.25),
+    0 6px 16px rgba(0, 0, 0, 0.3);
+  --elevation-3:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 6px rgba(0, 0, 0, 0.25),
+    0 12px 32px rgba(0, 0, 0, 0.4);
+  --elevation-4:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 12px rgba(0, 0, 0, 0.3),
+    0 24px 64px rgba(0, 0, 0, 0.5);
   --shadow-drawer: -12px 0 40px rgba(0, 0, 0, 0.35);
-  --shadow-tooltip: 0 6px 18px rgba(0, 0, 0, 0.38);
-  --shadow-app-bar: 0 2px 4px rgba(0, 0, 0, 0.28);
   --control-height: #{$control-height};
   --control-height-sm: #{$control-height-sm};
   --control-height-xs: #{$control-height-xs};
@@ -153,19 +161,37 @@
   --icon-size-lg: #{$icon-size-lg};
   --icon-size-xl: #{$icon-size-xl};
 
+  --duration-fast: #{$duration-fast};
+  --duration-base: #{$duration-base};
+  --duration-slow: #{$duration-slow};
+  --ease-standard: #{$ease-standard};
+  --ease-emphasized: #{$ease-emphasized};
+  --ease-exit: #{$ease-exit};
   --transition: #{$transition-fast};
+
+  --space-0_5: #{$space-0_5};
+  --space-1: #{$space-1};
+  --space-1_5: #{$space-1_5};
+  --space-2: #{$space-2};
+  --space-3: #{$space-3};
+  --space-4: #{$space-4};
+  --space-5: #{$space-5};
+  --space-6: #{$space-6};
+  --space-8: #{$space-8};
 
   --font-sans: #{$font-sans};
   --font-mono: #{$font-mono};
   --font-features: #{$font-features};
   --font-features-numeric: #{$font-features-numeric};
 
+  --text-3xs: #{$text-3xs};
   --text-2xs: #{$text-2xs};
   --text-xs: #{$text-xs};
   --text-sm: #{$text-sm};
   --text-base: #{$text-base};
   --text-md: #{$text-md};
   --text-lg: #{$text-lg};
+  --text-xl: #{$text-xl};
 
   --font-normal: #{$font-normal};
   --font-medium: #{$font-medium};

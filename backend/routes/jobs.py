@@ -10,6 +10,7 @@ from schemas import (
     JobResultsResponse,
     JobsResponse,
     JobType,
+    JobUndoResponse,
 )
 
 router = APIRouter()
@@ -73,6 +74,15 @@ def cancel_job(job_id: str) -> JobResponse:
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job_response(job)
+
+
+@router.post("/jobs/{job_id}/undo", response_model=JobUndoResponse)
+def undo_job(job_id: str) -> JobUndoResponse:
+    """Put back the captions a finished caption job replaced, except ones edited since."""
+    result = job_manager.undo_job(job_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JobUndoResponse.model_validate(result)
 
 
 @router.delete("/jobs/{job_id}", response_model=JobDeleteResponse)

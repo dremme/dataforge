@@ -117,6 +117,9 @@ function StatsContent({
   if (stats.total === 0) {
     return (
       <div className="stats-dialog__empty">
+        <span className="stats-dialog__empty-icon" aria-hidden="true">
+          <Icon icon={iconImages} />
+        </span>
         <p>No media in this folder.</p>
         <p className="stats-dialog__empty-hint">
           Open a folder with images or videos to see how it looks as a training set.

@@ -48,6 +48,7 @@ export function job(options: Partial<Job> = {}): Job {
   const status = options.status ?? "queued";
   return {
     workflow_edited: false,
+    undoable: false,
     id: "job-1",
     folder,
     folder_name: folder.slice(folder.lastIndexOf("\\") + 1),

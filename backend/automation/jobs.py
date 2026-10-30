@@ -14,6 +14,7 @@ from typing import get_args
 
 import events
 import notifications
+from api_errors import ConflictError
 from automation import job_outcome, jobs_store
 from automation.auto_adjust import run_auto_adjust_job, validate_auto_adjust_folder
 from automation.auto_caption import run_auto_caption_job, validate_auto_caption_folder
@@ -23,6 +24,7 @@ from automation.backup_captions import (
     validate_backup_captions_folder,
     validate_restore_captions_folder,
 )
+from automation.caption_undo import undo_caption_writes, undo_records
 from automation.check_caption_rules import (
     run_check_caption_rules_job,
     validate_check_caption_rules_folder,
@@ -96,6 +98,10 @@ JOB_TYPES: tuple[JobType, ...] = get_args(JobType.__value__)
 JOB_EVENT_MIN_INTERVAL_SECONDS = 0.25
 
 
+class JobUndoError(ConflictError):
+    code = "job_undo_unavailable"
+
+
 def _utc_now() -> str:
     return datetime.now(tz=UTC).isoformat()
 
@@ -143,6 +149,8 @@ class Job:
     workflow_edited: bool = False
     #: Stamped on every change, so a client can tell which of two copies is newer.
     revision: int = 0
+    #: Its caption writes can still be taken back; computed by the store, never a column.
+    undoable: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Job:
@@ -169,6 +177,7 @@ class Job:
             workflow=_stored_text(data, "workflow"),
             workflow_edited=data.get("workflow_edited") is True,
             revision=_stored_int(data, "revision"),
+            undoable=data.get("undoable") is True,
         )
 
     def to_summary_dict(self) -> dict[str, object]:
@@ -193,6 +202,7 @@ class Job:
             "workflow": self.workflow,
             "workflow_edited": self.workflow_edited,
             "revision": self.revision,
+            "undoable": self.undoable,
         }
 
     def to_dict(self) -> dict[str, object]:
@@ -590,6 +600,26 @@ class JobManager:
             cancel_event.set()
         return job
 
+    def undo_job(self, job_id: str) -> dict[str, object] | None:
+        """Take back a finished caption job's writes; ``None`` when there is no such job.
+
+        Raises :class:`JobUndoError` while the job runs or once its undo was used.
+        """
+        with self._lock:
+            job = self._jobs.get(job_id) or self._job_from_store(job_id)
+            if job is None:
+                return None
+            if job.status in ACTIVE_STATUSES:
+                raise JobUndoError("The job is still running")
+            records = jobs_store.take_job_undo(job_id)
+            if records is None:
+                raise JobUndoError("Nothing left to undo for this job")
+            job.undoable = False
+            self._jobs[job_id] = job
+            self._save_snapshot(job_id, job.to_dict())
+        # Outside the lock: each restore waits on its caption's claim.
+        return undo_caption_writes(records)
+
     def delete_job(self, job_id: str) -> bool:
         stored = jobs_store.get_job(job_id)
         with self._lock:
@@ -825,6 +855,10 @@ class JobManager:
             job.stats = dict(stats) if isinstance(stats, dict) else {}
             results = result.get("results")
             job.results = list(results) if isinstance(results, list) else []
+            undos = result.get("caption_undo")
+            if isinstance(undos, list) and undos:
+                jobs_store.save_job_undo(job_id, undo_records(undos))
+                job.undoable = True
             job.current_file = None
             job.current_name = None
             job.finished_at = _utc_now()

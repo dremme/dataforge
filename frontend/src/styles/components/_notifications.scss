@@ -30,12 +30,12 @@
     line-height: var(--leading-snug);
     backdrop-filter: blur(var(--dialog-backdrop-blur));
     -webkit-backdrop-filter: blur(var(--dialog-backdrop-blur));
-    box-shadow: var(--shadow);
-    animation: notification-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+    box-shadow: var(--elevation-3);
+    animation: notification-enter 0.28s var(--ease-emphasized) both;
     will-change: opacity, transform;
 
     &--exiting {
-      animation: notification-exit 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+      animation: notification-exit 0.22s var(--ease-exit) both;
       pointer-events: none;
     }
 

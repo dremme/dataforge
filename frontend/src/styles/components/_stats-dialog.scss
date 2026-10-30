@@ -1,6 +1,9 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
+// The headline number is display type, a step above anything the reading scale needs.
+$hero-font-size: 3rem;
+
 .stats-button {
   @include pill-btn-ghost(0.4rem);
   padding: 0 0.5625rem;
@@ -88,7 +91,8 @@
   &__empty {
     display: flex;
     flex-direction: column;
-    gap: 0.4375rem;
+    align-items: center;
+    gap: var(--space-2);
     padding: 2rem 0.5rem;
     text-align: center;
     color: var(--text-muted);
@@ -97,6 +101,10 @@
 
     p {
       margin: 0;
+    }
+
+    &-icon {
+      @include empty-state-badge;
     }
 
     &-hint {
@@ -366,7 +374,7 @@
     align-items: baseline;
     gap: 0.125rem;
     margin: 0 0 0.5rem;
-    font-size: 3rem;
+    font-size: $hero-font-size;
     font-weight: var(--font-semibold);
     line-height: 1;
     letter-spacing: var(--tracking-tight);

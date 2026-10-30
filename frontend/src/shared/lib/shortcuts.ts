@@ -94,6 +94,31 @@ export const SHORTCUTS = {
     label: "Delete the item",
     chords: [{ key: "Delete" }, { key: "Backspace" }],
   },
+  saveAndNextUncaptioned: {
+    group: "viewer",
+    label: "Save the caption and go to the next uncaptioned item",
+    chords: [{ key: "Enter", mod: true, shift: true }],
+  },
+  nextUncaptioned: {
+    group: "viewer",
+    label: "Next or previous uncaptioned item",
+    chords: [{ key: "u" }, { key: "u", shift: true }],
+  },
+  nextIssue: {
+    group: "viewer",
+    label: "Next or previous item with an issue",
+    chords: [{ key: "i" }, { key: "i", shift: true }],
+  },
+  moveItem: {
+    group: "viewer",
+    label: "Move the item to another folder",
+    chords: [{ key: "m" }],
+  },
+  toggleSelectItem: {
+    group: "viewer",
+    label: "Select or deselect the item",
+    chords: [{ key: "x" }],
+  },
 
   resolveOrAccept: {
     group: "review",

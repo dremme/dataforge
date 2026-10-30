@@ -1,6 +1,7 @@
 import { isResolvableIssueItem } from "./issues";
 import { isDuplicateItem } from "./duplicates";
 import { isCandidateItem } from "./candidateReview";
+import { isUncaptionedItem } from "./reviewJump";
 import { isAudio, isMotion } from "@/features/gallery/lib/itemKind";
 import { SEARCH_REGEX_FLAGS, compileSearchRegex } from "@/features/gallery/lib/regexSearch";
 import { DEFAULT_GALLERY_SORT } from "@/shared/constants";
@@ -206,7 +207,7 @@ export function filterSubfoldersBySearch(
 export function applyItemFilter(items: GalleryItem[], filter: ItemFilter): GalleryItem[] {
   if (filter === "captioned") return items.filter((item) => item.has_description);
   if (filter === "issue") return items.filter(isResolvableIssueItem);
-  if (filter === "uncaptioned") return items.filter((item) => !item.has_description);
+  if (filter === "uncaptioned") return items.filter(isUncaptionedItem);
   return items;
 }
 

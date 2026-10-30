@@ -4,6 +4,8 @@ import type {
   MediaCleanupRequest,
   MediaDeleteResponse,
   MediaOpenResponse,
+  MediaRestoreRequest,
+  MediaRestoreResponse,
   MediaTransferPreviewResponse,
   MediaTransferRequest,
   MediaTransferResponse,
@@ -48,6 +50,8 @@ export type TransferSelectedMediaResult = {
   succeeded: string[];
   skipped: string[];
   failed: Array<{ path: string; error: unknown }>;
+  /** Where each media file went, so a move can be walked back. */
+  transferred: Array<{ source: string; destination: string }>;
 };
 
 export async function deleteSelectedMedia(
@@ -129,7 +133,16 @@ export async function transferSelectedMedia(
     succeeded: response.transferred.map((entry) => entry.source),
     skipped: response.skipped,
     failed: response.failed.map((entry) => ({ path: entry.path, error: entry.detail })),
+    transferred: response.transferred.map(({ source, destination }) => ({ source, destination })),
   };
+}
+
+export async function restoreDeletedMedia(
+  recycled: readonly string[],
+): Promise<MediaRestoreResponse> {
+  const [path, ...files] = recycled;
+  const body: MediaRestoreRequest = { path, files };
+  return postJson<MediaRestoreResponse>("/api/media/restore", body);
 }
 
 export async function fetchGifInfo(mediaPath: string): Promise<GifInfoResponse> {

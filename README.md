@@ -35,7 +35,7 @@ The app opens at `http://localhost:18081`. Try [`sample_media/`](sample_media/) 
 - **Edit media:** crop, resize, color adjustment, Auto-adjust, video trim/speed/audio, and blur or blackout regions. Editor changes retain originals for reversion.
 - **Video editor:** cut videos, stills, sound, and titles together on a multi-track timeline with dissolves, fades, and per-clip color, then export an MP4. See the [Video editor guide](docs/video-editor.md).
 - **Process:** run ComfyUI workflows and review results before accepting them individually or in bulk.
-- **Train:** start and monitor LoRA training on the current folder through AI-Toolkit.
+- **Train:** start and monitor LoRA training on the current folder through Ostris AI-Toolkit.
 
 AI is optional. Browsing, manual captioning, editing, and most bulk tools work without a model. Install and run any services you need separately, then connect them in **Settings**:
 

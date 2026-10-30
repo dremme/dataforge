@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from captions import CaptionTarget, caption_targets
+from captions import CaptionTarget, CaptionUndo, caption_targets
 from media_claims import ClaimActivity, MediaBusyError, claim
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
@@ -26,6 +26,8 @@ class FileOutcome:
     stats: dict[str, int] = field(default_factory=dict)
     fields: dict[str, object] = field(default_factory=dict)
     stop: bool = False
+    #: A caption write the job can take back; kept out of ``fields``, which clients are served.
+    undo: CaptionUndo | None = None
 
     @classmethod
     def counted(cls, status: str, message: object = None, **fields: object) -> FileOutcome:
@@ -60,6 +62,7 @@ def run_media_job(
     such as a caption write that found its sidecar held, is reported the same way.
     """
     file_results: list[dict[str, object]] = []
+    caption_undo: list[CaptionUndo] = []
     total = len(media_files)
 
     for index, media_path in enumerate(media_files, start=1):
@@ -74,6 +77,8 @@ def run_media_job(
 
         for key, delta in outcome.stats.items():
             stats[key] = stats.get(key, 0) + delta
+        if outcome.undo is not None:
+            caption_undo.append(outcome.undo)
 
         file_results.append(
             {
@@ -103,6 +108,7 @@ def run_media_job(
         "processed": processed,
         "stats": stats,
         "results": file_results,
+        "caption_undo": caption_undo,
     }
 
 

@@ -2,7 +2,7 @@
 @use "../abstracts/mixins" as *;
 
 $toolbar-search-expand-duration: 0.28s;
-$toolbar-search-expand-ease: cubic-bezier(0.22, 1, 0.36, 1);
+$toolbar-search-expand-ease: $ease-emphasized;
 $toolbar-search-width-min: 14rem;
 $toolbar-search-width-max: 22rem;
 
@@ -166,7 +166,7 @@ $toolbar-search-width-max: 22rem;
       overflow: hidden;
       transition:
         max-width $toolbar-search-expand-duration $toolbar-search-expand-ease,
-        opacity 0.14s ease;
+        opacity var(--transition);
     }
 
     &--expanded &-field {
@@ -175,7 +175,7 @@ $toolbar-search-width-max: 22rem;
       opacity: 1;
       transition:
         max-width $toolbar-search-expand-duration $toolbar-search-expand-ease,
-        opacity 0.2s ease 0.05s;
+        opacity var(--duration-base) var(--ease-standard) calc(var(--duration-fast) / 3);
     }
 
     &-input {

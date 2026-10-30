@@ -30,14 +30,23 @@
   @include fade-bg(var(--bg-card));
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--elevation-1);
   color: var(--text);
   text-align: left;
+  transition:
+    --fade-bg var(--transition),
+    color var(--transition),
+    border-color var(--transition),
+    box-shadow var(--transition),
+    transform var(--transition);
 
-  &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    border-color: var(--accent-border);
-    box-shadow: var(--shadow);
-    @include fade-bg(var(--bg-elevated));
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      transform: translateY(-2px);
+      border-color: var(--accent-border);
+      box-shadow: var(--elevation-2);
+      @include fade-bg(var(--bg-elevated));
+    }
   }
 
   &:disabled {

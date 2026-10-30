@@ -14,6 +14,7 @@ import { useTaggingFolder } from "@/features/tagging/hooks/useTaggingFolder";
 import { WorkspaceActions, WorkspaceActivity } from "@/app/components/WorkspaceActions";
 import { VideoEditorWorkspace } from "@/features/videoEditor/components/VideoEditorWorkspace";
 import { useExportNotifications } from "@/features/videoEditor/hooks/useExportNotifications";
+import { useJobUndoNotifications } from "@/features/jobs/hooks/useJobUndoNotifications";
 import { VIDEO_PROJECTS_QUERY_KEY } from "@/features/videoEditor/hooks/useVideoProjectList";
 import { useVideoEditorRoute } from "@/features/videoEditor/hooks/useVideoEditorRoute";
 import { VideoEditorContext } from "@/features/videoEditor/context/VideoEditorContext";
@@ -125,6 +126,7 @@ export function AppContent() {
     [closeEditor, folder, navigateTo],
   );
   useExportNotifications(editorRequest === null ? openExport : null);
+  useJobUndoNotifications();
 
   return (
     <ThumbnailProvider

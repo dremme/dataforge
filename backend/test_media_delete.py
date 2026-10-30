@@ -9,7 +9,12 @@ from candidate_pairing import candidate_sidecar_path
 from captions import issue_file_path
 from constants import CAPTION_BACKUP_DIR_NAME, STAGING_DIR_NAME
 from file_trash import delete_path
-from media_delete import MediaReappearedError, delete_leftovers, delete_media_with_sidecars
+from media_delete import (
+    MediaReappearedError,
+    delete_leftovers,
+    delete_media_with_sidecars,
+    restore_media_with_sidecars,
+)
 from testing_fixtures import (
     TempMediaFolder,
     write_media,
@@ -230,6 +235,57 @@ class SharedStemDeleteTests(unittest.TestCase):
                 delete_media_with_sidecars(png)
 
             self.assertFalse(caption.exists())
+
+
+@unittest.skipUnless(sys.platform == "win32", "Recycle Bin is a Windows concern")
+class RestoreMediaWithSidecarsTests(unittest.TestCase):
+    def test_a_delete_reports_what_it_recycled_and_undoes_it(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            caption = write_txt_caption(media, "Golden hour.")
+
+            deleted = delete_media_with_sidecars(media)
+            self.assertEqual(deleted["recycled"], [str(media), str(caption)])
+
+            media_path, *files = deleted["recycled"]
+            result = restore_media_with_sidecars(Path(media_path), [Path(raw) for raw in files])
+
+            self.assertEqual(
+                result, {"restored": [str(media), str(caption)], "missing": [], "failed": []}
+            )
+            self.assertEqual(caption.read_text(encoding="utf-8"), "Golden hour.")
+
+    def test_restores_only_files_of_the_restored_media(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            other = write_media(root, "beach.png")
+            delete_media_with_sidecars(media)
+            delete_path(other)
+
+            result = restore_media_with_sidecars(media, [other])
+
+            self.assertEqual(result["restored"], [str(media)])
+            self.assertEqual([entry["path"] for entry in result["failed"]], [str(other)])
+            self.assertFalse(other.exists())
+
+    def test_reports_media_the_bin_no_longer_holds(self) -> None:
+        with TempMediaFolder() as root:
+            media = root / "gone.png"
+
+            result = restore_media_with_sidecars(media, [])
+
+            self.assertEqual(result, {"restored": [], "missing": [str(media)], "failed": []})
+
+
+class RecycledListTests(unittest.TestCase):
+    def test_permanent_deletes_report_nothing_recyclable(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+
+            with patch("file_trash.sys.platform", "linux"):
+                result = delete_media_with_sidecars(media)
+
+            self.assertEqual(result["recycled"], [])
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@
     border-radius: var(--radius-sm);
 
     &:hover {
-      border-color: var(--card-hover-border);
+      border-color: var(--border-strong);
 
       .training-samples__image {
         transform: scale(1.15);
@@ -71,7 +71,7 @@
     // Held back until it decodes so a pruned file never flashes broken.
     opacity: 0;
     transition:
-      opacity 0.15s ease,
+      opacity var(--transition),
       transform var(--transition);
 
     &--ready {

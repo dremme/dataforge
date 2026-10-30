@@ -35,8 +35,8 @@
   }
 
   &__note {
-    margin: 0.3125rem 0 0;
-    font-size: var(--text-2xs);
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-xs);
     line-height: var(--leading-snug);
     color: var(--text-subtle);
   }
@@ -175,9 +175,7 @@
     cursor: pointer;
 
     // The mixin's :focus/:disabled cannot fire on a wrapper.
-    &:focus-within {
-      border-color: var(--accent);
-    }
+    @include input-focus("&:focus-within");
 
     &:has(select:disabled) {
       @include disabled-state;
@@ -789,11 +787,10 @@
     background: var(--bg-elevated);
     transition:
       border-color var(--transition),
+      box-shadow var(--transition),
       --fade-bg var(--transition);
 
-    &:focus-within {
-      border-color: var(--accent);
-    }
+    @include input-focus("&:focus-within");
   }
 
   &__prompt-index {

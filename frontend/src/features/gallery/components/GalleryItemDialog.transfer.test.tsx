@@ -119,6 +119,7 @@ describe("GalleryItemDialog", () => {
         succeeded: [SUNSET_PATH],
         skipped: [],
         failed: [],
+        transferred: [],
       });
 
       const { onMoved, onCopied } = renderTransferDialog();
@@ -149,6 +150,7 @@ describe("GalleryItemDialog", () => {
         succeeded: [SUNSET_PATH],
         skipped: [],
         failed: [],
+        transferred: [],
       });
 
       const { onMoved, onCopied } = renderTransferDialog();
@@ -193,6 +195,7 @@ describe("GalleryItemDialog", () => {
         succeeded: [SUNSET_PATH],
         skipped: [],
         failed: [],
+        transferred: [],
       });
 
       renderTransferDialog();
@@ -227,6 +230,7 @@ describe("GalleryItemDialog", () => {
         succeeded: [],
         skipped: [SUNSET_PATH],
         failed: [],
+        transferred: [],
       });
 
       renderTransferDialog();
@@ -258,6 +262,7 @@ describe("GalleryItemDialog", () => {
         succeeded: [],
         skipped: [],
         failed: [{ path: SUNSET_PATH, error: "sunset.png is used by another process" }],
+        transferred: [],
       });
 
       const { onMoved } = renderTransferDialog();
@@ -331,7 +336,8 @@ describe("GalleryItemDialog", () => {
       transferSelectedMediaMock.mockImplementation(
         () =>
           new Promise((resolve) => {
-            releaseTransfer = () => resolve({ succeeded: [SUNSET_PATH], skipped: [], failed: [] });
+            releaseTransfer = () =>
+              resolve({ succeeded: [SUNSET_PATH], skipped: [], failed: [], transferred: [] });
           }),
       );
 

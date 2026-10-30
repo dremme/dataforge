@@ -6,6 +6,7 @@ what the media shows."""
 from __future__ import annotations
 
 import textwrap
+from dataclasses import replace
 from pathlib import Path
 
 from automation.backup_captions import back_up_caption, caption_backup_dir
@@ -38,7 +39,7 @@ from captions import (
     CaptionTarget,
     caption_targets,
     load_reference_caption,
-    save_caption,
+    save_caption_undoably,
 )
 from constants import CAPTION_EDIT_PREVIEW_LIMIT, MEDIA_EXTENSIONS
 from openai_settings import (
@@ -469,13 +470,13 @@ def run_edit_captions_job(
                     )
 
             try:
-                save_caption(media_path, edited, base_revision=reference.revision)
+                undo = save_caption_undoably(media_path, edited, base_revision=reference.revision)
             except CaptionConflictError as exc:
                 return FileOutcome.counted(CAPTION_CHANGED_STATUS, f"{exc}; that edit was kept")
             except (OSError, ValueError) as exc:
                 return FileOutcome.counted("write_error", exc)
 
-            return FileOutcome.counted("success", description=edited.strip())
+            return replace(FileOutcome.counted("success", description=edited.strip()), undo=undo)
 
         return run_caption_job(
             folder,

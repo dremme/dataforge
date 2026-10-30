@@ -6,6 +6,7 @@ import type {
   JobFileResult,
   JobResultsResponse,
   JobsResponse,
+  JobUndoResponse,
 } from "@/shared/types";
 
 export async function fetchLatestFolderJob(
@@ -53,6 +54,11 @@ export async function cancelJob(jobId: string): Promise<Job> {
   return requestJson<Job>(`/api/jobs/${jobId}/cancel`, {
     method: "POST",
   });
+}
+
+/** Takes back a finished caption job's writes; the server allows it once. */
+export async function undoJob(jobId: string): Promise<JobUndoResponse> {
+  return requestJson<JobUndoResponse>(`/api/jobs/${jobId}/undo`, { method: "POST" });
 }
 
 export async function deleteJob(jobId: string): Promise<JobDeleteResponse> {

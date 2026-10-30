@@ -21,14 +21,9 @@ const PLACEHOLDER_ICONS: Record<GalleryItem["media_type"], AppIcon> = {
 interface GalleryCardMediaProps {
   item: MediaItem;
   previewing?: boolean;
-  onPreviewPlaying?: (playing: boolean) => void;
 }
 
-export function GalleryCardMedia({
-  item,
-  previewing = false,
-  onPreviewPlaying,
-}: GalleryCardMediaProps) {
+export function GalleryCardMedia({ item, previewing = false }: GalleryCardMediaProps) {
   const itemIsVideo = item.media_type === "video";
   const itemIsGif = item.media_type === "gif";
   const itemIsMotion = itemIsVideo || itemIsGif;
@@ -67,18 +62,12 @@ export function GalleryCardMedia({
           onError={handleError}
         />
       )}
-      {previewing && itemIsVideo && <CardVideoPreview item={item} onPlaying={onPreviewPlaying} />}
+      {previewing && itemIsVideo && <CardVideoPreview item={item} />}
     </div>
   );
 }
 
-function CardVideoPreview({
-  item,
-  onPlaying,
-}: {
-  item: MediaItem;
-  onPlaying?: (playing: boolean) => void;
-}) {
+function CardVideoPreview({ item }: { item: MediaItem }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const src = galleryItemMediaUrl(item);
@@ -102,9 +91,8 @@ function CardVideoPreview({
       video.removeAttribute("src");
       video.load();
       setPlaying(false);
-      onPlaying?.(false);
     };
-  }, [onPlaying, src]);
+  }, [src]);
 
   return (
     <video
@@ -115,10 +103,7 @@ function CardVideoPreview({
       playsInline
       preload="auto"
       disablePictureInPicture
-      onPlaying={() => {
-        setPlaying(true);
-        onPlaying?.(true);
-      }}
+      onPlaying={() => setPlaying(true)}
     />
   );
 }

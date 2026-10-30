@@ -175,8 +175,7 @@ export const JOB_TYPE_META = {
     icon: iconComfyUi,
     startUi: "dialog" as const,
     menuLabel: "Process with ComfyUI",
-    menuDescription:
-      "Upscale, interpolate or repair images and video through a ComfyUI workflow, for review.",
+    menuDescription: "Process images and videos with a ComfyUI workflow, for review.",
     isAvailable: ({ comfyPresetsAvailable }: JobAvailability) => comfyPresetsAvailable,
     unavailableReason: "No ComfyUI presets are available. Configure workflows in Settings.",
   },
@@ -186,7 +185,7 @@ export const JOB_TYPE_META = {
     icon: iconAiToolkit,
     startUi: "dialog" as const,
     menuLabel: "Quick LoRA training",
-    menuDescription: "Train an image or video LoRA on this folder with AI-Toolkit.",
+    menuDescription: "Train a LoRA on this folder with Ostris AI-Toolkit.",
     isAvailable: ({ ostrisAvailable }: JobAvailability) => ostrisAvailable,
     unavailableReason: "AI-Toolkit is unavailable. Check its connection in Settings.",
   },

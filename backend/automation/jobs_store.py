@@ -49,11 +49,21 @@ _JOB_SUMMARY_COLUMNS = ", ".join(_JOB_SUMMARY_COLUMN_NAMES)
 
 _IMMUTABLE_JOB_COLUMNS = frozenset({"id", "created_at"})
 
+# Undo records live in their own table: they can be large, are read once, and only caption jobs
+# have them. Every read appends whether a job has one, as the computed `undoable`.
+_UNDOABLE = "EXISTS (SELECT 1 FROM job_undo WHERE job_undo.job_id = jobs.id)"
+_SELECT_JOB = f"{_JOB_COLUMNS}, {_UNDOABLE}"
+_SELECT_JOB_SUMMARY = f"{_JOB_SUMMARY_COLUMNS}, {_UNDOABLE}"
+_DELETE_ORPHAN_UNDO = "DELETE FROM job_undo WHERE job_id NOT IN (SELECT id FROM jobs)"
+
 
 def init_jobs_table() -> None:
     columns = ", ".join(f"{name} {definition}" for name, definition in _JOB_SCHEMA)
     with get_connection() as conn:
         conn.execute(f"CREATE TABLE IF NOT EXISTS jobs ({columns})")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS job_undo (job_id TEXT PRIMARY KEY, records_json TEXT NOT NULL)"
+        )
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_jobs_folder
@@ -80,7 +90,7 @@ def list_active_jobs() -> list[dict[str, object]]:
     with get_connection() as conn:
         rows = conn.execute(
             f"""
-            SELECT {_JOB_COLUMNS} FROM jobs
+            SELECT {_SELECT_JOB} FROM jobs
             WHERE status IN ('queued', 'running')
             ORDER BY created_at DESC
             """
@@ -128,7 +138,8 @@ def _decode_json[T: (dict, list)](raw: object, shape: type[T]) -> T:
 
 def _row_to_dict(row: tuple, columns: tuple[str, ...] = _JOB_COLUMN_NAMES) -> dict[str, object]:
     """Map one row to a job dict. ``results`` is absent (not empty) when ``columns`` omits the blob."""
-    values = dict(zip(columns, row, strict=True))
+    *stored, undoable = row
+    values = dict(zip(columns, stored, strict=True))
 
     stats = _decode_json(values.pop("stats_json"), dict)
     results = _decode_json(values.pop("results_json"), list) if "results_json" in values else None
@@ -141,6 +152,7 @@ def _row_to_dict(row: tuple, columns: tuple[str, ...] = _JOB_COLUMN_NAMES) -> di
         "processed": int(values["processed"] or 0),
         "revision": int(values["revision"] or 0),
         "workflow_edited": bool(values["workflow_edited"]),
+        "undoable": bool(undoable),
         "stats": {key: int(value) for key, value in stats.items()},
     }
     if results is not None:
@@ -188,7 +200,7 @@ def save_job(job: dict[str, object]) -> None:
 def get_job(job_id: str) -> dict[str, object] | None:
     with get_connection() as conn:
         row = conn.execute(
-            f"SELECT {_JOB_COLUMNS} FROM jobs WHERE id = ?",
+            f"SELECT {_SELECT_JOB} FROM jobs WHERE id = ?",
             (job_id,),
         ).fetchone()
 
@@ -231,7 +243,7 @@ def list_jobs(
     with get_connection() as conn:
         rows = conn.execute(
             f"""
-            SELECT {_JOB_SUMMARY_COLUMNS} FROM jobs
+            SELECT {_SELECT_JOB_SUMMARY} FROM jobs
             {where}
             ORDER BY
                 CASE status
@@ -271,7 +283,7 @@ def get_latest_job_for_folder(
     normalized = _normalize_folder(folder)
 
     query = f"""
-        SELECT {_JOB_SUMMARY_COLUMNS} FROM jobs
+        SELECT {_SELECT_JOB_SUMMARY} FROM jobs
         WHERE folder = ?
     """
     params: list[object] = [normalized]
@@ -295,7 +307,7 @@ def get_active_job_for_folder(
     normalized = _normalize_folder(folder)
 
     query = f"""
-        SELECT {_JOB_SUMMARY_COLUMNS} FROM jobs
+        SELECT {_SELECT_JOB_SUMMARY} FROM jobs
         WHERE folder = ? AND status IN ('queued', 'running')
     """
     params: list[object] = [normalized]
@@ -317,6 +329,7 @@ def delete_job(job_id: str) -> bool:
             "DELETE FROM jobs WHERE id = ?",
             (job_id,),
         )
+        conn.execute("DELETE FROM job_undo WHERE job_id = ?", (job_id,))
         conn.commit()
         return cursor.rowcount > 0
 
@@ -331,6 +344,7 @@ def prune_finished_jobs(days: int) -> list[str]:
             " RETURNING id",
             (f"-{days} days",),
         ).fetchall()
+        conn.execute(_DELETE_ORPHAN_UNDO)
         conn.commit()
     return [row[0] for row in rows]
 
@@ -339,5 +353,25 @@ def delete_all_jobs() -> list[str]:
     """Returns the ids removed."""
     with get_connection() as conn:
         rows = conn.execute("DELETE FROM jobs RETURNING id").fetchall()
+        conn.execute(_DELETE_ORPHAN_UNDO)
         conn.commit()
     return [row[0] for row in rows]
+
+
+def save_job_undo(job_id: str, records: list[dict[str, object]]) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO job_undo (job_id, records_json) VALUES (?, ?)",
+            (job_id, json.dumps(records)),
+        )
+        conn.commit()
+
+
+def take_job_undo(job_id: str) -> list[dict[str, object]] | None:
+    """The job's undo records, removed in the same step: an undo runs at most once."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "DELETE FROM job_undo WHERE job_id = ? RETURNING records_json", (job_id,)
+        ).fetchone()
+        conn.commit()
+    return _decode_json(row[0], list) if row else None

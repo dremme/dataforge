@@ -31,7 +31,7 @@ $lane-inset: 4px;
   background: var(--media-text);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--text) 28%, transparent),
-    var(--shadow-soft);
+    var(--elevation-1);
   transition: transform var(--transition);
 }
 
@@ -163,7 +163,7 @@ $lane-inset: 4px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--bg-elevated);
-    box-shadow: var(--shadow);
+    box-shadow: var(--elevation-4);
     text-align: center;
 
     p {
@@ -979,7 +979,7 @@ $lane-inset: 4px;
     padding: 0.0625rem 0.25rem;
     background: var(--media-scrim);
     font-family: var(--font-mono);
-    font-size: 0.625rem;
+    font-size: var(--text-3xs);
     @include tabular-nums;
   }
 
@@ -1047,7 +1047,7 @@ $lane-inset: 4px;
 
   &__media-list--grid &__media-add {
     @include editor-solid-accent;
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--elevation-1);
     opacity: 0;
     transition:
       opacity var(--transition),
@@ -1194,7 +1194,7 @@ $lane-inset: 4px;
     flex-shrink: 0;
     box-shadow:
       0 0 0 1px var(--border),
-      var(--shadow);
+      var(--elevation-3);
   }
 
   &__canvas {
@@ -1251,7 +1251,7 @@ $lane-inset: 4px;
     max-width: 100%;
     max-height: 100%;
     background: var(--video-bg);
-    box-shadow: var(--shadow);
+    box-shadow: var(--elevation-3);
   }
 
   video.video-editor__source {
@@ -1336,7 +1336,7 @@ $lane-inset: 4px;
 
     figcaption {
       color: var(--media-text);
-      font-size: 0.625rem;
+      font-size: var(--text-3xs);
       white-space: nowrap;
       @include tabular-nums;
     }
@@ -1400,7 +1400,7 @@ $lane-inset: 4px;
     border-radius: var(--radius-pill);
     background: var(--media-scrim);
     color: var(--media-text);
-    font-size: 0.625rem;
+    font-size: var(--text-3xs);
     pointer-events: auto;
     @include tabular-nums;
     @include icon-scope-sm;
@@ -2378,7 +2378,7 @@ $lane-inset: 4px;
 
     dt {
       @include section-label;
-      font-size: 0.625rem;
+      font-size: var(--text-3xs);
     }
 
     dd {
@@ -2531,7 +2531,7 @@ $lane-inset: 4px;
     color: var(--text);
     font-size: var(--text-xs);
     line-height: var(--leading-snug);
-    box-shadow: var(--shadow);
+    box-shadow: var(--elevation-3);
     @include icon-scope-sm;
 
     > .lucide {
@@ -2620,7 +2620,7 @@ $lane-inset: 4px;
     color: var(--danger);
     font-size: var(--text-xs);
     white-space: nowrap;
-    box-shadow: var(--shadow);
+    box-shadow: var(--elevation-3);
     pointer-events: none;
     @include icon-scope-sm;
   }
@@ -2686,7 +2686,7 @@ $lane-inset: 4px;
     border-left: 1px solid var(--tick);
     color: var(--text-subtle);
     font-family: var(--font-mono);
-    font-size: 0.625rem;
+    font-size: var(--text-3xs);
     line-height: 1;
     white-space: nowrap;
     pointer-events: none;
@@ -3128,7 +3128,7 @@ $lane-inset: 4px;
     padding: 0 0.375rem;
     background: color-mix(in srgb, var(--clip-color) 36%, var(--bg-elevated));
     color: var(--text);
-    font-size: 0.6875rem;
+    font-size: var(--text-2xs);
     font-weight: var(--font-medium);
     line-height: 1;
     pointer-events: none;
@@ -3150,7 +3150,7 @@ $lane-inset: 4px;
     border-radius: 0.1875rem;
     background: var(--media-scrim);
     color: var(--media-warning);
-    font-size: 0.625rem;
+    font-size: var(--text-3xs);
     font-weight: var(--font-semibold);
     @include tabular-nums;
   }
@@ -3167,7 +3167,7 @@ $lane-inset: 4px;
     padding: 0.1875rem 0.375rem;
     @include truncate;
     color: var(--text-muted);
-    font-size: 0.6875rem;
+    font-size: var(--text-2xs);
     font-style: italic;
   }
 
@@ -3507,7 +3507,7 @@ $lane-inset: 4px;
   &:hover:not(:disabled) {
     transform: translateY(-2px);
     border-color: var(--accent-border);
-    box-shadow: var(--shadow);
+    box-shadow: var(--elevation-2);
     @include fade-bg(var(--bg-elevated));
   }
 

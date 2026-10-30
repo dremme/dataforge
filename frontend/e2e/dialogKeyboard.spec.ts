@@ -65,6 +65,7 @@ test("a job filter menu stays inside its modal and owns the first Escape", async
         processed: 1,
         stats: {},
         workflow_edited: false,
+        undoable: false,
         revision: 1,
         created_at: "2026-01-01T00:00:00.000Z",
       },

@@ -8,6 +8,7 @@ const START_MS = Date.parse("2026-01-01T12:00:00.000Z");
 function makeJob(overrides: Partial<Job> = {}): Job {
   return {
     workflow_edited: false,
+    undoable: false,
     id: "job-1",
     folder: "C:\\Photos",
     folder_name: "Photos",

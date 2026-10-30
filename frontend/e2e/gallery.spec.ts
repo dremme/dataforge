@@ -106,9 +106,7 @@ test("rounded video thumbnails fill large previews to the bottom edge", async ({
   expect(pixels).toEqual([[70, 130, 180]]);
 });
 
-test("video playback keeps the fading overlay even along the preview edge", async ({
-  page,
-}, testInfo) => {
+test("video playback fades in evenly along the preview edge", async ({ page }, testInfo) => {
   const backend = fileURLToPath(new URL("../../backend/", import.meta.url));
   const python = path.join(
     backend,
@@ -175,7 +173,7 @@ test("video playback keeps the fading overlay even along the preview edge", asyn
   const card = page.getByRole("button", { name: "View clip.mp4", exact: true });
   await expect(card.locator(".card__img--ready")).toBeVisible();
   await card.hover();
-  await expect(card).toHaveClass(/card--previewing/);
+  await expect(card.locator(".card__video-preview--ready")).toBeAttached();
   await expect
     .poll(() =>
       card.evaluate((node) =>

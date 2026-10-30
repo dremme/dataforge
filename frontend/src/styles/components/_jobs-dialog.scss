@@ -308,7 +308,7 @@ $jobs-content-pad-top: 0.75rem;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.4375rem;
+    gap: var(--space-2);
     padding: 2.5rem 0.5rem;
     text-align: center;
     color: var(--text-muted);
@@ -326,17 +326,7 @@ $jobs-content-pad-top: 0.75rem;
   }
 
   &__empty-icon {
-    @include flex-center;
-    width: 2.75rem;
-    height: 2.75rem;
-    margin-bottom: 0.25rem;
-    border-radius: var(--radius-pill);
-    background: var(--surface-hover);
-    color: var(--text-subtle);
-
-    .app-icon {
-      @include icon-size(var(--icon-size-base));
-    }
+    @include empty-state-badge;
   }
 
   &__section + &__section,
@@ -446,10 +436,6 @@ $jobs-content-pad-top: 0.75rem;
     border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--job-tone) 14%, transparent);
     color: var(--job-tone);
-
-    .app-icon {
-      @include icon-size(var(--icon-size-base));
-    }
   }
 
   &--muted &__type-icon {

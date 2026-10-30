@@ -38,6 +38,7 @@ import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import { useCaptionBackup } from "@/features/gallery/hooks/useCaptionBackup";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useDeleteLeftoversNotice } from "@/features/gallery/hooks/useDeleteLeftoversNotice";
+import { useDeleteUndoNotice } from "@/features/gallery/hooks/useDeleteUndoNotice";
 import { useGifFrameCapture } from "@/features/gallery/hooks/useGifFrameCapture";
 import { useGifFrameCount } from "@/features/gallery/hooks/useGifFrameCount";
 import { useGifToMp4 } from "@/features/gallery/hooks/useGifToMp4";
@@ -74,6 +75,7 @@ import {
   iconPencilLine,
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
+import { isUncaptionedItem, nextIndexWhere } from "@/features/gallery/lib/reviewJump";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
 import { splitFileName } from "@/features/gallery/lib/fileName";
 import { isDuplicateItem } from "@/features/gallery/lib/duplicates";
@@ -140,6 +142,14 @@ function hasExtension(name: string, extensions: readonly string[]): boolean {
   return dot >= 0 && extensions.includes(name.slice(dot).toLowerCase());
 }
 
+type ReviewJump = "uncaptioned" | "issue";
+
+const REVIEW_JUMPS: Record<ReviewJump, { matches: (item: GalleryItem) => boolean; none: string }> =
+  {
+    uncaptioned: { matches: isUncaptionedItem, none: "No other uncaptioned files." },
+    issue: { matches: isResolvableIssueItem, none: "No other files with an issue." },
+  };
+
 // Widgets outside the inspector that use arrow keys themselves.
 const OUTSIDE_ARROW_OWNERS =
   '[role="menu"], [role="listbox"], [role="slider"], [role="separator"], [role="tablist"], select';
@@ -166,6 +176,9 @@ interface GalleryItemDialogProps {
   onResolveIssue?: (item: GalleryItem) => void;
   onReviewCandidate?: (item: GalleryItem) => void;
   onResolveDuplicate?: (item: GalleryItem) => void;
+  /** Whether the open item is in the gallery selection; X toggles it when this is given. */
+  selected?: boolean;
+  onToggleSelect?: (path: string) => void;
   focusView?: boolean;
   onFocusViewChange?: (focus: boolean) => void;
   /** Editing or capture expanded a docked view: the gallery is covered, its layout unsaved. */
@@ -198,6 +211,8 @@ export function GalleryItemDialog({
   onResolveIssue,
   onReviewCandidate,
   onResolveDuplicate,
+  selected = false,
+  onToggleSelect,
   focusView = true,
   onFocusViewChange,
   onEditExpandedChange,
@@ -227,6 +242,7 @@ export function GalleryItemDialog({
     replaceUnreadableCaption,
   } = useGalleryItemCaption({ item, onCaptionSaved });
   const notifyDeleteLeftovers = useDeleteLeftoversNotice();
+  const notifyDeleteUndo = useDeleteUndoNotice();
   const backupCaption = useCaptionBackup(item?.path, hasCaptionBackup);
   const captionCompletions = useMemo(() => buildCaptionVocabulary(items), [items]);
 
@@ -428,7 +444,12 @@ export function GalleryItemDialog({
   const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
 
   // Transfer state stays out: a move advances the item while finally is pending, re-enabling early.
+  // Save-and-next from the caption editor keeps writing: the next item's editor takes focus.
+  // Keyed to the item it was meant for, so paging any other way never pulls focus.
+  const [focusCaptionOf, setFocusCaptionOf] = useState<string | null>(null);
+
   if (useChanged(item?.path)) {
+    if (item?.path !== focusCaptionOf) setFocusCaptionOf(null);
     setDeleteConfirmOpen(false);
     setDeleting(false);
     setRenameOpen(false);
@@ -591,6 +612,8 @@ export function GalleryItemDialog({
       setDeleteConfirmOpen(false);
       onDeleted?.(item.path);
       notifyDeleteLeftovers([result]);
+      // onCopied refreshes the folder, which is all a restored file needs to show up again.
+      notifyDeleteUndo([result], () => onCopied?.());
     } catch (error) {
       setDeleteConfirmOpen(false);
       notify({
@@ -600,7 +623,16 @@ export function GalleryItemDialog({
     } finally {
       setDeleting(false);
     }
-  }, [deleting, flushPendingSave, item, notify, notifyDeleteLeftovers, onDeleted]);
+  }, [
+    deleting,
+    flushPendingSave,
+    item,
+    notify,
+    notifyDeleteLeftovers,
+    notifyDeleteUndo,
+    onCopied,
+    onDeleted,
+  ]);
 
   /** Re-encodes in place through the edit pipeline: Revert original gets the file back. */
   const convertToPlayable = useCallback(async () => {
@@ -643,6 +675,45 @@ export function GalleryItemDialog({
   }, [editExpanded, onEditExpandedChange]);
 
   useEffect(() => {
+    // Wraps, and skips the open item, so a review pass walks the whole list of what is left.
+    // The index it leaves for, or -1 when no other item matches.
+    const jumpTo = (kind: ReviewJump, direction: 1 | -1) => {
+      const target = nextIndexWhere(items, index, REVIEW_JUMPS[kind].matches, direction);
+      if (target < 0 || !onGoTo) {
+        notify({ variant: "warning", message: REVIEW_JUMPS[kind].none });
+        return -1;
+      }
+      void leave(() => onGoTo(target));
+      return target;
+    };
+    const fromCaptionEditor = (event: KeyboardEvent) =>
+      event.target instanceof Element && event.target.closest(".code-editor--caption") !== null;
+    // The review-pass keys: jumps, move and select. Plain letters, so never while typing or
+    // while an edit or frame capture owns the keyboard.
+    const handleReviewKey = (event: KeyboardEvent) => {
+      if (editing || frameCapture.frameMode || !item) return false;
+      const jump = matchesShortcut(event, SHORTCUTS.nextUncaptioned)
+        ? "uncaptioned"
+        : matchesShortcut(event, SHORTCUTS.nextIssue)
+          ? "issue"
+          : null;
+      if (jump) {
+        event.preventDefault();
+        jumpTo(jump, event.shiftKey ? -1 : 1);
+        return true;
+      }
+      if (canTransfer && matchesShortcut(event, SHORTCUTS.moveItem)) {
+        event.preventDefault();
+        void leave(() => transfer.openTransferPicker("move"));
+        return true;
+      }
+      if (onToggleSelect && matchesShortcut(event, SHORTCUTS.toggleSelectItem)) {
+        event.preventDefault();
+        onToggleSelect(item.path);
+        return true;
+      }
+      return false;
+    };
     const goToStep = (step: NonNullable<ReturnType<typeof queueStepFor>>) => {
       if (items.length < 2) return;
       if (step === "previous") void leave(onPrevious);
@@ -682,6 +753,7 @@ export function GalleryItemDialog({
           closeDialog();
           return;
         }
+        if (handleReviewKey(event)) return;
         const step = queueStepFor(event);
         if (!step) return;
         event.preventDefault();
@@ -692,8 +764,19 @@ export function GalleryItemDialog({
       // First: the caption editor, where this gets pressed, has already prevented the default.
       if (matchesShortcut(event, SHORTCUTS.saveAndNext)) {
         event.preventDefault();
-        if (items.length > 1) void leave(onNext);
-        else void flushPendingSave();
+        if (items.length < 2) {
+          void flushPendingSave();
+          return;
+        }
+        if (fromCaptionEditor(event)) setFocusCaptionOf(items[(index + 1) % items.length].path);
+        void leave(onNext);
+        return;
+      }
+      if (matchesShortcut(event, SHORTCUTS.saveAndNextUncaptioned)) {
+        event.preventDefault();
+        const target = jumpTo("uncaptioned", 1);
+        if (target < 0) void flushPendingSave();
+        else if (fromCaptionEditor(event)) setFocusCaptionOf(items[target].path);
         return;
       }
       // A mask surface claims arrows and Delete by preventing the default.
@@ -713,6 +796,7 @@ export function GalleryItemDialog({
         openDeleteConfirm();
         return;
       }
+      if (handleReviewKey(event)) return;
 
       const step = queueStepFor(event);
       if (!step) return;
@@ -726,6 +810,7 @@ export function GalleryItemDialog({
     };
   }, [
     busy,
+    canTransfer,
     childOverlayOpen,
     closeDialog,
     editing,
@@ -734,12 +819,16 @@ export function GalleryItemDialog({
     frameCapture.frameMode,
     flushPendingSave,
     index,
-    items.length,
+    item,
+    items,
+    notify,
     onGoTo,
     onNext,
     onPrevious,
+    onToggleSelect,
     openDeleteConfirm,
     showingBackupDiff,
+    transfer,
   ]);
 
   // In frame/edit mode Escape steps back to viewing; DialogShell stands down via escape="none".
@@ -848,6 +937,7 @@ export function GalleryItemDialog({
             <span className="gallery-item-dialog__counter">
               {index + 1} / {items.length}
             </span>
+            {selected && <span className="gallery-item-dialog__selected">Selected</span>}
             {inline && (
               <button
                 type="button"
@@ -1500,6 +1590,7 @@ export function GalleryItemDialog({
                   aria-invalid={saveState === "error" || captionConflict}
                   onChange={handleCaptionChange}
                   editable={!leaving && !captionLocked}
+                  autoFocus={focusCaptionOf === item.path}
                 />
                 {captionReadError && (
                   <div className="workspace-save-error" role="alert">

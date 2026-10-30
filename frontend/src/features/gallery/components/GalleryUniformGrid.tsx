@@ -44,8 +44,14 @@ export function GalleryUniformGrid({
   showMegapixels,
   captionPreview,
 }: GalleryUniformGridProps) {
-  const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo, inspectedPath } =
-    useGallerySelectionContext();
+  const {
+    selectionMode,
+    selectedPaths,
+    toggleSelectedPath,
+    extendSelectionTo,
+    inspectedPath,
+    actions: { copyCaption, openDeleteConfirmFor },
+  } = useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
   const layout = galleryLayoutFor(displayMode);
   const { columnCount } = useGalleryColumns(listRef, displayMode);
@@ -145,6 +151,8 @@ export function GalleryUniformGrid({
                       selected={selectedPaths.has(item.path)}
                       onToggleSelect={toggleSelectedPath}
                       onExtendSelect={extendSelectionTo}
+                      onCopyCaption={copyCaption}
+                      onDelete={openDeleteConfirmFor}
                     />
                   ),
                 )}

@@ -742,6 +742,36 @@ describe("GalleryItemDialog", () => {
       expect(props.onNext).toHaveBeenCalledTimes(1);
     });
 
+    it("keeps typing in the next item's caption after Ctrl+Enter from the editor", async () => {
+      const user = userEvent.setup();
+      const props = renderKeyboardDialog();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const caption = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+      await waitFor(() => expect(caption).toHaveValue("Golden hour over the lake"));
+      await user.click(caption);
+      await user.keyboard("{Control>}{Enter}{/Control}");
+      await waitFor(() => expect(props.onNext).toHaveBeenCalledTimes(1));
+      props.showIndex(1);
+
+      await waitFor(() =>
+        expect(screen.getByRole("textbox", { name: "Caption for beach.jpg" })).toHaveFocus(),
+      );
+    });
+
+    it("leaves focus alone when paging with the arrow keys", async () => {
+      const user = userEvent.setup();
+      const props = renderKeyboardDialog();
+      await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+
+      await user.keyboard("{ArrowRight}");
+      expect(props.onNext).toHaveBeenCalledTimes(1);
+      props.showIndex(1);
+
+      const next = await screen.findByRole("textbox", { name: "Caption for beach.jpg" });
+      expect(next).not.toHaveFocus();
+    });
+
     it("moves on with Ctrl+Enter that the caption editor has already claimed", async () => {
       const props = renderKeyboardDialog();
 
@@ -779,6 +809,97 @@ describe("GalleryItemDialog", () => {
       await user.keyboard("{Backspace}{Delete}");
 
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+
+    describe("review pass", () => {
+      // sunset and beach are captioned; dune and reef are not, and reef has an issue.
+      const reviewItems = () => [
+        makeItem("sunset.png"),
+        makeItem("dune.png", { description: null, has_description: false }),
+        makeItem("beach.jpg"),
+        makeItem("reef.png", { description: null, has_description: false, has_issue_file: true }),
+      ];
+
+      it("jumps to the next and previous uncaptioned item with U and Shift+U", async () => {
+        const user = userEvent.setup();
+        const props = renderKeyboardDialog({ items: reviewItems(), index: 2 });
+        await screen.findByRole("dialog", { name: "Viewing beach.jpg" });
+
+        await user.keyboard("u");
+        await waitFor(() => expect(props.onGoTo).toHaveBeenLastCalledWith(3));
+        await user.keyboard("{Shift>}U{/Shift}");
+        await waitFor(() => expect(props.onGoTo).toHaveBeenLastCalledWith(1));
+      });
+
+      it("jumps to the next item with an issue with I", async () => {
+        const user = userEvent.setup();
+        const props = renderKeyboardDialog({ items: reviewItems() });
+        await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+
+        await user.keyboard("i");
+
+        await waitFor(() => expect(props.onGoTo).toHaveBeenLastCalledWith(3));
+      });
+
+      it("says so when no other item matches", async () => {
+        const user = userEvent.setup();
+        const props = renderKeyboardDialog();
+        await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+
+        await user.keyboard("u");
+
+        expect(await screen.findByText("No other uncaptioned files.")).toBeInTheDocument();
+        expect(props.onGoTo).not.toHaveBeenCalled();
+      });
+
+      it("leaves the letters to the caption editor", async () => {
+        const user = userEvent.setup();
+        const onToggleSelect = vi.fn<(path: string) => void>();
+        const props = renderKeyboardDialog({ items: reviewItems(), onToggleSelect });
+
+        const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+        const caption = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+        await waitFor(() => expect(caption).toHaveValue("Golden hour over the lake"));
+        await user.click(caption);
+        await user.keyboard("uix");
+
+        expect(caption).toHaveValue("Golden hour over the lakeuix");
+        expect(props.onGoTo).not.toHaveBeenCalled();
+        expect(onToggleSelect).not.toHaveBeenCalled();
+      });
+
+      it("saves and jumps to the next uncaptioned item with Ctrl+Shift+Enter", async () => {
+        const user = userEvent.setup();
+        const saveCaption = vi.spyOn(captionsApi, "saveCaption");
+        const props = renderKeyboardDialog({ items: reviewItems() });
+
+        const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+        const caption = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+        await waitFor(() => expect(caption).toHaveValue("Golden hour over the lake"));
+        await user.click(caption);
+        await user.keyboard(" at dusk");
+        await user.keyboard("{Control>}{Shift>}{Enter}{/Shift}{/Control}");
+
+        expect(saveCaption).toHaveBeenCalledWith(
+          `${HOME_PATH}\\sunset.png`,
+          "Golden hour over the lake at dusk",
+          { baseRevision: null },
+        );
+        await waitFor(() => expect(props.onGoTo).toHaveBeenLastCalledWith(1));
+        expect(props.onNext).not.toHaveBeenCalled();
+      });
+
+      it("toggles the item's selection with X and marks it selected", async () => {
+        const user = userEvent.setup();
+        const onToggleSelect = vi.fn<(path: string) => void>();
+        renderKeyboardDialog({ onToggleSelect, selected: true });
+        const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+
+        await user.keyboard("x");
+
+        expect(onToggleSelect).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`);
+        expect(within(dialog).getByText("Selected")).toBeInTheDocument();
+      });
     });
   });
 

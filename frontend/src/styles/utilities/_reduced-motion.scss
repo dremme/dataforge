@@ -39,6 +39,15 @@
     animation: none;
   }
 
+  // Hover still raises the shadow and border; the card just stays put.
+  .card-cell:hover > .card-cell__tip > .card,
+  .card-cell:hover > .card-cell__tip > .card .card__img,
+  .card-cell:hover > .card-cell__tip > .card .card__video-preview,
+  .card-cell:hover > .card-actions,
+  .folder-card:hover:not(:disabled) {
+    transform: none;
+  }
+
   // A busy signal must not vanish like decoration: the sweep becomes a slow in-place pulse.
   .app-nav__refresh::after {
     width: 100%;

@@ -24,6 +24,7 @@ const fetchJobsMock = vi.mocked(fetchJobs);
 
 const trainingJob: Job = {
   workflow_edited: false,
+  undoable: false,
   id: "job-1",
   folder: "C:\\datasets\\landscapes",
   folder_name: "landscapes",

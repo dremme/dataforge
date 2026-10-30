@@ -18,6 +18,7 @@ import { DialogShell } from "@/shared/ui/DialogShell";
 import {
   iconBot,
   iconFiles,
+  iconFilterX,
   iconFolder,
   iconMessageWarning,
   iconScanSquare,
@@ -203,6 +204,9 @@ export function JobsDialog({ currentFolder, onOpenFolder, currentActions }: Jobs
 
   const filteredEmpty = (
     <div className="jobs-dialog__empty">
+      <span className="jobs-dialog__empty-icon" aria-hidden="true">
+        <Icon icon={iconFilterX} />
+      </span>
       <p>{history.loading ? "Loading job history..." : "No jobs match these filters."}</p>
       <button
         type="button"

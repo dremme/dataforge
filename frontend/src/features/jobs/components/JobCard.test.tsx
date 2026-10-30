@@ -21,6 +21,7 @@ const fetchResults = vi.mocked(fetchJobResults);
 
 const runningJob: Job = {
   workflow_edited: false,
+  undoable: false,
   id: "job-1",
   folder: "C:\\Photos",
   folder_name: "Photos",
@@ -154,6 +155,7 @@ describe("JobCard", () => {
           job_type: "train_lora",
           workflow: "krea2_turbo",
           workflow_edited: true,
+          undoable: false,
         }}
       />,
     );

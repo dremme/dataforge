@@ -117,7 +117,7 @@ class SetCaptionsJobTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
 
-            with patch("automation.set_captions.save_caption", side_effect=OSError("disk full")):
+            with patch("captions.save_caption", side_effect=OSError("disk full")):
                 result = run_set_captions_job(root, caption="Caption text.", overwrite=True)
 
             self.assertEqual(result["stats"]["write_error"], 1)

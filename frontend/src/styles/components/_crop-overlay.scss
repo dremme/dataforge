@@ -74,7 +74,7 @@ $handle-size: 0.75rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--bg-elevated);
-    box-shadow: var(--shadow-tooltip);
+    box-shadow: var(--elevation-3);
     color: var(--text);
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
@@ -84,7 +84,7 @@ $handle-size: 0.75rem;
     white-space: nowrap;
     pointer-events: none;
     opacity: 0;
-    transition: opacity $transition-fast;
+    transition: opacity var(--transition);
     // Screen-aligns the readout, centres it, then drops it below the top edge's middle handle.
     transform: var(--crop-readout-transform, none) translate(-50%, $handle-size);
     transform-origin: 0 0;

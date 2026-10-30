@@ -47,6 +47,11 @@
     flex-shrink: 0;
   }
 
+  &__selected {
+    @include count-pill;
+    flex-shrink: 0;
+  }
+
   &__step {
     @include icon-btn-sm;
   }

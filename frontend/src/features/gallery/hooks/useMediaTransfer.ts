@@ -5,10 +5,10 @@ import {
   transferSelectedMedia,
   type MediaTransferMode,
 } from "@/features/gallery/api/media";
-import { folderLeafName } from "@/features/folder/lib/folderPath";
+import { folderLeafName, parentFolderPath } from "@/features/folder/lib/folderPath";
 import { failureMessage } from "@/features/gallery/lib/mediaActionMessages";
 import { formatApiError } from "@/shared/api/http";
-import { useNotify } from "@/shared/notifications/notifications";
+import { UNDO_TOAST_DURATION_MS, useNotify } from "@/shared/notifications/notifications";
 import { useLatestRef } from "@/shared/hooks/useLatestRef";
 
 export type MediaTransferPrompt = {
@@ -30,9 +30,22 @@ function defaultEmptyPreviewMessage(mode: MediaTransferMode): string {
   return `No selected files can be ${mode === "move" ? "moved" : "copied"} to that folder.`;
 }
 
+function fileCount(count: number): string {
+  return count === 1 ? "1 file" : `${formatCount(count)} files`;
+}
+
 function defaultCopySuccessMessage(succeeded: string[], destinationLabel: string): string {
-  const count = succeeded.length === 1 ? "1 file" : `${formatCount(succeeded.length)} files`;
-  return `Copied ${count} to ${destinationLabel}.`;
+  return `Copied ${fileCount(succeeded.length)} to ${destinationLabel}.`;
+}
+
+/** Moved files grouped by the folder each came from, the inverse move's destinations. */
+function movesBack(transferred: ReadonlyArray<{ source: string; destination: string }>) {
+  const byFolder = new Map<string, string[]>();
+  for (const { source, destination } of transferred) {
+    const folder = parentFolderPath(source);
+    byFolder.set(folder, [...(byFolder.get(folder) ?? []), destination]);
+  }
+  return byFolder;
 }
 
 /** executeTransfer stays unguarded: selectDestination sets transferring before awaiting it. */
@@ -75,6 +88,27 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
     setOverwritePrompt(null);
   }, []);
 
+  const undoMove = useCallback(
+    async (transferred: ReadonlyArray<{ source: string; destination: string }>) => {
+      const failures: Array<{ path: string; error: unknown }> = [];
+      try {
+        for (const [folder, destinations] of movesBack(transferred)) {
+          const { failed } = await transferSelectedMedia("move", folder, destinations, false);
+          failures.push(...failed);
+        }
+      } catch (error) {
+        notify({ variant: "danger", message: formatApiError(error) });
+      } finally {
+        // The files are back in a folder the gallery already shows: a refresh, like a copy.
+        await optionsRef.current.onCopied();
+      }
+      if (failures.length > 0) {
+        notify({ variant: "danger", message: failureMessage("move", failures) });
+      }
+    },
+    [notify, optionsRef],
+  );
+
   const executeTransfer = useCallback(
     async (
       mode: MediaTransferMode,
@@ -84,7 +118,7 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
     ) => {
       const { onMoved, onCopied, copySuccessMessage } = optionsRef.current;
 
-      const { succeeded, failed } = await transferSelectedMedia(
+      const { succeeded, failed, transferred } = await transferSelectedMedia(
         mode,
         destinationFolder,
         paths,
@@ -104,6 +138,17 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
         notify({ variant: "danger", message: failureMessage(mode, failed) });
       }
 
+      // An overwrite unlinked what it replaced, so moving back could not restore the folder.
+      if (mode === "move" && transferred.length > 0 && !overwrite) {
+        const target = folderLeafName(destinationFolder) || destinationFolder;
+        notify({
+          variant: "success",
+          message: `Moved ${fileCount(transferred.length)} to ${target}.`,
+          durationMs: UNDO_TOAST_DURATION_MS,
+          action: { label: "Undo", run: () => void undoMove(transferred) },
+        });
+      }
+
       if (mode === "copy" && succeeded.length > 0) {
         // Nothing changes in this folder, so say so rather than leaving it silent.
         const target = folderLeafName(destinationFolder) || destinationFolder;
@@ -111,7 +156,7 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
         notify({ variant: "success", message });
       }
     },
-    [notify, optionsRef],
+    [notify, optionsRef, undoMove],
   );
 
   const selectDestination = useCallback(

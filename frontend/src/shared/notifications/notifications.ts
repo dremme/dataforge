@@ -25,7 +25,12 @@ export interface NotifyOptions {
   message: string;
   variant: NotificationVariant;
   action?: ToastAction;
+  /** Overrides the variant's duration, e.g. to leave an Undo time to be reached. */
+  durationMs?: number;
 }
+
+/** Long enough to notice a mistake and reach the button. */
+export const UNDO_TOAST_DURATION_MS = 8000;
 
 /** The follow-up for a server notification, such as opening the file an export wrote. */
 export type NotificationActionFor = (record: NotificationRecord) => ToastAction | undefined;

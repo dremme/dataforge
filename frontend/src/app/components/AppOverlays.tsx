@@ -3,6 +3,7 @@ import { CreateFolderDialog } from "@/features/folder/components/CreateFolderDia
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
 import { QuickActionDialog } from "@/features/quickAction/components/QuickActionDialog";
 import { GalleryItemDialog } from "@/features/gallery/components/GalleryItemDialog";
+import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import { IssueResolverDialog } from "@/features/gallery/components/IssueResolverDialog";
 import { JOB_START_CONFIRM } from "@/features/jobs/lib/jobMeta";
 import { JobsDialog } from "@/features/jobs/components/JobsDialog";
@@ -43,6 +44,8 @@ export function AppOverlays({
   settings,
   shortcuts,
 }: AppOverlaysProps) {
+  const { selectedPaths, toggleSelectedPath } = useGallerySelectionContext();
+
   return (
     <>
       <JobsDialog
@@ -128,6 +131,8 @@ export function AppOverlays({
           onResolveIssue={gallery.onResolveIssue}
           onReviewCandidate={gallery.onReviewCandidate}
           onResolveDuplicate={gallery.onResolveDuplicate}
+          selected={selectedPaths.has(gallery.selectedPath)}
+          onToggleSelect={toggleSelectedPath}
         />
       )}
 

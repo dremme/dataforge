@@ -52,15 +52,33 @@ $z-index-notification: 1200;
 // Blocks the whole app, notifications included, while the API is down.
 $z-index-backend-unavailable: 1300;
 
-$transition-fast: 0.15s ease;
-$transition-medium: 0.2s;
+// Motion: durations pair with --ease-standard; emphasized is for entrances that settle.
+$duration-fast: 0.15s;
+$duration-base: 0.2s;
+$duration-slow: 0.35s;
+$ease-standard: cubic-bezier(0.2, 0, 0, 1);
+$ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+$ease-exit: cubic-bezier(0.4, 0, 1, 1);
+$transition-fast: $duration-fast $ease-standard;
 
+// A 4px grid; `0_5` is the half step for hairline gaps.
+$space-0_5: 0.125rem;
+$space-1: 0.25rem;
+$space-1_5: 0.375rem;
+$space-2: 0.5rem;
+$space-3: 0.75rem;
+$space-4: 1rem;
+$space-5: 1.25rem;
+$space-6: 1.5rem;
+$space-8: 2rem;
+
+// Bundled (`@fontsource-variable/inter` in main.tsx), so the app renders the same offline.
 $font-sans:
-  "Inter",
+  "Inter Variable",
   system-ui,
   -apple-system,
   sans-serif;
-$font-mono: Consolas, ui-monospace, monospace;
+$font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
 $font-features:
   "cv11" 1,
   "ss01" 1;
@@ -69,12 +87,15 @@ $font-features-numeric:
   "cv11" 1,
   "ss01" 1;
 
+// Readouts drawn over media and timelines, below the reading scale: small boxes have no room.
+$text-3xs: 0.625rem;
 $text-2xs: 0.6875rem;
 $text-xs: 0.75rem;
 $text-sm: 0.875rem;
 $text-base: 1rem;
 $text-md: 1.125rem;
 $text-lg: 1.3125rem;
+$text-xl: 1.5rem;
 
 $font-normal: 400;
 $font-medium: 500;

@@ -1,6 +1,10 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
+// The map packs many boxes into a fixed lane width, so its labels sit below the type scale.
+$map-node-font-size: 0.65625rem;
+$map-chip-font-size: 0.59375rem;
+
 // Two scrolling regions, each bounded; the panel itself never scrolls.
 .dialog__panel.comfy-workflow-dialog {
   display: flex;
@@ -90,7 +94,7 @@
     text-align: left;
 
     &:hover {
-      border-color: var(--card-hover-border);
+      border-color: var(--border-strong);
       color: var(--text);
     }
 
@@ -496,7 +500,7 @@
     background: color-mix(in srgb, var(--map-tone) 7%, var(--bg-card));
     color: var(--text);
     font: inherit;
-    font-size: 0.65625rem;
+    font-size: $map-node-font-size;
     font-weight: var(--font-medium);
     line-height: 1;
     text-align: left;
@@ -529,7 +533,7 @@
     border-radius: 0.3125rem;
     background: color-mix(in srgb, var(--map-tone) 20%, transparent);
     color: var(--map-tone);
-    font-size: 0.59375rem;
+    font-size: $map-chip-font-size;
     font-weight: var(--font-semibold);
     @include tabular-nums;
   }

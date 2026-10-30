@@ -269,5 +269,77 @@ class JobHistoryTests(unittest.TestCase):
         self.assertEqual(client.get("/api/jobs?status=cancelled").status_code, 422)
 
 
+#: CRLF and no trailing newline: only a byte-exact undo gives these back.
+LEGACY_CAPTION_BYTES = b"A lake.\r\nAt dawn."
+
+
+class JobUndoTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def _set_captions(self, root, caption: str) -> str:
+        started = client.post(
+            f"/api/automation/set-captions?path={quote(str(root))}",
+            json={"caption": caption, "overwrite": True},
+        )
+        job_id = started.json()["id"]
+        wait_for_job(job_id)
+        return job_id
+
+    def test_puts_back_the_exact_bytes_a_job_replaced_and_deletes_captions_it_created(self) -> None:
+        with TempMediaFolder() as root:
+            captioned = write_media(root, "lake.png")
+            caption = captioned.with_suffix(".txt")
+
+            caption.write_bytes(LEGACY_CAPTION_BYTES)
+            bare = write_media(root, "field.png")
+            job_id = self._set_captions(root, "Replaced.")
+            self.assertTrue(client.get(f"/api/jobs/{job_id}").json()["undoable"])
+
+            response = client.post(f"/api/jobs/{job_id}/undo")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertCountEqual(response.json()["restored"], [str(captioned), str(bare)])
+            self.assertEqual(caption.read_bytes(), LEGACY_CAPTION_BYTES)
+            self.assertFalse(bare.with_suffix(".txt").exists())
+            self.assertFalse(client.get(f"/api/jobs/{job_id}").json()["undoable"])
+
+    def test_leaves_a_caption_edited_after_the_job(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "lake.png")
+            write_txt_caption(media, "A lake.")
+            job_id = self._set_captions(root, "Replaced.")
+            write_txt_caption(media, "Edited by hand.")
+
+            payload = client.post(f"/api/jobs/{job_id}/undo").json()
+
+            self.assertEqual(payload["changed"], [str(media)])
+            self.assertEqual(payload["restored"], [])
+            self.assertEqual(
+                media.with_suffix(".txt").read_text(encoding="utf-8").strip(), "Edited by hand."
+            )
+
+    def test_runs_once(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "lake.png"), "A lake.")
+            job_id = self._set_captions(root, "Replaced.")
+            client.post(f"/api/jobs/{job_id}/undo")
+
+            again = client.post(f"/api/jobs/{job_id}/undo")
+
+            self.assertEqual(again.status_code, 409)
+            self.assertEqual(again.json()["code"], "job_undo_unavailable")
+
+    def test_a_job_that_wrote_nothing_has_nothing_to_undo(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            started = client.post(f"/api/automation/strip-metadata?path={quote(str(root))}")
+            job_id = started.json()["id"]
+            wait_for_job(job_id)
+
+            self.assertFalse(client.get(f"/api/jobs/{job_id}").json()["undoable"])
+            self.assertEqual(client.post(f"/api/jobs/{job_id}/undo").status_code, 409)
+
+
 if __name__ == "__main__":
     unittest.main()

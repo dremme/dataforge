@@ -80,6 +80,7 @@ for (const width of [1024, 1440]) {
                     ? "upscale_2x"
                     : null,
               workflow_edited: scenario === "training",
+              undoable: false,
               created_at: "2026-01-01T00:00:00.000Z",
               started_at: "2026-01-01T00:00:00.000Z",
               finished_at: active ? null : "2026-01-01T00:02:30.000Z",

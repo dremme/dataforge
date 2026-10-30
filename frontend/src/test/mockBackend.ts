@@ -86,6 +86,7 @@ function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_capt
   const now = new Date().toISOString();
   return {
     workflow_edited: false,
+    undoable: false,
     id: `job-${jobType}-${folderPath}`,
     folder: folderPath,
     folder_name: folderLeafName(folderPath),
@@ -990,6 +991,8 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           path,
           deleted: deleted.filter((name) => !retained.some((kept) => kept.endsWith(name))),
           retained: retained.map((kept) => ({ path: kept, message: "The file is in use" })),
+          // As where deletes are permanent: nothing to undo.
+          recycled: [],
         });
       }
 

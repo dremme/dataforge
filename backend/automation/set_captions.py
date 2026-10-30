@@ -13,7 +13,7 @@ from captions import (
     CaptionConflictError,
     CaptionTarget,
     load_reference_caption,
-    save_caption,
+    save_caption_undoably,
 )
 from constants import MEDIA_EXTENSIONS
 
@@ -54,7 +54,7 @@ def run_set_captions_job(
                 return FileOutcome.counted("skipped", "Existing caption present")
 
         try:
-            save_caption(target.primary, text, base_revision=reference.revision)
+            undo = save_caption_undoably(target.primary, text, base_revision=reference.revision)
         except CaptionConflictError as exc:
             return FileOutcome.counted(CAPTION_CHANGED_STATUS, exc)
         except Exception as exc:
@@ -64,6 +64,7 @@ def run_set_captions_job(
             status="success",
             stats={"success": 1},
             fields={"description": text or None},
+            undo=undo,
         )
 
     return run_caption_job(

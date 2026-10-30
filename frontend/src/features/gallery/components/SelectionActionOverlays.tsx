@@ -9,12 +9,14 @@ import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 export interface SelectionActionOverlaysProps {
   currentFolder: string | undefined;
-  selectedPaths: ReadonlySet<string>;
   selectedCount: number;
   transferPicker: MediaTransferMode | null;
   overwritePrompt: MediaTransferPrompt | null;
   transferring: MediaTransferMode | null;
   deleteConfirmOpen: boolean;
+  /** The selection, or the one file a card's own Delete names. */
+  deletePaths: ReadonlySet<string>;
+  deletesSelection: boolean;
   deleting: boolean;
   onCloseTransferPicker: () => void;
   onSelectDestination: (mode: MediaTransferMode, destination: string) => void;
@@ -26,12 +28,13 @@ export interface SelectionActionOverlaysProps {
 
 export function SelectionActionOverlays({
   currentFolder,
-  selectedPaths,
   selectedCount,
   transferPicker,
   overwritePrompt,
   transferring,
   deleteConfirmOpen,
+  deletePaths,
+  deletesSelection,
   deleting,
   onCloseTransferPicker,
   onSelectDestination,
@@ -40,18 +43,21 @@ export function SelectionActionOverlays({
   onConfirmDelete,
   onCancelDelete,
 }: SelectionActionOverlaysProps) {
-  const scope: DialogScopeInfo | undefined = currentFolder
-    ? {
-        itemCount: selectedCount,
-        folderLabel: pathBaseName(currentFolder),
-        kind: "selected" as const,
-      }
-    : undefined;
+  // A card's own Delete names its file in the description; a selection scope would misstate it.
+  const scope: DialogScopeInfo | undefined =
+    currentFolder && deletesSelection
+      ? {
+          itemCount: selectedCount,
+          folderLabel: pathBaseName(currentFolder),
+          kind: "selected" as const,
+        }
+      : undefined;
 
+  const deleteCount = deletePaths.size;
   const deleteDescription =
-    selectedCount === 1 ? (
+    deleteCount === 1 ? (
       <span>
-        This will delete <strong>{pathBaseName(Array.from(selectedPaths)[0])}</strong> and any
+        This will delete <strong>{pathBaseName(Array.from(deletePaths)[0])}</strong> and any
         matching caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}). On Windows, files are moved to
         the Recycle Bin.
       </span>
@@ -95,7 +101,7 @@ export function SelectionActionOverlays({
 
       {deleteConfirmOpen && (
         <ConfirmDialog
-          title={selectedCount === 1 ? "Delete file?" : "Delete selected files?"}
+          title={deleteCount === 1 ? "Delete file?" : "Delete selected files?"}
           scope={scope}
           description={deleteDescription}
           confirmLabel={deleting ? "Deleting..." : "Delete"}

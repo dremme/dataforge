@@ -42,8 +42,14 @@ export function GalleryMasonry({
   showAspectRatio,
   showTags,
 }: GalleryMasonryProps) {
-  const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo, inspectedPath } =
-    useGallerySelectionContext();
+  const {
+    selectionMode,
+    selectedPaths,
+    toggleSelectedPath,
+    extendSelectionTo,
+    inspectedPath,
+    actions: { copyCaption, openDeleteConfirmFor },
+  } = useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
   const layout = galleryLayoutFor("large");
   const { columnCount, width } = useGalleryColumns(listRef, "large");
@@ -118,6 +124,8 @@ export function GalleryMasonry({
               inspected={inspectedPath === card.item.path}
               onToggleSelect={toggleSelectedPath}
               onExtendSelect={extendSelectionTo}
+              onCopyCaption={copyCaption}
+              onDelete={openDeleteConfirmFor}
             />
           ))}
         </div>
@@ -141,6 +149,8 @@ interface MasonryCardProps {
   inspected: boolean;
   onToggleSelect: (path: string) => void;
   onExtendSelect: (path: string) => void;
+  onCopyCaption: (caption: string) => void;
+  onDelete: (path: string) => void;
 }
 
 function MasonryCard({
@@ -157,6 +167,8 @@ function MasonryCard({
   inspected,
   onToggleSelect,
   onExtendSelect,
+  onCopyCaption,
+  onDelete,
 }: MasonryCardProps) {
   const box = largeCardBox(card.item, columnWidth, captionLines, showTags);
 
@@ -188,6 +200,8 @@ function MasonryCard({
         inspected={inspected}
         onToggleSelect={onToggleSelect}
         onExtendSelect={onExtendSelect}
+        onCopyCaption={onCopyCaption}
+        onDelete={onDelete}
       />
     </div>
   );

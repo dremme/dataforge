@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { deleteSelectedMedia, type MediaTransferMode } from "@/features/gallery/api/media";
 import { useDeleteLeftoversNotice } from "@/features/gallery/hooks/useDeleteLeftoversNotice";
+import { useDeleteUndoNotice } from "@/features/gallery/hooks/useDeleteUndoNotice";
 import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
 import { failureMessage } from "@/features/gallery/lib/mediaActionMessages";
 import { useNotify } from "@/shared/notifications/notifications";
@@ -24,8 +25,12 @@ export function useGallerySelectionActions({
 }: UseGallerySelectionActionsOptions) {
   const notify = useNotify();
   const notifyDeleteLeftovers = useDeleteLeftoversNotice();
+  const notifyDeleteUndo = useDeleteUndoNotice();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // Set by a card's own Delete; otherwise the confirm acts on the selection.
+  const [deleteTarget, setDeleteTarget] = useState<ReadonlySet<string> | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const deletePaths = deleteTarget ?? visibleSelectedPaths;
 
   const transferPaths = useMemo(() => Array.from(visibleSelectedPaths), [visibleSelectedPaths]);
 
@@ -40,16 +45,37 @@ export function useGallerySelectionActions({
 
   const openDeleteConfirm = useCallback(() => {
     if (busy || visibleSelectedCount === 0) return;
+    setDeleteTarget(null);
     setDeleteConfirmOpen(true);
   }, [busy, visibleSelectedCount]);
+
+  const openDeleteConfirmFor = useCallback(
+    (path: string) => {
+      if (busy) return;
+      setDeleteTarget(new Set([path]));
+      setDeleteConfirmOpen(true);
+    },
+    [busy],
+  );
 
   const cancelDeleteConfirm = useCallback(() => {
     if (deleting) return;
     setDeleteConfirmOpen(false);
+    setDeleteTarget(null);
   }, [deleting]);
 
+  const copyCaption = useCallback(
+    (caption: string) => {
+      void navigator.clipboard.writeText(caption).then(
+        () => notify({ variant: "success", message: "Caption copied." }),
+        () => notify({ variant: "danger", message: "Could not copy the caption." }),
+      );
+    },
+    [notify],
+  );
+
   const confirmDelete = useCallback(async () => {
-    const paths = Array.from(visibleSelectedPaths);
+    const paths = Array.from(deletePaths);
     if (paths.length === 0 || deleting) return;
 
     setDeleting(true);
@@ -62,15 +88,18 @@ export function useGallerySelectionActions({
       }
 
       setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
 
       if (failed.length > 0) {
         notify({ variant: "danger", message: failureMessage("delete", failed) });
       }
       notifyDeleteLeftovers(responses);
+      // onCopied refreshes the folder, which is all restored files need to show up again.
+      notifyDeleteUndo(responses, onCopied);
     } finally {
       setDeleting(false);
     }
-  }, [deleting, notify, notifyDeleteLeftovers, onDeleted, visibleSelectedPaths]);
+  }, [deleting, deletePaths, notify, notifyDeleteLeftovers, notifyDeleteUndo, onCopied, onDeleted]);
 
   const canAct = visibleSelectedCount > 0 && !busy;
 
@@ -88,15 +117,18 @@ export function useGallerySelectionActions({
       transferring,
       canAct,
       openDeleteConfirm,
+      openDeleteConfirmFor,
+      copyCaption,
       startTransfer,
       overlay: {
         currentFolder,
-        selectedPaths: visibleSelectedPaths,
         selectedCount: visibleSelectedCount,
         transferPicker,
         overwritePrompt,
         transferring,
         deleteConfirmOpen,
+        deletePaths,
+        deletesSelection: deleteTarget === null,
         deleting,
         onCloseTransferPicker: transfer.closeTransferPicker,
         onSelectDestination: transfer.selectDestination,
@@ -111,10 +143,14 @@ export function useGallerySelectionActions({
       canAct,
       cancelDeleteConfirm,
       confirmDelete,
+      copyCaption,
       currentFolder,
       deleteConfirmOpen,
+      deletePaths,
+      deleteTarget,
       deleting,
       openDeleteConfirm,
+      openDeleteConfirmFor,
       overwritePrompt,
       startTransfer,
       transfer.closeOverwritePrompt,
@@ -124,7 +160,6 @@ export function useGallerySelectionActions({
       transferPicker,
       transferring,
       visibleSelectedCount,
-      visibleSelectedPaths,
     ],
   );
 }

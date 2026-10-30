@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 import regex
@@ -18,7 +19,7 @@ from captions import (
     CaptionTarget,
     caption_targets,
     load_reference_caption,
-    save_caption,
+    save_caption_undoably,
 )
 from constants import CAPTION_REGEX_TIMEOUT_SECONDS, MEDIA_EXTENSIONS
 
@@ -273,13 +274,13 @@ def run_replace_captions_job(
                 return FileOutcome.counted("write_error", f"Could not back up the caption: {exc}")
 
         try:
-            save_caption(target.primary, edited, base_revision=reference.revision)
+            undo = save_caption_undoably(target.primary, edited, base_revision=reference.revision)
         except CaptionConflictError as exc:
             return FileOutcome.counted(CAPTION_CHANGED_STATUS, exc)
         except Exception as exc:
             return FileOutcome.counted("write_error", exc)
 
-        return FileOutcome.counted("success", description=edited.strip())
+        return replace(FileOutcome.counted("success", description=edited.strip()), undo=undo)
 
     return run_caption_job(
         folder,

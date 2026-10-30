@@ -407,7 +407,7 @@ describe("GalleryCard", () => {
         <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
       );
 
-      hover(screen.getByRole("button"));
+      hover(screen.getByRole("button", { name: /^View / }));
       act(() => vi.advanceTimersByTime(399));
       expect(preview(container)).toBeNull();
 
@@ -424,7 +424,7 @@ describe("GalleryCard", () => {
         <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
       );
 
-      hover(screen.getByRole("button"));
+      hover(screen.getByRole("button", { name: /^View / }));
       act(() => vi.advanceTimersByTime(400));
 
       const video = preview(container)!;
@@ -440,7 +440,7 @@ describe("GalleryCard", () => {
         </StrictMode>,
       );
 
-      hover(screen.getByRole("button"));
+      hover(screen.getByRole("button", { name: /^View / }));
       act(() => vi.advanceTimersByTime(400));
 
       expect(preview(container)?.getAttribute("src")).toBe(galleryItemMediaUrl(uncaptionedItem));
@@ -450,7 +450,7 @@ describe("GalleryCard", () => {
       const { container } = render(
         <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
       );
-      const card = screen.getByRole("button");
+      const card = screen.getByRole("button", { name: /^View / });
 
       hover(card);
       act(() => vi.advanceTimersByTime(300));
@@ -465,7 +465,7 @@ describe("GalleryCard", () => {
       const { container } = render(
         <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
       );
-      const card = screen.getByRole("button");
+      const card = screen.getByRole("button", { name: /^View / });
 
       hover(card);
       act(() => vi.advanceTimersByTime(400));
@@ -475,19 +475,6 @@ describe("GalleryCard", () => {
       expect(preview(container)).toBeNull();
       expect(pause).toHaveBeenCalled();
       expect(load).toHaveBeenCalled();
-    });
-
-    it("hides the overlay once the preview is actually playing", () => {
-      const { container } = render(
-        <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
-      );
-
-      hover(screen.getByRole("button"));
-      act(() => vi.advanceTimersByTime(400));
-      expect(container.querySelector(".card--previewing")).toBeNull();
-
-      fireEvent.playing(preview(container)!);
-      expect(container.querySelector(".card--previewing")).not.toBeNull();
     });
 
     it.each([
@@ -502,7 +489,7 @@ describe("GalleryCard", () => {
         <GalleryCard item={item} onSelect={vi.fn<(path: string) => void>()} />,
       );
 
-      hover(screen.getByRole("button"));
+      hover(screen.getByRole("button", { name: /^View / }));
       act(() => vi.advanceTimersByTime(1000));
 
       expect(container.querySelector("video")).toBeNull();
@@ -513,7 +500,7 @@ describe("GalleryCard", () => {
         <GalleryCard item={uncaptionedItem} onSelect={vi.fn<(path: string) => void>()} />,
       );
 
-      hover(screen.getByRole("button"), "touch");
+      hover(screen.getByRole("button", { name: /^View / }), "touch");
       act(() => vi.advanceTimersByTime(1000));
 
       expect(preview(container)).toBeNull();
@@ -560,6 +547,77 @@ describe("GalleryCard", () => {
 
       expect(screen.getByRole("tooltip")).toHaveTextContent(longName);
       expect(container.querySelector("[title]")).toBeNull();
+    });
+  });
+
+  describe("quick actions", () => {
+    const renderWithActions = (item: GalleryItem, selectionMode = false) => {
+      const onSelect = vi.fn<(path: string) => void>();
+      const onCopyCaption = vi.fn<(caption: string) => void>();
+      const onDelete = vi.fn<(path: string) => void>();
+      render(
+        <GalleryCard
+          item={item}
+          onSelect={onSelect}
+          selectionMode={selectionMode}
+          onCopyCaption={onCopyCaption}
+          onDelete={onDelete}
+        />,
+      );
+      return { onSelect, onCopyCaption, onDelete };
+    };
+
+    it("sits beside the card button, never inside it", () => {
+      renderWithActions(captionedItem);
+
+      const card = screen.getByRole("button", { name: "View sunset.png" });
+      const toolbar = screen.getByRole("toolbar", { name: "Actions for sunset.png" });
+      expect(card).not.toContainElement(toolbar);
+    });
+
+    it("opens, copies the caption and deletes with the card's own path", async () => {
+      const user = userEvent.setup();
+      const { onSelect, onCopyCaption, onDelete } = renderWithActions(captionedItem);
+
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      await user.click(screen.getByRole("button", { name: "Copy caption" }));
+      await user.click(screen.getByRole("button", { name: "Delete" }));
+
+      expect(onSelect).toHaveBeenCalledWith(captionedItem.path);
+      expect(onCopyCaption).toHaveBeenCalledWith("Golden hour over the harbour");
+      expect(onDelete).toHaveBeenCalledWith(captionedItem.path);
+    });
+
+    it("offers no copy when there is no caption", () => {
+      renderWithActions(uncaptionedItem);
+
+      expect(screen.queryByRole("button", { name: "Copy caption" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    });
+
+    it("keeps only Open while selecting, since the card click toggles selection", () => {
+      renderWithActions(captionedItem, true);
+
+      const toolbar = screen.getByRole("toolbar");
+      expect(
+        Array.from(toolbar.querySelectorAll("button")).map((button) => button.ariaLabel),
+      ).toEqual(["Open"]);
+    });
+
+    it("is one tab stop, with arrows moving between its buttons", async () => {
+      const user = userEvent.setup();
+      renderWithActions(captionedItem);
+
+      await user.tab();
+      expect(screen.getByRole("button", { name: "View sunset.png" })).toHaveFocus();
+      await user.tab();
+      expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
+      await user.keyboard("{ArrowRight}");
+      expect(screen.getByRole("button", { name: "Copy caption" })).toHaveFocus();
+      await user.keyboard("{ArrowLeft}{ArrowLeft}");
+      expect(screen.getByRole("button", { name: "Delete" })).toHaveFocus();
+      await user.tab();
+      expect(document.body).toHaveFocus();
     });
   });
 });

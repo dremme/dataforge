@@ -311,7 +311,7 @@ class ReplaceCaptionsJobTests(unittest.TestCase):
             write_txt_caption(media, "a dog")
 
             with patch(
-                "automation.replace_captions.save_caption",
+                "captions.save_caption",
                 side_effect=OSError("disk full"),
             ):
                 result = run_replace_captions_job(root, search="dog", replacement="cat")
