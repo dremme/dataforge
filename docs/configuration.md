@@ -200,18 +200,27 @@ Folders are created as needed. History pruning runs at startup, hourly, and afte
 
 ## CPU temperature on Windows
 
-The system specifications panel reads GPU temperature when available and attempts CPU temperature on Linux. On Windows, the optional sensor task currently supports AMD Ryzen only.
+The system specifications panel reads GPU temperature when available and attempts CPU temperature on Linux. On Windows, an optional sensor task supports Intel CPUs and AMD Ryzen, using the third-party [PawnIO](https://pawnio.eu) driver because Windows gives normal programs no CPU temperature.
 
-1. Install AMD's [Ryzen Master Monitoring SDK](https://www.amd.com/en/developer/ryzen-master-monitoring-sdk.html).
-2. Right-click `scripts\install-cpu-temperature-sensor.bat` and choose **Run as administrator**, or run it from an administrator terminal at the project root:
+Right-click `scripts\install-cpu-temperature-sensor.bat` and choose **Run as administrator**, or run it from an administrator terminal at the project root:
 
-   ```bat
-   scripts\install-cpu-temperature-sensor.bat
-   ```
+```bat
+scripts\install-cpu-temperature-sensor.bat
+```
 
-The installer tests AMD's CLI before registering **DataForge CPU temperature**. The task starts with Windows, runs as SYSTEM, polls every two seconds, and writes `%ProgramData%\DataForge\sensors\cpu_temperature.txt` in an administrator-controlled folder. DataForge reads that file without elevation. Readings older than 10 seconds are hidden.
+If PawnIO is missing, the installer downloads its official setup at a pinned version, checks the SHA-256 digest, and installs it silently. This skips PawnIO's own copyright window; PawnIO is licensed under GPL-2.0. If Windows needs a restart, the installer says so; restart and run it again.
 
-To remove the task and sensor folder, run from an administrator terminal:
+The installer then picks the `IntelMSR` or `AMDFamily17` module for your CPU, downloads it from a pinned [PawnIO.Modules](https://github.com/namazso/PawnIO.Modules) release, and checks its digest. It tests a reading before registering **DataForge CPU temperature**, and removes the task and sensor folder again if that fails.
+
+The task starts with Windows, runs as SYSTEM, polls every two seconds, and writes `%ProgramData%\DataForge\sensors\cpu_temperature.txt` in an administrator-controlled folder. DataForge reads that file without elevation. Readings older than 10 seconds are hidden.
+
+Before installing, note that:
+
+- PawnIO is a kernel driver maintained outside DataForge. DataForge doesn't ship it, but this installer adds it to your system.
+- The `AMDFamily17` module can read any AMD internal (SMN) register, while `IntelMSR` only allows a fixed list of registers. Only administrators and SYSTEM can reach either.
+- Some users report that game anti-cheat systems object to PawnIO being installed.
+
+To remove the task and sensor folder, run from an administrator terminal. This leaves PawnIO installed, because other tools may rely on it; remove it from Windows settings if nothing else needs it.
 
 ```bat
 scripts\install-cpu-temperature-sensor.bat -Uninstall

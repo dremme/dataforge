@@ -204,10 +204,9 @@ def _cpu_load_percent() -> float | None:
 _LINUX_CPU_HWMON_NAMES = ("k10temp", "zenpower", "coretemp", "cpu_thermal", "cpu-thermal")
 
 
-#: Written by the elevated task from scripts/install-cpu-temperature-sensor.ps1.
+#: Holds one Celsius number, written by the task from scripts/install-cpu-temperature-sensor.ps1.
 _WINDOWS_SENSOR_FILE = Path("DataForge", "sensors", "cpu_temperature.txt")
 _WINDOWS_SENSOR_MAX_AGE_SECONDS = 10.0
-_AMD_CLI_TEMPERATURE = re.compile(r"^GetCurrentTemperature\s*\.+\s*(-?\d+(?:\.\d+)?) Celsius", re.M)
 
 
 def _windows_cpu_temperature() -> float | None:
@@ -218,16 +217,9 @@ def _windows_cpu_temperature() -> float | None:
     try:
         if time.time() - sensor_file.stat().st_mtime > _WINDOWS_SENSOR_MAX_AGE_SECONDS:
             return None
-        match = _AMD_CLI_TEMPERATURE.search(
-            sensor_file.read_text(encoding="utf-8", errors="replace")
-        )
-    except OSError:
+        return float(sensor_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
         return None
-    if not match:
-        return None
-    celsius = float(match.group(1))
-    # The SDK leaves -1 in the field when the CPU does not report it.
-    return celsius if celsius >= 0 else None
 
 
 def _linux_cpu_temperature() -> float | None:
